@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name        	AMQ Rule Script
+// @name        	AMQ Game Mode Rules
 // @namespace   	https://github.com/kempanator
 // @version     	0.1
 // @description 	send pastebin of game mode rules in AMQ chat, type /rules to see list
