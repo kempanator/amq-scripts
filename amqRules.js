@@ -2,11 +2,12 @@
 // @name        	AMQ Game Mode Rules
 // @namespace   	https://github.com/kempanator
 // @version     	0.1
-// @description 	send pastebin of game mode rules in AMQ chat, type /rules to see list
+// @description 	Send pastebin of game mode rules in AMQ chat, type /rules to see list
 // @author      	kempanator
 // @match       	https://animemusicquiz.com/*
 // @grant       	none
 // @require     	https://raw.githubusercontent.com/TheJoseph98/AMQ-Scripts/master/common/amqScriptInfo.js
+// @downloadURL 	https://raw.githubusercontent.com/kempanator/amq-scripts/main/amqRules.js
 // ==/UserScript==
 
 if (document.getElementById("startPage")) return;
@@ -26,14 +27,14 @@ function setup() {
                 if (/^\/rules$/.test(message.message)) {
                     sendChatMessage(Object.keys(rules).join(", "));
                 }
-                if (/^\/rules .*$/.test(message.message)) {
+                else if (/^\/rules .*$/.test(message.message)) {
                     let option = message.message.substring(7);
                     if (option in rules) sendChatMessage(rules[option]);
                 }
-                if (/^\/info$/.test(message.message)) {
+                else if (/^\/info$/.test(message.message)) {
                     sendChatMessage(Object.keys(info).join(", "));
                 }
-                if (/^\/info .*$/.test(message.message)) {
+                else if (/^\/info .*$/.test(message.message)) {
                     let option = message.message.substring(6);
                     if (option in info) sendChatMessage(info[option]);
                 }
@@ -56,10 +57,7 @@ function sendChatMessage(message) {
     socket.sendCommand({
         type: "lobby",
         command: "game chat message",
-        data: {
-            msg: message,
-            teamMessage: false,
-        },
+        data: { msg: message, teamMessage: false }
     });
 }
 
