@@ -38,7 +38,7 @@ TOOLS
 /rules              show list of gamemodes and rules
 /info               show list of external utilities
 /pm [name] [text]   private message a player (name is case sensitive)
-/profile            show profile window of any player
+/profile [name]     show profile window of any player
 /password           reveal private room password
 /invisible          show invisible friends (only accurate right after you log in)
 */
