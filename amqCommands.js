@@ -1,14 +1,45 @@
 // ==UserScript==
-// @name        	AMQ Mega Commands
-// @namespace   	https://github.com/kempanator
-// @version     	0.1
-// @description 	Commands for AMQ Chat
-// @author      	kempanator
-// @match       	https://animemusicquiz.com/*
-// @grant       	none
-// @require     	https://raw.githubusercontent.com/TheJoseph98/AMQ-Scripts/master/common/amqScriptInfo.js
-// @downloadURL 	https://raw.githubusercontent.com/kempanator/amq-scripts/main/amqCommands.js
+// @name            AMQ Mega Commands
+// @namespace       https://github.com/kempanator
+// @version         0.2
+// @description     Commands for AMQ Chat
+// @author          kempanator
+// @match           https://animemusicquiz.com/*
+// @grant           none
+// @require         https://raw.githubusercontent.com/TheJoseph98/AMQ-Scripts/master/common/amqScriptInfo.js
+// @downloadURL     https://raw.githubusercontent.com/kempanator/amq-scripts/main/amqCommands.js
 // ==/UserScript==
+
+/*
+GAME SETTINGS
+/size [2-40]        change room size
+/type [oei]         change song types
+/speed [1-4]        change song speed
+/time [5-60]        change song guess time
+/lives [1-5]        change number of lives
+/team [1-8]         change team size
+/songs [5-100]      change number of songs
+/dif [low-high]     change difficulty
+
+IN GAME
+/autoskip           automatically vote skip at the beginning of each song
+/autothrow [text]   automatically send answer at the beginning of each song
+/autocopy [name]    automatically copy a team member's answer
+/host [name]        promote host
+/kick [name]        kick player
+/invite [name]      invite player to game
+/pause              pause/unpause game
+/lobby              start return to lobby vote
+
+TOOLS
+/roll               roll number, player, playerteam, spectator
+/rules              show list of gamemodes and rules
+/info               show list of external utilities
+/pm [name] [text]   private message a player (name is case sensitive)
+/profile            show profile window of any player
+/password           reveal private room password
+/invisible          show invisible friends (only accurate right after you log in)
+*/
 
 if (document.getElementById("startPage")) return;
 let loadInterval = setInterval(() => {
@@ -28,7 +59,7 @@ function setup() {
     new Listener("play next song", (payload) => {
         if (auto_answer && !quiz.isSpectator && quiz.gameMode !== "Ranked") {
             $("#qpAnswerInput").val(auto_answer);
-			quiz.answerInput.submitAnswer(true);
+            quiz.answerInput.submitAnswer(true);
         }
         if (auto_skip && !quiz.isSpectator && quiz.gameMode !== "Ranked") {
             setTimeout(() => { quiz.skipClicked() }, 200);
@@ -46,10 +77,12 @@ function setup() {
         }
     }).bindListener();
     new Listener("team member answer", (payload) => {
+        let current_text = document.querySelector("#qpAnswerInput").value;
         if (auto_copy_player && auto_copy_player !== selfName.toLowerCase()) {
             if (auto_copy_player === quiz.players[payload.gamePlayerId]._name.toLowerCase()) {
                 $("#qpAnswerInput").val(payload.answer);
-			    quiz.answerInput.submitAnswer(true);
+                quiz.answerInput.submitAnswer(true);
+                $("#qpAnswerInput").val(current_text);
             }
         }
     }).bindListener();
@@ -73,7 +106,7 @@ function parseChat(message) {
             let number = parseInt(message.message.split(" ")[1]);
             sendChatMessage("rolls " + (Math.floor(Math.random() * number) + 1));
         }
-        else if (/^\/roll \d+ \d+$/.test(message.message)) {
+        else if (/^\/roll -?\d+ -?\d+$/.test(message.message)) {
             let split = message.message.split(" ");
             let low_number = parseInt(split[1]);
             let high_number = parseInt(split[2]);
@@ -81,7 +114,12 @@ function parseChat(message) {
         }
         else if (/^\/roll player$/.test(message.message)) {
             let player_list = getPlayerList();
-            sendChatMessage(player_list[Math.floor(Math.random() * player_list.length)]);
+            if (player_list.length > 0) {
+                sendChatMessage(player_list[Math.floor(Math.random() * player_list.length)]);
+            }
+            else {
+                sendChatMessage("no players");
+            }
         }
         else if (/^\/roll playerteam$/.test(message.message)) {
             if (lobby.settings.teamSize > 1) {
@@ -90,7 +128,8 @@ function parseChat(message) {
                     let teams = Object.keys(teamDictionary);
                     teams.sort((a, b) => parseInt(a) - parseInt(b));
                     for (let team of teams) {
-                        sendChatMessage("Team " + team + ": " + teamDictionary[team][Math.floor(Math.random() * teamDictionary[team].length)]);
+                        let name = teamDictionary[team][Math.floor(Math.random() * teamDictionary[team].length)];
+                        sendChatMessage(`Team ${team}: ${name}`);
                     }
                 }
             }
@@ -130,36 +169,36 @@ function parseChat(message) {
             let settings = hostModal.getSettings();
             settings.playbackSpeed.randomOn = false;
             settings.playbackSpeed.standardValue = option;
-		    changeGameSettings(settings);
+            changeGameSettings(settings);
         }
         else if (/^\/time \d+$/.test(message.message)) {
             let option = parseInt(message.message.split(" ")[1]);
             let settings = hostModal.getSettings();
             settings.guessTime.randomOn = false;
             settings.guessTime.standardValue = option;
-		    changeGameSettings(settings);
+            changeGameSettings(settings);
         }
         else if (/^\/lives \d+$/.test(message.message)) {
             let option = parseInt(message.message.split(" ")[1]);
             let settings = hostModal.getSettings();
             settings.scoreType = 3;
             settings.lives = option;
-		    changeGameSettings(settings);
+            changeGameSettings(settings);
         }
         else if (/^\/team \d+$/.test(message.message)) {
             let option = parseInt(message.message.split(" ")[1]);
             let settings = hostModal.getSettings();
             settings.teamSize.randomOn = false;
             settings.teamSize.standardValue = option;
-		    changeGameSettings(settings);
+            changeGameSettings(settings);
         }
-        else if (/^\/num \d+$/.test(message.message)) {
+        else if (/^\/songs \d+$/.test(message.message)) {
             let option = parseInt(message.message.split(" ")[1]);
             let settings = hostModal.getSettings();
             settings.numberOfSongs = option;
             changeGameSettings(settings);
         }
-        else if (/^\/dif \d+-\d+$/.test(message.message)) {
+        else if (/^\/(dif|difficulty) \d+-\d+$/.test(message.message)) {
             let option = message.message.split(" ")[1];
             let low = parseInt(option.split("-")[0]);
             let high = parseInt(option.split("-")[1]);
@@ -253,14 +292,14 @@ function parseChat(message) {
             sendChatMessage(Object.keys(rules).join(", "));
         }
         else if (/^\/rules .+$/.test(message.message)) {
-            let option =/^\/rules (.+)$/.exec(message.message)[1];
+            let option = /^\/rules (.+)$/.exec(message.message)[1];
             if (option in rules) sendChatMessage(rules[option]);
         }
         else if (/^\/info$/.test(message.message)) {
             sendChatMessage(Object.keys(info).join(", "));
         }
         else if (/^\/info .+$/.test(message.message)) {
-            let option =/^\/info (.+)$/.exec(message.message)[1];
+            let option = /^\/info (.+)$/.exec(message.message)[1];
             if (option in info) sendChatMessage(info[option]);
         }
     }
