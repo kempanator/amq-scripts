@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            AMQ Mega Commands
 // @namespace       https://github.com/kempanator
-// @version         0.2
+// @version         0.3
 // @description     Commands for AMQ Chat
 // @author          kempanator
 // @match           https://animemusicquiz.com/*
@@ -61,10 +61,17 @@ let loadInterval = setInterval(() => {
 
 function setup() {
     new Listener("game chat update", (payload) => {
-        payload.messages.forEach(parseChat(message));
+        payload.messages.forEach((payload) => {parseChat(payload)});
     }).bindListener();
     new Listener("Game Chat Message", (payload) => {
         // team chat listener
+    }).bindListener();
+    new Listener("chat message response", (payload) => {
+        // send private message listener {msg: "text", target: "name", emojis: {}}
+        parsePM(payload);
+    }).bindListener();
+    new Listener("chat message", (payload) => {
+        // receive private message listener {sender: "name", message: "text", emojis: {}, modMessage: false}
     }).bindListener();
     new Listener("play next song", (payload) => {
         if (auto_answer && !quiz.isSpectator && quiz.gameMode !== "Ranked") {
@@ -84,8 +91,6 @@ function setup() {
         if (auto_copy_player && auto_copy_player === quiz.players[payload.gamePlayerId]._name.toLowerCase()) {
             let current_text = document.querySelector("#qpAnswerInput").value;
             quiz.answerInput.setNewAnswer(payload.answer);
-            //$("#qpAnswerInput").val(payload.answer);
-            //quiz.answerInput.submitAnswer(true);
             $("#qpAnswerInput").val(current_text);
         }
     }).bindListener();
@@ -102,16 +107,17 @@ function setup() {
 function parseChat(message) {
     if (checkRankedMode()) return;
     if (message.sender === selfName) {
+        console.log("test");
         if (/^\/roll$/.test(message.message)) {
             sendChatMessage("roll commands: #, player, playerteam, spectator");
         }
-        else if (/^\/roll \d+$/.test(message.message)) {
-            let number = parseInt(/^\S+ (\d+)$/.exec(message.message)[1]);
+        else if (/^\/roll [0-9]+$/.test(message.message)) {
+            let number = parseInt(/^\S+ ([0-9]+)$/.exec(message.message)[1]);
             sendChatMessage("rolls " + (Math.floor(Math.random() * number) + 1));
         }
-        else if (/^\/roll -?\d+ -?\d+$/.test(message.message)) {
-            let low = parseInt(/^\S+ (-?\d+) -?\d+$/.exec(message.message)[1]);
-            let high = parseInt(/^\S+ -?\d+ (-?\d+)$/.exec(message.message)[1]);
+        else if (/^\/roll -?[0-9]+ -?[0-9]+$/.test(message.message)) {
+            let low = parseInt(/^\S+ (-?[0-9]+) -?[0-9]+$/.exec(message.message)[1]);
+            let high = parseInt(/^\S+ -?[0-9]+ (-?[0-9]+)$/.exec(message.message)[1]);
             sendChatMessage("rolls " + (Math.floor(Math.random() * (high - low + 1)) + low));
         }
         else if (/^\/roll (p|players?)$/.test(message.message)) {
@@ -148,13 +154,13 @@ function parseChat(message) {
                 sendChatMessage("no spectators");
             }
         }
-        else if (/^\/size \d+$/.test(message.message)) {
-            let option = parseInt(/^\S+ (\d+)$/.exec(message.message)[1]);
+        else if (/^\/size [0-9]+$/.test(message.message)) {
+            let option = parseInt(/^\S+ ([0-9]+)$/.exec(message.message)[1]);
             let settings = hostModal.getSettings();
             settings.roomSize = option;
             changeGameSettings(settings);
         }
-        else if (/^\/(t|type) \w+$/.test(message.message)) {
+        else if (/^\/(t|type?|songtypes?) \w+$/.test(message.message)) {
             let option = /^\S+ (\w+)$/.exec(message.message)[1].toLowerCase();
             let settings = hostModal.getSettings();
             settings.songType.standardValue.openings = option.includes("o");
@@ -182,43 +188,43 @@ function parseChat(message) {
             settings.songSelection.advancedValue["random"] = 0;
             changeGameSettings(settings);
         }
-        else if (/^\/(s|speed) (\d+|\d+.\d+)$/.test(message.message)) {
-            let option = parseFloat(/^\S+ (\d+|\d+.\d+)$/.exec(message.message)[1]);
+        else if (/^\/(s|speed) [0-9.]+$/.test(message.message)) {
+            let option = parseFloat(/^\S+ ([0-9.]+)$/.exec(message.message)[1]);
             let settings = hostModal.getSettings();
             settings.playbackSpeed.randomOn = false;
             settings.playbackSpeed.standardValue = option;
             changeGameSettings(settings);
         }
-        else if (/^\/time \d+$/.test(message.message)) {
-            let option = parseInt(/^\S+ (\d+)$/.exec(message.message)[1]);
+        else if (/^\/time [0-9]+$/.test(message.message)) {
+            let option = parseInt(/^\S+ ([0-9]+)$/.exec(message.message)[1]);
             let settings = hostModal.getSettings();
             settings.guessTime.randomOn = false;
             settings.guessTime.standardValue = option;
             changeGameSettings(settings);
         }
-        else if (/^\/lives \d+$/.test(message.message)) {
-            let option = parseInt(/^\S+ (\d+)$/.exec(message.message)[1]);
+        else if (/^\/lives [0-9]+$/.test(message.message)) {
+            let option = parseInt(/^\S+ ([0-9]+)$/.exec(message.message)[1]);
             let settings = hostModal.getSettings();
             settings.scoreType = 3;
             settings.lives = option;
             changeGameSettings(settings);
         }
-        else if (/^\/team \d+$/.test(message.message)) {
-            let option = parseInt(/^\S+ (\d+)$/.exec(message.message)[1]);
+        else if (/^\/team [0-9]+$/.test(message.message)) {
+            let option = parseInt(/^\S+ ([0-9]+)$/.exec(message.message)[1]);
             let settings = hostModal.getSettings();
             settings.teamSize.randomOn = false;
             settings.teamSize.standardValue = option;
             changeGameSettings(settings);
         }
-        else if (/^\/(n|songs) \d+$/.test(message.message)) {
-            let option = parseInt(/^\S+ (\d+)$/.exec(message.message)[1]);
+        else if (/^\/(n|songs) [0-9]+$/.test(message.message)) {
+            let option = parseInt(/^\S+ ([0-9]+)$/.exec(message.message)[1]);
             let settings = hostModal.getSettings();
             settings.numberOfSongs = option;
             changeGameSettings(settings);
         }
-        else if (/^\/(d|dif|difficulty) \d+( |-)\d+$/.test(message.message)) {
-            let low = parseInt(/^\S+ (\d+)( |-)(\d+)$/.exec(message.message)[1]);
-            let high = parseInt(/^\S+ (\d+)( |-)(\d+)$/.exec(message.message)[3]);
+        else if (/^\/(d|dif|difficulty) [0-9]+[ -][0-9]+$/.test(message.message)) {
+            let low = parseInt(/^\S+ ([0-9]+)[ -][0-9]+$/.exec(message.message)[1]);
+            let high = parseInt(/^\S+ [0-9]+[ -]([0-9]+)$/.exec(message.message)[1]);
             let settings = hostModal.getSettings();
             settings.songDifficulity.advancedOn = true;
             settings.songDifficulity.advancedValue = [low, high];
@@ -289,8 +295,8 @@ function parseChat(message) {
         else if (/^\/(lb|lobby|returntolobby)$/.test(message.message)) {
             quiz.startReturnLobbyVote();
         }
-        else if (/^\/(v|volume) \d+$/.test(message.message)) {
-            let option = parseInt(/^\S+ (\d+)$/.exec(message.message)[1]) / 100;
+        else if (/^\/(v|volume) [0-9]+$/.test(message.message)) {
+            let option = parseFloat(/^\S+ ([0-9]+)$/.exec(message.message)[1]) / 100;
             volumeController.volume = option;
             volumeController.adjustVolume();
             volumeController.setMuted(false);
@@ -342,6 +348,121 @@ function parseChat(message) {
         else if (/^\/info .+$/.test(message.message)) {
             let option = /^\S+ (.+)$/.exec(message.message)[1];
             if (option in info) sendChatMessage(info[option]);
+        }
+    }
+}
+
+function parsePM(message) {
+    if (/^\/roll$/.test(message.msg)) {
+        sendPM(message.target, "roll commands: #, player, playerteam, spectator");
+    }
+    else if (/^\/roll [0-9]+$/.test(message.msg)) {
+        let number = parseInt(/^\S+ ([0-9]+)$/.exec(message.msg)[1]);
+        sendPM(message.target, "rolls " + (Math.floor(Math.random() * number) + 1));
+    }
+    else if (/^\/roll -?[0-9]+ -?[0-9]+$/.test(message.msg)) {
+        let low = parseInt(/^\S+ (-?[0-9]+) -?[0-9]+$/.exec(message.msg)[1]);
+        let high = parseInt(/^\S+ -?[0-9]+ (-?[0-9]+)$/.exec(message.msg)[1]);
+        sendPM(message.target, "rolls " + (Math.floor(Math.random() * (high - low + 1)) + low));
+    }
+    else if (/^\/autoskip$/.test(message.msg)) {
+        auto_skip = !auto_skip;
+        sendSystemMessage("auto skip " + (auto_skip ? "enabled" : "disabled"));
+    }
+    else if (/^\/autocopy$/.test(message.msg)) {
+        auto_copy_player = "";
+        sendSystemMessage("auto copy disabled");
+    }
+    else if (/^\/autocopy \w+$/.test(message.msg)) {
+        auto_copy_player = /^\S+ (\w+)$/.exec(message.msg)[1].toLowerCase();
+        sendSystemMessage("auto copying " + auto_copy_player);
+    }
+    else if (/^\/autothrow$/.test(message.msg)) {
+        auto_answer = "";
+        sendSystemMessage("auto throw disabled");
+    }
+    else if (/^\/autothrow .+$/.test(message.msg)) {
+        auto_answer = translateShortcodeToUnicode(/^\S+ (.+)$/.exec(message.msg)[1]).text;
+        sendSystemMessage("auto throwing: " + auto_answer);
+    }
+    else if (/^\/pm$/.test(message.msg)) {
+        socialTab.startChat(selfName);
+    }
+    else if (/^\/pm \w+$/.test(message.msg)) {
+        let name = /^\S+ (\w+)$/.exec(message.msg)[1];
+        socialTab.startChat(name);
+    }
+    else if (/^\/pm \w+ .+$/.test(message.msg)) {
+        let name = /^\S+ (\w+) .+$/.exec(message.msg)[1];
+        let text = /^\S+ \w+ (.+)$/.exec(message.msg)[1];
+        socialTab.startChat(name);
+        sendPM(name, text);
+    }
+    else if (/^\/(prof|profile) \w+$/.test(message.msg)) {
+        let name = /^\S+ (\w+)$/.exec(message.msg)[1].toLowerCase();
+        playerProfileController.loadProfileIfClosed(name, $("#gameChatContainer"), {}, () => {}, false, true);
+    }
+    else if (/^\/invisible$/.test(message.msg)) {
+        let invisibleFriends = [];
+        for (let name of Object.keys(socialTab.offlineFriends)) {
+            if (name in socialTab.allPlayerList._playerEntries) {
+                invisibleFriends.push(name);
+            }
+        }
+        sendPM(message.target, invisibleFriends.length > 0 ? invisibleFriends.join(", ") : "no invisible friends detected");
+    }
+    else if (/^\/rules$/.test(message.msg)) {
+        sendPM(message.target, Object.keys(rules).join(", "));
+    }
+    else if (/^\/rules .+$/.test(message.msg)) {
+        let option = /^\S+ (.+)$/.exec(message.msg)[1];
+        if (option in rules) sendPM(message.target, rules[option]);
+    }
+    else if (/^\/info$/.test(message.msg)) {
+        sendPM(message.target, Object.keys(info).join(", "));
+    }
+    else if (/^\/info .+$/.test(message.msg)) {
+        let option = /^\S+ (.+)$/.exec(message.msg)[1];
+        if (option in info) sendPM(message.target, info[option]);
+    }
+    if (lobby.inLobby || quiz.inQuiz) {
+        if (/^\/roll (p|players?)$/.test(message.msg)) {
+            let player_list = getPlayerList();
+            if (player_list.length > 0) {
+                sendPM(message.target, player_list[Math.floor(Math.random() * player_list.length)]);
+            }
+            else {
+                sendPM(message.target, "no players");
+            }
+        }
+        else if (/^\/roll (pt|playerteams?|teams?)$/.test(message.msg)) {
+            if (lobby.settings.teamSize > 1) {
+                let teamDictionary = getTeamDictionary();
+                if (Object.keys(teamDictionary).length > 0) {
+                    let teams = Object.keys(teamDictionary);
+                    teams.sort((a, b) => parseInt(a) - parseInt(b));
+                    for (let team of teams) {
+                        let name = teamDictionary[team][Math.floor(Math.random() * teamDictionary[team].length)];
+                        sendPM(message.target, `Team ${team}: ${name}`);
+                    }
+                }
+            }
+            else {
+                sendPM(message.target, "team size must be greater than 1");
+            }
+        }
+        else if (/^\/roll (s|spectators?)$/.test(message.msg)) {
+            let spectator_list = getSpectatorList();
+            if (spectator_list.length > 0) {
+                sendPM(message.target, spectator_list[Math.floor(Math.random() * spectator_list.length)]);
+            }
+            else {
+                sendPM(message.target, "no spectators");
+            }
+        }
+        else if (/^\/password$/.test(message.msg)) {
+            let password = hostModal.getSettings().password;
+            if (password) sendPM(message.target, password);
         }
     }
 }
@@ -412,6 +533,14 @@ function sendChatMessage(message) {
 
 function sendSystemMessage(message) {
     setTimeout(() => { gameChat.systemMessage(message) }, 50);
+}
+
+function sendPM(target, message) {
+    socket.sendCommand({
+        type: "social",
+        command: "chat message",
+        data: { target: target, message: message }
+    });
 }
 
 function checkRankedMode() {
