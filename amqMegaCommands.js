@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            AMQ Mega Commands
 // @namespace       https://github.com/kempanator
-// @version         0.3
+// @version         0.4
 // @description     Commands for AMQ Chat
 // @author          kempanator
 // @match           https://animemusicquiz.com/*
@@ -28,6 +28,7 @@ GAME SETTINGS
 
 IN GAME
 /autoskip           automatically vote skip at the beginning of each song
+/autosubmit         automatically submit answer on each key press
 /autothrow [text]   automatically send answer at the beginning of each song
 /autocopy [name]    automatically copy a team member's answer
 /spec               change to spectator
@@ -61,7 +62,7 @@ let loadInterval = setInterval(() => {
 
 function setup() {
     new Listener("game chat update", (payload) => {
-        payload.messages.forEach((payload) => {parseChat(payload)});
+        payload.messages.forEach((message) => { parseChat(message) });
     }).bindListener();
     new Listener("Game Chat Message", (payload) => {
         // team chat listener
@@ -74,8 +75,8 @@ function setup() {
         // receive private message listener {sender: "name", message: "text", emojis: {}, modMessage: false}
     }).bindListener();
     new Listener("play next song", (payload) => {
-        if (auto_answer && !quiz.isSpectator && quiz.gameMode !== "Ranked") {
-            $("#qpAnswerInput").val(auto_answer);
+        if (auto_throw && !quiz.isSpectator && quiz.gameMode !== "Ranked") {
+            $("#qpAnswerInput").val(auto_throw);
             quiz.answerInput.submitAnswer(true);
         }
         if (auto_skip && !quiz.isSpectator && quiz.gameMode !== "Ranked") {
@@ -84,8 +85,9 @@ function setup() {
     }).bindListener();
     new Listener("Game Starting", (payload) => {
         if (auto_skip) sendSystemMessage("Auto Skip: Enabled");
+        if (auto_submit_answer) sendSystemMessage("Auto Submit Answer: Enabled");
         if (auto_copy_player) sendSystemMessage("Auto Copy: " + auto_copy_player);
-        if (auto_answer) sendSystemMessage("Auto Throw: " + auto_answer);
+        if (auto_throw) sendSystemMessage("Auto Throw: " + auto_throw);
     }).bindListener();
     new Listener("team member answer", (payload) => {
         if (auto_copy_player && auto_copy_player === quiz.players[payload.gamePlayerId]._name.toLowerCase()) {
@@ -94,6 +96,16 @@ function setup() {
             $("#qpAnswerInput").val(current_text);
         }
     }).bindListener();
+    document.querySelector('#qpAnswerInput').addEventListener('input', (event) => {
+        let answer = event.target.value || ' ';
+        if (auto_submit_answer) {
+            socket.sendCommand({
+                type: "quiz",
+                command: "quiz answer",
+                data: { answer, isPlaying: true, volumeAtMax: false }
+            });
+        }
+    });
 
     AMQ_addScriptData({
         name: "Mega Commands",
@@ -160,7 +172,7 @@ function parseChat(message) {
             settings.roomSize = option;
             changeGameSettings(settings);
         }
-        else if (/^\/(t|type?|songtypes?) \w+$/.test(message.message)) {
+        else if (/^\/(t|types?|songtypes?) \w+$/.test(message.message)) {
             let option = /^\S+ (\w+)$/.exec(message.message)[1].toLowerCase();
             let settings = hostModal.getSettings();
             settings.songType.standardValue.openings = option.includes("o");
@@ -240,6 +252,10 @@ function parseChat(message) {
             auto_skip = !auto_skip;
             sendSystemMessage("auto skip " + (auto_skip ? "enabled" : "disabled"));
         }
+        else if (/^\/autosubmit$/.test(message.message)) {
+            auto_submit_answer = !auto_submit_answer;
+            sendSystemMessage("auto submit answer " + (auto_submit_answer ? "enabled" : "disabled"));
+        }
         else if (/^\/autocopy$/.test(message.message)) {
             auto_copy_player = "";
             sendSystemMessage("auto copy disabled");
@@ -249,15 +265,15 @@ function parseChat(message) {
             sendSystemMessage("auto copying " + auto_copy_player);
         }
         else if (/^\/autothrow$/.test(message.message)) {
-            auto_answer = "";
+            auto_throw = "";
             sendSystemMessage("auto throw disabled " + auto_copy_player);
         }
         else if (/^\/autothrow .+$/.test(message.message)) {
-            auto_answer = translateShortcodeToUnicode(/^\S+ (.+)$/.exec(message.message)[1]).text;
-            sendSystemMessage("auto throwing: " + auto_answer);
+            auto_throw = translateShortcodeToUnicode(/^\S+ (.+)$/.exec(message.message)[1]).text;
+            sendSystemMessage("auto throwing: " + auto_throw);
         }
         else if (/^\/(inv|invite) \w+$/.test(message.message)) {
-            let name = /^\S+ (\w+)$/.exec(message.message)[1].toLowerCase();
+            let name = /^\S+ (\w+)$/.exec(message.message)[1];
             socket.sendCommand({
                 type: "social",
                 command: "invite to game",
@@ -268,7 +284,7 @@ function parseChat(message) {
             lobby.changeToSpectator(selfName);
         }
         else if (/^\/(spec|spectate) \w+$/.test(message.message)) {
-            let name = /^\S+ (\w+)$/.exec(message.message)[1].toLowerCase();
+            let name = /^\S+ (\w+)$/.exec(message.message)[1];
             lobby.changeToSpectator(name);
         }
         else if (/^\/join$/.test(message.message)) {
@@ -281,11 +297,11 @@ function parseChat(message) {
             gameChat.joinLeaveQueue();
         }
         else if (/^\/host \w+$/.test(message.message)) {
-            let name = /^\S+ (\w+)$/.exec(message.message)[1].toLowerCase();
+            let name = /^\S+ (\w+)$/.exec(message.message)[1];
             lobby.promoteHost(name);
         }
         else if (/^\/kick \w+$/.test(message.message)) {
-            let name = /^\S+ (\w+)$/.exec(message.message)[1].toLowerCase();
+            let name = /^\S+ (\w+)$/.exec(message.message)[1];
             socket.sendCommand({
                 type: "lobby",
                 command: "kick player",
@@ -369,6 +385,10 @@ function parsePM(message) {
         auto_skip = !auto_skip;
         sendSystemMessage("auto skip " + (auto_skip ? "enabled" : "disabled"));
     }
+    else if (/^\/autosubmit$/.test(message.msg)) {
+        auto_submit_answer = !auto_submit_answer;
+        sendSystemMessage("auto submit answer " + (auto_submit_answer ? "enabled" : "disabled"));
+    }
     else if (/^\/autocopy$/.test(message.msg)) {
         auto_copy_player = "";
         sendSystemMessage("auto copy disabled");
@@ -378,12 +398,12 @@ function parsePM(message) {
         sendSystemMessage("auto copying " + auto_copy_player);
     }
     else if (/^\/autothrow$/.test(message.msg)) {
-        auto_answer = "";
+        auto_throw = "";
         sendSystemMessage("auto throw disabled");
     }
     else if (/^\/autothrow .+$/.test(message.msg)) {
-        auto_answer = translateShortcodeToUnicode(/^\S+ (.+)$/.exec(message.msg)[1]).text;
-        sendSystemMessage("auto throwing: " + auto_answer);
+        auto_throw = translateShortcodeToUnicode(/^\S+ (.+)$/.exec(message.msg)[1]).text;
+        sendSystemMessage("auto throwing: " + auto_throw);
     }
     else if (/^\/pm$/.test(message.msg)) {
         socialTab.startChat(selfName);
@@ -425,7 +445,7 @@ function parsePM(message) {
         let option = /^\S+ (.+)$/.exec(message.msg)[1];
         if (option in info) sendPM(message.target, info[option]);
     }
-    if (lobby.inLobby || quiz.inQuiz) {
+    if (lobby.inLobby || quiz.inQuiz || battleRoyal.inView) {
         if (/^\/roll (p|players?)$/.test(message.msg)) {
             let player_list = getPlayerList();
             if (player_list.length > 0) {
@@ -467,6 +487,7 @@ function parsePM(message) {
     }
 }
 
+// return array of names of players in game
 function getPlayerList() {
     let player_list = [];
     if (lobby.inLobby) {
@@ -479,9 +500,15 @@ function getPlayerList() {
             player_list.push(quiz.players[playerId]._name);
         }
     }
+    else if (battleRoyal.inView) {
+        for (let playerId in battleRoyal.players) {
+            player_list.push(battleRoyal.players[playerId]._name);
+        }
+    }
     return player_list;
 }
 
+// return array of names of spectators
 function getSpectatorList() {
     let spectator_list = [];
     for (let playerId in gameChat.spectators) {
@@ -490,6 +517,7 @@ function getSpectatorList() {
     return spectator_list;
 }
 
+// return object with player names as keys and their team number as each value
 function getTeamDictionary() {
     let teamDictionary = {};
     if (lobby.inLobby) {
@@ -520,9 +548,22 @@ function getTeamDictionary() {
             }
         }
     }
+    else if (battleRoyal.inView) {
+        for (let playerId in battleRoyal.players) {
+            let name = battleRoyal.players[playerId]._name;
+            let team = battleRoyal.players[playerId].teamNumber.toString();
+            if (team in teamDictionary) {
+                teamDictionary[team].push(name);
+            }
+            else {
+                teamDictionary[team] = [name];
+            }
+        }
+    }
     return teamDictionary;
 }
 
+// send a regular public message in game chat
 function sendChatMessage(message) {
     socket.sendCommand({
         type: "lobby",
@@ -531,10 +572,12 @@ function sendChatMessage(message) {
     });
 }
 
+// send a client side message to game chat
 function sendSystemMessage(message) {
     setTimeout(() => { gameChat.systemMessage(message) }, 50);
 }
 
+// send a private message
 function sendPM(target, message) {
     socket.sendCommand({
         type: "social",
@@ -543,14 +586,17 @@ function sendPM(target, message) {
     });
 }
 
+//return true if player is in ranked lobby or quiz
 function checkRankedMode() {
     return (lobby.inLobby && lobby.settings.gameMode === "Ranked") || (quiz.inQuiz && quiz.gameMode === "Ranked");
 }
 
+// return array of names of all friends
 function getAllFriends() {
     return Object.keys(socialTab.onlineFriends).concat(Object.keys(socialTab.offlineFriends));
 }
 
+// change game settings
 function changeGameSettings(settings) {
     let settingChanges = {};
     for (let key of Object.keys(settings)) {
@@ -584,5 +630,6 @@ const info = {
 };
 
 let auto_skip = false;
-let auto_answer = "";
+let auto_submit_answer = false;
+let auto_throw = "";
 let auto_copy_player = "";
