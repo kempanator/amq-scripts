@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name            MQ Show Room Players
+// @name            AMQ Show Room Players
 // @namespace       https://github.com/kempanator
 // @version         0.1
 // @description     Mouse over the players bar on a room tile to show full player list
