@@ -1,13 +1,13 @@
 // ==UserScript==
-// @name        	AMQ Show Room Players
-// @namespace   	https://github.com/kempanator
-// @version     	0.1
-// @description 	Mouse over the players bar on a room tile to show full player list
-// @author      	kempanator
-// @match       	https://animemusicquiz.com/*
-// @grant       	none
-// @require     	https://raw.githubusercontent.com/TheJoseph98/AMQ-Scripts/master/common/amqScriptInfo.js
-// @downloadURL 	https://raw.githubusercontent.com/kempanator/amq-scripts/main/amqShowRoomPlayers.js
+// @name            MQ Show Room Players
+// @namespace       https://github.com/kempanator
+// @version         0.1
+// @description     Mouse over the players bar on a room tile to show full player list
+// @author          kempanator
+// @match           https://animemusicquiz.com/*
+// @grant           none
+// @require         https://raw.githubusercontent.com/TheJoseph98/AMQ-Scripts/master/common/amqScriptInfo.js
+// @downloadURL     https://raw.githubusercontent.com/kempanator/amq-scripts/main/amqShowRoomPlayers.js
 // @updateURL       https://raw.githubusercontent.com/kempanator/amq-scripts/main/amqShowRoomPlayers.js
 // ==/UserScript==
 
@@ -23,14 +23,14 @@ function setup() {
     new Listener("New Rooms", (payload) => {
         payload.forEach(item => {
             setTimeout(() => {
-                updateRoomTile(item.id)
+                updateRoomTile(item.id);
             }, 10);
         });
     }).bindListener();
     new Listener("Room Change", (payload) => {
         if (payload.changeType === "players" || payload.changeType === "spectators") {
             setTimeout(() => {
-                updateRoomTile(payload.roomId)
+                updateRoomTile(payload.roomId);
             }, 10);
         }
     }).bindListener();
