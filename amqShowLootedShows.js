@@ -8,6 +8,7 @@
 // @grant       	none
 // @require     	https://raw.githubusercontent.com/TheJoseph98/AMQ-Scripts/master/common/amqScriptInfo.js
 // @downloadURL 	https://raw.githubusercontent.com/kempanator/amq-scripts/main/amqShowLootedShows.js
+// @updateURL       https://raw.githubusercontent.com/kempanator/amq-scripts/main/amqShowLootedShows.js
 // ==/UserScript==
 
 if (document.getElementById("startPage")) return;
@@ -26,4 +27,11 @@ function setup() {
             }
         }
     }).bindListener();
+    AMQ_addScriptData({
+        name: "Show Looted Shows",
+        author: "kempanator",
+        description: `
+            <p>When the looting phase ends, send full list to chat (only visible to you)</p>
+        `
+    });
 }
