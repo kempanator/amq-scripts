@@ -37,16 +37,14 @@ function setup() {
     AMQ_addScriptData({
         name: "Show Room Players",
         author: "kempanator",
-        description: `
-            <p>Mouse over the players bar on a room tile to show full player list</p>
-        `
+        description: `<p>Mouse over the players bar on a room tile to show full player list</p>`
     });
 }
 
 function updateRoomTile(roomId) {
     if (!roomBrowser.activeRooms[roomId]) return;
     let $playerList = $("<ul></ul>");
-    let players = roomBrowser.activeRooms[roomId]._players.sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+    let players = roomBrowser.activeRooms[roomId]._players.sort((a, b) => a.localeCompare(b));
     players.forEach(player => { $playerList.append($("<li></li>").text(player)) });
     $("#rbRoom-" + roomId).find(".rbrProgressContainer").tooltip("destroy");
     $("#rbRoom-" + roomId).find(".rbrProgressContainer").attr("data-toggle", "popover");
