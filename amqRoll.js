@@ -1,13 +1,13 @@
 // ==UserScript==
-// @name        	AMQ Better Roll Script
-// @namespace   	https://github.com/kempanator
-// @version     	0.2
-// @description 	Roll numbers or players in AMQ chat, type /roll for option list
-// @author      	kempanator
-// @match       	https://animemusicquiz.com/*
-// @grant       	none
-// @require     	https://raw.githubusercontent.com/TheJoseph98/AMQ-Scripts/master/common/amqScriptInfo.js
-// @downloadURL 	https://raw.githubusercontent.com/kempanator/amq-scripts/main/amqRoll.js
+// @name            AMQ Better Roll Script
+// @namespace       https://github.com/kempanator
+// @version         0.2
+// @description     Roll numbers or players in AMQ chat, type /roll for option list
+// @author          kempanator
+// @match           https://animemusicquiz.com/*
+// @grant           none
+// @require         https://raw.githubusercontent.com/TheJoseph98/AMQ-Scripts/master/common/amqScriptInfo.js
+// @downloadURL     https://raw.githubusercontent.com/kempanator/amq-scripts/main/amqRoll.js
 // @updateURL       https://raw.githubusercontent.com/kempanator/amq-scripts/main/amqRoll.js
 // ==/UserScript==
 
