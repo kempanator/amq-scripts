@@ -119,7 +119,6 @@ function setup() {
 function parseChat(message) {
     if (checkRankedMode()) return;
     if (message.sender === selfName) {
-        console.log("test");
         if (/^\/roll$/.test(message.message)) {
             sendChatMessage("roll commands: #, player, playerteam, spectator");
         }
@@ -330,14 +329,14 @@ function parseChat(message) {
             }
             sendChatMessage(invisibleFriends.length > 0 ? invisibleFriends.join(", ") : "no invisible friends detected");
         }
-        else if (/^\/pm$/.test(message.message)) {
+        else if (/^\/(pm|dm)$/.test(message.message)) {
             socialTab.startChat(selfName);
         }
-        else if (/^\/pm \w+$/.test(message.message)) {
+        else if (/^\/(pm|dm) \w+$/.test(message.message)) {
             let name = /^\S+ (\w+)$/.exec(message.message)[1];
             socialTab.startChat(name);
         }
-        else if (/^\/pm \w+ .+$/.test(message.message)) {
+        else if (/^\/(pm|dm) \w+ .+$/.test(message.message)) {
             let name = /^\S+ (\w+) .+$/.exec(message.message)[1];
             let text = /^\S+ \w+ (.+)$/.exec(message.message)[1];
             socialTab.startChat(name);
@@ -405,14 +404,14 @@ function parsePM(message) {
         auto_throw = translateShortcodeToUnicode(/^\S+ (.+)$/.exec(message.msg)[1]).text;
         sendSystemMessage("auto throwing: " + auto_throw);
     }
-    else if (/^\/pm$/.test(message.msg)) {
+    else if (/^\/(pm|dm)$/.test(message.msg)) {
         socialTab.startChat(selfName);
     }
-    else if (/^\/pm \w+$/.test(message.msg)) {
+    else if (/^\/(pm|dm) \w+$/.test(message.msg)) {
         let name = /^\S+ (\w+)$/.exec(message.msg)[1];
         socialTab.startChat(name);
     }
-    else if (/^\/pm \w+ .+$/.test(message.msg)) {
+    else if (/^\/(pm|dm) \w+ .+$/.test(message.msg)) {
         let name = /^\S+ (\w+) .+$/.exec(message.msg)[1];
         let text = /^\S+ \w+ (.+)$/.exec(message.msg)[1];
         socialTab.startChat(name);
@@ -528,36 +527,21 @@ function getTeamDictionary() {
                 sendChatMessage("Error: can't get team number for " + name);
                 return {};
             }
-            if (team in teamDictionary) {
-                teamDictionary[team].push(name);
-            }
-            else {
-                teamDictionary[team] = [name];
-            }
+            team in teamDictionary ? teamDictionary[team].push(name) : teamDictionary[team] = [name];
         }
     }
     else if (quiz.inQuiz) {
         for (let playerId in quiz.players) {
             let name = quiz.players[playerId]._name;
             let team = quiz.players[playerId].teamNumber.toString();
-            if (team in teamDictionary) {
-                teamDictionary[team].push(name);
-            }
-            else {
-                teamDictionary[team] = [name];
-            }
+            team in teamDictionary ? teamDictionary[team].push(name) : teamDictionary[team] = [name];
         }
     }
     else if (battleRoyal.inView) {
         for (let playerId in battleRoyal.players) {
             let name = battleRoyal.players[playerId]._name;
             let team = battleRoyal.players[playerId].teamNumber.toString();
-            if (team in teamDictionary) {
-                teamDictionary[team].push(name);
-            }
-            else {
-                teamDictionary[team] = [name];
-            }
+            team in teamDictionary ? teamDictionary[team].push(name) : teamDictionary[team] = [name];
         }
     }
     return teamDictionary;
@@ -574,7 +558,7 @@ function sendChatMessage(message) {
 
 // send a client side message to game chat
 function sendSystemMessage(message) {
-    setTimeout(() => { gameChat.systemMessage(message) }, 50);
+    setTimeout(() => { gameChat.systemMessage(message) }, 10);
 }
 
 // send a private message

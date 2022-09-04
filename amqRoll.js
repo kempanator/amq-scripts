@@ -1,13 +1,14 @@
 // ==UserScript==
 // @name        	AMQ Better Roll Script
 // @namespace   	https://github.com/kempanator
-// @version     	0.1
+// @version     	0.2
 // @description 	Roll numbers or players in AMQ chat, type /roll for option list
 // @author      	kempanator
 // @match       	https://animemusicquiz.com/*
 // @grant       	none
 // @require     	https://raw.githubusercontent.com/TheJoseph98/AMQ-Scripts/master/common/amqScriptInfo.js
 // @downloadURL 	https://raw.githubusercontent.com/kempanator/amq-scripts/main/amqRoll.js
+// @updateURL       https://raw.githubusercontent.com/kempanator/amq-scripts/main/amqRoll.js
 // ==/UserScript==
 
 if (document.getElementById("startPage")) return;
@@ -20,28 +21,22 @@ let loadInterval = setInterval(() => {
 
 function setup() {
     new Listener("game chat update", (payload) => {
-        console.log(payload);
         payload.messages.forEach(message => {
-            if (quiz.inQuiz === true && quiz.gameMode === "Ranked") return;
+            if ((lobby.inLobby && lobby.settings.gameMode === "Ranked") || (quiz.inQuiz && quiz.gameMode === "Ranked")) return;
             if (message.sender === selfName) {
-                if(/^\/roll$/.test(message.message)) {
+                if (/^\/roll$/.test(message.message)) {
                     sendChatMessage("roll commands: #, player, playerteam, spectator");
                 }
-                else if (/^\/roll \d+$/.test(message.message)) {
-                    let number = parseInt(message.message.split(" ")[1]);
-                    if (number > 0) {
-                        sendChatMessage("rolls " + (Math.floor(Math.random() * number) + 1));
-                    }
+                else if (/^\/roll [0-9]+$/.test(message.message)) {
+                    let number = parseInt(/^\S+ ([0-9]+)$/.exec(message.message)[1]);
+                    sendChatMessage("rolls " + (Math.floor(Math.random() * number) + 1));
                 }
-                else if (/^\/roll \d+ \d+$/.test(message.message)) {
-                    let split = message.message.split(" ");
-                    let low_number = parseInt(split[1]);
-                    let high_number = parseInt(split[2]);
-                    if (low_number > 0 && high_number > 0 && high_number > low_number) {
-                        sendChatMessage("rolls " + (Math.floor(Math.random() * (high_number - low_number + 1)) + low_number));
-                    }
+                else if (/^\/roll -?[0-9]+ -?[0-9]+$/.test(message.message)) {
+                    let low = parseInt(/^\S+ (-?[0-9]+) -?[0-9]+$/.exec(message.message)[1]);
+                    let high = parseInt(/^\S+ -?[0-9]+ (-?[0-9]+)$/.exec(message.message)[1]);
+                    sendChatMessage("rolls " + (Math.floor(Math.random() * (high - low + 1)) + low));
                 }
-                else if (/^\/roll player$/.test(message.message)) {
+                else if (/^\/roll (p|players?)$/.test(message.message)) {
                     let player_list = getPlayerList();
                     if (player_list.length > 0) {
                         sendChatMessage(player_list[Math.floor(Math.random() * player_list.length)]);
@@ -50,14 +45,15 @@ function setup() {
                         sendChatMessage("no players");
                     }
                 }
-                else if (/^\/roll playerteam$/.test(message.message)) {
+                else if (/^\/roll (pt|playerteams?|teams?)$/.test(message.message)) {
                     if (lobby.settings.teamSize > 1) {
                         let teamDictionary = getTeamDictionary();
                         if (Object.keys(teamDictionary).length > 0) {
                             let teams = Object.keys(teamDictionary);
                             teams.sort((a, b) => parseInt(a) - parseInt(b));
                             for (let team of teams) {
-                                sendChatMessage("Team " + team + ": " + teamDictionary[team][Math.floor(Math.random() * teamDictionary[team].length)]);
+                                let name = teamDictionary[team][Math.floor(Math.random() * teamDictionary[team].length)];
+                                sendChatMessage(`Team ${team}: ${name}`);
                             }
                         }
                     }
@@ -65,7 +61,7 @@ function setup() {
                         sendChatMessage("team size must be greater than 1");
                     }
                 }
-                else if (/^\/roll spectator$/.test(message.message)) {
+                else if (/^\/roll (s|spectators?)$/.test(message.message)) {
                     let spectator_list = getSpectatorList();
                     if (spectator_list.length > 0) {
                         sendChatMessage(spectator_list[Math.floor(Math.random() * spectator_list.length)]);
@@ -103,6 +99,11 @@ function getPlayerList() {
             player_list.push(quiz.players[playerId]._name);
         }
     }
+    else if (battleRoyal.inView) {
+        for (let playerId in battleRoyal.players) {
+            player_list.push(battleRoyal.players[playerId]._name);
+        }
+    }
     return player_list;
 }
 
@@ -124,24 +125,21 @@ function getTeamDictionary() {
                 sendChatMessage("Error: can't get team number for " + name);
                 return {};
             }
-            if (team in teamDictionary) {
-                teamDictionary[team].push(name);
-            }
-            else {
-                teamDictionary[team] = [name];
-            }
+            team in teamDictionary ? teamDictionary[team].push(name) : teamDictionary[team] = [name];
         }
     }
     else if (quiz.inQuiz) {
         for (let playerId in quiz.players) {
             let name = quiz.players[playerId]._name;
             let team = quiz.players[playerId].teamNumber.toString();
-            if (team in teamDictionary) {
-                teamDictionary[team].push(name);
-            }
-            else {
-                teamDictionary[team] = [name];
-            }
+            team in teamDictionary ? teamDictionary[team].push(name) : teamDictionary[team] = [name];
+        }
+    }
+    else if (battleRoyal.inView) {
+        for (let playerId in battleRoyal.players) {
+            let name = battleRoyal.players[playerId]._name;
+            let team = battleRoyal.players[playerId].teamNumber.toString();
+            team in teamDictionary ? teamDictionary[team].push(name) : teamDictionary[team] = [name];
         }
     }
     return teamDictionary;
