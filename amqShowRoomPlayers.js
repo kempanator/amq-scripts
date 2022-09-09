@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            AMQ Show Room Players
 // @namespace       https://github.com/kempanator
-// @version         0.1
+// @version         0.2
 // @description     Mouse over the players bar on a room tile to show full player list
 // @author          kempanator
 // @match           https://animemusicquiz.com/*
@@ -43,17 +43,23 @@ function setup() {
 
 function updateRoomTile(roomId) {
     if (!roomBrowser.activeRooms[roomId]) return;
+    let roomSelector = "#rbRoom-" + roomId;
     let $playerList = $("<ul></ul>");
     let players = roomBrowser.activeRooms[roomId]._players.sort((a, b) => a.localeCompare(b));
     players.forEach(player => { $playerList.append($("<li></li>").text(player)) });
-    $("#rbRoom-" + roomId).find(".rbrProgressContainer").tooltip("destroy");
-    $("#rbRoom-" + roomId).find(".rbrProgressContainer").attr("data-toggle", "popover");
-    $("#rbRoom-" + roomId).find(".rbrProgressContainer").popover({
-        container: "#roomBrowserPage",
-        placement: "auto top",
-        trigger: "hover",
-        html: true,
-        title: "Players",
-        content: $playerList[0].outerHTML
-    });
+    if ($(roomSelector).find(".rbrProgressContainer").data("bs.popover")) {
+        $(roomSelector).find(".rbrProgressContainer").data("bs.popover").options.content = $playerList[0].outerHTML;
+    }
+    else {
+        $(roomSelector).find(".rbrProgressContainer").tooltip("destroy");
+        $(roomSelector).find(".rbrProgressContainer").attr("data-toggle", "popover");
+        $(roomSelector).find(".rbrProgressContainer").popover({
+            container: "#roomBrowserPage",
+            placement: "auto top",
+            trigger: "hover",
+            html: true,
+            title: "Players",
+            content: $playerList[0].outerHTML
+        });
+    }
 }
