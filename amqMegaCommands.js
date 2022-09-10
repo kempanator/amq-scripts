@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            AMQ Mega Commands
 // @namespace       https://github.com/kempanator
-// @version         0.4
+// @version         0.5
 // @description     Commands for AMQ Chat
 // @author          kempanator
 // @match           https://animemusicquiz.com/*
@@ -61,6 +61,12 @@ let loadInterval = setInterval(() => {
 }, 500);
 
 function setup() {
+    let auto_submit_answer_cookie = Cookies.get("auto_submit_answer");
+    if (auto_submit_answer_cookie !== undefined ) {
+        localStorage.setItem("auto_submit_answer", auto_submit_answer_cookie);
+        Cookies.set("auto_submit_answer", "", { expires: 0 });
+    }
+    localStorage.getItem('auto_ready') === "true";
     new Listener("game chat update", (payload) => {
         payload.messages.forEach((message) => { parseChat(message) });
     }).bindListener();
@@ -253,6 +259,7 @@ function parseChat(message) {
         }
         else if (/^\/autosubmit$/.test(message.message)) {
             auto_submit_answer = !auto_submit_answer;
+            localStorage.setItem("auto_submit_answer", auto_submit_answer);
             sendSystemMessage("auto submit answer " + (auto_submit_answer ? "enabled" : "disabled"));
         }
         else if (/^\/autocopy$/.test(message.message)) {
@@ -386,6 +393,7 @@ function parsePM(message) {
     }
     else if (/^\/autosubmit$/.test(message.msg)) {
         auto_submit_answer = !auto_submit_answer;
+        localStorage.setItem("auto_submit_answer", auto_submit_answer);
         sendSystemMessage("auto submit answer " + (auto_submit_answer ? "enabled" : "disabled"));
     }
     else if (/^\/autocopy$/.test(message.msg)) {
@@ -614,6 +622,6 @@ const info = {
 };
 
 let auto_skip = false;
-let auto_submit_answer = false;
+let auto_submit_answer = Cookies.get("auto_submit_answer");
 let auto_throw = "";
 let auto_copy_player = "";
