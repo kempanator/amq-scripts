@@ -66,7 +66,7 @@ function setup() {
         localStorage.setItem("auto_submit_answer", auto_submit_answer_cookie);
         Cookies.set("auto_submit_answer", "", { expires: 0 });
     }
-    localStorage.getItem('auto_ready') === "true";
+    auto_submit_answer = localStorage.getItem("auto_submit_answer") === "true";
     new Listener("game chat update", (payload) => {
         payload.messages.forEach((message) => { parseChat(message) });
     }).bindListener();
@@ -622,6 +622,6 @@ const info = {
 };
 
 let auto_skip = false;
-let auto_submit_answer = Cookies.get("auto_submit_answer");
+let auto_submit_answer;
 let auto_throw = "";
 let auto_copy_player = "";
