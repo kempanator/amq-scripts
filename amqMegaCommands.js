@@ -418,6 +418,9 @@ function parseChat(message) {
             let option = /^\S+ (.+)$/.exec(message.message)[1];
             if (option in info) sendChatMessage(info[option]);
         }
+        else if (/^\/rejoin$/.test(message.message)) {
+            sendChatMessage("not implemented");
+        }
         else if (/^\/leave$/.test(message.message)) {
             viewChanger.changeView("main");
         }
@@ -574,6 +577,9 @@ function parsePM(message) {
         else if (/^\/password$/.test(message.msg)) {
             let password = hostModal.getSettings().password;
             if (password) sendPM(message.target, password);
+        }
+        else if (/^\/rejoin$/.test(message.msg)) {
+            sendPM(message.target, "not implemented");
         }
     }
 }
