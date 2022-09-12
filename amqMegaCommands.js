@@ -34,6 +34,7 @@ IN GAME
 /autoready          automatically ready up in lobby
 /autostart          automatically start the game when everyone is ready if you are host
 /leave              leave room
+/rejoin             rejoin room
 /spec               change to spectator
 /join               join lobby
 /queue              join/leave queue
@@ -424,6 +425,9 @@ function parseChat(message) {
             viewChanger.changeView("main");
             options.logout();
         }
+        else if (/^\/version$/.test(message.message)) {
+            sendChatMessage(version);
+        }
     }
 }
 
@@ -528,6 +532,9 @@ function parsePM(message) {
     else if (/^\/(logout|logoff)$/.test(message.msg)) {
         viewChanger.changeView("main");
         options.logout();
+    }
+    else if (/^\/version$/.test(message.msg)) {
+        sendChatMessage(version);
     }
     if (lobby.inLobby || quiz.inQuiz || battleRoyal.inView) {
         if (/^\/roll (p|players?)$/.test(message.msg)) {
@@ -700,16 +707,16 @@ function autoStart() {
 
 // overload changeView function for auto ready
 ViewChanger.prototype.changeView = (function() {
-	let old = ViewChanger.prototype.changeView;
-	return function() {
-		old.apply(this, arguments);
-		setTimeout(() => {
+    let old = ViewChanger.prototype.changeView;
+    return function() {
+        old.apply(this, arguments);
+        setTimeout(() => {
             if (viewChanger.currentView === "lobby") {
                 autoReady();
                 autoStart();
             }
         }, 1);
-	}
+    }
 })();
 
 const rules = {
@@ -731,6 +738,7 @@ const info = {
     "turnofflist": "https://files.catbox.moe/hn1mhw.png"
 };
 
+const version = "0.7";
 let auto_skip = false;
 let auto_submit_answer;
 let auto_throw = "";
