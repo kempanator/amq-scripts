@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            AMQ Mega Commands
 // @namespace       https://github.com/kempanator
-// @version         0.5
+// @version         0.6
 // @description     Commands for AMQ Chat
 // @author          kempanator
 // @match           https://animemusicquiz.com/*
@@ -49,7 +49,7 @@ TOOLS
 /pm [name] [text]   private message a player (name is case sensitive)
 /profile [name]     show profile window of any player
 /password           reveal private room password
-/invisible          show invisible friends (only accurate right after you log in)
+/invisible          show invisible friends
 */
 
 if (document.getElementById("startPage")) return;
@@ -71,14 +71,10 @@ function setup() {
         payload.messages.forEach((message) => { parseChat(message) });
     }).bindListener();
     new Listener("Game Chat Message", (payload) => {
-        // team chat listener
+        parseChat(payload);
     }).bindListener();
     new Listener("chat message response", (payload) => {
-        // send private message listener {msg: "text", target: "name", emojis: {}}
         parsePM(payload);
-    }).bindListener();
-    new Listener("chat message", (payload) => {
-        // receive private message listener {sender: "name", message: "text", emojis: {}, modMessage: false}
     }).bindListener();
     new Listener("play next song", (payload) => {
         if (auto_throw && !quiz.isSpectator && quiz.gameMode !== "Ranked") {
@@ -112,13 +108,10 @@ function setup() {
             });
         }
     });
-
     AMQ_addScriptData({
         name: "Mega Commands",
         author: "kempanator",
-        description: `
-            <p>TODO: documentation</p>
-        `
+        description: `<p><a href="https://kempanator.github.io/amq-mega-commands" target="_blank">https://kempanator.github.io/amq-mega-commands</a>`
     });
 }
 
@@ -328,13 +321,17 @@ function parseChat(message) {
             if (password) sendChatMessage(password);
         }
         else if (/^\/invisible$/.test(message.message)) {
-            let invisibleFriends = [];
-            for (let name of Object.keys(socialTab.offlineFriends)) {
-                if (name in socialTab.allPlayerList._playerEntries) {
-                    invisibleFriends.push(name);
-                }
-            }
-            sendChatMessage(invisibleFriends.length > 0 ? invisibleFriends.join(", ") : "no invisible friends detected");
+            let handleAllOnlineMessage = new Listener("all online users", function (onlineUsers) {
+                let list = [];
+                Object.keys(socialTab.offlineFriends).forEach((name) => { if(onlineUsers.includes(name)) list.push(name) });
+                sendChatMessage(list.length > 0 ? list.join(", ") : "no invisible friends detected");
+                handleAllOnlineMessage.unbindListener();
+            });
+            handleAllOnlineMessage.bindListener();
+            socket.sendCommand({
+                type: "social",
+                command: "get online users",
+            });
         }
         else if (/^\/(pm|dm)$/.test(message.message)) {
             socialTab.startChat(selfName);
@@ -430,13 +427,17 @@ function parsePM(message) {
         playerProfileController.loadProfileIfClosed(name, $("#gameChatContainer"), {}, () => {}, false, true);
     }
     else if (/^\/invisible$/.test(message.msg)) {
-        let invisibleFriends = [];
-        for (let name of Object.keys(socialTab.offlineFriends)) {
-            if (name in socialTab.allPlayerList._playerEntries) {
-                invisibleFriends.push(name);
-            }
-        }
-        sendPM(message.target, invisibleFriends.length > 0 ? invisibleFriends.join(", ") : "no invisible friends detected");
+        let handleAllOnlineMessage = new Listener("all online users", function (onlineUsers) {
+            let list = [];
+            Object.keys(socialTab.offlineFriends).forEach((name) => { if(onlineUsers.includes(name)) list.push(name) });
+            sendPM(message.target, list.length > 0 ? list.join(", ") : "no invisible friends detected");
+            handleAllOnlineMessage.unbindListener();
+        });
+        handleAllOnlineMessage.bindListener();
+        socket.sendCommand({
+            type: "social",
+            command: "get online users",
+        });
     }
     else if (/^\/rules$/.test(message.msg)) {
         sendPM(message.target, Object.keys(rules).join(", "));
