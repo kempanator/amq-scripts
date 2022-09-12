@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            AMQ Mega Commands
 // @namespace       https://github.com/kempanator
-// @version         0.6
+// @version         0.7
 // @description     Commands for AMQ Chat
 // @author          kempanator
 // @match           https://animemusicquiz.com/*
@@ -31,6 +31,9 @@ IN GAME
 /autosubmit         automatically submit answer on each key press
 /autothrow [text]   automatically send answer at the beginning of each song
 /autocopy [name]    automatically copy a team member's answer
+/autoready          automatically ready up in lobby
+/autostart          automatically start the game when everyone is ready if you are host
+/leave              leave room
 /spec               change to spectator
 /join               join lobby
 /queue              join/leave queue
@@ -42,14 +45,16 @@ IN GAME
 /lobby              start return to lobby vote
 /volume [0-100]     change volume
 
-TOOLS
+OTHER
 /roll               roll number, player, playerteam, spectator
 /rules              show list of gamemodes and rules
 /info               show list of external utilities
 /pm [name] [text]   private message a player (name is case sensitive)
 /profile [name]     show profile window of any player
+/leaderboard        show the leaderboard
 /password           reveal private room password
-/invisible          show invisible friends
+/invisible          show invisible friends (this command might be broken)
+/logout             log out
 */
 
 if (document.getElementById("startPage")) return;
@@ -61,12 +66,18 @@ let loadInterval = setInterval(() => {
 }, 500);
 
 function setup() {
-    let auto_submit_answer_cookie = Cookies.get("auto_submit_answer");
+    let auto_submit_answer_cookie = Cookies.get("mega_commands_auto_submit_answer");
     if (auto_submit_answer_cookie !== undefined ) {
-        localStorage.setItem("auto_submit_answer", auto_submit_answer_cookie);
-        Cookies.set("auto_submit_answer", "", { expires: 0 });
+        localStorage.setItem("mega_commands_auto_submit_answer", auto_submit_answer_cookie);
+        Cookies.set("mega_commands_auto_submit_answer", "", { expires: 0 });
     }
-    auto_submit_answer = localStorage.getItem("auto_submit_answer") === "true";
+    auto_submit_answer = localStorage.getItem("mega_commands_auto_submit_answer") === "true";
+    let auto_ready_cookie = Cookies.get("mega_commands_auto_ready");
+    if (auto_ready_cookie !== undefined ) {
+        localStorage.setItem("mega_commands_auto_ready", auto_ready_cookie);
+        Cookies.set("mega_commands_auto_ready", "", { expires: 0 });
+    }
+    auto_ready = localStorage.getItem("mega_commands_auto_ready") === "true";
     new Listener("game chat update", (payload) => {
         payload.messages.forEach((message) => { parseChat(message) });
     }).bindListener();
@@ -77,12 +88,9 @@ function setup() {
         parsePM(payload);
     }).bindListener();
     new Listener("play next song", (payload) => {
-        if (auto_throw && !quiz.isSpectator && quiz.gameMode !== "Ranked") {
-            $("#qpAnswerInput").val(auto_throw);
-            quiz.answerInput.submitAnswer(true);
-        }
-        if (auto_skip && !quiz.isSpectator && quiz.gameMode !== "Ranked") {
-            setTimeout(() => { quiz.skipClicked() }, 200);
+        if (!quiz.isSpectator && quiz.gameMode !== "Ranked") {
+            if (auto_throw) quiz.answerInput.setNewAnswer(auto_throw);
+            if (auto_skip) setTimeout(() => { quiz.skipClicked() }, 200);
         }
     }).bindListener();
     new Listener("Game Starting", (payload) => {
@@ -98,8 +106,29 @@ function setup() {
             $("#qpAnswerInput").val(current_text);
         }
     }).bindListener();
-    document.querySelector('#qpAnswerInput').addEventListener('input', (event) => {
-        let answer = event.target.value || ' ';
+    new Listener("Join Game", (payload) => {
+        if (payload.error) return;
+        if (auto_ready) sendSystemMessage("Auto Ready: Enabled");
+        if (auto_start) sendSystemMessage("Auto Start: Enabled");
+    }).bindListener();
+    new Listener("Spectate Game", (payload) => {
+        if (payload.error) return;
+        if (auto_ready) sendSystemMessage("Auto Ready: Enabled");
+        if (auto_start) sendSystemMessage("Auto Start: Enabled");
+    }).bindListener();
+    new Listener("Room Settings Changed", (payload) => {
+        setTimeout(() => { autoReady() }, 1);
+    }).bindListener();
+    new Listener("Spectator Change To Player", (payload) => {
+        if (payload.name === selfName) {
+            setTimeout(() => { autoReady(); autoStart(); }, 1);
+        }
+    }).bindListener();
+    new Listener("Host Promotion", (payload) => {
+        setTimeout(() => { autoReady() }, 1);
+    }).bindListener();
+    document.querySelector("#qpAnswerInput").addEventListener("input", (event) => {
+        let answer = event.target.value || " ";
         if (auto_submit_answer) {
             socket.sendCommand({
                 type: "quiz",
@@ -108,10 +137,17 @@ function setup() {
             });
         }
     });
+    const profile_element = document.querySelector("#playerProfileLayer");
+    const profile_observer = new MutationObserver(function() {
+        if (profile_element.querySelector(".ppFooterOptionIcon, .startChat")) {
+            profile_element.querySelector(".ppFooterOptionIcon, .startChat").classList.remove("disabled");
+        }
+    });
+    profile_observer.observe(profile_element, {childList: true});
     AMQ_addScriptData({
         name: "Mega Commands",
         author: "kempanator",
-        description: `<p><a href="https://kempanator.github.io/amq-mega-commands" target="_blank">https://kempanator.github.io/amq-mega-commands</a>`
+        description: `<a href="https://kempanator.github.io/amq-mega-commands" target="_blank">https://kempanator.github.io/amq-mega-commands</a>`
     });
 }
 
@@ -252,7 +288,7 @@ function parseChat(message) {
         }
         else if (/^\/autosubmit$/.test(message.message)) {
             auto_submit_answer = !auto_submit_answer;
-            localStorage.setItem("auto_submit_answer", auto_submit_answer);
+            localStorage.setItem("mega_commands_auto_submit_answer", auto_submit_answer);
             sendSystemMessage("auto submit answer " + (auto_submit_answer ? "enabled" : "disabled"));
         }
         else if (/^\/autocopy$/.test(message.message)) {
@@ -263,13 +299,23 @@ function parseChat(message) {
             auto_copy_player = /^\S+ (\w+)$/.exec(message.message)[1].toLowerCase();
             sendSystemMessage("auto copying " + auto_copy_player);
         }
-        else if (/^\/autothrow$/.test(message.message)) {
+        else if (/^\/(at|autothrow)$/.test(message.message)) {
             auto_throw = "";
             sendSystemMessage("auto throw disabled " + auto_copy_player);
         }
-        else if (/^\/autothrow .+$/.test(message.message)) {
+        else if (/^\/(at|autothrow) .+$/.test(message.message)) {
             auto_throw = translateShortcodeToUnicode(/^\S+ (.+)$/.exec(message.message)[1]).text;
             sendSystemMessage("auto throwing: " + auto_throw);
+        }
+        else if (/^\/autoready$/.test(message.message)) {
+            auto_ready = !auto_ready;
+            localStorage.setItem("mega_commands_auto_ready", auto_ready);
+            sendSystemMessage("auto ready " + (auto_ready ? "enabled" : "disabled"));
+        }
+        else if (/^\/autostart$/.test(message.message)) {
+            auto_start = !auto_start;
+            sendSystemMessage("auto start game " + (auto_start ? "enabled" : "disabled"));
+            autoStart();
         }
         else if (/^\/(inv|invite) \w+$/.test(message.message)) {
             let name = /^\S+ (\w+)$/.exec(message.message)[1];
@@ -354,6 +400,9 @@ function parseChat(message) {
             let name = /^\S+ (\w+)$/.exec(message.message)[1].toLowerCase();
             playerProfileController.loadProfileIfClosed(name, $("#gameChatContainer"), {}, () => {}, false, true);
         }
+        else if (/^\/leaderboards?$/.test(message.message)) {
+            leaderboardModule.show();
+        }
         else if (/^\/rules$/.test(message.message)) {
             sendChatMessage(Object.keys(rules).join(", "));
         }
@@ -367,6 +416,13 @@ function parseChat(message) {
         else if (/^\/info .+$/.test(message.message)) {
             let option = /^\S+ (.+)$/.exec(message.message)[1];
             if (option in info) sendChatMessage(info[option]);
+        }
+        else if (/^\/leave$/.test(message.message)) {
+            viewChanger.changeView("main");
+        }
+        else if (/^\/(logout|logoff)$/.test(message.message)) {
+            viewChanger.changeView("main");
+            options.logout();
         }
     }
 }
@@ -390,7 +446,7 @@ function parsePM(message) {
     }
     else if (/^\/autosubmit$/.test(message.msg)) {
         auto_submit_answer = !auto_submit_answer;
-        localStorage.setItem("auto_submit_answer", auto_submit_answer);
+        localStorage.setItem("mega_commands_auto_submit_answer", auto_submit_answer);
         sendSystemMessage("auto submit answer " + (auto_submit_answer ? "enabled" : "disabled"));
     }
     else if (/^\/autocopy$/.test(message.msg)) {
@@ -401,13 +457,23 @@ function parsePM(message) {
         auto_copy_player = /^\S+ (\w+)$/.exec(message.msg)[1].toLowerCase();
         sendSystemMessage("auto copying " + auto_copy_player);
     }
-    else if (/^\/autothrow$/.test(message.msg)) {
+    else if (/^\/(at|autothrow)$/.test(message.msg)) {
         auto_throw = "";
         sendSystemMessage("auto throw disabled");
     }
-    else if (/^\/autothrow .+$/.test(message.msg)) {
+    else if (/^\/(at|autothrow) .+$/.test(message.msg)) {
         auto_throw = translateShortcodeToUnicode(/^\S+ (.+)$/.exec(message.msg)[1]).text;
         sendSystemMessage("auto throwing: " + auto_throw);
+    }
+    else if (/^\/autoready$/.test(message.msg)) {
+        auto_ready = !auto_ready;
+        localStorage.setItem("mega_commands_auto_ready", auto_ready);
+        sendSystemMessage("auto ready " + (auto_ready ? "enabled" : "disabled"));
+    }
+    else if (/^\/autostart$/.test(message.msg)) {
+        auto_start = !auto_start;
+        sendSystemMessage("auto start game " + (auto_start ? "enabled" : "disabled"));
+        autoStart();
     }
     else if (/^\/(pm|dm)$/.test(message.msg)) {
         socialTab.startChat(selfName);
@@ -425,6 +491,9 @@ function parsePM(message) {
     else if (/^\/(prof|profile) \w+$/.test(message.msg)) {
         let name = /^\S+ (\w+)$/.exec(message.msg)[1].toLowerCase();
         playerProfileController.loadProfileIfClosed(name, $("#gameChatContainer"), {}, () => {}, false, true);
+    }
+    else if (/^\/leaderboards?$/.test(message.msg)) {
+        leaderboardModule.show();
     }
     else if (/^\/invisible$/.test(message.msg)) {
         let handleAllOnlineMessage = new Listener("all online users", function (onlineUsers) {
@@ -452,6 +521,13 @@ function parsePM(message) {
     else if (/^\/info .+$/.test(message.msg)) {
         let option = /^\S+ (.+)$/.exec(message.msg)[1];
         if (option in info) sendPM(message.target, info[option]);
+    }
+    else if (/^\/leave$/.test(message.msg)) {
+        viewChanger.changeView("main");
+    }
+    else if (/^\/(logout|logoff)$/.test(message.msg)) {
+        viewChanger.changeView("main");
+        options.logout();
     }
     if (lobby.inLobby || quiz.inQuiz || battleRoyal.inView) {
         if (/^\/roll (p|players?)$/.test(message.msg)) {
@@ -567,7 +643,7 @@ function sendChatMessage(message) {
 
 // send a client side message to game chat
 function sendSystemMessage(message) {
-    setTimeout(() => { gameChat.systemMessage(message) }, 10);
+    setTimeout(() => { gameChat.systemMessage(message) }, 1);
 }
 
 // send a private message
@@ -603,6 +679,39 @@ function changeGameSettings(settings) {
     }
 }
 
+// check conditions and ready up in lobby
+function autoReady() {
+    if (auto_ready && lobby.inLobby && !lobby.isReady && !lobby.isHost && !lobby.isSpectator && lobby.settings.gameMode !== "Ranked") {
+        lobby.fireMainButtonEvent();
+    }
+}
+
+// check conditions and start game
+function autoStart() {
+    setTimeout(() => {
+        if (auto_start) {
+            for (let player of Object.values(lobby.players)) {
+                if (!player.ready) return;
+            }
+            lobby.fireMainButtonEvent();
+        }
+    }, 1);
+}
+
+// overload changeView function for auto ready
+ViewChanger.prototype.changeView = (function() {
+	let old = ViewChanger.prototype.changeView;
+	return function() {
+		old.apply(this, arguments);
+		setTimeout(() => {
+            if (viewChanger.currentView === "lobby") {
+                autoReady();
+                autoStart();
+            }
+        }, 1);
+	}
+})();
+
 const rules = {
     "alien": "https://pastebin.com/LxLMg1nA",
     "blackjack": "https://pastebin.com/kcq7hsJm",
@@ -626,3 +735,5 @@ let auto_skip = false;
 let auto_submit_answer;
 let auto_throw = "";
 let auto_copy_player = "";
+let auto_ready;
+let auto_start = false;
