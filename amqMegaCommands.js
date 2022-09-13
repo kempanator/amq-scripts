@@ -33,8 +33,8 @@ IN GAME
 /autocopy [name]    automatically copy a team member's answer
 /autoready          automatically ready up in lobby
 /autostart          automatically start the game when everyone is ready if you are host
-/invite [name]      invite player to game
 /ready              ready up in lobby
+/invite [name]      invite player to game
 /host [name]        promote host
 /kick [name]        kick player
 /skip               vote skip on current song
@@ -542,7 +542,7 @@ function parsePM(message) {
         options.logout();
     }
     else if (/^\/version$/.test(message.msg)) {
-        sendChatMessage("Mega Commands version " + version);
+        sendPM(message.target, "Mega Commands version " + version);
     }
     if (lobby.inLobby || quiz.inQuiz || battleRoyal.inView) {
         if (/^\/roll (p|players?)$/.test(message.msg)) {
