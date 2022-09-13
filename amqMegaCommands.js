@@ -33,17 +33,18 @@ IN GAME
 /autocopy [name]    automatically copy a team member's answer
 /autoready          automatically ready up in lobby
 /autostart          automatically start the game when everyone is ready if you are host
-/leave              leave room
-/rejoin             rejoin room
-/spec               change to spectator
-/join               join lobby
-/queue              join/leave queue
+/invite [name]      invite player to game
+/ready              ready up in lobby
 /host [name]        promote host
 /kick [name]        kick player
-/invite [name]      invite player to game
 /skip               vote skip on current song
 /pause              pause/unpause game
 /lobby              start return to lobby vote
+/leave              leave room
+/rejoin             rejoin the room you are currently in
+/spec               change to spectator
+/join               change from spectator to player in lobby
+/queue              join/leave queue
 /volume [0-100]     change volume
 
 OTHER
@@ -56,6 +57,7 @@ OTHER
 /password           reveal private room password
 /invisible          show invisible friends (this command might be broken)
 /logout             log out
+/version            check the version of this script
 */
 
 if (document.getElementById("startPage")) return;
@@ -318,6 +320,9 @@ function parseChat(message) {
             sendSystemMessage("auto start game " + (auto_start ? "enabled" : "disabled"));
             autoStart();
         }
+        else if (/^\/ready$/.test(message.message)) {
+            autoReady();
+        }
         else if (/^\/(inv|invite) \w+$/.test(message.message)) {
             let name = /^\S+ (\w+)$/.exec(message.message)[1];
             socket.sendCommand({
@@ -429,7 +434,7 @@ function parseChat(message) {
             options.logout();
         }
         else if (/^\/version$/.test(message.message)) {
-            sendChatMessage(version);
+            sendChatMessage("Mega Commands version " + version);
         }
     }
 }
@@ -537,7 +542,7 @@ function parsePM(message) {
         options.logout();
     }
     else if (/^\/version$/.test(message.msg)) {
-        sendChatMessage(version);
+        sendChatMessage("Mega Commands version " + version);
     }
     if (lobby.inLobby || quiz.inQuiz || battleRoyal.inView) {
         if (/^\/roll (p|players?)$/.test(message.msg)) {
