@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            AMQ Mega Commands
 // @namespace       https://github.com/kempanator
-// @version         0.7
+// @version         0.8
 // @description     Commands for AMQ Chat
 // @author          kempanator
 // @match           https://animemusicquiz.com/*
@@ -26,7 +26,7 @@ GAME SETTINGS
 /songs [5-100]      change number of songs
 /dif [low] [high]   change difficulty
 
-IN GAME
+IN GAME/LOBBY
 /autoskip           automatically vote skip at the beginning of each song
 /autosubmit         automatically submit answer on each key press
 /autothrow [text]   automatically send answer at the beginning of each song
@@ -35,13 +35,13 @@ IN GAME
 /autostart          automatically start the game when everyone is ready if you are host
 /ready              ready up in lobby
 /invite [name]      invite player to game
-/host [name]        promote host
+/host [name]        promote player to host
 /kick [name]        kick player
 /skip               vote skip on current song
 /pause              pause/unpause game
 /lobby              start return to lobby vote
 /leave              leave room
-/rejoin             rejoin the room you are currently in
+/rejoin [seconds]   leave and rejoin the room you are currently in after # of seconds
 /spec               change to spectator
 /join               change from spectator to player in lobby
 /queue              join/leave queue
@@ -424,14 +424,44 @@ function parseChat(message) {
             if (option in info) sendChatMessage(info[option]);
         }
         else if (/^\/rejoin$/.test(message.message)) {
-            sendChatMessage("not implemented");
+            if (checkSoloMode() || checkRankedMode()) return;
+            let time = 1000;
+            if ((/^\S+ ([0-9]+)$/).test(message.message)) {
+                time = parseInt((/^\S+ ([0-9]+)$/).exec(message.message)[1]) * 1000;
+            }
+            setTimeout(() => {
+                if (lobby.inLobby) {
+                    let id = lobby.gameId;
+                    let password = hostModal.getSettings().password;
+                    let isSpectator = false;
+                    gameChat.spectators.forEach((item) => { if (item.name === selfName) isSpectator = true });
+                    lobby.leave();
+                    setTimeout(() => { isSpectator ? roomBrowser.fireSpectateGame(id, password) : roomBrowser.fireJoinLobby(id, password) }, time);
+                }
+                else if (quiz.inQuiz || battleRoyal.inView) {
+                    let password = hostModal.getSettings().password;
+                    let gameInviteListener = new Listener("game invite", (payload) => {
+                        if (payload.sender === selfName) {
+                            gameInviteListener.unbindListener();
+                            viewChanger.changeView("roomBrowser");
+                            setTimeout(() => { roomBrowser.fireSpectateGame(payload.gameId, password) }, time);
+                        }
+                    });
+                    gameInviteListener.bindListener();
+                    socket.sendCommand({
+                        type: "social",
+                        command: "invite to game",
+                        data: { target: selfName }
+                    });
+                }
+            }, 1);
         }
         else if (/^\/leave$/.test(message.message)) {
-            viewChanger.changeView("main");
+            setTimeout(() => { viewChanger.changeView("main") }, 1);
         }
         else if (/^\/(logout|logoff)$/.test(message.message)) {
-            viewChanger.changeView("main");
-            options.logout();
+            setTimeout(() => { viewChanger.changeView("main") }, 1);
+            setTimeout(() => { options.logout() }, 10);
         }
         else if (/^\/version$/.test(message.message)) {
             sendChatMessage("Mega Commands version " + version);
@@ -535,11 +565,11 @@ function parsePM(message) {
         if (option in info) sendPM(message.target, info[option]);
     }
     else if (/^\/leave$/.test(message.msg)) {
-        viewChanger.changeView("main");
+        setTimeout(() => { viewChanger.changeView("main") }, 1);
     }
     else if (/^\/(logout|logoff)$/.test(message.msg)) {
-        viewChanger.changeView("main");
-        options.logout();
+        setTimeout(() => { viewChanger.changeView("main") }, 1);
+        setTimeout(() => { options.logout() }, 10);
     }
     else if (/^\/version$/.test(message.msg)) {
         sendPM(message.target, "Mega Commands version " + version);
@@ -579,12 +609,89 @@ function parsePM(message) {
                 sendPM(message.target, "no spectators");
             }
         }
+        else if (/^\/ready$/.test(message.msg)) {
+            if (lobby.inLobby && !lobby.isReady && !lobby.isHost && !lobby.isSpectator && lobby.settings.gameMode !== "Ranked") {
+                lobby.fireMainButtonEvent();
+            }
+        }
+        else if (/^\/(inv|invite) \w+$/.test(message.msg)) {
+            let name = /^\S+ (\w+)$/.exec(message.msg)[1];
+            socket.sendCommand({
+                type: "social",
+                command: "invite to game",
+                data: { target: name }
+            });
+        }
+        else if (/^\/(spec|spectate)$/.test(message.msg)) {
+            lobby.changeToSpectator(selfName);
+        }
+        else if (/^\/(spec|spectate) \w+$/.test(message.msg)) {
+            let name = /^\S+ (\w+)$/.exec(message.msg)[1];
+            lobby.changeToSpectator(name);
+        }
+        else if (/^\/join$/.test(message.msg)) {
+            socket.sendCommand({
+                type: "lobby",
+                command: "change to player"
+            });
+        }
+        else if (/^\/queue$/.test(message.msg)) {
+            gameChat.joinLeaveQueue();
+        }
+        else if (/^\/host \w+$/.test(message.msg)) {
+            let name = /^\S+ (\w+)$/.exec(message.msg)[1];
+            lobby.promoteHost(name);
+        }
+        else if (/^\/kick \w+$/.test(message.msg)) {
+            let name = /^\S+ (\w+)$/.exec(message.msg)[1];
+            socket.sendCommand({
+                type: "lobby",
+                command: "kick player",
+                data: { playerName: name }
+            });
+        }
+        else if (/^\/(lb|lobby|returntolobby)$/.test(message.msg)) {
+            socket.sendCommand({
+                type: "quiz",
+                command: "start return lobby vote",
+            });
+        }
+        else if (/^\/rejoin$/.test(message.msg)) {
+            if (checkSoloMode() || checkRankedMode()) return;
+            let time = 1000;
+            if ((/^\S+ ([0-9]+)$/).test(message.msg)) {
+                time = parseInt((/^\S+ ([0-9]+)$/).exec(message.msg)[1]) * 1000;
+            }
+            setTimeout(() => {
+                if (lobby.inLobby) {
+                    let id = lobby.gameId;
+                    let password = hostModal.getSettings().password;
+                    let isSpectator = false;
+                    gameChat.spectators.forEach((item) => { if (item.name === selfName) isSpectator = true });
+                    lobby.leave();
+                    setTimeout(() => { isSpectator ? roomBrowser.fireSpectateGame(id, password) : roomBrowser.fireJoinLobby(id, password) }, time);
+                }
+                else if (quiz.inQuiz || battleRoyal.inView) {
+                    let password = hostModal.getSettings().password;
+                    let gameInviteListener = new Listener("game invite", (payload) => {
+                        if (payload.sender === selfName) {
+                            gameInviteListener.unbindListener();
+                            viewChanger.changeView("roomBrowser");
+                            setTimeout(() => { roomBrowser.fireSpectateGame(payload.gameId, password) }, time);
+                        }
+                    });
+                    gameInviteListener.bindListener();
+                    socket.sendCommand({
+                        type: "social",
+                        command: "invite to game",
+                        data: { target: selfName }
+                    });
+                }
+            }, 1);
+        }
         else if (/^\/password$/.test(message.msg)) {
             let password = hostModal.getSettings().password;
             if (password) sendPM(message.target, password);
-        }
-        else if (/^\/rejoin$/.test(message.msg)) {
-            sendPM(message.target, "not implemented");
         }
     }
 }
@@ -673,6 +780,11 @@ function sendPM(target, message) {
     });
 }
 
+//return true if player is in solo lobby or quiz
+function checkSoloMode() {
+    return (lobby.inLobby && lobby.soloMode) || (quiz.inQuiz && quiz.soloMode) || (battleRoyal.inView && battleRoyal.soloMode);
+}
+
 //return true if player is in ranked lobby or quiz
 function checkRankedMode() {
     return (lobby.inLobby && lobby.settings.gameMode === "Ranked") || (quiz.inQuiz && quiz.gameMode === "Ranked");
@@ -749,7 +861,7 @@ const info = {
     "turnofflist": "https://files.catbox.moe/hn1mhw.png"
 };
 
-const version = "0.7";
+const version = "0.8";
 let auto_skip = false;
 let auto_submit_answer;
 let auto_throw = "";
