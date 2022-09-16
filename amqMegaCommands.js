@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            AMQ Mega Commands
 // @namespace       https://github.com/kempanator
-// @version         0.8
+// @version         0.9
 // @description     Commands for AMQ Chat
 // @author          kempanator
 // @match           https://animemusicquiz.com/*
@@ -34,6 +34,7 @@ IN GAME/LOBBY
 /autoready          automatically ready up in lobby
 /autostart          automatically start the game when everyone is ready if you are host
 /ready              ready up in lobby
+/answer [text]      submit answer
 /invite [name]      invite player to game
 /host [name]        promote player to host
 /kick [name]        kick player
@@ -155,7 +156,7 @@ function setup() {
 }
 
 function parseChat(message) {
-    if (checkRankedMode()) return;
+    if (isRankedMode()) return;
     if (message.sender === selfName) {
         if (/^\/roll$/.test(message.message)) {
             sendChatMessage("roll commands: #, player, playerteam, spectator");
@@ -322,6 +323,10 @@ function parseChat(message) {
         }
         else if (/^\/ready$/.test(message.message)) {
             autoReady();
+        }
+        else if (/^\/answer .+$/.test(message.message)) {
+            let answer = /^\S+ (.+)$/.exec(message.message)[1];
+            quiz.answerInput.setNewAnswer(answer);
         }
         else if (/^\/(inv|invite) \w+$/.test(message.message)) {
             let name = /^\S+ (\w+)$/.exec(message.message)[1];
@@ -588,6 +593,10 @@ function parsePM(message) {
                 lobby.fireMainButtonEvent();
             }
         }
+        else if (/^\/answer .+$/.test(message.msg)) {
+            let answer = /^\S+ (.+)$/.exec(message.msg)[1];
+            quiz.answerInput.setNewAnswer(answer);
+        }
         else if (/^\/(inv|invite) \w+$/.test(message.msg)) {
             let name = /^\S+ (\w+)$/.exec(message.msg)[1];
             socket.sendCommand({
@@ -644,22 +653,70 @@ function parsePM(message) {
     }
 }
 
+//return true if player is in solo lobby or quiz
+function isSoloMode() {
+    return (lobby.inLobby && lobby.soloMode) || (quiz.inQuiz && quiz.soloMode) || (battleRoyal.inView && battleRoyal.soloMode);
+}
+
+//return true if player is in ranked lobby or quiz
+function isRankedMode() {
+    return (lobby.inLobby && lobby.settings.gameMode === "Ranked") || (quiz.inQuiz && quiz.gameMode === "Ranked");
+}
+
+// return true if player is your friend
+function isFriend(name) {
+    return getAllFriends().includes(name);
+}
+
+// return true if player is in lobby or quiz (not spectating)
+function isPlayer(name) {
+    if (lobby.inLobby) {
+        for (let id in lobby.players) {
+            if (lobby.players[id]._name === name) return true;
+        }
+    }
+    if (quiz.inQuiz) {
+        for (let id in quiz.players) {
+            if (quiz.players[id]._name === name) return true;
+        }
+    }
+    if (battleRoyal.inView) {
+        for (let id in battleRoyal.players) {
+            if (battleRoyal.players[id]._name === name) return true;
+        }
+    }
+    return false;    
+}
+
+// return true if player is spectator
+function isSpectator(name) {
+    for (let player of gameChat.spectators) {
+        if (player.name === name) return true;
+    }
+    return false;
+}
+
+// return array of names of all friends
+function getAllFriends() {
+    return Object.keys(socialTab.onlineFriends).concat(Object.keys(socialTab.offlineFriends));
+}
+
 // return array of names of players in game
 function getPlayerList() {
     let player_list = [];
     if (lobby.inLobby) {
-        for (let playerId in lobby.players) {
-            player_list.push(lobby.players[playerId]._name);
+        for (let id in lobby.players) {
+            player_list.push(lobby.players[id]._name);
         }
     }
     else if (quiz.inQuiz) {
-        for (let playerId in quiz.players) {
-            player_list.push(quiz.players[playerId]._name);
+        for (let id in quiz.players) {
+            player_list.push(quiz.players[id]._name);
         }
     }
     else if (battleRoyal.inView) {
-        for (let playerId in battleRoyal.players) {
-            player_list.push(battleRoyal.players[playerId]._name);
+        for (let id in battleRoyal.players) {
+            player_list.push(battleRoyal.players[id]._name);
         }
     }
     return player_list;
@@ -668,8 +725,8 @@ function getPlayerList() {
 // return array of names of spectators
 function getSpectatorList() {
     let spectator_list = [];
-    for (let playerId in gameChat.spectators) {
-        spectator_list.push(gameChat.spectators[playerId].name);
+    for (let player of gameChat.spectators) {
+        spectator_list.push(player.name);
     }
     return spectator_list;
 }
@@ -728,21 +785,6 @@ function sendPM(target, message) {
     });
 }
 
-//return true if player is in solo lobby or quiz
-function checkSoloMode() {
-    return (lobby.inLobby && lobby.soloMode) || (quiz.inQuiz && quiz.soloMode) || (battleRoyal.inView && battleRoyal.soloMode);
-}
-
-//return true if player is in ranked lobby or quiz
-function checkRankedMode() {
-    return (lobby.inLobby && lobby.settings.gameMode === "Ranked") || (quiz.inQuiz && quiz.gameMode === "Ranked");
-}
-
-// return array of names of all friends
-function getAllFriends() {
-    return Object.keys(socialTab.onlineFriends).concat(Object.keys(socialTab.offlineFriends));
-}
-
 // change game settings
 function changeGameSettings(settings) {
     let settingChanges = {};
@@ -776,6 +818,38 @@ function autoStart() {
     }, 1);
 }
 
+// rejoin the room you are currently in
+// input number of seconds
+function rejoinRoom(time) {
+    if (isSoloMode() || isRankedMode()) return;
+    setTimeout(() => {
+        if (lobby.inLobby) {
+            let id = lobby.gameId;
+            let password = hostModal.getSettings().password;
+            let isSpectator = false;
+            gameChat.spectators.forEach((item) => { if (item.name === selfName) isSpectator = true });
+            lobby.leave();
+            setTimeout(() => { isSpectator ? roomBrowser.fireSpectateGame(id, password) : roomBrowser.fireJoinLobby(id, password) }, time);
+        }
+        else if (quiz.inQuiz || battleRoyal.inView) {
+            let password = hostModal.getSettings().password;
+            let gameInviteListener = new Listener("game invite", (payload) => {
+                if (payload.sender === selfName) {
+                    gameInviteListener.unbindListener();
+                    viewChanger.changeView("roomBrowser");
+                    setTimeout(() => { roomBrowser.fireSpectateGame(payload.gameId, password) }, time);
+                }
+            });
+            gameInviteListener.bindListener();
+            socket.sendCommand({
+                type: "social",
+                command: "invite to game",
+                data: { target: selfName }
+            });
+        }
+    }, 1);
+}
+
 // overload changeView function for auto ready
 ViewChanger.prototype.changeView = (function() {
     let old = ViewChanger.prototype.changeView;
@@ -802,14 +876,12 @@ const rules = {
     "spy": "https://pastebin.com/Q1Z35czX",
     "warlords": "https://pastebin.com/zWNRFsC3"
 };
-
 const info = {
     "draw": "https://aggie.io",
     "piano": "https://musiclab.chromeexperiments.com/Shared-Piano/#amqpiano",
     "turnofflist": "https://files.catbox.moe/hn1mhw.png"
 };
-
-const version = "0.8";
+const version = "0.9";
 let auto_skip = false;
 let auto_submit_answer;
 let auto_throw = "";
