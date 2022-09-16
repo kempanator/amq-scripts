@@ -424,37 +424,11 @@ function parseChat(message) {
             if (option in info) sendChatMessage(info[option]);
         }
         else if (/^\/rejoin$/.test(message.message)) {
-            if (checkSoloMode() || checkRankedMode()) return;
-            let time = 1000;
-            if ((/^\S+ ([0-9]+)$/).test(message.message)) {
-                time = parseInt((/^\S+ ([0-9]+)$/).exec(message.message)[1]) * 1000;
-            }
-            setTimeout(() => {
-                if (lobby.inLobby) {
-                    let id = lobby.gameId;
-                    let password = hostModal.getSettings().password;
-                    let isSpectator = false;
-                    gameChat.spectators.forEach((item) => { if (item.name === selfName) isSpectator = true });
-                    lobby.leave();
-                    setTimeout(() => { isSpectator ? roomBrowser.fireSpectateGame(id, password) : roomBrowser.fireJoinLobby(id, password) }, time);
-                }
-                else if (quiz.inQuiz || battleRoyal.inView) {
-                    let password = hostModal.getSettings().password;
-                    let gameInviteListener = new Listener("game invite", (payload) => {
-                        if (payload.sender === selfName) {
-                            gameInviteListener.unbindListener();
-                            viewChanger.changeView("roomBrowser");
-                            setTimeout(() => { roomBrowser.fireSpectateGame(payload.gameId, password) }, time);
-                        }
-                    });
-                    gameInviteListener.bindListener();
-                    socket.sendCommand({
-                        type: "social",
-                        command: "invite to game",
-                        data: { target: selfName }
-                    });
-                }
-            }, 1);
+            rejoinRoom(100);
+        }
+        else if (/^\/rejoin ([0-9]+)$/.test(message.message)) {
+            let time = parseInt((/^\S+ ([0-9]+)$/).exec(message.message)[1]) * 1000;
+            rejoinRoom(time);
         }
         else if (/^\/leave$/.test(message.message)) {
             setTimeout(() => { viewChanger.changeView("main") }, 1);
@@ -657,37 +631,11 @@ function parsePM(message) {
             });
         }
         else if (/^\/rejoin$/.test(message.msg)) {
-            if (checkSoloMode() || checkRankedMode()) return;
-            let time = 1000;
-            if ((/^\S+ ([0-9]+)$/).test(message.msg)) {
-                time = parseInt((/^\S+ ([0-9]+)$/).exec(message.msg)[1]) * 1000;
-            }
-            setTimeout(() => {
-                if (lobby.inLobby) {
-                    let id = lobby.gameId;
-                    let password = hostModal.getSettings().password;
-                    let isSpectator = false;
-                    gameChat.spectators.forEach((item) => { if (item.name === selfName) isSpectator = true });
-                    lobby.leave();
-                    setTimeout(() => { isSpectator ? roomBrowser.fireSpectateGame(id, password) : roomBrowser.fireJoinLobby(id, password) }, time);
-                }
-                else if (quiz.inQuiz || battleRoyal.inView) {
-                    let password = hostModal.getSettings().password;
-                    let gameInviteListener = new Listener("game invite", (payload) => {
-                        if (payload.sender === selfName) {
-                            gameInviteListener.unbindListener();
-                            viewChanger.changeView("roomBrowser");
-                            setTimeout(() => { roomBrowser.fireSpectateGame(payload.gameId, password) }, time);
-                        }
-                    });
-                    gameInviteListener.bindListener();
-                    socket.sendCommand({
-                        type: "social",
-                        command: "invite to game",
-                        data: { target: selfName }
-                    });
-                }
-            }, 1);
+            rejoinRoom(100);
+        }
+        else if (/^\/rejoin ([0-9]+)$/.test(message.msg)) {
+            let time = parseInt((/^\S+ ([0-9]+)$/).exec(message.msg)[1]) * 1000;
+            rejoinRoom(time);
         }
         else if (/^\/password$/.test(message.msg)) {
             let password = hostModal.getSettings().password;
