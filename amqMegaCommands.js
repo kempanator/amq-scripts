@@ -120,6 +120,9 @@ function setup() {
         if (auto_ready) sendSystemMessage("Auto Ready: Enabled");
         if (auto_start) sendSystemMessage("Auto Start: Enabled");
     }).bindListener();
+    new Listener("Player Ready Change",  (payload) => {
+        autoStart();
+    }).bindListener();
     new Listener("Room Settings Changed", (payload) => {
         setTimeout(() => { autoReady() }, 1);
     }).bindListener();
