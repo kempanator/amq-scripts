@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            AMQ Mega Commands
 // @namespace       https://github.com/kempanator
-// @version         0.9
+// @version         0.10
 // @description     Commands for AMQ Chat
 // @author          kempanator
 // @match           https://animemusicquiz.com/*
@@ -228,6 +228,16 @@ function parseChat(message) {
             settings.songType.advancedValue.random = settings.numberOfSongs;
             changeGameSettings(settings);
         }
+        else if (/^\/(t|types?|songtypes?) \w+ [0-9]+$/.test(content)) {
+            let option = /^\S+ (\w+) [0-9]+$/.exec(content)[1].toLowerCase();
+            let value = parseInt(/^\S+ \w+ ([0-9]+)$/.exec(content)[1]);
+            let settings = hostModal.getSettings();
+            if (option[0] === "o") settings.songType.advancedValue.openings = value;
+            else if (option[0] === "e") settings.songType.advancedValue.endings = value;
+            else if (option[0] === "i") settings.songType.advancedValue.inserts = value;
+            else if (option[0] === "r") settings.songType.advancedValue.random = value;
+            changeGameSettings(settings);
+        }
         else if (/^\/watched$/.test(content)) {
             let settings = hostModal.getSettings();
             settings.songSelection.standardValue = 1;
@@ -242,6 +252,15 @@ function parseChat(message) {
             settings.songSelection.advancedValue["watched"] = settings.numberOfSongs;
             settings.songSelection.advancedValue["unwatched"] = 0;
             settings.songSelection.advancedValue["random"] = 0;
+            changeGameSettings(settings);
+        }
+        else if (/^\/selection \w+ [0-9]+$/.test(content)) {
+            let option = /^\S+ (\w+) [0-9]+$/.exec(content)[1].toLowerCase();
+            let value = parseInt(/^\S+ \w+ ([0-9]+)$/.exec(content)[1]);
+            let settings = hostModal.getSettings();
+            if (option[0] === "w") settings.songSelection.advancedValue.watched = value;
+            else if (option[0] === "u") settings.songSelection.advancedValue.unwatched = value;
+            else if (option[0] === "r") settings.songSelection.advancedValue.random = value;
             changeGameSettings(settings);
         }
         else if (/^\/(s|speed) [0-9.]+$/.test(content)) {
@@ -894,7 +913,7 @@ const info = {
     "piano": "https://musiclab.chromeexperiments.com/Shared-Piano/#amqpiano",
     "turnofflist": "https://files.catbox.moe/hn1mhw.png"
 };
-const version = "0.9";
+const version = "0.10";
 let auto_skip = false;
 let auto_submit_answer;
 let auto_throw = "";
