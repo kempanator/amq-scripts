@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            AMQ Mega Commands
 // @namespace       https://github.com/kempanator
-// @version         0.10
+// @version         0.9
 // @description     Commands for AMQ Chat
 // @author          kempanator
 // @match           https://animemusicquiz.com/*
@@ -884,7 +884,7 @@ const info = {
     "piano": "https://musiclab.chromeexperiments.com/Shared-Piano/#amqpiano",
     "turnofflist": "https://files.catbox.moe/hn1mhw.png"
 };
-const version = "0.10";
+const version = "0.9";
 let auto_skip = false;
 let auto_submit_answer;
 let auto_throw = "";
