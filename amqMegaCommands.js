@@ -52,6 +52,7 @@ OTHER
 /roll               roll number, player, playerteam, spectator
 /rules              show list of gamemodes and rules
 /info               show list of external utilities
+/clear              clear chat
 /pm [name] [text]   private message a player (name is case sensitive)
 /profile [name]     show profile window of any player
 /leaderboard        show the leaderboard
@@ -377,6 +378,11 @@ function parseChat(message) {
             volumeController.volume = option;
             volumeController.adjustVolume();
             volumeController.setMuted(false);
+        }
+        else if (/^\/clear$/.test(content)) {
+            for (let element of document.querySelector("#gcMessageContainer").querySelectorAll("li")) {
+                element.remove();
+            }
         }
         else if (/^\/password$/.test(content)) {
             let password = hostModal.getSettings().password;
@@ -832,10 +838,9 @@ function rejoinRoom(time) {
         if (lobby.inLobby) {
             let id = lobby.gameId;
             let password = hostModal.getSettings().password;
-            let isSpectator = false;
-            gameChat.spectators.forEach((item) => { if (item.name === selfName) isSpectator = true });
+            let spec = isSpectator(selfName);
             lobby.leave();
-            setTimeout(() => { isSpectator ? roomBrowser.fireSpectateGame(id, password) : roomBrowser.fireJoinLobby(id, password) }, time);
+            setTimeout(() => { spec ? roomBrowser.fireSpectateGame(id, password) : roomBrowser.fireJoinLobby(id, password) }, time);
         }
         else if (quiz.inQuiz || battleRoyal.inView) {
             let password = hostModal.getSettings().password;
