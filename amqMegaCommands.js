@@ -380,9 +380,11 @@ function parseChat(message) {
             volumeController.setMuted(false);
         }
         else if (/^\/clear$/.test(content)) {
-            for (let element of document.querySelector("#gcMessageContainer").querySelectorAll("li")) {
-                element.remove();
-            }
+            setTimeout(() => {
+                for (let element of document.querySelector("#gcMessageContainer").querySelectorAll("li")) {
+                    element.remove();
+                }
+            }, 1);
         }
         else if (/^\/password$/.test(content)) {
             let password = hostModal.getSettings().password;
