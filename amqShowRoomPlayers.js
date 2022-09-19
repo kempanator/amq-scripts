@@ -24,14 +24,14 @@ function setup() {
         payload.forEach(item => {
             setTimeout(() => {
                 updateRoomTile(item.id);
-            }, 10);
+            }, 1);
         });
     }).bindListener();
     new Listener("Room Change", (payload) => {
         if (payload.changeType === "players" || payload.changeType === "spectators") {
             setTimeout(() => {
                 updateRoomTile(payload.roomId);
-            }, 10);
+            }, 1);
         }
     }).bindListener();
     AMQ_addScriptData({

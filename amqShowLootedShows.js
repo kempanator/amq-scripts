@@ -22,8 +22,8 @@ let loadInterval = setInterval(() => {
 function setup() {
     new Listener("battle royal phase over", (payload) => {
         if (!battleRoyal.isSpectator) {
-            for (let item of document.querySelector("#brCollectedList").querySelectorAll("li")) {
-                gameChat.systemMessage(item.innerText.substring(2));
+            for (let element of document.querySelector("#brCollectedList").querySelectorAll("li")) {
+                gameChat.systemMessage(element.innerText.substring(2));
             }
         }
     }).bindListener();
