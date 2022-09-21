@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            AMQ Mega Commands
 // @namespace       https://github.com/kempanator
-// @version         0.10
+// @version         0.11
 // @description     Commands for AMQ Chat
 // @author          kempanator
 // @match           https://animemusicquiz.com/*
@@ -33,7 +33,7 @@ IN GAME/LOBBY
 /autocopy [name]    automatically copy a team member's answer
 /autoready          automatically ready up in lobby
 /autostart          automatically start the game when everyone is ready if you are host
-/ready              ready up in lobby
+/ready              ready/unready in lobby
 /answer [text]      submit answer
 /invite [name]      invite player to game
 /host [name]        promote player to host
@@ -47,6 +47,7 @@ IN GAME/LOBBY
 /join               change from spectator to player in lobby
 /queue              join/leave queue
 /volume [0-100]     change volume
+/dropdown           enable/disable anime dropdown
 
 OTHER
 /roll               roll number, player, playerteam, spectator
@@ -146,12 +147,11 @@ function setup() {
         }
     });
     const profile_element = document.querySelector("#playerProfileLayer");
-    const profile_observer = new MutationObserver(function() {
+    new MutationObserver(function() {
         if (profile_element.querySelector(".ppFooterOptionIcon, .startChat")) {
             profile_element.querySelector(".ppFooterOptionIcon, .startChat").classList.remove("disabled");
         }
-    });
-    profile_observer.observe(profile_element, {childList: true});
+    }).observe(profile_element, {childList: true});
     AMQ_addScriptData({
         name: "Mega Commands",
         author: "kempanator",
@@ -165,7 +165,7 @@ function parseChat(message) {
     let isTeamMessage = message.teamMessage;
     if (message.sender === selfName) {
         if (/^\/roll$/.test(content)) {
-            sendChatMessage("roll commands: #, player, playerteam, spectator", isTeamMessage);
+            sendSystemMessage("roll commands: #, player, playerteam, spectator");
         }
         else if (/^\/roll [0-9]+$/.test(content)) {
             let number = parseInt(/^\S+ ([0-9]+)$/.exec(content)[1]);
@@ -182,7 +182,7 @@ function parseChat(message) {
                 sendChatMessage(player_list[Math.floor(Math.random() * player_list.length)], isTeamMessage);
             }
             else {
-                sendChatMessage("no players", isTeamMessage);
+                sendSystemMessage("no players");
             }
         }
         else if (/^\/roll (pt|playerteams?|teams?)$/.test(content)) {
@@ -198,7 +198,7 @@ function parseChat(message) {
                 }
             }
             else {
-                sendChatMessage("team size must be greater than 1", isTeamMessage);
+                sendSystemMessage("team size must be greater than 1");
             }
         }
         else if (/^\/roll (s|spectators?)$/.test(content)) {
@@ -207,7 +207,7 @@ function parseChat(message) {
                 sendChatMessage(spectator_list[Math.floor(Math.random() * spectator_list.length)], isTeamMessage);
             }
             else {
-                sendChatMessage("no spectators", isTeamMessage);
+                sendSystemMessage("no spectators");
             }
         }
         else if (/^\/size [0-9]+$/.test(content)) {
@@ -241,17 +241,17 @@ function parseChat(message) {
         else if (/^\/watched$/.test(content)) {
             let settings = hostModal.getSettings();
             settings.songSelection.standardValue = 1;
-            settings.songSelection.advancedValue["watched"] = 0;
-            settings.songSelection.advancedValue["unwatched"] = 0;
-            settings.songSelection.advancedValue["random"] = settings.numberOfSongs;
+            settings.songSelection.advancedValue.watched = 0;
+            settings.songSelection.advancedValue.unwatched = 0;
+            settings.songSelection.advancedValue.random = settings.numberOfSongs;
             changeGameSettings(settings);
         }
         else if (/^\/random$/.test(content)) {
             let settings = hostModal.getSettings();
             settings.songSelection.standardValue = 3;
-            settings.songSelection.advancedValue["watched"] = settings.numberOfSongs;
-            settings.songSelection.advancedValue["unwatched"] = 0;
-            settings.songSelection.advancedValue["random"] = 0;
+            settings.songSelection.advancedValue.watched = settings.numberOfSongs;
+            settings.songSelection.advancedValue.unwatched = 0;
+            settings.songSelection.advancedValue.random = 0;
             changeGameSettings(settings);
         }
         else if (/^\/selection \w+ [0-9]+$/.test(content)) {
@@ -320,11 +320,11 @@ function parseChat(message) {
             localStorage.setItem("mega_commands_auto_submit_answer", auto_submit_answer);
             sendSystemMessage("auto submit answer " + (auto_submit_answer ? "enabled" : "disabled"));
         }
-        else if (/^\/autocopy$/.test(content)) {
+        else if (/^\/(ac|autocopy)$/.test(content)) {
             auto_copy_player = "";
             sendSystemMessage("auto copy disabled");
         }
-        else if (/^\/autocopy \w+$/.test(content)) {
+        else if (/^\/(ac|autocopy) \w+$/.test(content)) {
             auto_copy_player = /^\S+ (\w+)$/.exec(content)[1].toLowerCase();
             sendSystemMessage("auto copying " + auto_copy_player);
         }
@@ -338,6 +338,7 @@ function parseChat(message) {
         }
         else if (/^\/autoready$/.test(content)) {
             auto_ready = !auto_ready;
+            autoReady();
             localStorage.setItem("mega_commands_auto_ready", auto_ready);
             sendSystemMessage("auto ready " + (auto_ready ? "enabled" : "disabled"));
         }
@@ -347,7 +348,9 @@ function parseChat(message) {
             autoStart();
         }
         else if (/^\/ready$/.test(content)) {
-            autoReady();
+            if (lobby.inLobby && !lobby.isHost && !lobby.isSpectator && lobby.settings.gameMode !== "Ranked") {
+                lobby.fireMainButtonEvent();
+            }
         }
         else if (/^\/answer .+$/.test(content)) {
             let answer = /^\S+ (.+)$/.exec(content)[1];
@@ -395,8 +398,8 @@ function parseChat(message) {
         else if (/^\/(v|volume) [0-9]+$/.test(content)) {
             let option = parseFloat(/^\S+ ([0-9]+)$/.exec(content)[1]) / 100;
             volumeController.volume = option;
-            volumeController.adjustVolume();
             volumeController.setMuted(false);
+            volumeController.adjustVolume();
         }
         else if (/^\/clear$/.test(content)) {
             setTimeout(() => {
@@ -404,6 +407,11 @@ function parseChat(message) {
                     element.remove();
                 }
             }, 1);
+        }
+        else if (/^\/dropdown$/.test(content)) {
+            dropdown = !dropdown;
+            sendSystemMessage("dropdown " + (dropdown ? "enabled" : "disabled"));
+            quiz.answerInput.autoCompleteController.newList();
         }
         else if (/^\/password$/.test(content)) {
             let password = hostModal.getSettings().password;
@@ -482,10 +490,7 @@ function parseChat(message) {
 
 function parsePM(message) {
     let content = message.msg;
-    if (/^\/roll$/.test(content)) {
-        sendPM(message.target, "roll commands: #, player, playerteam, spectator");
-    }
-    else if (/^\/roll [0-9]+$/.test(content)) {
+    if (/^\/roll [0-9]+$/.test(content)) {
         let number = parseInt(/^\S+ ([0-9]+)$/.exec(content)[1]);
         sendPM(message.target, "rolls " + (Math.floor(Math.random() * number) + 1));
     }
@@ -503,11 +508,11 @@ function parsePM(message) {
         localStorage.setItem("mega_commands_auto_submit_answer", auto_submit_answer);
         sendSystemMessage("auto submit answer " + (auto_submit_answer ? "enabled" : "disabled"));
     }
-    else if (/^\/autocopy$/.test(content)) {
+    else if (/^\/(ac|autocopy)$/.test(content)) {
         auto_copy_player = "";
         sendSystemMessage("auto copy disabled");
     }
-    else if (/^\/autocopy \w+$/.test(content)) {
+    else if (/^\/(ac|autocopy) \w+$/.test(content)) {
         auto_copy_player = /^\S+ (\w+)$/.exec(content)[1].toLowerCase();
         sendSystemMessage("auto copying " + auto_copy_player);
     }
@@ -521,6 +526,7 @@ function parsePM(message) {
     }
     else if (/^\/autoready$/.test(content)) {
         auto_ready = !auto_ready;
+        autoReady();
         localStorage.setItem("mega_commands_auto_ready", auto_ready);
         sendSystemMessage("auto ready " + (auto_ready ? "enabled" : "disabled"));
     }
@@ -622,7 +628,7 @@ function parsePM(message) {
             }
         }
         else if (/^\/ready$/.test(content)) {
-            if (lobby.inLobby && !lobby.isReady && !lobby.isHost && !lobby.isSpectator && lobby.settings.gameMode !== "Ranked") {
+            if (lobby.inLobby && !lobby.isHost && !lobby.isSpectator && lobby.settings.gameMode !== "Ranked") {
                 lobby.fireMainButtonEvent();
             }
         }
@@ -678,6 +684,11 @@ function parsePM(message) {
         else if (/^\/rejoin ([0-9]+)$/.test(content)) {
             let time = parseInt((/^\S+ ([0-9]+)$/).exec(content)[1]) * 1000;
             rejoinRoom(time);
+        }
+        else if (/^\/dropdown$/.test(content)) {
+            dropdown = !dropdown;
+            sendPM(message.target, "dropdown " + (dropdown ? "enabled" : "disabled"));
+            quiz.answerInput.autoCompleteController.newList();
         }
         else if (/^\/password$/.test(content)) {
             let password = hostModal.getSettings().password;
@@ -852,7 +863,7 @@ function autoStart() {
 }
 
 // rejoin the room you are currently in
-// input number of milliseconds
+// input number of milliseconds of delay
 function rejoinRoom(time) {
     if (isSoloMode() || isRankedMode()) return;
     setTimeout(() => {
@@ -896,6 +907,14 @@ ViewChanger.prototype.changeView = (function() {
     }
 })();
 
+// overload newList function for drop down disable
+const oldNewList = AutoCompleteController.prototype.newList;
+AutoCompleteController.prototype.newList = function() {
+    if (this.list.length > 0) saved_list = this.list;
+    this.list = dropdown ? saved_list : [];
+    oldNewList.apply(this, arguments);
+}
+
 const rules = {
     "alien": "https://pastebin.com/LxLMg1nA",
     "blackjack": "https://pastebin.com/kcq7hsJm",
@@ -913,10 +932,11 @@ const info = {
     "piano": "https://musiclab.chromeexperiments.com/Shared-Piano/#amqpiano",
     "turnofflist": "https://files.catbox.moe/hn1mhw.png"
 };
-const version = "0.10";
+const version = "0.11";
 let auto_skip = false;
 let auto_submit_answer;
 let auto_throw = "";
 let auto_copy_player = "";
 let auto_ready;
 let auto_start = false;
+let dropdown = true;
