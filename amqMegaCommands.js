@@ -520,7 +520,7 @@ function parseChat(message) {
         socialTab.startChat(name);
     }
     else if (/^\/(pm|dm) \w+ .+$/.test(content)) {
-        let name = getPlayerNameCorrectCase(/^\S+ (\w+)$/.exec(content)[1]);
+        let name = getPlayerNameCorrectCase(/^\S+ (\w+) .+$/.exec(content)[1]);
         let text = /^\S+ \w+ (.+)$/.exec(content)[1];
         socialTab.startChat(name);
         socket.sendCommand({ type: "social", command: "chat message", data: { target: name, message: text } });
@@ -678,7 +678,7 @@ function parsePM(message) {
         socialTab.startChat(name);
     }
     else if (/^\/(pm|dm) \w+ .+$/.test(content)) {
-        let name = getPlayerNameCorrectCase(/^\S+ (\w+)$/.exec(content)[1]);
+        let name = getPlayerNameCorrectCase(/^\S+ (\w+) .+$/.exec(content)[1]);
         let text = /^\S+ \w+ (.+)$/.exec(content)[1];
         socialTab.startChat(name);
         socket.sendCommand({ type: "social", command: "chat message", data: { target: name, message: text } });
