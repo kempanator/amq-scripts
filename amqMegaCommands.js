@@ -450,18 +450,14 @@ function parseChat(message) {
         quiz.answerInput.setNewAnswer(answer);
     }
     else if (/^\/(inv|invite) \w+$/.test(content)) {
-        let name = /^\S+ (\w+)$/.exec(content)[1];
-        socket.sendCommand({
-            type: "social",
-            command: "invite to game",
-            data: { target: name }
-        });
+        let name = getPlayerNameCorrectCase(/^\S+ (\w+)$/.exec(content)[1]);
+        socket.sendCommand({ type: "social", command: "invite to game", data: { target: name } });
     }
     else if (/^\/(spec|spectate)$/.test(content)) {
         lobby.changeToSpectator(selfName);
     }
     else if (/^\/(spec|spectate) \w+$/.test(content)) {
-        let name = /^\S+ (\w+)$/.exec(content)[1];
+        let name = getPlayerNameCorrectCase(/^\S+ (\w+)$/.exec(content)[1]);
         lobby.changeToSpectator(name);
     }
     else if (/^\/join$/.test(content)) {
@@ -474,16 +470,12 @@ function parseChat(message) {
         gameChat.joinLeaveQueue();
     }
     else if (/^\/host \w+$/.test(content)) {
-        let name = /^\S+ (\w+)$/.exec(content)[1];
+        let name = getPlayerNameCorrectCase(/^\S+ (\w+)$/.exec(content)[1]);
         lobby.promoteHost(name);
     }
     else if (/^\/kick \w+$/.test(content)) {
-        let name = /^\S+ (\w+)$/.exec(content)[1];
-        socket.sendCommand({
-            type: "lobby",
-            command: "kick player",
-            data: { playerName: name }
-        });
+        let name = getPlayerNameCorrectCase(/^\S+ (\w+)$/.exec(content)[1]);
+        socket.sendCommand({ type: "lobby", command: "kick player", data: { playerName: name } });
     }
     else if (/^\/(lb|lobby|returntolobby)$/.test(content)) {
         quiz.startReturnLobbyVote();
@@ -518,29 +510,20 @@ function parseChat(message) {
             handleAllOnlineMessage.unbindListener();
         });
         handleAllOnlineMessage.bindListener();
-        socket.sendCommand({
-            type: "social",
-            command: "get online users",
-        });
+        socket.sendCommand({ type: "social", command: "get online users" });
     }
     else if (/^\/(pm|dm)$/.test(content)) {
         socialTab.startChat(selfName);
     }
     else if (/^\/(pm|dm) \w+$/.test(content)) {
-        let name = /^\S+ (\w+)$/.exec(content)[1];
-        let nameCorrectCase = getPlayerNameCorrectCase(name);
-        socialTab.startChat(nameCorrectCase ? nameCorrectCase : name);
+        let name = getPlayerNameCorrectCase(/^\S+ (\w+)$/.exec(content)[1]);
+        socialTab.startChat(name);
     }
     else if (/^\/(pm|dm) \w+ .+$/.test(content)) {
-        let name = /^\S+ (\w+) .+$/.exec(content)[1];
+        let name = getPlayerNameCorrectCase(/^\S+ (\w+)$/.exec(content)[1]);
         let text = /^\S+ \w+ (.+)$/.exec(content)[1];
-        let nameCorrectCase = getPlayerNameCorrectCase(name);
-        socialTab.startChat(nameCorrectCase ? nameCorrectCase : name);
-        socket.sendCommand({
-            type: "social",
-            command: "chat message",
-            data: { target: (nameCorrectCase ? nameCorrectCase : name), message: text }
-        });
+        socialTab.startChat(name);
+        socket.sendCommand({ type: "social", command: "chat message", data: { target: name, message: text } });
     }
     else if (/^\/(prof|profile) \w+$/.test(content)) {
         let name = /^\S+ (\w+)$/.exec(content)[1].toLowerCase();
@@ -691,20 +674,14 @@ function parsePM(message) {
         socialTab.startChat(selfName);
     }
     else if (/^\/(pm|dm) \w+$/.test(content)) {
-        let name = /^\S+ (\w+)$/.exec(content)[1];
-        let nameCorrectCase = getPlayerNameCorrectCase(name);
-        socialTab.startChat(nameCorrectCase ? nameCorrectCase : name);
+        let name = getPlayerNameCorrectCase(/^\S+ (\w+)$/.exec(content)[1]);
+        socialTab.startChat(name);
     }
     else if (/^\/(pm|dm) \w+ .+$/.test(content)) {
-        let name = /^\S+ (\w+) .+$/.exec(content)[1];
+        let name = getPlayerNameCorrectCase(/^\S+ (\w+)$/.exec(content)[1]);
         let text = /^\S+ \w+ (.+)$/.exec(content)[1];
-        let nameCorrectCase = getPlayerNameCorrectCase(name);
-        socialTab.startChat(nameCorrectCase ? nameCorrectCase : name);
-        socket.sendCommand({
-            type: "social",
-            command: "chat message",
-            data: { target: (nameCorrectCase ? nameCorrectCase : name), message: text }
-        });
+        socialTab.startChat(name);
+        socket.sendCommand({ type: "social", command: "chat message", data: { target: name, message: text } });
     }
     else if (/^\/(prof|profile) \w+$/.test(content)) {
         let name = /^\S+ (\w+)$/.exec(content)[1].toLowerCase();
@@ -721,10 +698,7 @@ function parsePM(message) {
             handleAllOnlineMessage.unbindListener();
         });
         handleAllOnlineMessage.bindListener();
-        socket.sendCommand({
-            type: "social",
-            command: "get online users",
-        });
+        socket.sendCommand({ type: "social", command: "get online users" });
     }
     else if (/^\/rules$/.test(content)) {
         sendPM(message.target, Object.keys(rules).join(", "));
@@ -818,46 +792,32 @@ function parsePM(message) {
             quiz.answerInput.setNewAnswer(answer);
         }
         else if (/^\/(inv|invite) \w+$/.test(content)) {
-            let name = /^\S+ (\w+)$/.exec(content)[1];
-            socket.sendCommand({
-                type: "social",
-                command: "invite to game",
-                data: { target: name }
-            });
+            let name = getPlayerNameCorrectCase(/^\S+ (\w+)$/.exec(content)[1]);
+            socket.sendCommand({ type: "social", command: "invite to game", data: { target: name } });
         }
         else if (/^\/(spec|spectate)$/.test(content)) {
             lobby.changeToSpectator(selfName);
         }
         else if (/^\/(spec|spectate) \w+$/.test(content)) {
-            let name = /^\S+ (\w+)$/.exec(content)[1];
+            let name = getPlayerNameCorrectCase(/^\S+ (\w+)$/.exec(content)[1]);
             lobby.changeToSpectator(name);
         }
         else if (/^\/join$/.test(content)) {
-            socket.sendCommand({
-                type: "lobby",
-                command: "change to player"
-            });
+            socket.sendCommand({ type: "lobby", command: "change to player" });
         }
         else if (/^\/queue$/.test(content)) {
             gameChat.joinLeaveQueue();
         }
         else if (/^\/host \w+$/.test(content)) {
-            let name = /^\S+ (\w+)$/.exec(content)[1];
+            let name = getPlayerNameCorrectCase(/^\S+ (\w+)$/.exec(content)[1]);
             lobby.promoteHost(name);
         }
         else if (/^\/kick \w+$/.test(content)) {
-            let name = /^\S+ (\w+)$/.exec(content)[1];
-            socket.sendCommand({
-                type: "lobby",
-                command: "kick player",
-                data: { playerName: name }
-            });
+            let name = getPlayerNameCorrectCase(/^\S+ (\w+)$/.exec(content)[1]);
+            socket.sendCommand({ type: "lobby", command: "kick player", data: { playerName: name } });
         }
         else if (/^\/(lb|lobby|returntolobby)$/.test(content)) {
-            socket.sendCommand({
-                type: "quiz",
-                command: "start return lobby vote",
-            });
+            socket.sendCommand({ type: "quiz", command: "start return lobby vote" });
         }
         else if (/^\/rejoin$/.test(content)) {
             rejoinRoom(100);
@@ -1081,24 +1041,25 @@ function rejoinRoom(time) {
 
 //input name, return correct case sensitive name of player
 function getPlayerNameCorrectCase(name) {
-    name = name.toLowerCase();
+    let nameLowerCase = name.toLowerCase();
     if (inRoom()) {
         for (let player of getPlayerList().concat(getSpectatorList())) {
-            if (name === player.toLowerCase()) {
+            if (nameLowerCase === player.toLowerCase()) {
                 return player;
             }
         }
     }
     for (let player of getAllFriends()) {
-        if (name === player.toLowerCase()) {
+        if (nameLowerCase === player.toLowerCase()) {
             return player;
         }
     }
     for (let player in socialTab.allPlayerList._playerEntries) {
-        if (name === player.toLowerCase()) {
+        if (nameLowerCase === player.toLowerCase()) {
             return player;
         }
     }
+    return name;
 }
 
 // overload changeView function for auto ready
