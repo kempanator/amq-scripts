@@ -33,10 +33,9 @@ IN GAME/LOBBY
 /autocopy [name]    automatically copy a team member's answer
 /autoready          automatically ready up in lobby
 /autostart          automatically start the game when everyone is ready if you are host
-/autohost           automatically promote player to host if you are the current host
-/autoinvite         automatically invite a player to your room when they log in (only friends)
-/autoaccept         automatically accept all game invites (only friends)
-/autostatus [text]  automatically set status on log in (online, away, do not disturb, invisible)
+/autohost [name]    automatically promote player to host if you are the current host
+/autoinvite [name]  automatically invite a player to your room when they log in (only friends)
+/autoaccept         automatically accept game invites if you aren't in a room (only friends)
 /ready              ready/unready in lobby
 /answer [text]      submit answer
 /invite [name]      invite player to game
