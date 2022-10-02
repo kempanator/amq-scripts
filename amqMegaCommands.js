@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            AMQ Mega Commands
 // @namespace       https://github.com/kempanator
-// @version         0.12
+// @version         0.13
 // @description     Commands for AMQ Chat
 // @author          kempanator
 // @match           https://animemusicquiz.com/*
@@ -33,6 +33,10 @@ IN GAME/LOBBY
 /autocopy [name]    automatically copy a team member's answer
 /autoready          automatically ready up in lobby
 /autostart          automatically start the game when everyone is ready if you are host
+/autohost           automatically promote player to host if you are the current host
+/autoinvite         automatically invite a player to your room when they log in (only friends)
+/autoaccept         automatically accept all game invites (only friends)
+/autostatus [text]  automatically set status on log in (online, away, do not disturb, invisible)
 /ready              ready/unready in lobby
 /answer [text]      submit answer
 /invite [name]      invite player to game
@@ -54,13 +58,14 @@ OTHER
 /rules              show list of gamemodes and rules
 /info               show list of external utilities
 /clear              clear chat
-/pm [name] [text]   private message a player (name is case sensitive)
+/pm [name] [text]   private message a player
 /profile [name]     show profile window of any player
 /leaderboard        show the leaderboard
 /password           reveal private room password
 /invisible          show invisible friends (this command might be broken)
 /logout             log out
 /version            check the version of this script
+/commands [on|off]  turn this script on or off
 */
 
 if (document.getElementById("startPage")) return;
@@ -84,6 +89,18 @@ function setup() {
         Cookies.set("mega_commands_auto_ready", "", { expires: 0 });
     }
     auto_ready = localStorage.getItem("mega_commands_auto_ready") === "true";
+    let auto_accept_invite_cookie = Cookies.get("mega_commands_auto_accept_invite");
+    if (auto_accept_invite_cookie !== undefined ) {
+        localStorage.setItem("mega_commands_auto_accept_invite", auto_accept_invite_cookie);
+        Cookies.set("mega_commands_auto_accept_invite", "", { expires: 0 });
+    }
+    auto_accept_invite = localStorage.getItem("mega_commands_auto_accept_invite") === "true";
+    let auto_status_cookie = Cookies.get("mega_commands_auto_status");
+    if (auto_status_cookie !== undefined ) {
+        localStorage.setItem("mega_commands_auto_status", auto_status_cookie);
+        Cookies.set("mega_commands_auto_status", "", { expires: 0 });
+    }
+    auto_status = localStorage.getItem("mega_commands_auto_status");
     new Listener("game chat update", (payload) => {
         payload.messages.forEach((message) => { parseChat(message) });
     }).bindListener();
@@ -121,11 +138,31 @@ function setup() {
         if (payload.error) return;
         if (auto_ready) sendSystemMessage("Auto Ready: Enabled");
         if (auto_start) sendSystemMessage("Auto Start: Enabled");
+        if (auto_host) sendSystemMessage("Auto Host: " + auto_host);
+        if (auto_invite) sendSystemMessage("Auto Invite: " + auto_invite);
+        if (auto_accept_invite) sendSystemMessage("Auto Accept Invite: Enabled");
     }).bindListener();
     new Listener("Spectate Game", (payload) => {
         if (payload.error) return;
         if (auto_ready) sendSystemMessage("Auto Ready: Enabled");
         if (auto_start) sendSystemMessage("Auto Start: Enabled");
+        if (auto_host) sendSystemMessage("Auto Host: " + auto_host);
+        if (auto_invite) sendSystemMessage("Auto Invite: " + auto_invite);
+        if (auto_accept_invite) sendSystemMessage("Auto Accept Invite: Enabled");
+    }).bindListener();
+    new Listener("New Player", (payload) => {
+        setTimeout(() => {
+            if (auto_host === payload.name.toLowerCase() && lobby.inLobby && lobby.isHost) {
+                lobby.promoteHost(payload.name);
+            }
+        }, 1);
+    }).bindListener();
+    new Listener("New Spectator", (payload) => {
+        setTimeout(() => {
+            if (auto_host === payload.name.toLowerCase() && lobby.inLobby && lobby.isHost) {
+                lobby.promoteHost(payload.name);
+            }
+        }, 1);
     }).bindListener();
     new Listener("Player Ready Change",  (payload) => {
         autoStart();
@@ -139,7 +176,21 @@ function setup() {
         }
     }).bindListener();
     new Listener("Host Promotion", (payload) => {
+        if (auto_host && payload.newHost === selfName && isInRoom(auto_host)) {
+            lobby.promoteHost(getPlayerNameCorrectCase(auto_host))
+        }
         setTimeout(() => { autoReady() }, 1);
+    }).bindListener();
+    new Listener("game invite", (payload) => {
+        if (auto_accept_invite && !inRoom() && isFriend(payload.sender)) {
+            roomBrowser.fireSpectateGame(payload.gameId, undefined, true);
+        }
+    }).bindListener();
+    new Listener("friend state change", (payload) => {
+        if (payload.online && auto_invite === payload.name.toLowerCase() && inRoom() && !isInRoom(auto_invite) & !isSoloMode() && !isRankedMode()) {
+            sendSystemMessage(payload.name + " online: auto inviting");
+            setTimeOut(() => { socket.sendCommand({ type: "social", command: "invite to game", data: { target: payload.name } }), 1000 });
+        }
     }).bindListener();
     document.querySelector("#qpAnswerInput").addEventListener("input", (event) => {
         let answer = event.target.value || " ";
@@ -157,6 +208,9 @@ function setup() {
             profile_element.querySelector(".ppFooterOptionIcon, .startChat").classList.remove("disabled");
         }
     }).observe(profile_element, {childList: true});
+    if (auto_status === "do not disturb") socialTab.socialStatus.changeSocialStatus(2);
+    if (auto_status === "away") socialTab.socialStatus.changeSocialStatus(3);
+    if (auto_status === "invisible") socialTab.socialStatus.changeSocialStatus(4);
     AMQ_addScriptData({
         name: "Mega Commands",
         author: "kempanator",
@@ -353,6 +407,39 @@ function parseChat(message) {
         sendSystemMessage("auto start game " + (auto_start ? "enabled" : "disabled"));
         autoStart();
     }
+    else if (/^\/autohost$/.test(content)) {
+        auto_host = "";
+        sendSystemMessage("auto host disabled");
+    }
+    else if (/^\/autohost \w+$/.test(content)) {
+        auto_host = /^\S+ (\w+)$/.exec(content)[1].toLowerCase();
+        sendSystemMessage("auto hosting " + auto_host);
+        if (lobby.inLobby && lobby.isHost && isInRoom(auto_host)) { 
+            lobby.promoteHost(getPlayerNameCorrectCase(auto_host));
+        }
+    }
+    else if (/^\/autoinvite$/.test(content)) {
+        auto_invite = "";
+        sendSystemMessage("auto invite disabled");
+    }
+    else if (/^\/autoinvite \w+$/.test(content)) {
+        auto_invite = /^\S+ (\w+)$/.exec(content)[1].toLowerCase();
+        sendSystemMessage("auto inviting " + auto_invite);
+    }
+    else if (/^\/autoaccept$/.test(content)) {
+        auto_accept_invite = !auto_accept_invite;
+        localStorage.setItem("mega_commands_auto_accept_invite", auto_accept_invite);
+        sendSystemMessage("auto accept invite " + (auto_accept_invite ? "enabled" : "disabled"));
+    }
+    else if (/^\/autostatus$/.test(content)) {
+        sendSystemMessage("online, away, do not disturb, invisible");
+    }
+    else if (/^\/autostatus (online|away|do not disturb|invisible)$/.test(content)) {
+        let option = /^\S+ (.+)$/.exec(content)[1];
+        auto_status = option;
+        localStorage.setItem("mega_commands_auto_status", auto_status);
+        sendSystemMessage("auto status " + auto_status);
+    }
     else if (/^\/ready$/.test(content)) {
         if (lobby.inLobby && !lobby.isHost && !lobby.isSpectator && lobby.settings.gameMode !== "Ranked") {
             lobby.fireMainButtonEvent();
@@ -441,16 +528,18 @@ function parseChat(message) {
     }
     else if (/^\/(pm|dm) \w+$/.test(content)) {
         let name = /^\S+ (\w+)$/.exec(content)[1];
-        socialTab.startChat(name);
+        let nameCorrectCase = getPlayerNameCorrectCase(name);
+        socialTab.startChat(nameCorrectCase ? nameCorrectCase : name);
     }
     else if (/^\/(pm|dm) \w+ .+$/.test(content)) {
         let name = /^\S+ (\w+) .+$/.exec(content)[1];
         let text = /^\S+ \w+ (.+)$/.exec(content)[1];
-        socialTab.startChat(name);
+        let nameCorrectCase = getPlayerNameCorrectCase(name);
+        socialTab.startChat(nameCorrectCase ? nameCorrectCase : name);
         socket.sendCommand({
             type: "social",
             command: "chat message",
-            data: { target: name, message: text }
+            data: { target: (nameCorrectCase ? nameCorrectCase : name), message: text }
         });
     }
     else if (/^\/(prof|profile) \w+$/.test(content)) {
@@ -565,18 +654,57 @@ function parsePM(message) {
         sendSystemMessage("auto start game " + (auto_start ? "enabled" : "disabled"));
         autoStart();
     }
+    else if (/^\/autohost$/.test(content)) {
+        auto_host = "";
+        sendSystemMessage("auto host disabled");
+    }
+    else if (/^\/autohost \w+$/.test(content)) {
+        auto_host = /^\S+ (\w+)$/.exec(content)[1].toLowerCase();
+        sendSystemMessage("auto hosting " + auto_host);
+        if (lobby.inLobby && lobby.isHost && isInRoom(auto_host)) { 
+            lobby.promoteHost(getPlayerNameCorrectCase(auto_host));
+        }
+    }
+    else if (/^\/autoinvite$/.test(content)) {
+        auto_invite = "";
+        sendSystemMessage("auto invite disabled");
+    }
+    else if (/^\/autoinvite \w+$/.test(content)) {
+        auto_invite = /^\S+ (\w+)$/.exec(content)[1].toLowerCase();
+        sendSystemMessage("auto inviting " + auto_invite);
+    }
+    else if (/^\/autoaccept$/.test(content)) {
+        auto_accept_invite = !auto_accept_invite;
+        localStorage.setItem("mega_commands_auto_accept_invite", auto_accept_invite);
+        sendSystemMessage("auto accept invite " + (auto_accept_invite ? "enabled" : "disabled"));
+    }
+    else if (/^\/autostatus$/.test(content)) {
+        sendSystemMessage("online, away, do not disturb, invisible");
+    }
+    else if (/^\/autostatus (online|away|do not disturb|invisible)$/.test(content)) {
+        let option = /^\S+ (.+)$/.exec(content)[1];
+        auto_status = option;
+        localStorage.setItem("mega_commands_auto_status", auto_status);
+        sendSystemMessage("auto status " + auto_status);
+    }
     else if (/^\/(pm|dm)$/.test(content)) {
         socialTab.startChat(selfName);
     }
     else if (/^\/(pm|dm) \w+$/.test(content)) {
         let name = /^\S+ (\w+)$/.exec(content)[1];
-        socialTab.startChat(name);
+        let nameCorrectCase = getPlayerNameCorrectCase(name);
+        socialTab.startChat(nameCorrectCase ? nameCorrectCase : name);
     }
     else if (/^\/(pm|dm) \w+ .+$/.test(content)) {
         let name = /^\S+ (\w+) .+$/.exec(content)[1];
         let text = /^\S+ \w+ (.+)$/.exec(content)[1];
-        socialTab.startChat(name);
-        sendPM(name, text);
+        let nameCorrectCase = getPlayerNameCorrectCase(name);
+        socialTab.startChat(nameCorrectCase ? nameCorrectCase : name);
+        socket.sendCommand({
+            type: "social",
+            command: "chat message",
+            data: { target: (nameCorrectCase ? nameCorrectCase : name), message: text }
+        });
     }
     else if (/^\/(prof|profile) \w+$/.test(content)) {
         let name = /^\S+ (\w+)$/.exec(content)[1].toLowerCase();
@@ -799,6 +927,16 @@ function isSpectator(name) {
     return false;
 }
 
+// return true if player is in your room
+function isInRoom(name) {
+    return isPlayer(name) || isSpectator(name);
+}
+
+// return true if you are in a room
+function inRoom() {
+    return lobby.inLobby || quiz.inQuiz || battleRoyal.inView;
+}
+
 // return array of names of all friends
 function getAllFriends() {
     return Object.keys(socialTab.onlineFriends).concat(Object.keys(socialTab.offlineFriends));
@@ -820,7 +958,7 @@ function getPlayerList() {
 
 // return array of names of spectators
 function getSpectatorList() {
-    return gameChat.spectators.map((player) => player._name);
+    return gameChat.spectators.map((player) => player.name);
 }
 
 // return object with team number as keys and list of player names as each value
@@ -941,6 +1079,28 @@ function rejoinRoom(time) {
     }, 1);
 }
 
+//input name, return correct case sensitive name of player
+function getPlayerNameCorrectCase(name) {
+    name = name.toLowerCase();
+    if (inRoom()) {
+        for (let player of getPlayerList().concat(getSpectatorList())) {
+            if (name === player.toLowerCase()) {
+                return player;
+            }
+        }
+    }
+    for (let player of getAllFriends()) {
+        if (name === player.toLowerCase()) {
+            return player;
+        }
+    }
+    for (let player in socialTab.allPlayerList._playerEntries) {
+        if (name === player.toLowerCase()) {
+            return player;
+        }
+    }
+}
+
 // overload changeView function for auto ready
 ViewChanger.prototype.changeView = (function() {
     let old = ViewChanger.prototype.changeView;
@@ -980,7 +1140,7 @@ const info = {
     "piano": "https://musiclab.chromeexperiments.com/Shared-Piano/#amqpiano",
     "turnofflist": "https://files.catbox.moe/hn1mhw.png"
 };
-const version = "0.12";
+const version = "0.13";
 let commands = true;
 let auto_skip = false;
 let auto_submit_answer;
@@ -988,4 +1148,8 @@ let auto_throw = "";
 let auto_copy_player = "";
 let auto_ready;
 let auto_start = false;
+let auto_host = "";
+let auto_invite = "";
+let auto_accept_invite;;
+let auto_status;
 let dropdown = true;
