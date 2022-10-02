@@ -175,7 +175,7 @@ function setup() {
         }
     }).bindListener();
     new Listener("Host Promotion", (payload) => {
-        if (auto_host && payload.newHost === selfName && isInRoom(auto_host)) {
+        if (auto_host && payload.newHost === selfName && isInYourRoom(auto_host)) {
             lobby.promoteHost(getPlayerNameCorrectCase(auto_host))
         }
         setTimeout(() => { autoReady() }, 1);
@@ -186,7 +186,7 @@ function setup() {
         }
     }).bindListener();
     new Listener("friend state change", (payload) => {
-        if (payload.online && auto_invite === payload.name.toLowerCase() && inRoom() && !isInRoom(auto_invite) & !isSoloMode() && !isRankedMode()) {
+        if (payload.online && auto_invite === payload.name.toLowerCase() && inRoom() && !isInYourRoom(auto_invite) & !isSoloMode() && !isRankedMode()) {
             sendSystemMessage(payload.name + " online: auto inviting");
             setTimeOut(() => { socket.sendCommand({ type: "social", command: "invite to game", data: { target: payload.name } }), 1000 });
         }
@@ -194,11 +194,7 @@ function setup() {
     document.querySelector("#qpAnswerInput").addEventListener("input", (event) => {
         let answer = event.target.value || " ";
         if (auto_submit_answer) {
-            socket.sendCommand({
-                type: "quiz",
-                command: "quiz answer",
-                data: { answer, isPlaying: true, volumeAtMax: false }
-            });
+            socket.sendCommand({ type: "quiz", command: "quiz answer", data: { answer, isPlaying: true, volumeAtMax: false } });
         }
     });
     const profile_element = document.querySelector("#playerProfileLayer");
@@ -223,7 +219,13 @@ function parseChat(message) {
     if (!commands) return;
     let content = message.message;
     let isTeamMessage = message.teamMessage;
-    if (/^\/roll$/.test(content)) {
+    if (/^\/players$/.test(content)) {
+        sendChatMessage(getPlayerList().map((player) => player.toLowerCase()).join(", "), isTeamMessage);
+    }
+    else if (/^\/spectators$/.test(content)) {
+        sendChatMessage(getSpectatorList().map((player) => player.toLowerCase()).join(", "), isTeamMessage);
+    }
+    else if (/^\/roll$/.test(content)) {
         sendSystemMessage("roll commands: #, player, playerteam, spectator");
     }
     else if (/^\/roll [0-9]+$/.test(content)) {
@@ -236,13 +238,8 @@ function parseChat(message) {
         sendChatMessage("rolls " + (Math.floor(Math.random() * (high - low + 1)) + low), isTeamMessage);
     }
     else if (/^\/roll (p|players?)$/.test(content)) {
-        let player_list = getPlayerList();
-        if (player_list.length > 0) {
-            sendChatMessage(player_list[Math.floor(Math.random() * player_list.length)], isTeamMessage);
-        }
-        else {
-            sendSystemMessage("no players");
-        }
+        let list = getPlayerList();
+        sendChatMessage(list.length ? list[Math.floor(Math.random() * list.length)] : "no players", isTeamMessage);
     }
     else if (/^\/roll (pt|playerteams?|teams?)$/.test(content)) {
         if (lobby.settings.teamSize > 1) {
@@ -261,13 +258,8 @@ function parseChat(message) {
         }
     }
     else if (/^\/roll (s|spectators?)$/.test(content)) {
-        let spectator_list = getSpectatorList();
-        if (spectator_list.length > 0) {
-            sendChatMessage(spectator_list[Math.floor(Math.random() * spectator_list.length)], isTeamMessage);
-        }
-        else {
-            sendSystemMessage("no spectators");
-        }
+        let list = getSpectatorList();
+        sendChatMessage(list.length ? list[Math.floor(Math.random() * list.length)] : "no spectators", isTeamMessage);
     }
     else if (/^\/size [0-9]+$/.test(content)) {
         let option = parseInt(/^\S+ ([0-9]+)$/.exec(content)[1]);
@@ -413,7 +405,7 @@ function parseChat(message) {
     else if (/^\/autohost \w+$/.test(content)) {
         auto_host = /^\S+ (\w+)$/.exec(content)[1].toLowerCase();
         sendSystemMessage("auto hosting " + auto_host);
-        if (lobby.inLobby && lobby.isHost && isInRoom(auto_host)) { 
+        if (lobby.inLobby && lobby.isHost && isInYourRoom(auto_host)) { 
             lobby.promoteHost(getPlayerNameCorrectCase(auto_host));
         }
     }
@@ -460,10 +452,7 @@ function parseChat(message) {
         lobby.changeToSpectator(name);
     }
     else if (/^\/join$/.test(content)) {
-        socket.sendCommand({
-            type: "lobby",
-            command: "change to player"
-        });
+        socket.sendCommand({ type: "lobby", command: "change to player" });
     }
     else if (/^\/queue$/.test(content)) {
         gameChat.joinLeaveQueue();
@@ -643,7 +632,7 @@ function parsePM(message) {
     else if (/^\/autohost \w+$/.test(content)) {
         auto_host = /^\S+ (\w+)$/.exec(content)[1].toLowerCase();
         sendSystemMessage("auto hosting " + auto_host);
-        if (lobby.inLobby && lobby.isHost && isInRoom(auto_host)) { 
+        if (lobby.inLobby && lobby.isHost && isInYourRoom(auto_host)) { 
             lobby.promoteHost(getPlayerNameCorrectCase(auto_host));
         }
     }
@@ -746,15 +735,16 @@ function parsePM(message) {
     else if (/^\/version$/.test(content)) {
         sendPM(message.target, "Mega Commands version " + version);
     }
-    if (lobby.inLobby || quiz.inQuiz || battleRoyal.inView) {
-        if (/^\/roll (p|players?)$/.test(content)) {
-            let player_list = getPlayerList();
-            if (player_list.length > 0) {
-                sendPM(message.target, player_list[Math.floor(Math.random() * player_list.length)]);
-            }
-            else {
-                sendPM(message.target, "no players");
-            }
+    if (inRoom()) {
+        if (/^\/players$/.test(content)) {
+            sendPM(message.target, getPlayerList().map((player) => player.toLowerCase()).join(", "));
+        }
+        else if (/^\/spectators$/.test(content)) {
+            sendPM(message.target, getSpectatorList().map((player) => player.toLowerCase()).join(", "));
+        }
+        else if (/^\/roll (p|players?)$/.test(content)) {
+            let list = getPlayerList();
+            sendPM(message.target, list.length ? list[Math.floor(Math.random() * list.length)] : "no players");
         }
         else if (/^\/roll (pt|playerteams?|teams?)$/.test(content)) {
             if (lobby.settings.teamSize > 1) {
@@ -773,13 +763,8 @@ function parsePM(message) {
             }
         }
         else if (/^\/roll (s|spectators?)$/.test(content)) {
-            let spectator_list = getSpectatorList();
-            if (spectator_list.length > 0) {
-                sendPM(message.target, spectator_list[Math.floor(Math.random() * spectator_list.length)]);
-            }
-            else {
-                sendPM(message.target, "no spectators");
-            }
+            let list = getSpectatorList();
+            sendPM(message.target, list.length ? list[Math.floor(Math.random() * list.length)] : "no spectators");
         }
         else if (/^\/ready$/.test(content)) {
             if (lobby.inLobby && !lobby.isHost && !lobby.isSpectator && lobby.settings.gameMode !== "Ranked") {
@@ -887,7 +872,7 @@ function isSpectator(name) {
 }
 
 // return true if player is in your room
-function isInRoom(name) {
+function isInYourRoom(name) {
     return isPlayer(name) || isSpectator(name);
 }
 
@@ -1029,16 +1014,12 @@ function rejoinRoom(time) {
                 }
             });
             gameInviteListener.bindListener();
-            socket.sendCommand({
-                type: "social",
-                command: "invite to game",
-                data: { target: selfName }
-            });
+            socket.sendCommand({ type: "social", command: "invite to game", data: { target: selfName } });
         }
     }, 1);
 }
 
-//input name, return correct case sensitive name of player
+// input name, return correct case sensitive name of player
 function getPlayerNameCorrectCase(name) {
     let nameLowerCase = name.toLowerCase();
     if (inRoom()) {
