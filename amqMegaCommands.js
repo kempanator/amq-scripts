@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            AMQ Mega Commands
 // @namespace       https://github.com/kempanator
-// @version         0.13
+// @version         0.14
 // @description     Commands for AMQ Chat
 // @author          kempanator
 // @match           https://animemusicquiz.com/*
@@ -45,7 +45,7 @@ IN GAME/LOBBY
 /pause              pause/unpause game
 /lobby              start return to lobby vote
 /leave              leave room
-/rejoin [seconds]   leave and rejoin the room you are currently in after # of seconds
+/rejoin [seconds]   leave and rejoin the room you're in after # of seconds
 /spec               change to spectator
 /join               change from spectator to player in lobby
 /queue              join/leave queue
@@ -76,30 +76,13 @@ let loadInterval = setInterval(() => {
 }, 500);
 
 function setup() {
-    let auto_submit_answer_cookie = Cookies.get("mega_commands_auto_submit_answer");
-    if (auto_submit_answer_cookie !== undefined ) {
-        localStorage.setItem("mega_commands_auto_submit_answer", auto_submit_answer_cookie);
-        Cookies.set("mega_commands_auto_submit_answer", "", { expires: 0 });
-    }
     auto_submit_answer = localStorage.getItem("mega_commands_auto_submit_answer") === "true";
-    let auto_ready_cookie = Cookies.get("mega_commands_auto_ready");
-    if (auto_ready_cookie !== undefined ) {
-        localStorage.setItem("mega_commands_auto_ready", auto_ready_cookie);
-        Cookies.set("mega_commands_auto_ready", "", { expires: 0 });
-    }
     auto_ready = localStorage.getItem("mega_commands_auto_ready") === "true";
-    let auto_accept_invite_cookie = Cookies.get("mega_commands_auto_accept_invite");
-    if (auto_accept_invite_cookie !== undefined ) {
-        localStorage.setItem("mega_commands_auto_accept_invite", auto_accept_invite_cookie);
-        Cookies.set("mega_commands_auto_accept_invite", "", { expires: 0 });
-    }
     auto_accept_invite = localStorage.getItem("mega_commands_auto_accept_invite") === "true";
-    let auto_status_cookie = Cookies.get("mega_commands_auto_status");
-    if (auto_status_cookie !== undefined ) {
-        localStorage.setItem("mega_commands_auto_status", auto_status_cookie);
-        Cookies.set("mega_commands_auto_status", "", { expires: 0 });
-    }
     auto_status = localStorage.getItem("mega_commands_auto_status");
+    if (auto_status === "do not disturb") socialTab.socialStatus.changeSocialStatus(2);
+    if (auto_status === "away") socialTab.socialStatus.changeSocialStatus(3);
+    if (auto_status === "invisible") socialTab.socialStatus.changeSocialStatus(4);
     new Listener("game chat update", (payload) => {
         payload.messages.forEach((message) => { parseChat(message) });
     }).bindListener();
@@ -203,9 +186,6 @@ function setup() {
             profile_element.querySelector(".ppFooterOptionIcon, .startChat").classList.remove("disabled");
         }
     }).observe(profile_element, {childList: true});
-    if (auto_status === "do not disturb") socialTab.socialStatus.changeSocialStatus(2);
-    if (auto_status === "away") socialTab.socialStatus.changeSocialStatus(3);
-    if (auto_status === "invisible") socialTab.socialStatus.changeSocialStatus(4);
     AMQ_addScriptData({
         name: "Mega Commands",
         author: "kempanator",
@@ -515,7 +495,7 @@ function parseChat(message) {
     }
     else if (/^\/(prof|profile) \w+$/.test(content)) {
         let name = /^\S+ (\w+)$/.exec(content)[1].toLowerCase();
-        playerProfileController.loadProfileIfClosed(name, $("#gameChatContainer"), {}, () => {}, false, true);
+        playerProfileController.loadProfile(name, $("#gameChatContainer"), {}, () => {}, false, true);
     }
     else if (/^\/leaderboards?$/.test(content)) {
         leaderboardModule.show();
@@ -673,7 +653,7 @@ function parsePM(message) {
     }
     else if (/^\/(prof|profile) \w+$/.test(content)) {
         let name = /^\S+ (\w+)$/.exec(content)[1].toLowerCase();
-        playerProfileController.loadProfileIfClosed(name, $("#gameChatContainer"), {}, () => {}, false, true);
+        playerProfileController.loadProfile(name, $("#gameChatContainer"), {}, () => {}, false, true);
     }
     else if (/^\/leaderboards?$/.test(content)) {
         leaderboardModule.show();
@@ -952,11 +932,13 @@ function sendSystemMessage(message) {
 
 // send a private message
 function sendPM(target, message) {
-    socket.sendCommand({
-        type: "social",
-        command: "chat message",
-        data: { target: target, message: message }
-    });
+    setTimeout(() => {
+        socket.sendCommand({
+            type: "social",
+            command: "chat message",
+            data: { target: target, message: message }
+        });
+    }, 100);
 }
 
 // change game settings
@@ -1081,7 +1063,7 @@ const info = {
     "piano": "https://musiclab.chromeexperiments.com/Shared-Piano/#amqpiano",
     "turnofflist": "https://files.catbox.moe/hn1mhw.png"
 };
-const version = "0.13";
+const version = "0.14";
 let commands = true;
 let auto_skip = false;
 let auto_submit_answer;
