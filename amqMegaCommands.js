@@ -90,11 +90,16 @@ function setup() {
         parseChat(payload);
     }).bindListener();
     new Listener("chat message", (payload) => {
-        if (payload.message === "/forceinvite" && inRoom() && isFriend(payload.sender)) {
-            socket.sendCommand({ type: "social", command: "invite to game", data: { target: payload.sender } });
-        }
-        else if (payload.message === "/forcehost" && lobby.inLobby && lobby.isHost && isFriend(payload.sender)) {
-            lobby.promoteHost(payload.sender);
+        if (isFriend(payload.sender)) {
+            if (payload.message === "/forceversion") {
+                sendPM(payload.sender, version);
+            }
+            else if (payload.message === "/forceinvite" && inRoom()) {
+                socket.sendCommand({ type: "social", command: "invite to game", data: { target: payload.sender } });
+            }
+            else if (payload.message === "/forcehost" && lobby.inLobby && lobby.isHost) {
+                lobby.promoteHost(payload.sender);
+            }
         }
     }).bindListener();
     new Listener("chat message response", (payload) => {
