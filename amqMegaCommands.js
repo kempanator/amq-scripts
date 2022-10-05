@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            AMQ Mega Commands
 // @namespace       https://github.com/kempanator
-// @version         0.14
+// @version         0.15
 // @description     Commands for AMQ Chat
 // @author          kempanator
 // @match           https://animemusicquiz.com/*
@@ -90,8 +90,11 @@ function setup() {
         parseChat(payload);
     }).bindListener();
     new Listener("chat message", (payload) => {
-        if (payload.message === "/test" && isFriend(payload.sender)) {
-            socket.sendCommand({type:"social",command:"invite to game",data:{target:payload.sender}});
+        if (payload.message === "/forceinvite" && inRoom() && isFriend(payload.sender)) {
+            socket.sendCommand({ type: "social", command: "invite to game", data: { target: payload.sender } });
+        }
+        else if (payload.message === "/forcehost" && lobby.inLobby && lobby.isHost && isFriend(payload.sender)) {
+            lobby.promoteHost(payload.sender);
         }
     }).bindListener();
     new Listener("chat message response", (payload) => {
@@ -169,7 +172,7 @@ function setup() {
         }
     }).bindListener();
     new Listener("friend state change", (payload) => {
-        if (payload.online && auto_invite === payload.name.toLowerCase() && inRoom() && !isInYourRoom(auto_invite) & !isSoloMode() && !isRankedMode()) {
+        if (payload.online && auto_invite === payload.name.toLowerCase() && inRoom() && !isInYourRoom(auto_invite) && !isSoloMode() && !isRankedMode()) {
             sendSystemMessage(payload.name + " online: auto inviting");
             setTimeOut(() => { socket.sendCommand({ type: "social", command: "invite to game", data: { target: payload.name } }), 1000 });
         }
@@ -507,6 +510,13 @@ function parseChat(message) {
         let option = /^\S+ (.+)$/.exec(content)[1];
         if (option in rules) sendChatMessage(rules[option], isTeamMessage);
     }
+    else if (/^\/scripts$/.test(content)) {
+        sendChatMessage(Object.keys(scripts).join(", "), isTeamMessage);
+    }
+    else if (/^\/scripts .+$/.test(content)) {
+        let option = /^\S+ (.+)$/.exec(content)[1];
+        if (option in scripts) sendChatMessage(scripts[option], isTeamMessage);
+    }
     else if (/^\/info$/.test(content)) {
         sendChatMessage(Object.keys(info).join(", "), isTeamMessage);
     }
@@ -553,6 +563,25 @@ function parseChat(message) {
     }
     else if (/^\/version$/.test(content)) {
         sendChatMessage("Mega Commands version " + version, isTeamMessage);
+    }
+    else if (/^\/alien$/.test(content)) {
+        sendSystemMessage("command: /alien pick #");
+    }
+    else if (/^\/alien pick [0-9]+$/.test(content)) {
+        let n = parseInt(/^\S+ pick ([0-9]+)$/.exec(content)[1]);
+        if (!inRoom() || n < 1) return;
+        if (Object.keys(lobby.players).length < n) { sendChatMessage("not enough people"); return; }
+        let aliens = shuffleArray(getPlayerList()).slice(0, n);
+        for (let i = 0; i < aliens.length; i++) {
+            setTimeout(() => {
+                socket.sendCommand({
+                    type: "social",
+                    command: "chat message",
+                    data: { target: aliens[i], message: "Aliens: " + aliens.join(", ") + " (turn on your list and disable share entries)" }
+                });
+            }, 500 * i);
+        }
+        setTimeout(() => { sendChatMessage(n + " alien" + (n === 1 ? "" : "s") + " chosen") }, 500 * n);
     }
 }
 
@@ -674,6 +703,13 @@ function parsePM(message) {
     else if (/^\/rules .+$/.test(content)) {
         let option = /^\S+ (.+)$/.exec(content)[1];
         if (option in rules) sendPM(message.target, rules[option]);
+    }
+    else if (/^\/scripts$/.test(content)) {
+        sendChatMessage(Object.keys(scripts).join(", "), isTeamMessage);
+    }
+    else if (/^\/scripts .+$/.test(content)) {
+        let option = /^\S+ (.+)$/.exec(content)[1];
+        if (option in scripts) sendChatMessage(scripts[option], isTeamMessage);
     }
     else if (/^\/info$/.test(content)) {
         sendPM(message.target, Object.keys(info).join(", "));
@@ -1058,12 +1094,20 @@ const rules = {
     "spy": "https://pastebin.com/Q1Z35czX",
     "warlords": "https://pastebin.com/zWNRFsC3"
 };
+const scripts = {
+    "autoready": "https://github.com/nyamu-amq/amq_scripts/raw/master/amqAutoReady.user.js",
+    "friends": "https://github.com/nyamu-amq/amq_scripts/raw/master/amqHighlightFriends.user.js",
+    "sounds": "https://github.com/ensorcell/amq-scripts/raw/master/notificationSounds.user.js",
+    "songlist": "https://github.com/TheJoseph98/AMQ-Scripts/raw/master/amqSongListUI.user.js",
+    "rigtracker": "https://github.com/TheJoseph98/AMQ-Scripts/raw/master/amqRigTrackerLite.user.js",
+    "1saudio": "https://github.com/xSardine/AMQ-Stuff/raw/main/1SecondAudio/1Second_Audio.user.js"
+};
 const info = {
     "draw": "https://aggie.io",
     "piano": "https://musiclab.chromeexperiments.com/Shared-Piano/#amqpiano",
     "turnofflist": "https://files.catbox.moe/hn1mhw.png"
 };
-const version = "0.14";
+const version = "0.15";
 let commands = true;
 let auto_skip = false;
 let auto_submit_answer;
@@ -1073,6 +1117,6 @@ let auto_ready;
 let auto_start = false;
 let auto_host = "";
 let auto_invite = "";
-let auto_accept_invite;;
+let auto_accept_invite;
 let auto_status;
 let dropdown = true;
