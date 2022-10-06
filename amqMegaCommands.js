@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            AMQ Mega Commands
 // @namespace       https://github.com/kempanator
-// @version         0.15
+// @version         0.16
 // @description     Commands for AMQ Chat
 // @author          kempanator
 // @match           https://animemusicquiz.com/*
@@ -75,6 +75,45 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
+const version = "0.16";
+let commands = true;
+let auto_skip = false;
+let auto_submit_answer;
+let auto_throw = "";
+let auto_copy_player = "";
+let auto_ready;
+let auto_start = false;
+let auto_host = "";
+let auto_invite = "";
+let auto_accept_invite;
+let auto_status;
+let dropdown = true;
+const rules = {
+    "alien": "https://pastebin.com/LxLMg1nA",
+    "blackjack": "https://pastebin.com/kcq7hsJm",
+    "dualraidboss": "https://pastebin.com/XkG7WWwj",
+    "newgamemode": "https://pastebin.com/TAyYVsii",
+    "password": "https://pastebin.com/17vKE78J",
+    "pictionary": "https://pastebin.com/qc3NQJdX",
+    "raidboss": "https://pastebin.com/NE28GUPq",
+    "reversepassword": "https://pastebin.com/S8cQahNA",
+    "spy": "https://pastebin.com/Q1Z35czX",
+    "warlords": "https://pastebin.com/zWNRFsC3"
+};
+const scripts = {
+    "autoready": "https://github.com/nyamu-amq/amq_scripts/raw/master/amqAutoReady.user.js",
+    "friends": "https://github.com/nyamu-amq/amq_scripts/raw/master/amqHighlightFriends.user.js",
+    "sounds": "https://github.com/ensorcell/amq-scripts/raw/master/notificationSounds.user.js",
+    "songlist": "https://github.com/TheJoseph98/AMQ-Scripts/raw/master/amqSongListUI.user.js",
+    "rigtracker": "https://github.com/TheJoseph98/AMQ-Scripts/raw/master/amqRigTrackerLite.user.js",
+    "1saudio": "https://github.com/xSardine/AMQ-Stuff/raw/main/1SecondAudio/1Second_Audio.user.js"
+};
+const info = {
+    "draw": "https://aggie.io",
+    "piano": "https://musiclab.chromeexperiments.com/Shared-Piano/#amqpiano",
+    "turnofflist": "https://files.catbox.moe/hn1mhw.png"
+};
+
 function setup() {
     auto_submit_answer = localStorage.getItem("mega_commands_auto_submit_answer") === "true";
     auto_ready = localStorage.getItem("mega_commands_auto_ready") === "true";
@@ -90,17 +129,7 @@ function setup() {
         parseChat(payload);
     }).bindListener();
     new Listener("chat message", (payload) => {
-        if (isFriend(payload.sender)) {
-            if (payload.message === "/forceversion") {
-                sendPM(payload.sender, version);
-            }
-            else if (payload.message === "/forceinvite" && inRoom()) {
-                socket.sendCommand({ type: "social", command: "invite to game", data: { target: payload.sender } });
-            }
-            else if (payload.message === "/forcehost" && lobby.inLobby && lobby.isHost) {
-                lobby.promoteHost(payload.sender);
-            }
-        }
+        parseIncomingPM(payload);
     }).bindListener();
     new Listener("chat message response", (payload) => {
         parsePM(payload);
@@ -843,6 +872,21 @@ function parsePM(message) {
     }
 }
 
+function parseIncomingPM(message) {
+    let content = message.message;
+    if (isFriend(message.sender)) {
+        if (content === "/forceversion") {
+            sendPM(payload.sender, version);
+        }
+        else if (content === "/forceinvite" && inRoom()) {
+            socket.sendCommand({ type: "social", command: "invite to game", data: { target: payload.sender } });
+        }
+        else if (content === "/forcehost" && lobby.inLobby && lobby.isHost) {
+            lobby.promoteHost(payload.sender);
+        }
+    }
+}
+
 // return true if you are in a solo lobby or quiz
 function isSoloMode() {
     return (lobby.inLobby && lobby.soloMode) || (quiz.inQuiz && quiz.soloMode) || (battleRoyal.inView && battleRoyal.soloMode);
@@ -955,6 +999,13 @@ function getTeamDictionary() {
         }
     }
     return teamDictionary;
+}
+
+// return a random player name in the room besides yourself
+function getRandomOtherPlayer() {
+    let list = [];
+    getPlayerList().forEach((player) => { if (player !== selfName) list.push(player) });
+    return list[Math.floor(Math.random() * list.length)];
 }
 
 // send a regular public message in game chat
@@ -1086,42 +1137,3 @@ AutoCompleteController.prototype.newList = function() {
     this.list = dropdown ? saved_list : [];
     oldNewList.apply(this, arguments);
 }
-
-const rules = {
-    "alien": "https://pastebin.com/LxLMg1nA",
-    "blackjack": "https://pastebin.com/kcq7hsJm",
-    "dualraidboss": "https://pastebin.com/XkG7WWwj",
-    "newgamemode": "https://pastebin.com/TAyYVsii",
-    "password": "https://pastebin.com/17vKE78J",
-    "pictionary": "https://pastebin.com/qc3NQJdX",
-    "raidboss": "https://pastebin.com/NE28GUPq",
-    "reversepassword": "https://pastebin.com/S8cQahNA",
-    "spy": "https://pastebin.com/Q1Z35czX",
-    "warlords": "https://pastebin.com/zWNRFsC3"
-};
-const scripts = {
-    "autoready": "https://github.com/nyamu-amq/amq_scripts/raw/master/amqAutoReady.user.js",
-    "friends": "https://github.com/nyamu-amq/amq_scripts/raw/master/amqHighlightFriends.user.js",
-    "sounds": "https://github.com/ensorcell/amq-scripts/raw/master/notificationSounds.user.js",
-    "songlist": "https://github.com/TheJoseph98/AMQ-Scripts/raw/master/amqSongListUI.user.js",
-    "rigtracker": "https://github.com/TheJoseph98/AMQ-Scripts/raw/master/amqRigTrackerLite.user.js",
-    "1saudio": "https://github.com/xSardine/AMQ-Stuff/raw/main/1SecondAudio/1Second_Audio.user.js"
-};
-const info = {
-    "draw": "https://aggie.io",
-    "piano": "https://musiclab.chromeexperiments.com/Shared-Piano/#amqpiano",
-    "turnofflist": "https://files.catbox.moe/hn1mhw.png"
-};
-const version = "0.15";
-let commands = true;
-let auto_skip = false;
-let auto_submit_answer;
-let auto_throw = "";
-let auto_copy_player = "";
-let auto_ready;
-let auto_start = false;
-let auto_host = "";
-let auto_invite = "";
-let auto_accept_invite;
-let auto_status;
-let dropdown = true;
