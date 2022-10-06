@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            AMQ Mega Commands
 // @namespace       https://github.com/kempanator
-// @version         0.16
+// @version         0.17
 // @description     Commands for AMQ Chat
 // @author          kempanator
 // @match           https://animemusicquiz.com/*
@@ -75,7 +75,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.16";
+const version = "0.17";
 let commands = true;
 let auto_skip = false;
 let auto_submit_answer;
@@ -200,8 +200,13 @@ function setup() {
         }
     }).bindListener();
     new Listener("Host Promotion", (payload) => {
-        if (auto_host && payload.newHost === selfName && isInYourRoom(auto_host)) {
-            lobby.promoteHost(getPlayerNameCorrectCase(auto_host))
+        if (auto_host && payload.newHost === selfName) {
+            if (auto_host === "{random}") {
+                lobby.promoteHost(getRandomOtherPlayer());
+            }
+            else if (isInYourRoom(auto_host)) {
+                lobby.promoteHost(getPlayerNameCorrectCase(auto_host));
+            }
         }
         setTimeout(() => { autoReady() }, 1);
     }).bindListener();
@@ -424,8 +429,8 @@ function parseChat(message) {
         auto_host = "";
         sendSystemMessage("auto host disabled");
     }
-    else if (/^\/autohost \w+$/.test(content)) {
-        auto_host = /^\S+ (\w+)$/.exec(content)[1].toLowerCase();
+    else if (/^\/autohost \S+$/.test(content)) {
+        auto_host = /^\S+ (\S+)$/.exec(content)[1].toLowerCase();
         sendSystemMessage("auto hosting " + auto_host);
         if (lobby.inLobby && lobby.isHost && isInYourRoom(auto_host)) { 
             lobby.promoteHost(getPlayerNameCorrectCase(auto_host));
@@ -676,8 +681,8 @@ function parsePM(message) {
         auto_host = "";
         sendSystemMessage("auto host disabled");
     }
-    else if (/^\/autohost \w+$/.test(content)) {
-        auto_host = /^\S+ (\w+)$/.exec(content)[1].toLowerCase();
+    else if (/^\/autohost \S+$/.test(content)) {
+        auto_host = /^\S+ (\S+)$/.exec(content)[1].toLowerCase();
         sendSystemMessage("auto hosting " + auto_host);
         if (lobby.inLobby && lobby.isHost && isInYourRoom(auto_host)) { 
             lobby.promoteHost(getPlayerNameCorrectCase(auto_host));
@@ -879,13 +884,13 @@ function parseIncomingPM(message) {
     let content = message.message;
     if (isFriend(message.sender)) {
         if (content === "/forceversion") {
-            sendPM(payload.sender, version);
+            sendPM(message.sender, version);
         }
         else if (content === "/forceinvite" && inRoom()) {
-            socket.sendCommand({ type: "social", command: "invite to game", data: { target: payload.sender } });
+            socket.sendCommand({ type: "social", command: "invite to game", data: { target: message.sender } });
         }
         else if (content === "/forcehost" && lobby.inLobby && lobby.isHost) {
-            lobby.promoteHost(payload.sender);
+            lobby.promoteHost(message.sender);
         }
     }
 }
