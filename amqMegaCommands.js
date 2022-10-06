@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            AMQ Mega Commands
 // @namespace       https://github.com/kempanator
-// @version         0.17
+// @version         0.18
 // @description     Commands for AMQ Chat
 // @author          kempanator
 // @match           https://animemusicquiz.com/*
@@ -31,6 +31,7 @@ IN GAME/LOBBY
 /autosubmit         automatically submit answer on each key press
 /autothrow [text]   automatically send answer at the beginning of each song
 /autocopy [name]    automatically copy a team member's answer
+/automute [seconds] automatically mute sound during quiz after # of seconds
 /autoready          automatically ready up in lobby
 /autostart          automatically start the game when everyone is ready if you are host
 /autohost [name]    automatically promote player to host if you are the current host
@@ -75,12 +76,13 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.17";
+const version = "0.18";
 let commands = true;
 let auto_skip = false;
 let auto_submit_answer;
 let auto_throw = "";
 let auto_copy_player = "";
+let auto_mute_delay = 0;
 let auto_ready;
 let auto_start = false;
 let auto_host = "";
@@ -144,12 +146,22 @@ function setup() {
             if (auto_throw) quiz.answerInput.setNewAnswer(auto_throw);
             if (auto_skip) setTimeout(() => { quiz.skipClicked() }, 200);
         }
+        if (auto_mute_delay) {
+            document.querySelector("#qpVolume").classList.add("disabled");
+            volumeController.setMuted(false);
+            volumeController.adjustVolume();
+            setTimeout(() => {
+                volumeController.setMuted(true);
+                volumeController.adjustVolume();
+            }, auto_mute_delay);
+        }
     }).bindListener();
     new Listener("Game Starting", (payload) => {
         if (auto_skip) sendSystemMessage("Auto Skip: Enabled");
         if (auto_submit_answer) sendSystemMessage("Auto Submit Answer: Enabled");
         if (auto_copy_player) sendSystemMessage("Auto Copy: " + auto_copy_player);
         if (auto_throw) sendSystemMessage("Auto Throw: " + auto_throw);
+        if (auto_mute_delay) sendSystemMessage("Auto Mute: " + (auto_mute_delay / 1000) + "s");
     }).bindListener();
     new Listener("team member answer", (payload) => {
         if (auto_copy_player && auto_copy_player === quiz.players[payload.gamePlayerId]._name.toLowerCase()) {
@@ -157,6 +169,23 @@ function setup() {
             quiz.answerInput.setNewAnswer(payload.answer);
             $("#qpAnswerInput").val(current_text);
         }
+    }).bindListener();
+    new Listener("guess phase over", (payload) => {
+        if (auto_mute_delay) {
+            document.querySelector("#qpVolume").classList.remove("disabled");
+            volumeController.setMuted(false);
+            volumeController.adjustVolume();
+        }
+	}).bindListener();
+    new Listener("answer results", (payload) => {
+        if (auto_mute_delay) {
+            document.querySelector("#qpVolume").classList.remove("disabled");
+            volumeController.setMuted(false);
+            volumeController.adjustVolume();
+        }
+    }).bindListener();
+    new Listener("quiz over", (payload) => {
+        document.querySelector("#qpVolume").classList.remove("disabled");
     }).bindListener();
     new Listener("Join Game", (payload) => {
         if (payload.error) return;
@@ -398,6 +427,14 @@ function parseChat(message) {
         localStorage.setItem("mega_commands_auto_submit_answer", auto_submit_answer);
         sendSystemMessage("auto submit answer " + (auto_submit_answer ? "enabled" : "disabled"));
     }
+    else if (/^\/(at|autothrow)$/.test(content)) {
+        auto_throw = "";
+        sendSystemMessage("auto throw disabled " + auto_copy_player);
+    }
+    else if (/^\/(at|autothrow) .+$/.test(content)) {
+        auto_throw = translateShortcodeToUnicode(/^\S+ (.+)$/.exec(content)[1]).text;
+        sendSystemMessage("auto throwing: " + auto_throw);
+    }
     else if (/^\/(ac|autocopy)$/.test(content)) {
         auto_copy_player = "";
         sendSystemMessage("auto copy disabled");
@@ -406,13 +443,18 @@ function parseChat(message) {
         auto_copy_player = /^\S+ (\w+)$/.exec(content)[1].toLowerCase();
         sendSystemMessage("auto copying " + auto_copy_player);
     }
-    else if (/^\/(at|autothrow)$/.test(content)) {
-        auto_throw = "";
-        sendSystemMessage("auto throw disabled " + auto_copy_player);
+    else if (/^\/(am|automute)$/.test(content)) {
+        document.querySelector("#qpVolume").classList.remove("disabled");
+        volumeController.setMuted(false);
+        volumeController.adjustVolume();
+        auto_mute_delay = 0;
+        sendSystemMessage("auto mute disabled");
     }
-    else if (/^\/(at|autothrow) .+$/.test(content)) {
-        auto_throw = translateShortcodeToUnicode(/^\S+ (.+)$/.exec(content)[1]).text;
-        sendSystemMessage("auto throwing: " + auto_throw);
+    else if (/^\/(am|automute) [0-9.]+$/.test(content)) {
+        let seconds = parseFloat(/^\S+ ([0-9.]+)$/.exec(content)[1]);
+        if (isNaN(seconds) || seconds <= 0) return;
+        auto_mute_delay = seconds * 1000;
+        sendSystemMessage("auto muting after " + seconds + " second" + (seconds === 1 ? "" : "s"));
     }
     else if (/^\/autoready$/.test(content)) {
         auto_ready = !auto_ready;
@@ -650,6 +692,14 @@ function parsePM(message) {
         localStorage.setItem("mega_commands_auto_submit_answer", auto_submit_answer);
         sendSystemMessage("auto submit answer " + (auto_submit_answer ? "enabled" : "disabled"));
     }
+    else if (/^\/(at|autothrow)$/.test(content)) {
+        auto_throw = "";
+        sendSystemMessage("auto throw disabled " + auto_copy_player);
+    }
+    else if (/^\/(at|autothrow) .+$/.test(content)) {
+        auto_throw = translateShortcodeToUnicode(/^\S+ (.+)$/.exec(content)[1]).text;
+        sendSystemMessage("auto throwing: " + auto_throw);
+    }
     else if (/^\/(ac|autocopy)$/.test(content)) {
         auto_copy_player = "";
         sendSystemMessage("auto copy disabled");
@@ -658,13 +708,18 @@ function parsePM(message) {
         auto_copy_player = /^\S+ (\w+)$/.exec(content)[1].toLowerCase();
         sendSystemMessage("auto copying " + auto_copy_player);
     }
-    else if (/^\/(at|autothrow)$/.test(content)) {
-        auto_throw = "";
-        sendSystemMessage("auto throw disabled");
+    else if (/^\/(am|automute)$/.test(content)) {
+        document.querySelector("#qpVolume").classList.remove("disabled");
+        volumeController.setMuted(false);
+        volumeController.adjustVolume();
+        auto_mute_delay = 0;
+        sendSystemMessage("auto mute disabled");
     }
-    else if (/^\/(at|autothrow) .+$/.test(content)) {
-        auto_throw = translateShortcodeToUnicode(/^\S+ (.+)$/.exec(content)[1]).text;
-        sendSystemMessage("auto throwing: " + auto_throw);
+    else if (/^\/(am|automute) [0-9.]+$/.test(content)) {
+        let seconds = parseFloat(/^\S+ ([0-9.]+)$/.exec(content)[1]);
+        if (isNaN(seconds) || seconds <= 0) return;
+        auto_mute_delay = seconds * 1000;
+        sendSystemMessage("auto muting after " + seconds + " second" + (seconds === 1 ? "" : "s"));
     }
     else if (/^\/autoready$/.test(content)) {
         auto_ready = !auto_ready;
