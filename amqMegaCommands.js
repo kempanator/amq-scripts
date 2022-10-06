@@ -88,6 +88,7 @@ let auto_invite = "";
 let auto_accept_invite;
 let auto_status;
 let dropdown = true;
+let anime_list;
 const rules = {
     "alien": "https://pastebin.com/LxLMg1nA",
     "blackjack": "https://pastebin.com/kcq7hsJm",
@@ -104,8 +105,12 @@ const scripts = {
     "autoready": "https://github.com/nyamu-amq/amq_scripts/raw/master/amqAutoReady.user.js",
     "friends": "https://github.com/nyamu-amq/amq_scripts/raw/master/amqHighlightFriends.user.js",
     "sounds": "https://github.com/ensorcell/amq-scripts/raw/master/notificationSounds.user.js",
-    "songlist": "https://github.com/TheJoseph98/AMQ-Scripts/raw/master/amqSongListUI.user.js",
-    "rigtracker": "https://github.com/TheJoseph98/AMQ-Scripts/raw/master/amqRigTrackerLite.user.js",
+    "songlistui": "https://github.com/TheJoseph98/AMQ-Scripts/raw/master/amqSongListUI.user.js",
+    "rigtrackerlite": "https://github.com/TheJoseph98/AMQ-Scripts/raw/master/amqRigTrackerLite.user.js",
+    "answertime": "https://github.com/amq-script-project/AMQ-Scripts/raw/master/gameplay/amqPlayerAnswerTimeDisplay.user.js",
+    "speedrun": "https://github.com/TheJoseph98/AMQ-Scripts/raw/master/amqSpeedrun.user.js",
+    "chattimestamps": "https://github.com/TheJoseph98/AMQ-Scripts/raw/master/amqChatTimestamps.user.js",
+    "emojianswer": "https://github.com/nyamu-amq/amq_scripts/raw/master/amqEmojiAnswer.user.js",
     "1saudio": "https://github.com/xSardine/AMQ-Stuff/raw/main/1SecondAudio/1Second_Audio.user.js"
 };
 const info = {
@@ -509,8 +514,7 @@ function parseChat(message) {
     }
     else if (/^\/invisible$/.test(content)) {
         let handleAllOnlineMessage = new Listener("all online users", function (onlineUsers) {
-            let list = [];
-            Object.keys(socialTab.offlineFriends).forEach((name) => { if(onlineUsers.includes(name)) list.push(name) });
+            let list = Object.keys(socialTab.offlineFriends).filter((name) => onlineUsers.includes(name));
             sendChatMessage(list.length > 0 ? list.join(", ") : "no invisible friends detected", isTeamMessage);
             handleAllOnlineMessage.unbindListener();
         });
@@ -723,8 +727,7 @@ function parsePM(message) {
     }
     else if (/^\/invisible$/.test(content)) {
         let handleAllOnlineMessage = new Listener("all online users", function (onlineUsers) {
-            let list = [];
-            Object.keys(socialTab.offlineFriends).forEach((name) => { if(onlineUsers.includes(name)) list.push(name) });
+            let list = Object.keys(socialTab.offlineFriends).filter((name) => onlineUsers.includes(name));
             sendPM(message.target, list.length > 0 ? list.join(", ") : "no invisible friends detected");
             handleAllOnlineMessage.unbindListener();
         });
@@ -1003,8 +1006,7 @@ function getTeamDictionary() {
 
 // return a random player name in the room besides yourself
 function getRandomOtherPlayer() {
-    let list = [];
-    getPlayerList().forEach((player) => { if (player !== selfName) list.push(player) });
+    let list = getPlayerList().filter((player) => player !== selfName);
     return list[Math.floor(Math.random() * list.length)];
 }
 
@@ -1133,7 +1135,7 @@ ViewChanger.prototype.changeView = (function() {
 // overload newList function for drop down disable
 const oldNewList = AutoCompleteController.prototype.newList;
 AutoCompleteController.prototype.newList = function() {
-    if (this.list.length > 0) saved_list = this.list;
-    this.list = dropdown ? saved_list : [];
+    if (this.list.length > 0) anime_list = this.list;
+    this.list = dropdown ? anime_list : [];
     oldNewList.apply(this, arguments);
 }
