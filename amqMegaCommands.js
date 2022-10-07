@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            AMQ Mega Commands
 // @namespace       https://github.com/kempanator
-// @version         0.18
+// @version         0.19
 // @description     Commands for AMQ Chat
 // @author          kempanator
 // @match           https://animemusicquiz.com/*
@@ -15,57 +15,58 @@
 IMPORTANT: disable dice roller by thejoseph98 and chat commands by nyamu before installing
 
 GAME SETTINGS
-/size [2-40]        change room size
-/type [oei]         change song types
-/watched            change selection type to watched
-/random             change selection type to random
-/speed [1-4]        change song speed
-/time [5-60]        change song guess time
-/lives [1-5]        change number of lives
-/team [1-8]         change team size
-/songs [5-100]      change number of songs
-/dif [low] [high]   change difficulty
+/size [2-40]          change room size
+/type [oei]           change song types
+/watched              change selection type to watched
+/random               change selection type to random
+/speed [1-4]          change song speed
+/time [5-60]          change song guess time
+/lives [1-5]          change number of lives
+/team [1-8]           change team size
+/songs [5-100]        change number of songs
+/dif [low] [high]     change difficulty
 
 IN GAME/LOBBY
-/autoskip           automatically vote skip at the beginning of each song
-/autosubmit         automatically submit answer on each key press
-/autothrow [text]   automatically send answer at the beginning of each song
-/autocopy [name]    automatically copy a team member's answer
-/automute [seconds] automatically mute sound during quiz after # of seconds
-/autoready          automatically ready up in lobby
-/autostart          automatically start the game when everyone is ready if you are host
-/autohost [name]    automatically promote player to host if you are the current host
-/autoinvite [name]  automatically invite a player to your room when they log in (only friends)
-/autoaccept         automatically accept game invites if you aren't in a room (only friends)
-/ready              ready/unready in lobby
-/answer [text]      submit answer
-/invite [name]      invite player to game
-/host [name]        promote player to host
-/kick [name]        kick player
-/skip               vote skip on current song
-/pause              pause/unpause game
-/lobby              start return to lobby vote
-/leave              leave room
-/rejoin [seconds]   leave and rejoin the room you're in after # of seconds
-/spec               change to spectator
-/join               change from spectator to player in lobby
-/queue              join/leave queue
-/volume [0-100]     change volume
-/dropdown           enable/disable anime dropdown
+/autoskip             automatically vote skip at the beginning of each song
+/autosubmit           automatically submit answer on each key press
+/autothrow [text]     automatically send answer at the beginning of each song
+/autocopy [name]      automatically copy a team member's answer
+/automute [seconds]   automatically mute sound during quiz after # of seconds
+/autounmute [seconds] automatically unmute sound during quiz after # of seconds
+/autoready            automatically ready up in lobby
+/autostart            automatically start the game when everyone is ready if you are host
+/autohost [name]      automatically promote player to host if you are the current host
+/autoinvite [name]    automatically invite a player to your room when they log in (only friends)
+/autoaccept           automatically accept game invites if you aren't in a room (only friends)
+/ready                ready/unready in lobby
+/answer [text]        submit answer
+/invite [name]        invite player to game
+/host [name]          promote player to host
+/kick [name]          kick player
+/skip                 vote skip on current song
+/pause                pause/unpause game
+/lobby                start return to lobby vote
+/leave                leave room
+/rejoin [seconds]     leave and rejoin the room you're in after # of seconds
+/spec                 change to spectator
+/join                 change from spectator to player in lobby
+/queue                join/leave queue
+/volume [0-100]       change volume
+/dropdown             enable/disable anime dropdown
 
 OTHER
-/roll               roll number, player, playerteam, spectator
-/rules              show list of gamemodes and rules
-/info               show list of external utilities
-/clear              clear chat
-/pm [name] [text]   private message a player
-/profile [name]     show profile window of any player
-/leaderboard        show the leaderboard
-/password           reveal private room password
-/invisible          show invisible friends (this command might be broken)
-/logout             log out
-/version            check the version of this script
-/commands [on|off]  turn this script on or off
+/roll                 roll number, player, playerteam, spectator
+/rules                show list of gamemodes and rules
+/info                 show list of external utilities
+/clear                clear chat
+/pm [name] [text]     private message a player
+/profile [name]       show profile window of any player
+/leaderboard          show the leaderboard
+/password             reveal private room password
+/invisible            show invisible friends (this command might be broken)
+/logout               log out
+/version              check the version of this script
+/commands [on|off]    turn this script on or off
 */
 
 if (document.getElementById("startPage")) return;
@@ -76,7 +77,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.18";
+const version = "0.19";
 let commands = true;
 let auto_skip = false;
 let auto_submit_answer;
@@ -155,6 +156,16 @@ function setup() {
                 volumeController.adjustVolume();
             }, auto_mute_delay);
         }
+        if (auto_unmute_delay) {
+            document.querySelector("#qpVolume").classList.add("disabled");
+            volumeController.setMuted(true);
+            volumeController.adjustVolume();
+            setTimeout(() => {
+                document.querySelector("#qpVolume").classList.remove("disabled");
+                volumeController.setMuted(false);
+                volumeController.adjustVolume();
+            }, auto_unmute_delay);
+        }
     }).bindListener();
     new Listener("Game Starting", (payload) => {
         if (auto_skip) sendSystemMessage("Auto Skip: Enabled");
@@ -162,6 +173,7 @@ function setup() {
         if (auto_copy_player) sendSystemMessage("Auto Copy: " + auto_copy_player);
         if (auto_throw) sendSystemMessage("Auto Throw: " + auto_throw);
         if (auto_mute_delay) sendSystemMessage("Auto Mute: " + (auto_mute_delay / 1000) + "s");
+        if (auto_unmute_delay) sendSystemMessage("Auto Unmute: " + (auto_unmute_delay / 1000) + "s");
     }).bindListener();
     new Listener("team member answer", (payload) => {
         if (auto_copy_player && auto_copy_player === quiz.players[payload.gamePlayerId]._name.toLowerCase()) {
@@ -171,14 +183,14 @@ function setup() {
         }
     }).bindListener();
     new Listener("guess phase over", (payload) => {
-        if (auto_mute_delay) {
+        if (auto_mute_delay || auto_unmute_delay) {
             document.querySelector("#qpVolume").classList.remove("disabled");
             volumeController.setMuted(false);
             volumeController.adjustVolume();
         }
 	}).bindListener();
     new Listener("answer results", (payload) => {
-        if (auto_mute_delay) {
+        if (auto_mute_delay || auto_unmute_delay) {
             document.querySelector("#qpVolume").classList.remove("disabled");
             volumeController.setMuted(false);
             volumeController.adjustVolume();
@@ -448,13 +460,30 @@ function parseChat(message) {
         volumeController.setMuted(false);
         volumeController.adjustVolume();
         auto_mute_delay = 0;
+        auto_unmute_delay = 0;
         sendSystemMessage("auto mute disabled");
     }
     else if (/^\/(am|automute) [0-9.]+$/.test(content)) {
         let seconds = parseFloat(/^\S+ ([0-9.]+)$/.exec(content)[1]);
         if (isNaN(seconds) || seconds <= 0) return;
         auto_mute_delay = seconds * 1000;
+        auto_unmute_delay = 0;
         sendSystemMessage("auto muting after " + seconds + " second" + (seconds === 1 ? "" : "s"));
+    }
+    else if (/^\/(au|autounmute)$/.test(content)) {
+        document.querySelector("#qpVolume").classList.remove("disabled");
+        volumeController.setMuted(false);
+        volumeController.adjustVolume();
+        auto_unmute_delay = 0;
+        auto_mute_delay = 0;
+        sendSystemMessage("auto unmute disabled");
+    }
+    else if (/^\/(au|autounmute) [0-9.]+$/.test(content)) {
+        let seconds = parseFloat(/^\S+ ([0-9.]+)$/.exec(content)[1]);
+        if (isNaN(seconds) || seconds <= 0) return;
+        auto_unmute_delay = seconds * 1000;
+        auto_mute_delay = 0;
+        sendSystemMessage("auto unmuting after " + seconds + " second" + (seconds === 1 ? "" : "s"));
     }
     else if (/^\/autoready$/.test(content)) {
         auto_ready = !auto_ready;
@@ -713,13 +742,30 @@ function parsePM(message) {
         volumeController.setMuted(false);
         volumeController.adjustVolume();
         auto_mute_delay = 0;
+        auto_unmute_delay = 0;
         sendSystemMessage("auto mute disabled");
     }
     else if (/^\/(am|automute) [0-9.]+$/.test(content)) {
         let seconds = parseFloat(/^\S+ ([0-9.]+)$/.exec(content)[1]);
         if (isNaN(seconds) || seconds <= 0) return;
         auto_mute_delay = seconds * 1000;
+        auto_unmute_delay = 0;
         sendSystemMessage("auto muting after " + seconds + " second" + (seconds === 1 ? "" : "s"));
+    }
+    else if (/^\/(au|autounmute)$/.test(content)) {
+        document.querySelector("#qpVolume").classList.remove("disabled");
+        volumeController.setMuted(false);
+        volumeController.adjustVolume();
+        auto_unmute_delay = 0;
+        auto_mute_delay = 0;
+        sendSystemMessage("auto unmute disabled");
+    }
+    else if (/^\/(au|autounmute) [0-9.]+$/.test(content)) {
+        let seconds = parseFloat(/^\S+ ([0-9.]+)$/.exec(content)[1]);
+        if (isNaN(seconds) || seconds <= 0) return;
+        auto_unmute_delay = seconds * 1000;
+        auto_mute_delay = 0;
+        sendSystemMessage("auto unmuting after " + seconds + " second" + (seconds === 1 ? "" : "s"));
     }
     else if (/^\/autoready$/.test(content)) {
         auto_ready = !auto_ready;
