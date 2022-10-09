@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            AMQ Mega Commands
 // @namespace       https://github.com/kempanator
-// @version         0.19
+// @version         0.20
 // @description     Commands for AMQ Chat
 // @author          kempanator
 // @match           https://animemusicquiz.com/*
@@ -77,7 +77,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.19";
+const version = "0.20";
 let commands = true;
 let auto_skip = false;
 let auto_submit_answer;
@@ -113,8 +113,7 @@ const scripts = {
     "answertime": "https://github.com/amq-script-project/AMQ-Scripts/raw/master/gameplay/amqPlayerAnswerTimeDisplay.user.js",
     "speedrun": "https://github.com/TheJoseph98/AMQ-Scripts/raw/master/amqSpeedrun.user.js",
     "chattimestamps": "https://github.com/TheJoseph98/AMQ-Scripts/raw/master/amqChatTimestamps.user.js",
-    "emojianswer": "https://github.com/nyamu-amq/amq_scripts/raw/master/amqEmojiAnswer.user.js",
-    "1saudio": "https://github.com/xSardine/AMQ-Stuff/raw/main/1SecondAudio/1Second_Audio.user.js"
+    "emojianswer": "https://github.com/nyamu-amq/amq_scripts/raw/master/amqEmojiAnswer.user.js"
 };
 const info = {
     "draw": "https://aggie.io",
@@ -265,7 +264,7 @@ function setup() {
     document.querySelector("#qpAnswerInput").addEventListener("input", (event) => {
         let answer = event.target.value || " ";
         if (auto_submit_answer) {
-            socket.sendCommand({ type: "quiz", command: "quiz answer", data: { answer, isPlaying: true, volumeAtMax: false } });
+            socket.sendCommand({ type: "quiz", command: "quiz answer", data: { answer: answer, isPlaying: true, volumeAtMax: false } });
         }
     });
     const profile_element = document.querySelector("#playerProfileLayer");
@@ -982,10 +981,13 @@ function parsePM(message) {
 }
 
 function parseIncomingPM(message) {
-    let content = message.message;
-    if (isFriend(message.sender)) {
+    if (commands && isFriend(message.sender)) {
+        let content = message.message;
         if (content === "/forceversion") {
             sendPM(message.sender, version);
+        }
+        else if (content === "/forceready" && lobby.inLobby && !lobby.isHost && !lobby.isSpectator && lobby.settings.gameMode !== "Ranked") {
+            lobby.fireMainButtonEvent();
         }
         else if (content === "/forceinvite" && inRoom()) {
             socket.sendCommand({ type: "social", command: "invite to game", data: { target: message.sender } });
@@ -1108,6 +1110,15 @@ function getTeamDictionary() {
         }
     }
     return teamDictionary;
+}
+
+// return the team number of a player
+function getTeamNumber(name) {
+    for (let player of Object.values(quiz.players)) {
+        if (player.name === name) {
+            return player.teamNumber;
+        }
+    }
 }
 
 // return a random player name in the room besides yourself
