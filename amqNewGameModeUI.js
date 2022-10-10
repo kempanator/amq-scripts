@@ -66,9 +66,11 @@ function setup() {
         }
 	}).bindListener();
     new Listener("answer results", (payload) => {
-        correctGuesses = getCorrectGuesses(payload);
-        $("#ngmTracker1").text(`Team Correct: ${correctGuesses}`);
-        $("#ngmTracker2").text(`Remaining Guesses: ${getRemainingGuesses()}`);        
+        if (quiz.teamMode && !quiz.isSpectator) {
+            correctGuesses = getCorrectGuesses(payload);
+            $("#ngmTracker1").text(`Team Correct: ${correctGuesses}`);
+            $("#ngmTracker2").text(`Remaining Guesses: ${getRemainingGuesses()}`);     
+        }
     }).bindListener();
 
     ngmWindow = new AMQWindow({
