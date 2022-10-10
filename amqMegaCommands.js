@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            AMQ Mega Commands
 // @namespace       https://github.com/kempanator
-// @version         0.20
+// @version         0.21
 // @description     Commands for AMQ Chat
 // @author          kempanator
 // @match           https://animemusicquiz.com/*
@@ -38,6 +38,7 @@ IN GAME/LOBBY
 /autohost [name]      automatically promote player to host if you are the current host
 /autoinvite [name]    automatically invite a player to your room when they log in (only friends)
 /autoaccept           automatically accept game invites if you aren't in a room (only friends)
+/autolobby            automatically vote return to lobby
 /ready                ready/unready in lobby
 /answer [text]        submit answer
 /invite [name]        invite player to game
@@ -77,7 +78,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.20";
+const version = "0.21";
 let commands = true;
 let auto_skip = false;
 let auto_submit_answer;
@@ -89,6 +90,7 @@ let auto_start = false;
 let auto_host = "";
 let auto_invite = "";
 let auto_accept_invite;
+let auto_vote_lobby;
 let auto_status;
 let dropdown = true;
 let anime_list;
@@ -125,6 +127,7 @@ function setup() {
     auto_submit_answer = localStorage.getItem("mega_commands_auto_submit_answer") === "true";
     auto_ready = localStorage.getItem("mega_commands_auto_ready") === "true";
     auto_accept_invite = localStorage.getItem("mega_commands_auto_accept_invite") === "true";
+    auto_vote_lobby = localStorage.getItem("mega_commands_auto_vote_lobby");
     auto_status = localStorage.getItem("mega_commands_auto_status");
     if (auto_status === "do not disturb") socialTab.socialStatus.changeSocialStatus(2);
     if (auto_status === "away") socialTab.socialStatus.changeSocialStatus(3);
@@ -194,6 +197,9 @@ function setup() {
             volumeController.setMuted(false);
             volumeController.adjustVolume();
         }
+    }).bindListener();
+    new Listener("return lobby vote start", (payload) => {
+        if (auto_vote_lobby) setTimeout(() => { quiz.returnVoteController.vote(true) }, 100);
     }).bindListener();
     new Listener("quiz over", (payload) => {
         document.querySelector("#qpVolume").classList.remove("disabled");
@@ -519,6 +525,11 @@ function parseChat(message) {
         localStorage.setItem("mega_commands_auto_accept_invite", auto_accept_invite);
         sendSystemMessage("auto accept invite " + (auto_accept_invite ? "enabled" : "disabled"));
     }
+    else if (/^\/autolobby$/.test(content)) {
+        auto_vote_lobby = !auto_vote_lobby;
+        localStorage.setItem("mega_commands_auto_vote_lobby", auto_vote_lobby);
+        sendSystemMessage("auto vote lobby " + (auto_vote_lobby ? "enabled" : "disabled"));
+    }
     else if (/^\/autostatus$/.test(content)) {
         sendSystemMessage("online, away, do not disturb, invisible");
     }
@@ -800,6 +811,11 @@ function parsePM(message) {
         auto_accept_invite = !auto_accept_invite;
         localStorage.setItem("mega_commands_auto_accept_invite", auto_accept_invite);
         sendSystemMessage("auto accept invite " + (auto_accept_invite ? "enabled" : "disabled"));
+    }
+    else if (/^\/autolobby$/.test(content)) {
+        auto_vote_lobby = !auto_vote_lobby;
+        localStorage.setItem("mega_commands_auto_vote_lobby", auto_vote_lobby);
+        sendSystemMessage("auto vote lobby " + (auto_vote_lobby ? "enabled" : "disabled"));
     }
     else if (/^\/autostatus$/.test(content)) {
         sendSystemMessage("online, away, do not disturb, invisible");
