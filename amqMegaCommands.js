@@ -127,7 +127,7 @@ function setup() {
     auto_submit_answer = localStorage.getItem("mega_commands_auto_submit_answer") === "true";
     auto_ready = localStorage.getItem("mega_commands_auto_ready") === "true";
     auto_accept_invite = localStorage.getItem("mega_commands_auto_accept_invite") === "true";
-    auto_vote_lobby = localStorage.getItem("mega_commands_auto_vote_lobby");
+    auto_vote_lobby = localStorage.getItem("mega_commands_auto_vote_lobby") === "true";
     auto_status = localStorage.getItem("mega_commands_auto_status");
     if (auto_status === "do not disturb") socialTab.socialStatus.changeSocialStatus(2);
     if (auto_status === "away") socialTab.socialStatus.changeSocialStatus(3);
