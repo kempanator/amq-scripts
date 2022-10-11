@@ -28,7 +28,7 @@ let teamNumber = null; // your team number
 let teamList = null; // list of everyone on your team
 let teamSlot = null; // your index # on your team
 let correctGuesses = 0; // total correct guesses from your team
-let autoSendScore = false;
+let autothrowCount = false;
 let oldWidth = $("#qpOptionContainer").width();
 $("#qpOptionContainer").width(oldWidth + 35);
 $("#qpOptionContainer > div").append($(`<div id="qpNGM" class="clickAble qpOption"><i aria-hidden="true" class="fa fa-plus qpMenuItem"></i></div>`)
@@ -61,7 +61,7 @@ function setup() {
         setTimeout(() => { updateWindow() }, 1);
     }).bindListener();
     new Listener("play next song", (payload) => {
-        if (autoSendScore && guessCounter.length) {
+        if (autothrowCount && guessCounter.length) {
             setTimeout(() => { sendCount() }, 100);
         }
 	}).bindListener();
@@ -200,12 +200,12 @@ function updateWindow() {
         );
     ngmWindow.panels[0].panel.append($(`<br>`));
     ngmWindow.panels[0].panel
-        .append($(`<button id="ngmAutoSendScoreButton" class="btn btn-${autoSendScore ? "success" : "danger"} ngmButton">Autothrow Count</button>`)
+        .append($(`<button id="ngmautothrowCountButton" class="btn btn-${autothrowCount ? "success" : "danger"} ngmButton">Autothrow Count</button>`)
             .click(() => {
-                autoSendScore = !autoSendScore
-                $("#ngmAutoSendScoreButton").removeClass("btn-success");
-                $("#ngmAutoSendScoreButton").removeClass("btn-danger");
-                $("#ngmAutoSendScoreButton").addClass(autoSendScore ? "btn-success" : "btn-danger");
+                autothrowCount = !autothrowCount;
+                $("#ngmautothrowCountButton").removeClass("btn-success");
+                $("#ngmautothrowCountButton").removeClass("btn-danger");
+                $("#ngmautothrowCountButton").addClass(autothrowCount ? "btn-success" : "btn-danger");
             })
             .popover({
                 content: "automatically send your # of remaining guesses at the beginning of each song",
