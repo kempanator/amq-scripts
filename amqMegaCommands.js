@@ -12,7 +12,11 @@
 // ==/UserScript==
 
 /*
-IMPORTANT: disable dice roller by thejoseph98 and chat commands by nyamu before installing
+IMPORTANT: disable these scripts before installing
+- dice roller by thejoseph98 
+- chat commands by nyamu
+- auto ready by nyamu
+- auto answer on keypress by (unknown)
 
 GAME SETTINGS
 /size [2-40]          change room size
@@ -38,7 +42,7 @@ IN GAME/LOBBY
 /autohost [name]      automatically promote player to host if you are the current host
 /autoinvite [name]    automatically invite a player to your room when they log in (only friends)
 /autoaccept           automatically accept game invites if you aren't in a room (only friends)
-/autolobby            automatically vote return to lobby
+/autolobby            automatically vote return to lobby when host starts a vote
 /ready                ready/unready in lobby
 /answer [text]        submit answer
 /invite [name]        invite player to game
