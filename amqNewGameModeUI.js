@@ -68,7 +68,7 @@ function setup() {
     new Listener("answer results", (payload) => {
         if (quiz.teamMode && !quiz.isSpectator) {
             correctGuesses = getCorrectGuesses(payload);
-            $("#ngmTracker1").text(`Team Correct: ${correctGuesses}`);
+            $("#ngmTracker1").text(`Correct Answers: ${correctGuesses}`);
             $("#ngmTracker2").text(`Remaining Guesses: ${getRemainingGuesses()}`);     
         }
     }).bindListener();
@@ -77,9 +77,9 @@ function setup() {
         id: "ngmWindow",
         title: "NGM",
         width: 180,
-        height: 290,
+        height: 280,
         minWidth: 180,
-        minHeight: 100,
+        minHeight: 70,
         zIndex: 1060,
         closeHandler: undefined,
         resizable: true,
@@ -88,7 +88,7 @@ function setup() {
     ngmWindow.addPanel({
         id: "ngmPanel",
         width: 1.0,
-        height: 210
+        height: 200
     });
     updateWindow();
 
@@ -104,7 +104,7 @@ function setup() {
             margin-right: 5px;
         }
         .ngmText {
-            margin: 3px;
+            margin: 0px 3px;
         }
         .ngmButton {
             margin: 3px;
@@ -128,7 +128,7 @@ function updateWindow() {
     teamList = getTeamList(teamNumber);
     teamSlot = teamList.indexOf(selfName);
     guessCounter = Array(teamList.length).fill(numGuesses);
-    ngmWindow.panels[0].panel.append($(`<div id="ngmTracker1" class="ngmText">Team Correct: ${correctGuesses}</div>`));
+    ngmWindow.panels[0].panel.append($(`<div id="ngmTracker1" class="ngmText">Correct Answers: ${correctGuesses}</div>`));
     ngmWindow.panels[0].panel.append($(`<div id="ngmTracker2" class="ngmText">Remaining Guesses: ${teamList.length * numGuesses}</div>`));
     for (let i = 0; i < guessCounter.length; i++) {
         ngmWindow.panels[0].panel
