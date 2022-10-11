@@ -116,9 +116,9 @@ function setup() {
 }
 
 function updateWindow() {
-    if (!quiz.inQuiz || quiz.isSpectator || !quiz.teamMode) {
+    if (!quiz.inQuiz || quiz.isSpectator || !quiz.teamMode || hostModal.getSettings().scoreType !== 3) {
         ngmWindow.panels[0].clear();
-        ngmWindow.panels[0].panel.append($(`<div class="ngmText" style="text-align: center">Not in team game</div>`));
+        ngmWindow.panels[0].panel.append($(`<div class="ngmText" style="text-align: center">Not in team game with lives</div>`));
         guessCounter = [];
         teamNumber = null;
         teamList = null;
