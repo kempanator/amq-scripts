@@ -64,12 +64,12 @@ function setup() {
         setTimeout(() => { updateWindow() }, 1);
     }).bindListener();
     new Listener("play next song", (payload) => {
-        if (autothrowCount && guessCounter.length) {
+        if (autothrowCount && guessCounter.length && hostModal.getSettings().scoreType === 3) {
             setTimeout(() => { sendCount() }, 100);
         }
 	}).bindListener();
     new Listener("answer results", (payload) => {
-        if (quiz.teamMode && !quiz.isSpectator) {
+        if (quiz.teamMode && !quiz.isSpectator && hostModal.getSettings().scoreType === 3) {
             correctGuesses = getCorrectGuesses(payload);
             $("#ngmTracker1").text(`Correct Answers: ${correctGuesses}`);
             $("#ngmTracker2").text(`Remaining Guesses: ${getRemainingGuesses()}`);     
