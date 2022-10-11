@@ -200,12 +200,19 @@ function updateWindow() {
         );
     ngmWindow.panels[0].panel.append($(`<br>`));
     ngmWindow.panels[0].panel
-        .append($(`<button id="ngmAutoSendScoreButton" class="btn btn-${autoSendScore ? "success" : "danger"} ngmButton">Auto Send Score</button>`)
+        .append($(`<button id="ngmAutoSendScoreButton" class="btn btn-${autoSendScore ? "success" : "danger"} ngmButton">Autothrow Count</button>`)
             .click(() => {
                 autoSendScore = !autoSendScore
                 $("#ngmAutoSendScoreButton").removeClass("btn-success");
                 $("#ngmAutoSendScoreButton").removeClass("btn-danger");
                 $("#ngmAutoSendScoreButton").addClass(autoSendScore ? "btn-success" : "btn-danger");
+            })
+            .popover({
+                content: "automatically send your # of remaining guesses at the beginning of each song",
+                placement: "bottom",
+                trigger: "hover",
+                container: "body",
+                animation: false
             })
         );
 }
