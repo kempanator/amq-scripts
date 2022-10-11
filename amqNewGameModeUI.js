@@ -54,6 +54,9 @@ function setup() {
     new Listener("Join Game", (payload) => {
         setTimeout(() => { updateWindow() }, 1);
 	}).bindListener();
+    new Listener("Spectate Game", (payload) => {
+        setTimeout(() => { updateWindow() }, 1);
+    }).bindListener();
     new Listener("leave game",  (payload) => {
         setTimeout(() => { updateWindow() }, 1);
     }).bindListener();
