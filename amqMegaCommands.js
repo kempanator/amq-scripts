@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            AMQ Mega Commands
 // @namespace       https://github.com/kempanator
-// @version         0.22
+// @version         0.23
 // @description     Commands for AMQ Chat
 // @author          kempanator
 // @match           https://animemusicquiz.com/*
@@ -37,7 +37,6 @@ IN GAME/LOBBY
 /autocopy [name]      automatically copy a team member's answer
 /automute [seconds]   automatically mute sound during quiz after # of seconds
 /autounmute [seconds] automatically unmute sound during quiz after # of seconds
-/autojoin             automatically move from spectator to player when joining lobby
 /autoready            automatically ready up in lobby
 /autostart            automatically start the game when everyone is ready if you are host
 /autohost [name]      automatically promote player to host if you are the current host
@@ -45,7 +44,6 @@ IN GAME/LOBBY
 /autoaccept           automatically accept game invites if you aren't in a room (only friends)
 /autolobby            automatically vote return to lobby when host starts a vote
 /ready                ready/unready in lobby
-/answer [text]        submit answer
 /invite [name]        invite player to game
 /host [name]          promote player to host
 /kick [name]          kick player
@@ -71,6 +69,7 @@ OTHER
 /password             reveal private room password
 /invisible            show invisible friends (this command might be broken)
 /logout               log out
+/relog                log out, log in, and auto join the room you were in
 /version              check the version of this script
 /commands [on|off]    turn this script on or off
 */
@@ -83,7 +82,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.22";
+const version = "0.23";
 let commands = true;
 let auto_skip = false;
 let auto_submit_answer;
@@ -91,12 +90,13 @@ let auto_throw = "";
 let auto_copy_player = "";
 let auto_mute_delay = 0;
 let auto_unmute_delay = 0;
-let auto_join;
 let auto_ready;
 let auto_start = false;
 let auto_host = "";
 let auto_invite = "";
 let auto_accept_invite;
+let auto_join_room;
+let auto_switch = "";
 let auto_vote_lobby;
 let auto_status;
 let dropdown = true;
@@ -132,9 +132,9 @@ const info = {
 
 function setup() {
     auto_submit_answer = localStorage.getItem("mega_commands_auto_submit_answer") === "true";
-    auto_join = localStorage.getItem("mega_commands_auto_join") === "true";
     auto_ready = localStorage.getItem("mega_commands_auto_ready") === "true";
     auto_accept_invite = localStorage.getItem("mega_commands_auto_accept_invite") === "true";
+    auto_join_room = JSON.parse(localStorage.getItem("mega_commands_auto_join_room"));
     auto_vote_lobby = localStorage.getItem("mega_commands_auto_vote_lobby") === "true";
     auto_status = localStorage.getItem("mega_commands_auto_status");
     if (auto_status === "do not disturb") socialTab.socialStatus.changeSocialStatus(2);
@@ -219,6 +219,8 @@ function setup() {
         if (auto_host) sendSystemMessage("Auto Host: " + auto_host);
         if (auto_invite) sendSystemMessage("Auto Invite: " + auto_invite);
         if (auto_accept_invite) sendSystemMessage("Auto Accept Invite: Enabled");
+        if (auto_switch) setTimeout(() => { autoSwitch() }, 100);
+
     }).bindListener();
     new Listener("Spectate Game", (payload) => {
         if (payload.error) return;
@@ -227,7 +229,7 @@ function setup() {
         if (auto_host) sendSystemMessage("Auto Host: " + auto_host);
         if (auto_invite) sendSystemMessage("Auto Invite: " + auto_invite);
         if (auto_accept_invite) sendSystemMessage("Auto Accept Invite: Enabled");
-        if (auto_join) setTimeout(() => { if (lobby.inLobby && lobby.isSpectator) socket.sendCommand({ type: "lobby", command: "change to player" }) }, 1);
+        if (auto_switch) setTimeout(() => { autoSwitch() }, 100);
     }).bindListener();
     new Listener("New Player", (payload) => {
         setTimeout(() => {
@@ -249,9 +251,14 @@ function setup() {
     new Listener("Room Settings Changed", (payload) => {
         setTimeout(() => { autoReady() }, 1);
     }).bindListener();
+    new Listener("Player Changed To Spectator", (payload) => {
+        if (payload.playerDescription.name === selfName) {
+            setTimeout(() => { autoSwitch() }, 1);
+        }
+    }).bindListener();
     new Listener("Spectator Change To Player", (payload) => {
         if (payload.name === selfName) {
-            setTimeout(() => { autoReady(); autoStart(); }, 1);
+            setTimeout(() => { autoReady(); autoStart(); autoSwitch(); }, 1);
         }
     }).bindListener();
     new Listener("Host Promotion", (payload) => {
@@ -282,6 +289,18 @@ function setup() {
             socket.sendCommand({ type: "quiz", command: "quiz answer", data: { answer: answer, isPlaying: true, volumeAtMax: false } });
         }
     });
+    if (auto_join_room) {
+        if (auto_join_room.joinAsPlayer){
+            roomBrowser.fireJoinLobby(auto_join_room.id, auto_join_room.password);
+        }
+        else {
+            roomBrowser.fireSpectateGame(auto_join_room.id, auto_join_room.password);
+        }
+        if (auto_join_room.temp) {
+            auto_join_room = null;
+            localStorage.setItem("mega_commands_auto_join_room", auto_join_room);
+        }
+    }
     const profile_element = document.querySelector("#playerProfileLayer");
     new MutationObserver(function() {
         if (profile_element.querySelector(".ppFooterOptionIcon, .startChat")) {
@@ -322,6 +341,10 @@ function parseChat(message) {
     else if (/^\/roll (p|players?)$/.test(content)) {
         let list = getPlayerList();
         sendChatMessage(list.length ? list[Math.floor(Math.random() * list.length)] : "no players", isTeamMessage);
+    }
+    else if (/^\/roll (op|otherplayer?)$/.test(content)) {
+        let name = getRandomOtherPlayer();
+        if (name) sendChatMessage(name, isTeamMessage);
     }
     else if (/^\/roll (pt|playerteams?|teams?)$/.test(content)) {
         if (lobby.settings.teamSize > 1) {
@@ -499,12 +522,6 @@ function parseChat(message) {
         auto_mute_delay = 0;
         sendSystemMessage("auto unmuting after " + seconds + " second" + (seconds === 1 ? "" : "s"));
     }
-    else if (/^\/autojoin$/.test(content)) {
-        auto_join = !auto_join;
-        localStorage.setItem("mega_commands_auto_join", auto_join);
-        sendSystemMessage("auto join " + (auto_join ? "enabled" : "disabled"));
-        if (lobby.inLobby && lobby.isSpectator) socket.sendCommand({ type: "lobby", command: "change to player" });
-    }
     else if (/^\/autoready$/.test(content)) {
         auto_ready = !auto_ready;
         localStorage.setItem("mega_commands_auto_ready", auto_ready);
@@ -540,6 +557,55 @@ function parseChat(message) {
         localStorage.setItem("mega_commands_auto_accept_invite", auto_accept_invite);
         sendSystemMessage("auto accept invite " + (auto_accept_invite ? "enabled" : "disabled"));
     }
+    else if (/^\/autojoin$/.test(content)) {
+        if (auto_join_room || isSoloMode() || isRankedMode()) {
+            auto_join_room = null;
+            localStorage.setItem("mega_commands_auto_join_room", auto_join_room);
+            sendSystemMessage("auto join room disabled");
+        }
+        else if (lobby.inLobby) {
+            let password = hostModal.getSettings().password;
+            auto_join_room = {id: lobby.gameId, password: password};
+            localStorage.setItem("mega_commands_auto_join_room", JSON.stringify(auto_join_room));
+            sendSystemMessage(`auto joining room ${lobby.gameId} ${password}`);
+        }
+        else if (quiz.inQuiz || battleRoyal.inView) {
+            let gameInviteListener = new Listener("game invite", (payload) => {
+                if (payload.sender === selfName) {
+                    gameInviteListener.unbindListener();
+                    let password = hostModal.getSettings().password;
+                    auto_join_room = {id: payload.gameId, password: password};
+                    localStorage.setItem("mega_commands_auto_join_room", JSON.stringify(auto_join_room));
+                    sendSystemMessage(`auto joining room ${payload.gameId} ${password}`);
+                }
+            });
+            gameInviteListener.bindListener();
+            socket.sendCommand({ type: "social", command: "invite to game", data: { target: selfName } });
+        }
+        else {
+            auto_join_room = null;
+            localStorage.setItem("mega_commands_auto_join_room", auto_join_room);
+            sendSystemMessage("auto join room disabled");
+        }
+    }
+    else if (/^\/autojoin [0-9]+/.test(content)) {
+        let id = parseInt(/^\S+ ([0-9]+)/.exec(content)[1]);
+        let password = /^\S+ [0-9]+ (.+)$/.exec(content)[1];
+        auto_join_room = {id: id, password: password ? password : ""};
+        localStorage.setItem("mega_commands_auto_join_room", JSON.stringify(auto_join_room));
+        sendSystemMessage(`auto joining room ${id} ${password}`);
+    }
+    else if (/^\/autoswitch$/.test(content)) {
+        auto_switch = "";
+        sendSystemMessage("auto switch disabled");
+    }
+    else if (/^\/autoswitch (p|s)/.test(content)) {
+        let option = /^\S+ (p|s)/.exec(content)[1];
+        if (option === "p") auto_switch = "player";
+        else if (option === "s") auto_switch = "spectator";
+        sendSystemMessage("auto switching to " + auto_switch);
+        autoSwitch();
+    }
     else if (/^\/autolobby$/.test(content)) {
         auto_vote_lobby = !auto_vote_lobby;
         localStorage.setItem("mega_commands_auto_vote_lobby", auto_vote_lobby);
@@ -552,16 +618,12 @@ function parseChat(message) {
         let option = /^\S+ (.+)$/.exec(content)[1];
         auto_status = option;
         localStorage.setItem("mega_commands_auto_status", auto_status);
-        sendSystemMessage("auto status " + auto_status);
+        sendSystemMessage("auto status set to " + auto_status);
     }
     else if (/^\/ready$/.test(content)) {
         if (lobby.inLobby && !lobby.isHost && !lobby.isSpectator && lobby.settings.gameMode !== "Ranked") {
             lobby.fireMainButtonEvent();
         }
-    }
-    else if (/^\/answer .+$/.test(content)) {
-        let answer = /^\S+ (.+)$/.exec(content)[1];
-        quiz.answerInput.setNewAnswer(answer);
     }
     else if (/^\/(inv|invite) \w+$/.test(content)) {
         let name = getPlayerNameCorrectCase(/^\S+ (\w+)$/.exec(content)[1]);
@@ -676,6 +738,34 @@ function parseChat(message) {
     else if (/^\/(logout|logoff)$/.test(content)) {
         setTimeout(() => { viewChanger.changeView("main") }, 1);
         setTimeout(() => { options.logout() }, 10);
+    }
+    else if (/^\/(relog|logout rejoin|loggoff rejoin)$/.test(content)) {
+        if (!inRoom() || isSoloMode() || isRankedMode()) {
+            localStorage.setItem("mega_commands_auto_join_room", null);
+            setTimeout(() => { viewChanger.changeView("main") }, 1);
+            setTimeout(() => { options.logout() }, 10);
+        }
+        else if (lobby.inLobby) {
+            let password = hostModal.getSettings().password;
+            auto_join_room = {id: lobby.gameId, password: password, joinAsPlayer: !lobby.isSpectator, temp: true};
+            localStorage.setItem("mega_commands_auto_join_room", JSON.stringify(auto_join_room));
+            setTimeout(() => { viewChanger.changeView("main") }, 1);
+            setTimeout(() => { options.logout() }, 10);
+        }
+        else if (quiz.inQuiz || battleRoyal.inView) {
+            let gameInviteListener = new Listener("game invite", (payload) => {
+                if (payload.sender === selfName) {
+                    gameInviteListener.unbindListener();
+                    let password = hostModal.getSettings().password;
+                    auto_join_room = {id: payload.gameId, password: password, temp: true};
+                    localStorage.setItem("mega_commands_auto_join_room", JSON.stringify(auto_join_room));
+                    setTimeout(() => { viewChanger.changeView("main") }, 1);
+                    setTimeout(() => { options.logout() }, 10);
+                }
+            });
+            gameInviteListener.bindListener();
+            socket.sendCommand({ type: "social", command: "invite to game", data: { target: selfName } });
+        }
     }
     else if (/^\/commands$/.test(content)) {
         sendSystemMessage("on, off, help, link, version");
@@ -792,12 +882,6 @@ function parsePM(message) {
         auto_mute_delay = 0;
         sendSystemMessage("auto unmuting after " + seconds + " second" + (seconds === 1 ? "" : "s"));
     }
-    else if (/^\/autojoin$/.test(content)) {
-        auto_join = !auto_join;
-        localStorage.setItem("mega_commands_auto_join", auto_join);
-        sendSystemMessage("auto join " + (auto_join ? "enabled" : "disabled"));
-        if (lobby.inLobby && lobby.isSpectator) socket.sendCommand({ type: "lobby", command: "change to player" });
-    }
     else if (/^\/autoready$/.test(content)) {
         auto_ready = !auto_ready;
         localStorage.setItem("mega_commands_auto_ready", auto_ready);
@@ -833,6 +917,55 @@ function parsePM(message) {
         localStorage.setItem("mega_commands_auto_accept_invite", auto_accept_invite);
         sendSystemMessage("auto accept invite " + (auto_accept_invite ? "enabled" : "disabled"));
     }
+    else if (/^\/autojoin$/.test(content)) {
+        if (auto_join_room || isSoloMode() || isRankedMode()) {
+            auto_join_room = null;
+            localStorage.setItem("mega_commands_auto_join_room", auto_join_room);
+            sendSystemMessage("auto join room disabled");
+        }
+        else if (lobby.inLobby) {
+            let password = hostModal.getSettings().password;
+            auto_join_room = {id: lobby.gameId, password: password};
+            localStorage.setItem("mega_commands_auto_join_room", JSON.stringify(auto_join_room));
+            sendSystemMessage(`auto joining room ${lobby.gameId} ${password}`);
+        }
+        else if (quiz.inQuiz || battleRoyal.inView) {
+            let gameInviteListener = new Listener("game invite", (payload) => {
+                if (payload.sender === selfName) {
+                    gameInviteListener.unbindListener();
+                    let password = hostModal.getSettings().password;
+                    auto_join_room = {id: payload.gameId, password: password};
+                    localStorage.setItem("mega_commands_auto_join_room", JSON.stringify(auto_join_room));
+                    sendSystemMessage(`auto joining room ${payload.gameId} ${password}`);
+                }
+            });
+            gameInviteListener.bindListener();
+            socket.sendCommand({ type: "social", command: "invite to game", data: { target: selfName } });
+        }
+        else {
+            auto_join_room = null;
+            localStorage.setItem("mega_commands_auto_join_room", auto_join_room);
+            sendSystemMessage("auto join room disabled");
+        }
+    }
+    else if (/^\/autojoin [0-9]+/.test(content)) {
+        let id = parseInt(/^\S+ ([0-9]+)/.exec(content)[1]);
+        let password = /^\S+ [0-9]+ (.+)$/.exec(content)[1];
+        auto_join_room = {id: id, password: password ? password : ""};
+        localStorage.setItem("mega_commands_auto_join_room", JSON.stringify(auto_join_room));
+        sendSystemMessage(`auto joining room ${id} ${password}`);
+    }
+    else if (/^\/autoswitch$/.test(content)) {
+        auto_switch = "";
+        sendSystemMessage("auto switch disabled");
+    }
+    else if (/^\/autoswitch (p|s)/.test(content)) {
+        let option = /^\S+ (p|s)/.exec(content)[1];
+        if (option === "p") auto_switch = "player";
+        else if (option === "s") auto_switch = "spectator";
+        sendSystemMessage("auto switching to " + auto_switch);
+        autoSwitch();
+    }
     else if (/^\/autolobby$/.test(content)) {
         auto_vote_lobby = !auto_vote_lobby;
         localStorage.setItem("mega_commands_auto_vote_lobby", auto_vote_lobby);
@@ -845,7 +978,7 @@ function parsePM(message) {
         let option = /^\S+ (.+)$/.exec(content)[1];
         auto_status = option;
         localStorage.setItem("mega_commands_auto_status", auto_status);
-        sendSystemMessage("auto status " + auto_status);
+        sendSystemMessage("auto status set to" + auto_status);
     }
     else if (/^\/(pm|dm)$/.test(content)) {
         socialTab.startChat(selfName);
@@ -904,6 +1037,34 @@ function parsePM(message) {
         setTimeout(() => { viewChanger.changeView("main") }, 1);
         setTimeout(() => { options.logout() }, 10);
     }
+    else if (/^\/(relog|logout rejoin|loggoff rejoin)$/.test(content)) {
+        if (!inRoom() || isSoloMode() || isRankedMode()) {
+            localStorage.setItem("mega_commands_auto_join_room", null);
+            setTimeout(() => { viewChanger.changeView("main") }, 1);
+            setTimeout(() => { options.logout() }, 10);
+        }
+        else if (lobby.inLobby) {
+            let password = hostModal.getSettings().password;
+            auto_join_room = {id: lobby.gameId, password: password, joinAsPlayer: !lobby.isSpectator, temp: true};
+            localStorage.setItem("mega_commands_auto_join_room", JSON.stringify(auto_join_room));
+            setTimeout(() => { viewChanger.changeView("main") }, 1);
+            setTimeout(() => { options.logout() }, 10);
+        }
+        else if (quiz.inQuiz || battleRoyal.inView) {
+            let gameInviteListener = new Listener("game invite", (payload) => {
+                if (payload.sender === selfName) {
+                    gameInviteListener.unbindListener();
+                    let password = hostModal.getSettings().password;
+                    auto_join_room = {id: payload.gameId, password: password, temp: true};
+                    localStorage.setItem("mega_commands_auto_join_room", JSON.stringify(auto_join_room));
+                    setTimeout(() => { viewChanger.changeView("main") }, 1);
+                    setTimeout(() => { options.logout() }, 10);
+                }
+            });
+            gameInviteListener.bindListener();
+            socket.sendCommand({ type: "social", command: "invite to game", data: { target: selfName } });
+        }
+    }
     else if (/^\/commands$/.test(content)) {
         sendPM(message.target, "on, off, help, link, version");
     }
@@ -941,6 +1102,10 @@ function parsePM(message) {
             let list = getPlayerList();
             sendPM(message.target, list.length ? list[Math.floor(Math.random() * list.length)] : "no players");
         }
+        else if (/^\/roll (op|otherplayer?)$/.test(content)) {
+            let name = getRandomOtherPlayer();
+            if (name) sendPM(message.target, name);
+        }
         else if (/^\/roll (pt|playerteams?|teams?)$/.test(content)) {
             if (lobby.settings.teamSize > 1) {
                 let teamDictionary = getTeamDictionary();
@@ -965,10 +1130,6 @@ function parsePM(message) {
             if (lobby.inLobby && !lobby.isHost && !lobby.isSpectator && lobby.settings.gameMode !== "Ranked") {
                 lobby.fireMainButtonEvent();
             }
-        }
-        else if (/^\/answer .+$/.test(content)) {
-            let answer = /^\S+ (.+)$/.exec(content)[1];
-            quiz.answerInput.setNewAnswer(answer);
         }
         else if (/^\/(inv|invite) \w+$/.test(content)) {
             let name = getPlayerNameCorrectCase(/^\S+ (\w+)$/.exec(content)[1]);
@@ -1220,6 +1381,14 @@ function autoStart() {
             lobby.fireMainButtonEvent();
         }
     }, 1);
+}
+
+// check conditions and switch between player and spectator
+function autoSwitch() {
+    if (lobby.inLobby) {
+        if (auto_switch === "player" && lobby.isSpectator) socket.sendCommand({ type: "lobby", command: "change to player" });
+        else if (auto_switch === "spectator" && !lobby.isSpectator) lobby.changeToSpectator(selfName);
+    }
 }
 
 // rejoin the room you are currently in
