@@ -342,7 +342,7 @@ function parseChat(message) {
         let list = getPlayerList();
         sendChatMessage(list.length ? list[Math.floor(Math.random() * list.length)] : "no players", isTeamMessage);
     }
-    else if (/^\/roll (op|otherplayer?)$/.test(content)) {
+    else if (/^\/roll (op|otherplayers?)$/.test(content)) {
         let name = getRandomOtherPlayer();
         if (name) sendChatMessage(name, isTeamMessage);
     }
@@ -978,7 +978,7 @@ function parsePM(message) {
         let option = /^\S+ (.+)$/.exec(content)[1];
         auto_status = option;
         localStorage.setItem("mega_commands_auto_status", auto_status);
-        sendSystemMessage("auto status set to" + auto_status);
+        sendSystemMessage("auto status set to " + auto_status);
     }
     else if (/^\/(pm|dm)$/.test(content)) {
         socialTab.startChat(selfName);
@@ -1017,11 +1017,11 @@ function parsePM(message) {
         if (option in rules) sendPM(message.target, rules[option]);
     }
     else if (/^\/scripts$/.test(content)) {
-        sendChatMessage(Object.keys(scripts).join(", "), isTeamMessage);
+        sendPM(message.target, Object.keys(scripts).join(", "));
     }
     else if (/^\/scripts .+$/.test(content)) {
         let option = /^\S+ (.+)$/.exec(content)[1];
-        if (option in scripts) sendChatMessage(scripts[option], isTeamMessage);
+        if (option in scripts) sendPM(message.target, scripts[option]);
     }
     else if (/^\/info$/.test(content)) {
         sendPM(message.target, Object.keys(info).join(", "));
@@ -1102,7 +1102,7 @@ function parsePM(message) {
             let list = getPlayerList();
             sendPM(message.target, list.length ? list[Math.floor(Math.random() * list.length)] : "no players");
         }
-        else if (/^\/roll (op|otherplayer?)$/.test(content)) {
+        else if (/^\/roll (op|otherplayers?)$/.test(content)) {
             let name = getRandomOtherPlayer();
             if (name) sendPM(message.target, name);
         }
