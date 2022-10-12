@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            AMQ Mega Commands
 // @namespace       https://github.com/kempanator
-// @version         0.21
+// @version         0.22
 // @description     Commands for AMQ Chat
 // @author          kempanator
 // @match           https://animemusicquiz.com/*
@@ -37,6 +37,7 @@ IN GAME/LOBBY
 /autocopy [name]      automatically copy a team member's answer
 /automute [seconds]   automatically mute sound during quiz after # of seconds
 /autounmute [seconds] automatically unmute sound during quiz after # of seconds
+/autojoin             automatically move from spectator to player when joining lobby
 /autoready            automatically ready up in lobby
 /autostart            automatically start the game when everyone is ready if you are host
 /autohost [name]      automatically promote player to host if you are the current host
@@ -82,13 +83,15 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.21";
+const version = "0.22";
 let commands = true;
 let auto_skip = false;
 let auto_submit_answer;
 let auto_throw = "";
 let auto_copy_player = "";
 let auto_mute_delay = 0;
+let auto_unmute_delay = 0;
+let auto_join;
 let auto_ready;
 let auto_start = false;
 let auto_host = "";
@@ -129,6 +132,7 @@ const info = {
 
 function setup() {
     auto_submit_answer = localStorage.getItem("mega_commands_auto_submit_answer") === "true";
+    auto_join = localStorage.getItem("mega_commands_auto_join") === "true";
     auto_ready = localStorage.getItem("mega_commands_auto_ready") === "true";
     auto_accept_invite = localStorage.getItem("mega_commands_auto_accept_invite") === "true";
     auto_vote_lobby = localStorage.getItem("mega_commands_auto_vote_lobby") === "true";
@@ -223,6 +227,7 @@ function setup() {
         if (auto_host) sendSystemMessage("Auto Host: " + auto_host);
         if (auto_invite) sendSystemMessage("Auto Invite: " + auto_invite);
         if (auto_accept_invite) sendSystemMessage("Auto Accept Invite: Enabled");
+        if (auto_join) setTimeout(() => { if (lobby.inLobby && lobby.isSpectator) socket.sendCommand({ type: "lobby", command: "change to player" }) }, 1);
     }).bindListener();
     new Listener("New Player", (payload) => {
         setTimeout(() => {
@@ -493,6 +498,12 @@ function parseChat(message) {
         auto_unmute_delay = seconds * 1000;
         auto_mute_delay = 0;
         sendSystemMessage("auto unmuting after " + seconds + " second" + (seconds === 1 ? "" : "s"));
+    }
+    else if (/^\/autojoin$/.test(content)) {
+        auto_join = !auto_join;
+        localStorage.setItem("mega_commands_auto_join", auto_join);
+        sendSystemMessage("auto join " + (auto_join ? "enabled" : "disabled"));
+        if (lobby.inLobby && lobby.isSpectator) socket.sendCommand({ type: "lobby", command: "change to player" });
     }
     else if (/^\/autoready$/.test(content)) {
         auto_ready = !auto_ready;
@@ -780,6 +791,12 @@ function parsePM(message) {
         auto_unmute_delay = seconds * 1000;
         auto_mute_delay = 0;
         sendSystemMessage("auto unmuting after " + seconds + " second" + (seconds === 1 ? "" : "s"));
+    }
+    else if (/^\/autojoin$/.test(content)) {
+        auto_join = !auto_join;
+        localStorage.setItem("mega_commands_auto_join", auto_join);
+        sendSystemMessage("auto join " + (auto_join ? "enabled" : "disabled"));
+        if (lobby.inLobby && lobby.isSpectator) socket.sendCommand({ type: "lobby", command: "change to player" });
     }
     else if (/^\/autoready$/.test(content)) {
         auto_ready = !auto_ready;
