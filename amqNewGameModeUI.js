@@ -206,9 +206,7 @@ function updateWindow() {
         .append($(`<button id="ngmautothrowCountButton" class="btn btn-${autothrowCount ? "success" : "danger"} ngmButton">Autothrow Count</button>`)
             .click(() => {
                 autothrowCount = !autothrowCount;
-                $("#ngmautothrowCountButton").removeClass("btn-success");
-                $("#ngmautothrowCountButton").removeClass("btn-danger");
-                $("#ngmautothrowCountButton").addClass(autothrowCount ? "btn-success" : "btn-danger");
+                $("#ngmautothrowCountButton").removeClass("btn-success btn-danger").addClass(autothrowCount ? "btn-success" : "btn-danger");
             })
             .popover({
                 content: "automatically send your # of remaining guesses at the beginning of each song",
@@ -283,7 +281,7 @@ function getRemainingGuesses() {
 
 // return true if guess counts are currently accurate
 function checkCount() {
-    return correctGuesses % (guessCounter.length * numGuesses) === guessCounter.length * numGuesses - guessCounter.reduce((a, b) => a + b, 0);
+    return correctGuesses % (guessCounter.length * numGuesses) === guessCounter.length * numGuesses - guessCounter.reduce((a, b) => a + b);
 }
 
 // send a regular public message in game chat
