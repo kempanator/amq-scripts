@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            AMQ Mega Commands
 // @namespace       https://github.com/kempanator
-// @version         0.23
+// @version         0.24
 // @description     Commands for AMQ Chat
 // @author          kempanator
 // @match           https://animemusicquiz.com/*
@@ -13,7 +13,7 @@
 
 /*
 IMPORTANT: disable these scripts before installing
-- dice roller by thejoseph98 
+- dice roller by thejoseph98
 - chat commands by nyamu
 - auto ready by nyamu
 - auto answer on keypress by (unknown)
@@ -82,9 +82,9 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.23";
+const version = "0.24";
 let commands = true;
-let auto_skip = false;
+let auto_vote_skip = null;
 let auto_submit_answer;
 let auto_throw = "";
 let auto_copy_player = "";
@@ -155,7 +155,7 @@ function setup() {
     new Listener("play next song", (payload) => {
         if (!quiz.isSpectator && quiz.gameMode !== "Ranked") {
             if (auto_throw) quiz.answerInput.setNewAnswer(auto_throw);
-            if (auto_skip) setTimeout(() => { quiz.skipClicked() }, 200);
+            if (auto_vote_skip !== null) setTimeout(() => { quiz.skipClicked() }, auto_vote_skip);
         }
         if (auto_mute_delay) {
             document.querySelector("#qpVolume").classList.add("disabled");
@@ -178,7 +178,7 @@ function setup() {
         }
     }).bindListener();
     new Listener("Game Starting", (payload) => {
-        if (auto_skip) sendSystemMessage("Auto Skip: Enabled");
+        if (auto_vote_skip) sendSystemMessage("Auto Skip: Enabled");
         if (auto_submit_answer) sendSystemMessage("Auto Submit Answer: Enabled");
         if (auto_copy_player) sendSystemMessage("Auto Copy: " + auto_copy_player);
         if (auto_throw) sendSystemMessage("Auto Throw: " + auto_throw);
@@ -213,7 +213,11 @@ function setup() {
         document.querySelector("#qpVolume").classList.remove("disabled");
     }).bindListener();
     new Listener("Join Game", (payload) => {
-        if (payload.error) return;
+        if (payload.error) {
+            auto_join_room = null;
+            localStorage.setItem("mega_commands_auto_join_room", auto_join_room);
+            return;
+        }
         if (auto_ready) sendSystemMessage("Auto Ready: Enabled");
         if (auto_start) sendSystemMessage("Auto Start: Enabled");
         if (auto_host) sendSystemMessage("Auto Host: " + auto_host);
@@ -223,7 +227,11 @@ function setup() {
 
     }).bindListener();
     new Listener("Spectate Game", (payload) => {
-        if (payload.error) return;
+        if (payload.error) {
+            auto_join_room = null;
+            localStorage.setItem("mega_commands_auto_join_room", auto_join_room);
+            return;
+        }
         if (auto_ready) sendSystemMessage("Auto Ready: Enabled");
         if (auto_start) sendSystemMessage("Auto Start: Enabled");
         if (auto_host) sendSystemMessage("Auto Host: " + auto_host);
@@ -467,9 +475,16 @@ function parseChat(message) {
     else if (/^\/pause$/.test(content)) {
         socket.sendCommand({ type:"quiz", command:"quiz " + (quiz.pauseButton.pauseOn ? "unpause" : "pause") });
     }
-    else if (/^\/autoskip$/.test(content)) {
-        auto_skip = !auto_skip;
-        sendSystemMessage("auto skip " + (auto_skip ? "enabled" : "disabled"));
+    else if (/^\/(autoskip|autovoteskip)$/.test(content)) {
+        if (auto_vote_skip === null) auto_vote_skip = 100;
+        else auto_vote_skip = null;
+        sendSystemMessage("auto vote skip " + (auto_vote_skip ? "enabled" : "disabled"));
+    }
+    else if (/^\/(autoskip|autovoteskip) [0-9.]+$/.test(content)) {
+        let seconds = parseFloat(/^\S+ ([0-9.]+)$/.exec(content)[1]);
+        if (isNaN(seconds)) return;
+        auto_vote_skip = seconds * 1000;
+        sendSystemMessage(`auto vote skip after ${seconds} seconds`);     
     }
     else if (/^\/autosubmit$/.test(content)) {
         auto_submit_answer = !auto_submit_answer;
@@ -827,9 +842,16 @@ function parsePM(message) {
         let high = parseInt(/^\S+ -?[0-9]+ (-?[0-9]+)$/.exec(content)[1]);
         sendPM(message.target, "rolls " + (Math.floor(Math.random() * (high - low + 1)) + low));
     }
-    else if (/^\/autoskip$/.test(content)) {
-        auto_skip = !auto_skip;
-        sendSystemMessage("auto skip " + (auto_skip ? "enabled" : "disabled"));
+    else if (/^\/(autoskip|autovoteskip)$/.test(content)) {
+        if (auto_vote_skip === null) auto_vote_skip = 100;
+        else auto_vote_skip = null;
+        sendSystemMessage("auto vote skip " + (auto_vote_skip ? "enabled" : "disabled"));
+    }
+    else if (/^\/(autoskip|autovoteskip) [0-9.]+$/.test(content)) {
+        let seconds = parseFloat(/^\S+ ([0-9.]+)$/.exec(content)[1]);
+        if (isNaN(seconds)) return;
+        auto_vote_skip = seconds * 1000;
+        sendSystemMessage(`auto vote skip after ${seconds} seconds`);     
     }
     else if (/^\/autosubmit$/.test(content)) {
         auto_submit_answer = !auto_submit_answer;
