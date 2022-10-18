@@ -300,6 +300,7 @@ function setup() {
     if (auto_join_room) {
         if (auto_join_room.id === "Solo") {
             hostModal.changeSettings(auto_join_room.settings);
+            hostModal.soloMode = true;
             setTimeout(() => { roomBrowser.host() }, 10);
         }
         else if (auto_join_room.id === "Ranked") {
@@ -1443,12 +1444,11 @@ function changeGameSettings(settings) {
 
 // check if all players are ready in lobby
 function allPlayersReady() {
-    if (lobby.inLobby) {
-        for (let player of Object.values(lobby.players)) {
-            if (!player._ready) return false;
-        }
-        return true;
+    if (!lobby.inLobby) return false;
+    for (let player of Object.values(lobby.players)) {
+        if (!player._ready) return false;
     }
+    return true;
 }
 
 // check conditions and ready up in lobby
@@ -1461,7 +1461,7 @@ function autoReady() {
 // check conditions and start game
 function autoStart() {
     setTimeout(() => {
-        if (auto_start && lobby.inLobby && lobby.isHost && allPlayersReady()) {
+        if (auto_start && allPlayersReady() && lobby.isHost) {
             lobby.fireMainButtonEvent();
         }
     }, 1);
