@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            AMQ Mega Commands
 // @namespace       https://github.com/kempanator
-// @version         0.24
+// @version         0.25
 // @description     Commands for AMQ Chat
 // @author          kempanator
 // @match           https://animemusicquiz.com/*
@@ -32,7 +32,7 @@ GAME SETTINGS
 
 IN GAME/LOBBY
 /autoskip             automatically vote skip at the beginning of each song
-/autosubmit           automatically submit answer on each key press
+/autokey              automatically submit answer on each key press
 /autothrow [text]     automatically send answer at the beginning of each song
 /autocopy [name]      automatically copy a team member's answer
 /automute [seconds]   automatically mute sound during quiz after # of seconds
@@ -63,7 +63,7 @@ OTHER
 /rules                show list of gamemodes and rules
 /info                 show list of external utilities
 /clear                clear chat
-/pm [name] [text]     private message a player
+/dm [name] [text]     direct message a player
 /profile [name]       show profile window of any player
 /leaderboard          show the leaderboard
 /password             reveal private room password
@@ -74,15 +74,15 @@ OTHER
 /commands [on|off]    turn this script on or off
 */
 
-if (document.getElementById("startPage")) return;
+if (document.querySelector("#startPage")) return;
 let loadInterval = setInterval(() => {
-    if (document.getElementById("loadingScreen").classList.contains("hidden")) {
+    if (document.querySelector("#loadingScreen").classList.contains("hidden")) {
         setup();
         clearInterval(loadInterval);
     }
 }, 500);
 
-const version = "0.24";
+const version = "0.25";
 let commands = true;
 let auto_vote_skip = null;
 let auto_submit_answer;
@@ -178,7 +178,7 @@ function setup() {
         }
     }).bindListener();
     new Listener("Game Starting", (payload) => {
-        if (auto_vote_skip) sendSystemMessage("Auto Skip: Enabled");
+        if (auto_vote_skip !== null) sendSystemMessage("Auto Vote Skip: Enabled");
         if (auto_submit_answer) sendSystemMessage("Auto Submit Answer: Enabled");
         if (auto_copy_player) sendSystemMessage("Auto Copy: " + auto_copy_player);
         if (auto_throw) sendSystemMessage("Auto Throw: " + auto_throw);
@@ -211,6 +211,7 @@ function setup() {
     }).bindListener();
     new Listener("quiz over", (payload) => {
         document.querySelector("#qpVolume").classList.remove("disabled");
+        if (auto_switch) setTimeout(() => { autoSwitch() }, 10);
     }).bindListener();
     new Listener("Join Game", (payload) => {
         if (payload.error) {
@@ -224,7 +225,6 @@ function setup() {
         if (auto_invite) sendSystemMessage("Auto Invite: " + auto_invite);
         if (auto_accept_invite) sendSystemMessage("Auto Accept Invite: Enabled");
         if (auto_switch) setTimeout(() => { autoSwitch() }, 100);
-
     }).bindListener();
     new Listener("Spectate Game", (payload) => {
         if (payload.error) {
@@ -298,7 +298,14 @@ function setup() {
         }
     });
     if (auto_join_room) {
-        if (auto_join_room.joinAsPlayer){
+        if (auto_join_room.id === "Solo") {
+            hostModal.changeSettings(auto_join_room.settings);
+            setTimeout(() => { roomBrowser.host() }, 10);
+        }
+        else if (auto_join_room.id === "Ranked") {
+            socket.sendCommand({ type: "roombrowser", command: "join ranked game" });
+        }
+        else if (auto_join_room.joinAsPlayer){
             roomBrowser.fireJoinLobby(auto_join_room.id, auto_join_room.password);
         }
         else {
@@ -335,7 +342,7 @@ function parseChat(message) {
         sendChatMessage(getSpectatorList().map((player) => player.toLowerCase()).join(", "), isTeamMessage);
     }
     else if (/^\/roll$/.test(content)) {
-        sendSystemMessage("roll commands: #, player, playerteam, spectator");
+        sendSystemMessage("roll commands: #, player, otherplayer, playerteam, spectator");
     }
     else if (/^\/roll [0-9]+$/.test(content)) {
         let number = parseInt(/^\S+ ([0-9]+)$/.exec(content)[1]);
@@ -355,19 +362,15 @@ function parseChat(message) {
         if (name) sendChatMessage(name, isTeamMessage);
     }
     else if (/^\/roll (pt|playerteams?|teams?)$/.test(content)) {
-        if (lobby.settings.teamSize > 1) {
-            let teamDictionary = getTeamDictionary();
-            if (Object.keys(teamDictionary).length > 0) {
-                let teams = Object.keys(teamDictionary);
-                teams.sort((a, b) => parseInt(a) - parseInt(b));
-                for (let team of teams) {
-                    let name = teamDictionary[team][Math.floor(Math.random() * teamDictionary[team].length)];
-                    sendChatMessage(`Team ${team}: ${name}`, isTeamMessage);
-                }
+        if (hostModal.getSettings().teamSize === 1) { sendChatMessage("team size must be greater than 1", isTeamMessage); return; }
+        let teamDictionary = getTeamDictionary();
+        if (Object.keys(teamDictionary).length > 0) {
+            let teams = Object.keys(teamDictionary);
+            teams.sort((a, b) => parseInt(a) - parseInt(b));
+            for (let team of teams) {
+                let name = teamDictionary[team][Math.floor(Math.random() * teamDictionary[team].length)];
+                sendChatMessage(`Team ${team}: ${name}`, isTeamMessage);
             }
-        }
-        else {
-            sendSystemMessage("team size must be greater than 1");
         }
     }
     else if (/^\/roll (s|spectators?)$/.test(content)) {
@@ -473,7 +476,7 @@ function parseChat(message) {
         quiz.skipClicked();
     }
     else if (/^\/pause$/.test(content)) {
-        socket.sendCommand({ type:"quiz", command:"quiz " + (quiz.pauseButton.pauseOn ? "unpause" : "pause") });
+        socket.sendCommand({ type: "quiz", command: "quiz " + (quiz.pauseButton.pauseOn ? "unpause" : "pause") });
     }
     else if (/^\/(autoskip|autovoteskip)$/.test(content)) {
         if (auto_vote_skip === null) auto_vote_skip = 100;
@@ -486,7 +489,7 @@ function parseChat(message) {
         auto_vote_skip = seconds * 1000;
         sendSystemMessage(`auto vote skip after ${seconds} seconds`);     
     }
-    else if (/^\/autosubmit$/.test(content)) {
+    else if (/^\/(ak|autokey|autosubmit)$/.test(content)) {
         auto_submit_answer = !auto_submit_answer;
         localStorage.setItem("mega_commands_auto_submit_answer", auto_submit_answer);
         sendSystemMessage("auto submit answer " + (auto_submit_answer ? "enabled" : "disabled"));
@@ -699,14 +702,14 @@ function parseChat(message) {
         handleAllOnlineMessage.bindListener();
         socket.sendCommand({ type: "social", command: "get online users" });
     }
-    else if (/^\/(pm|dm)$/.test(content)) {
+    else if (/^\/(dm|pm)$/.test(content)) {
         socialTab.startChat(selfName);
     }
-    else if (/^\/(pm|dm) \w+$/.test(content)) {
+    else if (/^\/(dm|pm) \w+$/.test(content)) {
         let name = getPlayerNameCorrectCase(/^\S+ (\w+)$/.exec(content)[1]);
         socialTab.startChat(name);
     }
-    else if (/^\/(pm|dm) \w+ .+$/.test(content)) {
+    else if (/^\/(dm|pm) \w+ .+$/.test(content)) {
         let name = getPlayerNameCorrectCase(/^\S+ (\w+) .+$/.exec(content)[1]);
         let text = /^\S+ \w+ (.+)$/.exec(content)[1];
         socialTab.startChat(name);
@@ -755,8 +758,15 @@ function parseChat(message) {
         setTimeout(() => { options.logout() }, 10);
     }
     else if (/^\/(relog|logout rejoin|loggoff rejoin)$/.test(content)) {
-        if (!inRoom() || isSoloMode() || isRankedMode()) {
-            localStorage.setItem("mega_commands_auto_join_room", null);
+        if (isSoloMode()) {
+            auto_join_room = {id: "Solo", temp: true, settings: hostModal.getSettings()};
+            localStorage.setItem("mega_commands_auto_join_room", JSON.stringify(auto_join_room));
+            setTimeout(() => { viewChanger.changeView("main") }, 1);
+            setTimeout(() => { options.logout() }, 10);
+        }
+        else if (isRankedMode()) {
+            auto_join_room = {id: "Ranked", temp: true};
+            localStorage.setItem("mega_commands_auto_join_room", JSON.stringify(auto_join_room));
             setTimeout(() => { viewChanger.changeView("main") }, 1);
             setTimeout(() => { options.logout() }, 10);
         }
@@ -781,9 +791,14 @@ function parseChat(message) {
             gameInviteListener.bindListener();
             socket.sendCommand({ type: "social", command: "invite to game", data: { target: selfName } });
         }
+        else {
+            localStorage.setItem("mega_commands_auto_join_room", null);
+            setTimeout(() => { viewChanger.changeView("main") }, 1);
+            setTimeout(() => { options.logout() }, 10);
+        }
     }
     else if (/^\/commands$/.test(content)) {
-        sendSystemMessage("on, off, help, link, version");
+        sendSystemMessage("/commands on|off|help|link|version|auto");
     }
     else if (/^\/commands \w+$/.test(content)) {
         let option = /^\S+ (\w+)$/.exec(content)[1].toLowerCase();
@@ -803,6 +818,22 @@ function parseChat(message) {
         }
         else if (option === "version") {
             sendChatMessage(version, isTeamMessage);
+        }
+        else if (option === "auto") {
+            if (auto_vote_skip !== null) sendSystemMessage("Auto Vote Skip: Enabled");
+            if (auto_submit_answer) sendSystemMessage("Auto Submit Answer: Enabled");
+            if (auto_copy_player) sendSystemMessage("Auto Copy: " + auto_copy_player);
+            if (auto_throw) sendSystemMessage("Auto Throw: " + auto_throw);
+            if (auto_mute_delay) sendSystemMessage("Auto Mute: " + (auto_mute_delay / 1000) + "s");
+            if (auto_unmute_delay) sendSystemMessage("Auto Unmute: " + (auto_unmute_delay / 1000) + "s");
+            if (auto_ready) sendSystemMessage("Auto Ready: Enabled");
+            if (auto_start) sendSystemMessage("Auto Start: Enabled");
+            if (auto_host) sendSystemMessage("Auto Host: " + auto_host);
+            if (auto_invite) sendSystemMessage("Auto Invite: " + auto_invite);
+            if (auto_accept_invite) sendSystemMessage("Auto Accept Invite: Enabled");
+            if (auto_vote_lobby) sendSystemMessage("Auto Vote Lobby: Enabled");
+            if (auto_switch) sendSystemMessage("Auto Switch: " + auto_switch);
+            if (auto_status) sendSystemMessage("Auto Status: " + auto_status);
         }
     }
     else if (/^\/version$/.test(content)) {
@@ -853,7 +884,7 @@ function parsePM(message) {
         auto_vote_skip = seconds * 1000;
         sendSystemMessage(`auto vote skip after ${seconds} seconds`);     
     }
-    else if (/^\/autosubmit$/.test(content)) {
+    else if (/^\/(ak|autokey|autosubmit)$/.test(content)) {
         auto_submit_answer = !auto_submit_answer;
         localStorage.setItem("mega_commands_auto_submit_answer", auto_submit_answer);
         sendSystemMessage("auto submit answer " + (auto_submit_answer ? "enabled" : "disabled"));
@@ -1002,14 +1033,14 @@ function parsePM(message) {
         localStorage.setItem("mega_commands_auto_status", auto_status);
         sendSystemMessage("auto status set to " + auto_status);
     }
-    else if (/^\/(pm|dm)$/.test(content)) {
+    else if (/^\/(dm|pm)$/.test(content)) {
         socialTab.startChat(selfName);
     }
-    else if (/^\/(pm|dm) \w+$/.test(content)) {
+    else if (/^\/(dm|pm) \w+$/.test(content)) {
         let name = getPlayerNameCorrectCase(/^\S+ (\w+)$/.exec(content)[1]);
         socialTab.startChat(name);
     }
-    else if (/^\/(pm|dm) \w+ .+$/.test(content)) {
+    else if (/^\/(dm|pm) \w+ .+$/.test(content)) {
         let name = getPlayerNameCorrectCase(/^\S+ (\w+) .+$/.exec(content)[1]);
         let text = /^\S+ \w+ (.+)$/.exec(content)[1];
         socialTab.startChat(name);
@@ -1060,8 +1091,15 @@ function parsePM(message) {
         setTimeout(() => { options.logout() }, 10);
     }
     else if (/^\/(relog|logout rejoin|loggoff rejoin)$/.test(content)) {
-        if (!inRoom() || isSoloMode() || isRankedMode()) {
-            localStorage.setItem("mega_commands_auto_join_room", null);
+        if (isSoloMode()) {
+            auto_join_room = {id: "Solo", temp: true, settings: hostModal.getSettings()};
+            localStorage.setItem("mega_commands_auto_join_room", JSON.stringify(auto_join_room));
+            setTimeout(() => { viewChanger.changeView("main") }, 1);
+            setTimeout(() => { options.logout() }, 10);
+        }
+        else if (isRankedMode()) {
+            auto_join_room = {id: "Ranked", temp: true};
+            localStorage.setItem("mega_commands_auto_join_room", JSON.stringify(auto_join_room));
             setTimeout(() => { viewChanger.changeView("main") }, 1);
             setTimeout(() => { options.logout() }, 10);
         }
@@ -1086,9 +1124,14 @@ function parsePM(message) {
             gameInviteListener.bindListener();
             socket.sendCommand({ type: "social", command: "invite to game", data: { target: selfName } });
         }
+        else {
+            localStorage.setItem("mega_commands_auto_join_room", null);
+            setTimeout(() => { viewChanger.changeView("main") }, 1);
+            setTimeout(() => { options.logout() }, 10);
+        }
     }
     else if (/^\/commands$/.test(content)) {
-        sendPM(message.target, "on, off, help, link, version");
+        sendPM(message.target, "/commands on|off|help|link|version|auto");
     }
     else if (/^\/commands \w+$/.test(content)) {
         let option = /^\S+ (\w+)$/.exec(content)[1].toLowerCase();
@@ -1108,6 +1151,22 @@ function parsePM(message) {
         }
         else if (option === "version") {
             sendPM(message.target, version);
+        }
+        else if (option === "auto") {
+            if (auto_vote_skip !== null) sendSystemMessage("Auto Vote Skip: Enabled");
+            if (auto_submit_answer) sendSystemMessage("Auto Submit Answer: Enabled");
+            if (auto_copy_player) sendSystemMessage("Auto Copy: " + auto_copy_player);
+            if (auto_throw) sendSystemMessage("Auto Throw: " + auto_throw);
+            if (auto_mute_delay) sendSystemMessage("Auto Mute: " + (auto_mute_delay / 1000) + "s");
+            if (auto_unmute_delay) sendSystemMessage("Auto Unmute: " + (auto_unmute_delay / 1000) + "s");
+            if (auto_ready) sendSystemMessage("Auto Ready: Enabled");
+            if (auto_start) sendSystemMessage("Auto Start: Enabled");
+            if (auto_host) sendSystemMessage("Auto Host: " + auto_host);
+            if (auto_invite) sendSystemMessage("Auto Invite: " + auto_invite);
+            if (auto_accept_invite) sendSystemMessage("Auto Accept Invite: Enabled");
+            if (auto_vote_lobby) sendSystemMessage("Auto Vote Lobby: Enabled");
+            if (auto_switch) sendSystemMessage("Auto Switch: " + auto_switch);
+            if (auto_status) sendSystemMessage("Auto Status: " + auto_status);
         }
     }
     else if (/^\/version$/.test(content)) {
@@ -1129,19 +1188,15 @@ function parsePM(message) {
             if (name) sendPM(message.target, name);
         }
         else if (/^\/roll (pt|playerteams?|teams?)$/.test(content)) {
-            if (lobby.settings.teamSize > 1) {
-                let teamDictionary = getTeamDictionary();
-                if (Object.keys(teamDictionary).length > 0) {
-                    let teams = Object.keys(teamDictionary);
-                    teams.sort((a, b) => parseInt(a) - parseInt(b));
-                    for (let team of teams) {
-                        let name = teamDictionary[team][Math.floor(Math.random() * teamDictionary[team].length)];
-                        sendPM(message.target, `Team ${team}: ${name}`);
-                    }
+            if (hostModal.getSettings().teamSize === 1) { sendPM(message.target, "team size must be greater than 1"); return; }
+            let teamDictionary = getTeamDictionary();
+            if (Object.keys(teamDictionary).length > 0) {
+                let teams = Object.keys(teamDictionary);
+                teams.sort((a, b) => parseInt(a) - parseInt(b));
+                for (let team of teams) {
+                    let name = teamDictionary[team][Math.floor(Math.random() * teamDictionary[team].length)];
+                    sendPM(message.target, `Team ${team}: ${name}`);
                 }
-            }
-            else {
-                sendPM(message.target, "team size must be greater than 1");
             }
         }
         else if (/^\/roll (s|spectators?)$/.test(content)) {
@@ -1386,6 +1441,16 @@ function changeGameSettings(settings) {
     }
 }
 
+// check if all players are ready in lobby
+function allPlayersReady() {
+    if (lobby.inLobby) {
+        for (let player of Object.values(lobby.players)) {
+            if (!player._ready) return false;
+        }
+        return true;
+    }
+}
+
 // check conditions and ready up in lobby
 function autoReady() {
     if (auto_ready && lobby.inLobby && !lobby.isReady && !lobby.isHost && !lobby.isSpectator && lobby.settings.gameMode !== "Ranked") {
@@ -1396,10 +1461,7 @@ function autoReady() {
 // check conditions and start game
 function autoStart() {
     setTimeout(() => {
-        if (auto_start) {
-            for (let player of Object.values(lobby.players)) {
-                if (!player.ready) return;
-            }
+        if (auto_start && lobby.inLobby && lobby.isHost && allPlayersReady()) {
             lobby.fireMainButtonEvent();
         }
     }, 1);
