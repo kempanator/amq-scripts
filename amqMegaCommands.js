@@ -798,7 +798,7 @@ function parseChat(message) {
             socket.sendCommand({ type: "social", command: "invite to game", data: { target: selfName } });
         }
         else {
-            localStorage.setItem("mega_commands_auto_join_room", "");
+            localStorage.setItem("mega_commands_auto_join_room", false);
             setTimeout(() => { viewChanger.changeView("main") }, 1);
             setTimeout(() => { window.location = "/" }, 10);
         }
@@ -1140,7 +1140,7 @@ function parsePM(message) {
             socket.sendCommand({ type: "social", command: "invite to game", data: { target: selfName } });
         }
         else {
-            localStorage.setItem("mega_commands_auto_join_room", "");
+            localStorage.setItem("mega_commands_auto_join_room", false);
             setTimeout(() => { viewChanger.changeView("main") }, 1);
             setTimeout(() => { window.location = "/" }, 10);
         }
