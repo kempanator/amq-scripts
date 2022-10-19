@@ -75,7 +75,7 @@ OTHER
 */
 
 if (document.querySelector("#startPage")) {
-    if (localStorage.getItem("mega_commands_auto_join_room") && document.querySelector(".loginMainForm h1").innerText === "Account Already Online") {
+    if (JSON.parse(localStorage.getItem("mega_commands_auto_join_room")) && document.querySelector(".loginMainForm h1").innerText === "Account Already Online") {
         setTimeout(() => { document.querySelector(".loginMainForm a").click() }, 100);
     }
     return;
@@ -220,7 +220,7 @@ function setup() {
     }).bindListener();
     new Listener("Join Game", (payload) => {
         if (payload.error) {
-            auto_join_room = null;
+            auto_join_room = false;
             localStorage.setItem("mega_commands_auto_join_room", auto_join_room);
             return;
         }
@@ -233,7 +233,7 @@ function setup() {
     }).bindListener();
     new Listener("Spectate Game", (payload) => {
         if (payload.error) {
-            auto_join_room = null;
+            auto_join_room = false;
             localStorage.setItem("mega_commands_auto_join_room", auto_join_room);
             return;
         }
@@ -318,7 +318,7 @@ function setup() {
             roomBrowser.fireSpectateGame(auto_join_room.id, auto_join_room.password);
         }
         if (auto_join_room.temp) {
-            auto_join_room = null;
+            auto_join_room = false;
             localStorage.setItem("mega_commands_auto_join_room", auto_join_room);
         }
     }
@@ -583,7 +583,7 @@ function parseChat(message) {
     }
     else if (/^\/autojoin$/.test(content)) {
         if (auto_join_room || isSoloMode() || isRankedMode()) {
-            auto_join_room = null;
+            auto_join_room = false;
             localStorage.setItem("mega_commands_auto_join_room", auto_join_room);
             sendSystemMessage("auto join room disabled");
         }
@@ -607,7 +607,7 @@ function parseChat(message) {
             socket.sendCommand({ type: "social", command: "invite to game", data: { target: selfName } });
         }
         else {
-            auto_join_room = null;
+            auto_join_room = false;
             localStorage.setItem("mega_commands_auto_join_room", auto_join_room);
             sendSystemMessage("auto join room disabled");
         }
@@ -798,7 +798,7 @@ function parseChat(message) {
             socket.sendCommand({ type: "social", command: "invite to game", data: { target: selfName } });
         }
         else {
-            localStorage.setItem("mega_commands_auto_join_room", null);
+            localStorage.setItem("mega_commands_auto_join_room", "");
             setTimeout(() => { viewChanger.changeView("main") }, 1);
             setTimeout(() => { window.location = "/" }, 10);
         }
@@ -987,7 +987,7 @@ function parsePM(message) {
     }
     else if (/^\/autojoin$/.test(content)) {
         if (auto_join_room || isSoloMode() || isRankedMode()) {
-            auto_join_room = null;
+            auto_join_room = false;
             localStorage.setItem("mega_commands_auto_join_room", auto_join_room);
             sendSystemMessage("auto join room disabled");
         }
@@ -1011,7 +1011,7 @@ function parsePM(message) {
             socket.sendCommand({ type: "social", command: "invite to game", data: { target: selfName } });
         }
         else {
-            auto_join_room = null;
+            auto_join_room = false;
             localStorage.setItem("mega_commands_auto_join_room", auto_join_room);
             sendSystemMessage("auto join room disabled");
         }
@@ -1140,7 +1140,7 @@ function parsePM(message) {
             socket.sendCommand({ type: "social", command: "invite to game", data: { target: selfName } });
         }
         else {
-            localStorage.setItem("mega_commands_auto_join_room", null);
+            localStorage.setItem("mega_commands_auto_join_room", "");
             setTimeout(() => { viewChanger.changeView("main") }, 1);
             setTimeout(() => { window.location = "/" }, 10);
         }
