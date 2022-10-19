@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            AMQ Mega Commands
 // @namespace       https://github.com/kempanator
-// @version         0.25
+// @version         0.26
 // @description     Commands for AMQ Chat
 // @author          kempanator
 // @match           https://animemusicquiz.com/*
@@ -74,7 +74,12 @@ OTHER
 /commands [on|off]    turn this script on or off
 */
 
-if (document.querySelector("#startPage")) return;
+if (document.querySelector("#startPage")) {
+    if (localStorage.getItem("mega_commands_auto_join_room") && document.querySelector(".loginMainForm h1").innerText === "Account Already Online") {
+        setTimeout(() => { document.querySelector(".loginMainForm a").click() }, 100);
+    }
+    return;
+}
 let loadInterval = setInterval(() => {
     if (document.querySelector("#loadingScreen").classList.contains("hidden")) {
         setup();
@@ -82,7 +87,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.25";
+const version = "0.26";
 let commands = true;
 let auto_vote_skip = null;
 let auto_submit_answer;
@@ -298,12 +303,12 @@ function setup() {
         }
     });
     if (auto_join_room) {
-        if (auto_join_room.id === "Solo") {
+        if (auto_join_room.id === "solo") {
             hostModal.changeSettings(auto_join_room.settings);
             hostModal.soloMode = true;
             setTimeout(() => { roomBrowser.host() }, 10);
         }
-        else if (auto_join_room.id === "Ranked") {
+        else if (auto_join_room.id === "ranked") {
             socket.sendCommand({ type: "roombrowser", command: "join ranked game" });
         }
         else if (auto_join_room.joinAsPlayer){
@@ -730,10 +735,10 @@ function parseChat(message) {
         let option = /^\S+ (.+)$/.exec(content)[1];
         if (option in rules) sendChatMessage(rules[option], isTeamMessage);
     }
-    else if (/^\/scripts$/.test(content)) {
+    else if (/^\/scripts?$/.test(content)) {
         sendChatMessage(Object.keys(scripts).join(", "), isTeamMessage);
     }
-    else if (/^\/scripts .+$/.test(content)) {
+    else if (/^\/scripts? .+$/.test(content)) {
         let option = /^\S+ (.+)$/.exec(content)[1];
         if (option in scripts) sendChatMessage(scripts[option], isTeamMessage);
     }
@@ -760,23 +765,23 @@ function parseChat(message) {
     }
     else if (/^\/(relog|logout rejoin|loggoff rejoin)$/.test(content)) {
         if (isSoloMode()) {
-            auto_join_room = {id: "Solo", temp: true, settings: hostModal.getSettings()};
+            auto_join_room = {id: "solo", temp: true, settings: hostModal.getSettings()};
             localStorage.setItem("mega_commands_auto_join_room", JSON.stringify(auto_join_room));
             setTimeout(() => { viewChanger.changeView("main") }, 1);
-            setTimeout(() => { options.logout() }, 10);
+            setTimeout(() => { window.location = "/" }, 10);
         }
         else if (isRankedMode()) {
-            auto_join_room = {id: "Ranked", temp: true};
+            auto_join_room = {id: "ranked", temp: true};
             localStorage.setItem("mega_commands_auto_join_room", JSON.stringify(auto_join_room));
             setTimeout(() => { viewChanger.changeView("main") }, 1);
-            setTimeout(() => { options.logout() }, 10);
+            setTimeout(() => { window.location = "/" }, 10);
         }
         else if (lobby.inLobby) {
             let password = hostModal.getSettings().password;
             auto_join_room = {id: lobby.gameId, password: password, joinAsPlayer: !lobby.isSpectator, temp: true};
             localStorage.setItem("mega_commands_auto_join_room", JSON.stringify(auto_join_room));
             setTimeout(() => { viewChanger.changeView("main") }, 1);
-            setTimeout(() => { options.logout() }, 10);
+            setTimeout(() => { window.location = "/" }, 10);
         }
         else if (quiz.inQuiz || battleRoyal.inView) {
             let gameInviteListener = new Listener("game invite", (payload) => {
@@ -786,7 +791,7 @@ function parseChat(message) {
                     auto_join_room = {id: payload.gameId, password: password, temp: true};
                     localStorage.setItem("mega_commands_auto_join_room", JSON.stringify(auto_join_room));
                     setTimeout(() => { viewChanger.changeView("main") }, 1);
-                    setTimeout(() => { options.logout() }, 10);
+                    setTimeout(() => { window.location = "/" }, 10);
                 }
             });
             gameInviteListener.bindListener();
@@ -795,11 +800,11 @@ function parseChat(message) {
         else {
             localStorage.setItem("mega_commands_auto_join_room", null);
             setTimeout(() => { viewChanger.changeView("main") }, 1);
-            setTimeout(() => { options.logout() }, 10);
+            setTimeout(() => { window.location = "/" }, 10);
         }
     }
     else if (/^\/commands$/.test(content)) {
-        sendSystemMessage("/commands on|off|help|link|version|auto");
+        sendSystemMessage("/commands on off help link version clear auto");
     }
     else if (/^\/commands \w+$/.test(content)) {
         let option = /^\S+ (\w+)$/.exec(content)[1].toLowerCase();
@@ -819,6 +824,15 @@ function parseChat(message) {
         }
         else if (option === "version") {
             sendChatMessage(version, isTeamMessage);
+        }
+        else if (option === "clear") {
+            localStorage.removeItem("mega_commands_auto_submit_answer");
+            localStorage.removeItem("mega_commands_auto_ready");
+            localStorage.removeItem("mega_commands_auto_accept_invite");
+            localStorage.removeItem("mega_commands_auto_join_room");
+            localStorage.removeItem("mega_commands_auto_vote_lobby");
+            localStorage.removeItem("mega_commands_auto_status");
+            sendSystemMessage("mega commands local storage cleared");
         }
         else if (option === "auto") {
             if (auto_vote_skip !== null) sendSystemMessage("Auto Vote Skip: Enabled");
@@ -1070,10 +1084,10 @@ function parsePM(message) {
         let option = /^\S+ (.+)$/.exec(content)[1];
         if (option in rules) sendPM(message.target, rules[option]);
     }
-    else if (/^\/scripts$/.test(content)) {
+    else if (/^\/scripts?$/.test(content)) {
         sendPM(message.target, Object.keys(scripts).join(", "));
     }
-    else if (/^\/scripts .+$/.test(content)) {
+    else if (/^\/scripts? .+$/.test(content)) {
         let option = /^\S+ (.+)$/.exec(content)[1];
         if (option in scripts) sendPM(message.target, scripts[option]);
     }
@@ -1093,23 +1107,23 @@ function parsePM(message) {
     }
     else if (/^\/(relog|logout rejoin|loggoff rejoin)$/.test(content)) {
         if (isSoloMode()) {
-            auto_join_room = {id: "Solo", temp: true, settings: hostModal.getSettings()};
+            auto_join_room = {id: "solo", temp: true, settings: hostModal.getSettings()};
             localStorage.setItem("mega_commands_auto_join_room", JSON.stringify(auto_join_room));
             setTimeout(() => { viewChanger.changeView("main") }, 1);
-            setTimeout(() => { options.logout() }, 10);
+            setTimeout(() => { window.location = "/" }, 10);
         }
         else if (isRankedMode()) {
-            auto_join_room = {id: "Ranked", temp: true};
+            auto_join_room = {id: "ranked", temp: true};
             localStorage.setItem("mega_commands_auto_join_room", JSON.stringify(auto_join_room));
             setTimeout(() => { viewChanger.changeView("main") }, 1);
-            setTimeout(() => { options.logout() }, 10);
+            setTimeout(() => { window.location = "/" }, 10);
         }
         else if (lobby.inLobby) {
             let password = hostModal.getSettings().password;
             auto_join_room = {id: lobby.gameId, password: password, joinAsPlayer: !lobby.isSpectator, temp: true};
             localStorage.setItem("mega_commands_auto_join_room", JSON.stringify(auto_join_room));
             setTimeout(() => { viewChanger.changeView("main") }, 1);
-            setTimeout(() => { options.logout() }, 10);
+            setTimeout(() => { window.location = "/" }, 10);
         }
         else if (quiz.inQuiz || battleRoyal.inView) {
             let gameInviteListener = new Listener("game invite", (payload) => {
@@ -1119,7 +1133,7 @@ function parsePM(message) {
                     auto_join_room = {id: payload.gameId, password: password, temp: true};
                     localStorage.setItem("mega_commands_auto_join_room", JSON.stringify(auto_join_room));
                     setTimeout(() => { viewChanger.changeView("main") }, 1);
-                    setTimeout(() => { options.logout() }, 10);
+                    setTimeout(() => { window.location = "/" }, 10);
                 }
             });
             gameInviteListener.bindListener();
@@ -1128,11 +1142,11 @@ function parsePM(message) {
         else {
             localStorage.setItem("mega_commands_auto_join_room", null);
             setTimeout(() => { viewChanger.changeView("main") }, 1);
-            setTimeout(() => { options.logout() }, 10);
+            setTimeout(() => { window.location = "/" }, 10);
         }
     }
     else if (/^\/commands$/.test(content)) {
-        sendPM(message.target, "/commands on|off|help|link|version|auto");
+        sendPM(message.target, "/commands on off help link version clear auto");
     }
     else if (/^\/commands \w+$/.test(content)) {
         let option = /^\S+ (\w+)$/.exec(content)[1].toLowerCase();
@@ -1152,6 +1166,15 @@ function parsePM(message) {
         }
         else if (option === "version") {
             sendPM(message.target, version);
+        }
+        else if (option === "clear") {
+            localStorage.removeItem("mega_commands_auto_submit_answer");
+            localStorage.removeItem("mega_commands_auto_ready");
+            localStorage.removeItem("mega_commands_auto_accept_invite");
+            localStorage.removeItem("mega_commands_auto_join_room");
+            localStorage.removeItem("mega_commands_auto_vote_lobby");
+            localStorage.removeItem("mega_commands_auto_status");
+            sendPM(message.target, "mega commands local storage cleared");
         }
         else if (option === "auto") {
             if (auto_vote_skip !== null) sendSystemMessage("Auto Vote Skip: Enabled");
