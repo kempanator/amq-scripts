@@ -348,11 +348,10 @@ function parseChat(message) {
         sendChatMessage(getSpectatorList().map((player) => player.toLowerCase()).join(", "), isTeamMessage);
     }
     else if (/^\/teammates$/.test(content)) {
-        let list = getTeamList(getTeamNumber(selfName));
-        if (list.length) sendChatMessage(list.join(", "), isTeamMessage);
+        sendChatMessage(getTeamList(getTeamNumber(selfName)).join(", "), isTeamMessage);
     }
     else if (/^\/roll$/.test(content)) {
-        sendSystemMessage("roll commands: #, player, otherplayer, playerteam, spectator");
+        sendSystemMessage("roll commands: #, player, otherplayer, teammate, otherteammate, playerteam, spectator");
     }
     else if (/^\/roll [0-9]+$/.test(content)) {
         let number = parseInt(/^\S+ ([0-9]+)$/.exec(content)[1]);
@@ -374,6 +373,10 @@ function parseChat(message) {
     else if (/^\/roll (t|teammates?)$/.test(content)) {
         let list = getTeamList(getTeamNumber(selfName));
         sendChatMessage(list.length ? list[Math.floor(Math.random() * list.length)] : "no teammates", isTeamMessage);
+    }
+    else if (/^\/roll (ot|otherteammates?)$/.test(content)) {
+        let name = getRandomOtherTeammate();
+        if (name) sendChatMessage(name, isTeamMessage);
     }
     else if (/^\/roll (pt|playerteams?|teams?)$/.test(content)) {
         if (hostModal.getSettings().teamSize === 1) { sendChatMessage("team size must be greater than 1", isTeamMessage); return; }
@@ -1214,8 +1217,7 @@ function parsePM(message) {
             sendPM(message.target, getSpectatorList().map((player) => player.toLowerCase()).join(", "));
         }
         else if (/^\/teammates$/.test(content)) {
-            let list = getTeamList(getTeamNumber(selfName));
-            if (list.length) sendPM(message.target, list.join(", "));
+            sendPM(message.target, getTeamList(getTeamNumber(selfName)).join(", "));
         }
         else if (/^\/roll (p|players?)$/.test(content)) {
             let list = getPlayerList();
@@ -1228,6 +1230,10 @@ function parsePM(message) {
         else if (/^\/roll (t|teammates?)$/.test(content)) {
             let list = getTeamList(getTeamNumber(selfName));
             sendPM(message.target, list.length ? list[Math.floor(Math.random() * list.length)] : "no teammates");
+        }
+        else if (/^\/roll (ot|otherteammates?)$/.test(content)) {
+            let name = getRandomOtherTeammate();
+            if (name) sendPM(message.target, name);
         }
         else if (/^\/roll (pt|playerteams?|teams?)$/.test(content)) {
             if (hostModal.getSettings().teamSize === 1) { sendPM(message.target, "team size must be greater than 1"); return; }
@@ -1482,6 +1488,12 @@ function getTeamNumber(name) {
 // return a random player name in the room besides yourself
 function getRandomOtherPlayer() {
     let list = getPlayerList().filter((player) => player !== selfName);
+    return list[Math.floor(Math.random() * list.length)];
+}
+
+// return a random player name on your team besides yourself
+function getRandomOtherTeammate() {
+    let list = getTeamList(getTeamNumber(selfName)).filter((player) => player !== selfName);
     return list[Math.floor(Math.random() * list.length)];
 }
 
