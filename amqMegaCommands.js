@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            AMQ Mega Commands
 // @namespace       https://github.com/kempanator
-// @version         0.26
+// @version         0.27
 // @description     Commands for AMQ Chat
 // @author          kempanator
 // @match           https://animemusicquiz.com/*
@@ -87,7 +87,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.26";
+const version = "0.27";
 let commands = true;
 let auto_vote_skip = null;
 let auto_submit_answer;
@@ -346,6 +346,10 @@ function parseChat(message) {
     }
     else if (/^\/spectators$/.test(content)) {
         sendChatMessage(getSpectatorList().map((player) => player.toLowerCase()).join(", "), isTeamMessage);
+    }
+    else if (/^\/teammates$/.test(content)) {
+        let teammates = getTeamList(getTeamNumber(selfName));
+        if (teammates) sendChatMessage(teammates.join(", "), isTeamMessage);
     }
     else if (/^\/roll$/.test(content)) {
         sendSystemMessage("roll commands: #, player, otherplayer, playerteam, spectator");
@@ -849,6 +853,7 @@ function parseChat(message) {
             if (auto_vote_lobby) sendSystemMessage("Auto Vote Lobby: Enabled");
             if (auto_switch) sendSystemMessage("Auto Switch: " + auto_switch);
             if (auto_status) sendSystemMessage("Auto Status: " + auto_status);
+            if (auto_join_room) sendSystemMessage("Auto Join Room: " + auto_join_room.id);
         }
     }
     else if (/^\/version$/.test(content)) {
@@ -1191,6 +1196,7 @@ function parsePM(message) {
             if (auto_vote_lobby) sendSystemMessage("Auto Vote Lobby: Enabled");
             if (auto_switch) sendSystemMessage("Auto Switch: " + auto_switch);
             if (auto_status) sendSystemMessage("Auto Status: " + auto_status);
+            if (auto_join_room) sendSystemMessage("Auto Join Room: " + auto_join_room.id);
         }
     }
     else if (/^\/version$/.test(content)) {
@@ -1202,6 +1208,10 @@ function parsePM(message) {
         }
         else if (/^\/spectators$/.test(content)) {
             sendPM(message.target, getSpectatorList().map((player) => player.toLowerCase()).join(", "));
+        }
+        else if (/^\/teammates$/.test(content)) {
+            let teammates = getTeamList(getTeamNumber(selfName));
+            if (teammates) sendPM(message.target, teammates.join(", "));
         }
         else if (/^\/roll (p|players?)$/.test(content)) {
             let list = getPlayerList();
@@ -1385,12 +1395,9 @@ function getTeamDictionary() {
     let teamDictionary = {};
     if (lobby.inLobby) {
         for (let lobbyAvatar of document.querySelectorAll(".lobbyAvatar")) {
-            let name = lobbyAvatar.querySelector(".lobbyAvatarNameContainerInner").querySelector("h2").innerText;
-            let team = lobbyAvatar.querySelector(".lobbyAvatarTeamContainer").querySelector("h3").innerText;
-            if (isNaN(parseInt(team))) {
-                sendChatMessage("Error: can't get team number for " + name);
-                return {};
-            }
+            let name = lobbyAvatar.querySelector(".lobbyAvatarNameContainerInner h2").innerText;
+            let team = lobbyAvatar.querySelector(".lobbyAvatarTeamContainer h3").innerText;
+            if (isNaN(parseInt(team))) return {};
             team in teamDictionary ? teamDictionary[team].push(name) : teamDictionary[team] = [name];
         }
     }
@@ -1411,11 +1418,55 @@ function getTeamDictionary() {
     return teamDictionary;
 }
 
-// return the team number of a player
+// input team number, return list of names of players on team
+function getTeamList(team) {
+    if (!Number.isInteger(team)) return;
+    let list = [];
+    if (lobby.inLobby) {
+        for (let lobbyAvatar of document.querySelectorAll(".lobbyAvatar")) {
+            if (parseInt(lobbyAvatar.querySelector(".lobbyAvatarTeamContainer h3").innerText) === team) {
+                list.push(lobbyAvatar.querySelector(".lobbyAvatarNameContainerInner h2").innerText);
+            }
+        }
+    }
+    else if (quiz.inQuiz) {
+        for (let player of Object.values(quiz.players)) {
+            if (player.teamNumber === team) {
+                list.push(player._name);
+            }
+        }
+    }
+    else if (battleRoyal.inView) {
+        for (let player of Object.values(battleRoyal.players)) {
+            if (player.teamNumber === team) {
+                list.push(player._name);
+            }
+        }
+    }
+    return list;
+}
+
+// input player name, return their team number
 function getTeamNumber(name) {
-    for (let player of Object.values(quiz.players)) {
-        if (player.name === name) {
-            return player.teamNumber;
+    if (lobby.inLobby) {
+        for (let lobbyAvatar of document.querySelectorAll(".lobbyAvatar")) {
+            if (lobbyAvatar.querySelector(".lobbyAvatarNameContainerInner h2").innerText === name) {
+                return parseInt(lobbyAvatar.querySelector(".lobbyAvatarTeamContainer h3").innerText);
+            }
+        }
+    }
+    if (quiz.inQuiz) {
+        for (let player of Object.values(quiz.players)) {
+            if (player._name === name) {
+                return player.teamNumber;
+            }
+        }
+    }
+    if (battleRoyal.inView) {
+        for (let player of Object.values(battleRoyal.players)) {
+            if (player._name === name) {
+                return player.teamNumber;
+            }
         }
     }
 }
