@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            AMQ New Game Mode UI
 // @namespace       https://github.com/kempanator
-// @version         0.1
+// @version         0.2
 // @description     adds a user interface to new game mode to keep track of guesses
 // @author          kempanator
 // @match           https://animemusicquiz.com/*
@@ -13,9 +13,9 @@
 // ==/UserScript==
 
 
-if (document.getElementById("startPage")) return;
+if (document.querySelector("#startPage")) return;
 let loadInterval = setInterval(() => {
-    if (document.getElementById("loadingScreen").classList.contains("hidden")) {
+    if (document.querySelector("#loadingScreen").classList.contains("hidden")) {
         setup();
         clearInterval(loadInterval);
     }
@@ -29,9 +29,8 @@ let teamList = null; // list of everyone on your team
 let teamSlot = null; // your index # on your team
 let correctGuesses = 0; // total correct guesses from your team
 let autothrowCount = false;
-let oldWidth = $("#qpOptionContainer").width();
-$("#qpOptionContainer").width(oldWidth + 35);
-$("#qpOptionContainer > div").append($(`<div id="qpNGM" class="clickAble qpOption"><i aria-hidden="true" class="fa fa-plus qpMenuItem"></i></div>`)
+$("#qpOptionContainer").width($("#qpOptionContainer").width() + 35);
+$("#qpOptionContainer > div").append($(`<div id="qpNGM" class="clickAble qpOption"><img src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB4AAAAeCAMAAAAM7l6QAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAGUExURdnZ2QAAAE/vHxMAAAACdFJOU/8A5bcwSgAAAAlwSFlzAAAOwwAADsMBx2+oZAAAAGdJREFUOE/VikESwCAIA+X/ny6EpNoOeHCmh+5BkqzDtvxfD4cRRUn3pVlana3U08eDQmLTFFeZQDrMZ1p57YwObKshUSsNma3VjHkeLF8PNfc4qAKjQq2nrzUmXOabGHPDQWn5UJtdDB8CqahZORgAAAAASUVORK5CYII='/></div>`)
     .click(() => {
         if (ngmWindow.isVisible()) {
             ngmWindow.close();
@@ -134,8 +133,7 @@ function updateWindow() {
     ngmWindow.panels[0].panel.append($(`<div id="ngmTracker1" class="ngmText">Correct Answers: ${correctGuesses}</div>`));
     ngmWindow.panels[0].panel.append($(`<div id="ngmTracker2" class="ngmText">Remaining Guesses: ${teamList.length * numGuesses}</div>`));
     for (let i = 0; i < guessCounter.length; i++) {
-        ngmWindow.panels[0].panel
-        .append($(`<button id="ngmCountButton${i}" class="btn btn-default ngmButton">${guessCounter[i]}</button>`)
+        ngmWindow.panels[0].panel.append($(`<button id="ngmCountButton${i}" class="btn btn-default ngmButton">${guessCounter[i]}</button>`)
             .click(() => {
                 updateCount(i);
                 updateCountButtons();
@@ -143,79 +141,72 @@ function updateWindow() {
         );
     }
     ngmWindow.panels[0].panel.append($(`<br>`));
-    ngmWindow.panels[0].panel
-        .append($(`<button class="btn btn-danger ngmButton"><i aria-hidden="true" class="fa fa-minus"></button>`)
-            .click(() => {
-                sendGuess("-");
-            })
-        );
-        ngmWindow.panels[0].panel
-        .append($(`<button class="btn btn-warning ngmButton"><i aria-hidden="true" class="fa fa-question"></button>`)
-            .click(() => {
-                sendGuess("~");
-            })
-        );
-        ngmWindow.panels[0].panel
-        .append($(`<button class="btn btn-success ngmButton"><i aria-hidden="true" class="fa fa-plus"></button>`)
-            .click(() => {
-                sendGuess("+");
-            })
-        );
+    ngmWindow.panels[0].panel.append($(`<button class="btn btn-danger ngmButton"><i aria-hidden="true" class="fa fa-minus"></button>`)
+        .click(() => {
+            sendGuess("-");
+        })
+    );
+    ngmWindow.panels[0].panel.append($(`<button class="btn btn-warning ngmButton"><i aria-hidden="true" class="fa fa-question"></button>`)
+        .click(() => {
+            sendGuess("~");
+        })
+    );
+    ngmWindow.panels[0].panel.append($(`<button class="btn btn-success ngmButton"><i aria-hidden="true" class="fa fa-plus"></button>`)
+        .click(() => {
+            sendGuess("+");
+        })
+    );
     ngmWindow.panels[0].panel.append($(`<br>`));
-    ngmWindow.panels[0].panel
-        .append($(`<button class="btn btn-default ngmButton">Reset</button>`)
-            .click(() => {
-                guessCounter = [];
-                for (let i = 0; i < teamList.length; i++) {
-                    guessCounter.push(numGuesses);
-                    updateCountButtons();
-                }
-            })
-        );
-    ngmWindow.panels[0].panel
-        .append($(`<button id="ngmCountNumberButton" class="btn btn-info ngmButton">${numGuesses}</button>`)
-            .click(() => {
-                numGuesses === 1 ? numGuesses = 9 : numGuesses--;
-                $("#ngmCountNumberButton").text(numGuesses);
-                guessCounter = Array(teamList.length).fill(numGuesses);
+    ngmWindow.panels[0].panel.append($(`<button class="btn btn-default ngmButton">Reset</button>`)
+        .click(() => {
+            guessCounter = [];
+            for (let i = 0; i < teamList.length; i++) {
+                guessCounter.push(numGuesses);
                 updateCountButtons();
-            })
-            .popover({
-                content: "# of guesses per person",
-                placement: "bottom",
-                trigger: "hover",
-                container: "body",
-                animation: false
-            })
-        );
-    ngmWindow.panels[0].panel
-        .append($(`<button type="button" class="btn btn-primary ngmButton"><i aria-hidden="true" class="fa fa-comment"></button>`)
-            .click(() => {
-                sendChatMessage(guessCounter.join(""));
-            })
-            .popover({
-                content: "send team count to chat",
-                placement: "bottom",
-                trigger: "hover",
-                container: "body",
-                animation: false
-            })
-        );
+            }
+        })
+    );
+    ngmWindow.panels[0].panel.append($(`<button id="ngmCountNumberButton" class="btn btn-info ngmButton">${numGuesses}</button>`)
+        .click(() => {
+            numGuesses === 1 ? numGuesses = 9 : numGuesses--;
+            $("#ngmCountNumberButton").text(numGuesses);
+            guessCounter = Array(teamList.length).fill(numGuesses);
+            updateCountButtons();
+        })
+        .popover({
+            content: "# of guesses per person",
+            placement: "bottom",
+            trigger: "hover",
+            container: "body",
+            animation: false
+        })
+    );
+    ngmWindow.panels[0].panel.append($(`<button type="button" class="btn btn-primary ngmButton"><i aria-hidden="true" class="fa fa-comment"></button>`)
+        .click(() => {
+            sendChatMessage(guessCounter.join(""));
+        })
+        .popover({
+            content: "send team count to chat",
+            placement: "bottom",
+            trigger: "hover",
+            container: "body",
+            animation: false
+        })
+    );
     ngmWindow.panels[0].panel.append($(`<br>`));
-    ngmWindow.panels[0].panel
-        .append($(`<button id="ngmautothrowCountButton" class="btn btn-${autothrowCount ? "success" : "danger"} ngmButton">Autothrow Count</button>`)
-            .click(() => {
-                autothrowCount = !autothrowCount;
-                $("#ngmautothrowCountButton").removeClass("btn-success btn-danger").addClass(autothrowCount ? "btn-success" : "btn-danger");
-            })
-            .popover({
-                content: "automatically send your # of remaining guesses at the beginning of each song",
-                placement: "bottom",
-                trigger: "hover",
-                container: "body",
-                animation: false
-            })
-        );
+    ngmWindow.panels[0].panel.append($(`<button id="ngmautothrowCountButton" class="btn btn-${autothrowCount ? "success" : "danger"} ngmButton">Autothrow Count</button>`)
+        .click(() => {
+            autothrowCount = !autothrowCount;
+            $("#ngmautothrowCountButton").removeClass("btn-success btn-danger").addClass(autothrowCount ? "btn-success" : "btn-danger");
+        })
+        .popover({
+            content: "automatically send your # of remaining guesses at the beginning of each song",
+            placement: "bottom",
+            trigger: "hover",
+            container: "body",
+            animation: false
+        })
+    );
 }
 
 // return your team number (must be in quiz)
