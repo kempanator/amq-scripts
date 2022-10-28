@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            AMQ New Game Mode UI
 // @namespace       https://github.com/kempanator
-// @version         0.2
+// @version         0.3
 // @description     adds a user interface to new game mode to keep track of guesses
 // @author          kempanator
 // @match           https://animemusicquiz.com/*
@@ -111,6 +111,9 @@ function setup() {
         .ngmButton {
             margin: 3px;
         }
+        .ngmStatus {
+            padding: 6px;
+        }
     `);
 }
 
@@ -141,17 +144,17 @@ function updateWindow() {
         );
     }
     ngmWindow.panels[0].panel.append($(`<br>`));
-    ngmWindow.panels[0].panel.append($(`<button class="btn btn-danger ngmButton"><i aria-hidden="true" class="fa fa-minus"></button>`)
+    ngmWindow.panels[0].panel.append($(`<button class="btn btn-danger ngmButton ngmStatus"><img src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAArSURBVDhPYxgFo2AQAEYozfAfCKBMsgAjEIBoJjCPimDwGzgKRsHAAwYGACL9BAgJlOpKAAAAAElFTkSuQmCC'/></button>`)
         .click(() => {
             sendGuess("-");
         })
     );
-    ngmWindow.panels[0].panel.append($(`<button class="btn btn-warning ngmButton"><i aria-hidden="true" class="fa fa-question"></button>`)
+    ngmWindow.panels[0].panel.append($(`<button class="btn btn-warning ngmButton ngmStatus"><img src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAMAAAC6V+0/AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAGUExURf///wAAAFXC034AAAACdFJOU/8A5bcwSgAAAAlwSFlzAAAOwwAADsMBx2+oZAAAADlJREFUKFPNiskNACAMw5r9l6ZnlEq8Ef7UmBgu/BDNSXHa45TNg83hQNowP3vfJ0jloJo4i/IoAgcIXQE9Oa5xnQAAAABJRU5ErkJggg=='/></button>`)
         .click(() => {
             sendGuess("~");
         })
     );
-    ngmWindow.panels[0].panel.append($(`<button class="btn btn-success ngmButton"><i aria-hidden="true" class="fa fa-plus"></button>`)
+    ngmWindow.panels[0].panel.append($(`<button class="btn btn-success ngmButton ngmStatus"><img src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAA9SURBVDhPYxj0gBFK4wT/gQDKBANGIIAysQImKE01MGog5QAeY+ixSSqAxf5IDkNcYDSnEASD38DBDhgYAD/fDB70XVBaAAAAAElFTkSuQmCC'/></button>`)
         .click(() => {
             sendGuess("+");
         })
