@@ -30,7 +30,7 @@ let teamSlot = null; // your index # on your team
 let correctGuesses = 0; // total correct guesses from your team
 let autothrowCount = false;
 $("#qpOptionContainer").width($("#qpOptionContainer").width() + 35);
-$("#qpOptionContainer > div").append($(`<div id="qpNGM" class="clickAble qpOption"><img src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB4AAAAeCAMAAAAM7l6QAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAGUExURdnZ2QAAAE/vHxMAAAACdFJOU/8A5bcwSgAAAAlwSFlzAAAOwwAADsMBx2+oZAAAAGdJREFUOE/VikESwCAIA+X/ny6EpNoOeHCmh+5BkqzDtvxfD4cRRUn3pVlana3U08eDQmLTFFeZQDrMZ1p57YwObKshUSsNma3VjHkeLF8PNfc4qAKjQq2nrzUmXOabGHPDQWn5UJtdDB8CqahZORgAAAAASUVORK5CYII='/></div>`)
+$("#qpOptionContainer > div").append($(`<div id="qpNGM" class="clickAble qpOption"><img src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB4AAAAeCAMAAAAM7l6QAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAGUExURdnZ2QAAAE/vHxMAAAACdFJOU/8A5bcwSgAAAAlwSFlzAAAOwwAADsMBx2+oZAAAAFdJREFUOE/VjsENwCAMA8n+S4NN09qI9lOBxL0cXxSlxCen69JgGFmsoRIUymoNGGds0K+41iuMqiFZ5mCajuSgmoWBsrt73W+4flIOqq8km/rajD86ogIU2QKttGjahwAAAABJRU5ErkJggg=='/></div>`)
     .click(() => {
         if (ngmWindow.isVisible()) {
             ngmWindow.close();
