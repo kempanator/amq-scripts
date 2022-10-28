@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            AMQ Mega Commands
 // @namespace       https://github.com/kempanator
-// @version         0.28
+// @version         0.29
 // @description     Commands for AMQ Chat
 // @author          kempanator
 // @match           https://animemusicquiz.com/*
@@ -87,7 +87,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.28";
+const version = "0.29";
 let commands = true;
 let auto_vote_skip = null;
 let auto_submit_answer;
@@ -379,7 +379,7 @@ function parseChat(message) {
         if (name) sendChatMessage(name, isTeamMessage);
     }
     else if (/^\/roll (pt|playerteams?|teams?)$/.test(content)) {
-        if (hostModal.getSettings().teamSize === 1) { sendChatMessage("team size must be greater than 1", isTeamMessage); return; }
+        if (hostModal.getSettings().teamSize === 1) return sendChatMessage("team size must be greater than 1", isTeamMessage);
         let teamDictionary = getTeamDictionary();
         if (Object.keys(teamDictionary).length > 0) {
             let teams = Object.keys(teamDictionary);
@@ -872,7 +872,7 @@ function parseChat(message) {
     else if (/^\/alien pick [0-9]+$/.test(content)) {
         let n = parseInt(/^\S+ pick ([0-9]+)$/.exec(content)[1]);
         if (!inRoom() || n < 1) return;
-        if (Object.keys(lobby.players).length < n) { sendChatMessage("not enough people"); return; }
+        if (Object.keys(lobby.players).length < n) return sendChatMessage("not enough people");
         let aliens = shuffleArray(getPlayerList()).slice(0, n);
         for (let i = 0; i < aliens.length; i++) {
             setTimeout(() => {
@@ -884,6 +884,26 @@ function parseChat(message) {
             }, 500 * i);
         }
         setTimeout(() => { sendChatMessage(n + " alien" + (n === 1 ? "" : "s") + " chosen") }, 500 * n);
+    }
+    else if (/^\/wallpaper$/.test(content)) {
+        AMQ_addStyle(`
+            #loadingScreen, #gameContainer {
+                background-image: -webkit-image-set(url(../img/backgrounds/normal/bg-x1.jpg) 1x, url(../img/backgrounds/normal/bg-x2.jpg) 2x);
+            }
+            #gameContainer #gameChatPage .col-xs-9 {
+                background-image: -webkit-image-set(url(../img/backgrounds/blur/bg-x1.jpg) 1x, url(../img/backgrounds/blur/bg-x2.jpg) 2x);
+            }
+        `);
+    }
+    else if (/^\/wallpaper .+$/.test(content)) {
+        let url = /^\S+ (.+)$/.exec(content)[1];
+        if (/^http.*\.(jpg|jpeg|png|gif|tiff|bmp)$/.test(url)) {
+            AMQ_addStyle(`
+                #loadingScreen, #gameContainer, #gameChatPage .col-xs-9 {
+                    background-image: url(${url});
+                }
+            `);
+        }
     }
 }
 
@@ -1110,6 +1130,15 @@ function parsePM(message) {
         let option = /^\S+ (.+)$/.exec(content)[1];
         if (option in info) sendPM(message.target, info[option]);
     }
+    else if (/^\/join [0-9]+$/.test(content)) {
+        let id = parseInt(/^\S+ ([0-9]+)$/.exec(content)[1]);
+        roomBrowser.fireSpectateGame(id);
+    }
+    else if (/^\/join [0-9]+ .+$/.test(content)) {
+        let id = parseInt(/^\S+ ([0-9]+) .+$/.exec(content)[1]);
+        let password = /^\S+ [0-9]+ (.+)$/.exec(content)[1];
+        roomBrowser.fireSpectateGame(id, password);
+    }
     else if (/^\/leave$/.test(content)) {
         setTimeout(() => { viewChanger.changeView("main") }, 1);
     }
@@ -1236,7 +1265,7 @@ function parsePM(message) {
             if (name) sendPM(message.target, name);
         }
         else if (/^\/roll (pt|playerteams?|teams?)$/.test(content)) {
-            if (hostModal.getSettings().teamSize === 1) { sendPM(message.target, "team size must be greater than 1"); return; }
+            if (hostModal.getSettings().teamSize === 1) return sendPM(message.target, "team size must be greater than 1");
             let teamDictionary = getTeamDictionary();
             if (Object.keys(teamDictionary).length > 0) {
                 let teams = Object.keys(teamDictionary);
