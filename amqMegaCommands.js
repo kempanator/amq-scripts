@@ -907,7 +907,7 @@ function parseChat(message) {
     }
     else if (/^\/(background|wallpaper) .+$/.test(content)) {
         let url = /^\S+ (.+)$/.exec(content)[1];
-        if (/^http.*\.(jpg|jpeg|png|gif|tiff|bmp)$/.test(url)) {
+        if (/^http.*\.(jpg|jpeg|png|gif|tiff|bmp|webp)$/.test(url)) {
             AMQ_addStyle(`
                 #loadingScreen, #gameContainer, #gameChatPage .col-xs-9 {
                     background-image: url(${url});
@@ -1262,7 +1262,7 @@ function parsePM(message) {
     }
     else if (/^\/(background|wallpaper) .+$/.test(content)) {
         let url = /^\S+ (.+)$/.exec(content)[1];
-        if (/^http.*\.(jpg|jpeg|png|gif|tiff|bmp)$/.test(url)) {
+        if (/^http.*\.(jpg|jpeg|png|gif|tiff|bmp|webp)$/.test(url)) {
             AMQ_addStyle(`
                 #loadingScreen, #gameContainer, #gameChatPage .col-xs-9 {
                     background-image: url(${url});
