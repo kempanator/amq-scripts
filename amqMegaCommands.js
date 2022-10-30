@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            AMQ Mega Commands
 // @namespace       https://github.com/kempanator
-// @version         0.29
+// @version         0.30
 // @description     Commands for AMQ Chat
 // @author          kempanator
 // @match           https://animemusicquiz.com/*
@@ -68,6 +68,7 @@ OTHER
 /leaderboard          show the leaderboard
 /password             reveal private room password
 /invisible            show invisible friends (this command might be broken)
+/background [url]     change the background
 /logout               log out
 /relog                log out, log in, and auto join the room you were in
 /version              check the version of this script
@@ -87,7 +88,15 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.29";
+if (localStorage.getItem("mega_commands_background")) {
+    AMQ_addStyle(`
+        #loadingScreen, #gameContainer, #gameChatPage .col-xs-9 {
+            background-image: url(${localStorage.getItem("mega_commands_background")});
+        }
+    `);
+}
+
+const version = "0.30";
 let commands = true;
 let auto_vote_skip = null;
 let auto_submit_answer;
@@ -885,17 +894,18 @@ function parseChat(message) {
         }
         setTimeout(() => { sendChatMessage(n + " alien" + (n === 1 ? "" : "s") + " chosen") }, 500 * n);
     }
-    else if (/^\/wallpaper$/.test(content)) {
+    else if (/^\/(background|wallpaper)$/.test(content)) {
         AMQ_addStyle(`
             #loadingScreen, #gameContainer {
                 background-image: -webkit-image-set(url(../img/backgrounds/normal/bg-x1.jpg) 1x, url(../img/backgrounds/normal/bg-x2.jpg) 2x);
             }
-            #gameContainer #gameChatPage .col-xs-9 {
+            #gameChatPage .col-xs-9 {
                 background-image: -webkit-image-set(url(../img/backgrounds/blur/bg-x1.jpg) 1x, url(../img/backgrounds/blur/bg-x2.jpg) 2x);
             }
         `);
+        localStorage.setItem("mega_commands_background", "");
     }
-    else if (/^\/wallpaper .+$/.test(content)) {
+    else if (/^\/(background|wallpaper) .+$/.test(content)) {
         let url = /^\S+ (.+)$/.exec(content)[1];
         if (/^http.*\.(jpg|jpeg|png|gif|tiff|bmp)$/.test(url)) {
             AMQ_addStyle(`
@@ -903,6 +913,7 @@ function parseChat(message) {
                     background-image: url(${url});
                 }
             `);
+            localStorage.setItem("mega_commands_background", url);
         }
     }
 }
@@ -1237,6 +1248,28 @@ function parsePM(message) {
     }
     else if (/^\/version$/.test(content)) {
         sendPM(message.target, "Mega Commands version " + version);
+    }
+    else if (/^\/(background|wallpaper)$/.test(content)) {
+        AMQ_addStyle(`
+            #loadingScreen, #gameContainer {
+                background-image: -webkit-image-set(url(../img/backgrounds/normal/bg-x1.jpg) 1x, url(../img/backgrounds/normal/bg-x2.jpg) 2x);
+            }
+            #gameChatPage .col-xs-9 {
+                background-image: -webkit-image-set(url(../img/backgrounds/blur/bg-x1.jpg) 1x, url(../img/backgrounds/blur/bg-x2.jpg) 2x);
+            }
+        `);
+        localStorage.setItem("mega_commands_background", "");
+    }
+    else if (/^\/(background|wallpaper) .+$/.test(content)) {
+        let url = /^\S+ (.+)$/.exec(content)[1];
+        if (/^http.*\.(jpg|jpeg|png|gif|tiff|bmp)$/.test(url)) {
+            AMQ_addStyle(`
+                #loadingScreen, #gameContainer, #gameChatPage .col-xs-9 {
+                    background-image: url(${url});
+                }
+            `);
+            localStorage.setItem("mega_commands_background", url);
+        }
     }
     if (inRoom()) {
         if (/^\/players$/.test(content)) {
