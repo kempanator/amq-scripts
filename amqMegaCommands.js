@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            AMQ Mega Commands
 // @namespace       https://github.com/kempanator
-// @version         0.30
+// @version         0.31
 // @description     Commands for AMQ Chat
 // @author          kempanator
 // @match           https://animemusicquiz.com/*
@@ -96,7 +96,7 @@ if (localStorage.getItem("mega_commands_background")) {
     `);
 }
 
-const version = "0.30";
+const version = "0.31";
 let commands = true;
 let auto_vote_skip = null;
 let auto_submit_answer;
@@ -114,6 +114,7 @@ let auto_switch = "";
 let auto_vote_lobby;
 let auto_status;
 let dropdown = true;
+let detect;
 let anime_list;
 const rules = {
     "alien": "https://pastebin.com/LxLMg1nA",
@@ -151,6 +152,7 @@ function setup() {
     auto_join_room = JSON.parse(localStorage.getItem("mega_commands_auto_join_room"));
     auto_vote_lobby = localStorage.getItem("mega_commands_auto_vote_lobby") === "true";
     auto_status = localStorage.getItem("mega_commands_auto_status");
+    detect = JSON.parse(localStorage.getItem("mega_commands_player_detection")) || {};
     if (auto_status === "do not disturb") socialTab.socialStatus.changeSocialStatus(2);
     if (auto_status === "away") socialTab.socialStatus.changeSocialStatus(3);
     if (auto_status === "invisible") socialTab.socialStatus.changeSocialStatus(4);
@@ -303,6 +305,15 @@ function setup() {
         if (payload.online && auto_invite === payload.name.toLowerCase() && inRoom() && !isInYourRoom(auto_invite) && !isSoloMode() && !isRankedMode()) {
             sendSystemMessage(payload.name + " online: auto inviting");
             setTimeOut(() => { socket.sendCommand({ type: "social", command: "invite to game", data: { target: payload.name } }), 1000 });
+        }
+    }).bindListener();
+    new Listener("New Rooms", (payload) => {
+        for (let room of payload) {
+            if (detect.invisible) {
+                for (let player of room.players) {
+                    if (Object.keys(socialTab.offlineFriends).includes(player)) popoutMessages.displayStandardMessage(`${player} (invisible)`, `Room ${room.id}: ${room.settings.roomName}`);
+                }
+            }
         }
     }).bindListener();
     document.querySelector("#qpAnswerInput").addEventListener("input", (event) => {
@@ -916,6 +927,15 @@ function parseChat(message) {
             localStorage.setItem("mega_commands_background", url);
         }
     }
+    else if (/^\/detect$/.test(content)) {
+        localStorage.removeItem("mega_commands_player_detection");
+        sendSystemMessage("detection system disabled");
+    }
+    else if (/^\/detect invisible$/.test(content)) {
+        detect.invisible = true;
+        localStorage.setItem("mega_commands_player_detection", JSON.stringify(detect));
+        sendSystemMessage("now detecting invisible friends in the room browser");
+    }
 }
 
 function parsePM(message) {
@@ -1271,6 +1291,15 @@ function parsePM(message) {
             localStorage.setItem("mega_commands_background", url);
         }
     }
+    else if (/^\/detect$/.test(content)) {
+        localStorage.removeItem("mega_commands_player_detection");
+        sendPM(message.target, "detection system disabled");
+    }
+    else if (/^\/detect invisible$/.test(content)) {
+        detect.invisible = true;
+        localStorage.setItem("mega_commands_player_detection", JSON.stringify(detect));
+        sendPM(message.target, "now detecting invisible friends in the room browser");
+    }
     if (inRoom()) {
         if (/^\/players$/.test(content)) {
             sendPM(message.target, getPlayerList().map((player) => player.toLowerCase()).join(", "));
@@ -1376,6 +1405,9 @@ function parseIncomingPM(message) {
         }
         else if (content === "/forceinvite" && inRoom()) {
             socket.sendCommand({ type: "social", command: "invite to game", data: { target: message.sender } });
+        }
+        else if (content === "/forcepassword" && inRoom()) {
+            sendPM(message.sender, hostModal.getSettings().password);
         }
         else if (content === "/forcehost" && lobby.inLobby && lobby.isHost) {
             lobby.promoteHost(message.sender);
