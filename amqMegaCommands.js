@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            AMQ Mega Commands
 // @namespace       https://github.com/kempanator
-// @version         0.31
+// @version         0.32
 // @description     Commands for AMQ Chat
 // @author          kempanator
 // @match           https://animemusicquiz.com/*
@@ -96,7 +96,7 @@ if (localStorage.getItem("mega_commands_background")) {
     `);
 }
 
-const version = "0.31";
+const version = "0.32";
 let commands = true;
 let auto_vote_skip = null;
 let auto_submit_answer;
@@ -152,7 +152,7 @@ function setup() {
     auto_join_room = JSON.parse(localStorage.getItem("mega_commands_auto_join_room"));
     auto_vote_lobby = localStorage.getItem("mega_commands_auto_vote_lobby") === "true";
     auto_status = localStorage.getItem("mega_commands_auto_status");
-    detect = JSON.parse(localStorage.getItem("mega_commands_player_detection")) || {};
+    detect = JSON.parse(localStorage.getItem("mega_commands_player_detection")) || {invisible: false, players: []};
     if (auto_status === "do not disturb") socialTab.socialStatus.changeSocialStatus(2);
     if (auto_status === "away") socialTab.socialStatus.changeSocialStatus(3);
     if (auto_status === "invisible") socialTab.socialStatus.changeSocialStatus(4);
@@ -223,7 +223,12 @@ function setup() {
         }
     }).bindListener();
     new Listener("return lobby vote start", (payload) => {
-        if (auto_vote_lobby) setTimeout(() => { quiz.returnVoteController.vote(true) }, 100);
+        if (auto_vote_lobby) {
+            setTimeout(() => {
+                quiz.returnVoteController.buttonSelected(quiz.returnVoteController.$VOTE_YES_BUTTON);
+                quiz.returnVoteController.vote(true);
+            }, 100);
+        }
     }).bindListener();
     new Listener("quiz over", (payload) => {
         document.querySelector("#qpVolume").classList.remove("disabled");
@@ -310,8 +315,13 @@ function setup() {
     new Listener("New Rooms", (payload) => {
         for (let room of payload) {
             if (detect.invisible) {
-                for (let player of room.players) {
-                    if (Object.keys(socialTab.offlineFriends).includes(player)) popoutMessages.displayStandardMessage(`${player} (invisible)`, `Room ${room.id}: ${room.settings.roomName}`);
+                let list = [];
+                room.players.forEach((player) => { if (Object.keys(socialTab.offlineFriends).includes(player)) list.push(player) });
+                if (list.length) popoutMessages.displayStandardMessage(`${list.join(", ")} (invisible)`, `Room ${room.id}: ${room.settings.roomName}`);
+            }
+            if (detect.players.length) {
+                for (let player of detect.players) {
+                    if (room.players.includes(player)) popoutMessages.displayStandardMessage(`${player}`, `Room ${room.id}: ${room.settings.roomName}`);
                 }
             }
         }
@@ -863,6 +873,8 @@ function parseChat(message) {
             localStorage.removeItem("mega_commands_auto_join_room");
             localStorage.removeItem("mega_commands_auto_vote_lobby");
             localStorage.removeItem("mega_commands_auto_status");
+            localStorage.removeItem("mega_commands_background");
+            localStorage.removeItem("mega_commands_player_detection");
             sendSystemMessage("mega commands local storage cleared");
         }
         else if (option === "auto") {
@@ -928,6 +940,11 @@ function parseChat(message) {
         }
     }
     else if (/^\/detect$/.test(content)) {
+        sendSystemMessage("invisible: " + detect.invisible);
+        sendSystemMessage("players: " + detect.players.join(", "));
+    }
+    else if (/^\/detect disable$/.test(content)) {
+        detect = {invisible: false, players: []};
         localStorage.removeItem("mega_commands_player_detection");
         sendSystemMessage("detection system disabled");
     }
@@ -935,6 +952,18 @@ function parseChat(message) {
         detect.invisible = true;
         localStorage.setItem("mega_commands_player_detection", JSON.stringify(detect));
         sendSystemMessage("now detecting invisible friends in the room browser");
+    }
+    else if (/^\/detect \w+$/.test(content)) {
+        let name = /^\S+ (\w+)$/.exec(content)[1];
+        if (detect.players.includes(name)) {
+            detect.players.pop(name);
+            sendSystemMessage(`${name} removed from detection system`);
+        }
+        else {
+            detect.players.push(name);
+            sendSystemMessage(`now detecting ${name} in the room browser`);
+        }
+        localStorage.setItem("mega_commands_player_detection", JSON.stringify(detect));
     }
 }
 
@@ -1246,6 +1275,8 @@ function parsePM(message) {
             localStorage.removeItem("mega_commands_auto_join_room");
             localStorage.removeItem("mega_commands_auto_vote_lobby");
             localStorage.removeItem("mega_commands_auto_status");
+            localStorage.removeItem("mega_commands_background");
+            localStorage.removeItem("mega_commands_player_detection");
             sendPM(message.target, "mega commands local storage cleared");
         }
         else if (option === "auto") {
@@ -1292,6 +1323,10 @@ function parsePM(message) {
         }
     }
     else if (/^\/detect$/.test(content)) {
+        sendPM(message.target, `invisible: ${detect.invisible}, players: ${detect.players.join(", ")}`);
+    }
+    else if (/^\/detect disable$/.test(content)) {
+        detect = {invisible: false, players: []};
         localStorage.removeItem("mega_commands_player_detection");
         sendPM(message.target, "detection system disabled");
     }
@@ -1299,6 +1334,18 @@ function parsePM(message) {
         detect.invisible = true;
         localStorage.setItem("mega_commands_player_detection", JSON.stringify(detect));
         sendPM(message.target, "now detecting invisible friends in the room browser");
+    }
+    else if (/^\/detect \w+$/.test(content)) {
+        let name = /^\S+ (\w+)$/.exec(content)[1];
+        if (detect.players.includes(name)) {
+            detect.players.pop(name);
+            sendPM(message.target, `${name} removed from detection system`);
+        }
+        else {
+            detect.players.push(name);
+            sendPM(message.target, `now detecting ${name} in the room browser`);
+        }
+        localStorage.setItem("mega_commands_player_detection", JSON.stringify(detect));
     }
     if (inRoom()) {
         if (/^\/players$/.test(content)) {
