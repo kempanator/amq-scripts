@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            AMQ Mega Commands
 // @namespace       https://github.com/kempanator
-// @version         0.32
+// @version         0.33
 // @description     Commands for AMQ Chat
 // @author          kempanator
 // @match           https://animemusicquiz.com/*
@@ -96,7 +96,7 @@ if (localStorage.getItem("mega_commands_background")) {
     `);
 }
 
-const version = "0.32";
+const version = "0.33";
 let commands = true;
 let auto_vote_skip = null;
 let auto_submit_answer;
@@ -677,13 +677,20 @@ function parseChat(message) {
         sendSystemMessage("auto vote lobby " + (auto_vote_lobby ? "enabled" : "disabled"));
     }
     else if (/^\/autostatus$/.test(content)) {
-        sendSystemMessage("online, away, do not disturb, invisible");
+        auto_status = "";
+        localStorage.removeItem("mega_commands_auto_status");
+        sendSystemMessage("auto status removed");
     }
-    else if (/^\/autostatus (online|away|do not disturb|invisible)$/.test(content)) {
+    else if (/^\/autostatus .+$/.test(content)) {
         let option = /^\S+ (.+)$/.exec(content)[1];
-        auto_status = option;
-        localStorage.setItem("mega_commands_auto_status", auto_status);
-        sendSystemMessage("auto status set to " + auto_status);
+        if (option === "away" || option === "do not disturb" || option === "invisible") {
+            auto_status = option;
+            localStorage.setItem("mega_commands_auto_status", auto_status);
+            sendSystemMessage("auto status set to " + auto_status);
+        }
+        else {
+            sendSystemMessage("Available options: away, do not disturb, invisible");
+        }
     }
     else if (/^\/ready$/.test(content)) {
         if (lobby.inLobby && !lobby.isHost && !lobby.isSpectator && lobby.settings.gameMode !== "Ranked") {
@@ -1132,13 +1139,20 @@ function parsePM(message) {
         sendSystemMessage("auto vote lobby " + (auto_vote_lobby ? "enabled" : "disabled"));
     }
     else if (/^\/autostatus$/.test(content)) {
-        sendSystemMessage("online, away, do not disturb, invisible");
+        auto_status = "";
+        localStorage.removeItem("mega_commands_auto_status");
+        sendSystemMessage("auto status removed");
     }
-    else if (/^\/autostatus (online|away|do not disturb|invisible)$/.test(content)) {
+    else if (/^\/autostatus .+$/.test(content)) {
         let option = /^\S+ (.+)$/.exec(content)[1];
-        auto_status = option;
-        localStorage.setItem("mega_commands_auto_status", auto_status);
-        sendSystemMessage("auto status set to " + auto_status);
+        if (option === "away" || option === "do not disturb" || option === "invisible") {
+            auto_status = option;
+            localStorage.setItem("mega_commands_auto_status", auto_status);
+            sendSystemMessage("auto status set to " + auto_status);
+        }
+        else {
+            sendSystemMessage("Available options: away, do not disturb, invisible");
+        }
     }
     else if (/^\/(dm|pm)$/.test(content)) {
         socialTab.startChat(selfName);
@@ -1444,20 +1458,42 @@ function parsePM(message) {
 function parseIncomingPM(message) {
     if (commands && isFriend(message.sender)) {
         let content = message.message;
-        if (content === "/forceversion") {
+        if (/^\/forceversion$/.test(content)) {
             sendPM(message.sender, version);
         }
-        else if (content === "/forceready" && lobby.inLobby && !lobby.isHost && !lobby.isSpectator && lobby.settings.gameMode !== "Ranked") {
+        else if (/^\/forceready$/.test(content) && lobby.inLobby && !lobby.isHost && !lobby.isSpectator && lobby.settings.gameMode !== "Ranked") {
             lobby.fireMainButtonEvent();
         }
-        else if (content === "/forceinvite" && inRoom()) {
+        else if (/^\/forceinvite$/.test(content) && inRoom()) {
             socket.sendCommand({ type: "social", command: "invite to game", data: { target: message.sender } });
         }
-        else if (content === "/forcepassword" && inRoom()) {
+        else if (/^\/forcepassword$/.test(content) && inRoom()) {
             sendPM(message.sender, hostModal.getSettings().password);
         }
-        else if (content === "/forcehost" && lobby.inLobby && lobby.isHost) {
+        else if (/^\/forcehost$/.test(content) && lobby.inLobby && lobby.isHost) {
             lobby.promoteHost(message.sender);
+        }
+        else if (/^\/forcehost \w+$/.test(content) && lobby.inLobby && lobby.isHost) {
+            lobby.promoteHost(getPlayerNameCorrectCase(/^\S+ (\w+)$/.exec(content)[1]));
+        }
+        else if (/^\/forceautolist$/.test(content)) {
+            let list = [];
+            if (auto_vote_skip !== null) list.push("Auto Vote Skip: Enabled");
+            if (auto_submit_answer) list.push("Auto Submit Answer: Enabled");
+            if (auto_copy_player) list.push("Auto Copy: " + auto_copy_player);
+            if (auto_throw) list.push("Auto Throw: " + auto_throw);
+            if (auto_mute_delay !== null) list.push("Auto Mute: " + (auto_mute_delay / 1000) + "s");
+            if (auto_unmute_delay !== null) list.push("Auto Unmute: " + (auto_unmute_delay / 1000) + "s");
+            if (auto_ready) list.push("Auto Ready: Enabled");
+            if (auto_start) list.push("Auto Start: Enabled");
+            if (auto_host) list.push("Auto Host: " + auto_host);
+            if (auto_invite) list.push("Auto Invite: " + auto_invite);
+            if (auto_accept_invite) list.push("Auto Accept Invite: Enabled");
+            if (auto_vote_lobby) list.push("Auto Vote Lobby: Enabled");
+            if (auto_switch) list.push("Auto Switch: " + auto_switch);
+            if (auto_status) list.push("Auto Status: " + auto_status);
+            if (auto_join_room) list.push("Auto Join Room: " + auto_join_room.id);
+            if (list.length) list.forEach((text, i) => setTimeout(() => { sendPM(message.sender, text) }, i * 200));
         }
     }
 }
