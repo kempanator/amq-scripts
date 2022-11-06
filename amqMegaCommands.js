@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            AMQ Mega Commands
 // @namespace       https://github.com/kempanator
-// @version         0.33
+// @version         0.34
 // @description     Commands for AMQ Chat
 // @author          kempanator
 // @match           https://animemusicquiz.com/*
@@ -90,13 +90,16 @@ let loadInterval = setInterval(() => {
 
 if (localStorage.getItem("mega_commands_background")) {
     AMQ_addStyle(`
-        #loadingScreen, #gameContainer, #gameChatPage .col-xs-9 {
+        #loadingScreen, #gameContainer {
             background-image: url(${localStorage.getItem("mega_commands_background")});
+        }
+        #gameChatPage .col-xs-9 {
+            background-image: none;
         }
     `);
 }
 
-const version = "0.33";
+const version = "0.34";
 let commands = true;
 let auto_vote_skip = null;
 let auto_submit_answer;
@@ -924,7 +927,7 @@ function parseChat(message) {
         }
         setTimeout(() => { sendChatMessage(n + " alien" + (n === 1 ? "" : "s") + " chosen") }, 500 * n);
     }
-    else if (/^\/(background|wallpaper)$/.test(content)) {
+    else if (/^\/(bg|background|wallpaper)$/.test(content)) {
         AMQ_addStyle(`
             #loadingScreen, #gameContainer {
                 background-image: -webkit-image-set(url(../img/backgrounds/normal/bg-x1.jpg) 1x, url(../img/backgrounds/normal/bg-x2.jpg) 2x);
@@ -933,18 +936,22 @@ function parseChat(message) {
                 background-image: -webkit-image-set(url(../img/backgrounds/blur/bg-x1.jpg) 1x, url(../img/backgrounds/blur/bg-x2.jpg) 2x);
             }
         `);
-        localStorage.setItem("mega_commands_background", "");
+        localStorage.removeItem("mega_commands_background");
     }
-    else if (/^\/(background|wallpaper) .+$/.test(content)) {
+    else if (/^\/(bg|background|wallpaper) (link|url)$/.test(content)) {
+        if (localStorage.getItem("mega_commands_background")) sendChatMessage(localStorage.getItem("mega_commands_background"), isTeamMessage);
+    }
+    else if (/^\/(bg|background|wallpaper) http.+\.(jpg|jpeg|png|gif|tiff|bmp|webp)$/.test(content)) {
         let url = /^\S+ (.+)$/.exec(content)[1];
-        if (/^http.*\.(jpg|jpeg|png|gif|tiff|bmp|webp)$/.test(url)) {
-            AMQ_addStyle(`
-                #loadingScreen, #gameContainer, #gameChatPage .col-xs-9 {
-                    background-image: url(${url});
-                }
-            `);
-            localStorage.setItem("mega_commands_background", url);
-        }
+        AMQ_addStyle(`
+            #loadingScreen, #gameContainer {
+                background-image: url(${url});
+            }
+            #gameChatPage .col-xs-9 {
+                background-image: none;
+            }
+        `);
+        localStorage.setItem("mega_commands_background", url);
     }
     else if (/^\/detect$/.test(content)) {
         sendSystemMessage("invisible: " + detect.invisible);
@@ -1314,7 +1321,7 @@ function parsePM(message) {
     else if (/^\/version$/.test(content)) {
         sendPM(message.target, "Mega Commands version " + version);
     }
-    else if (/^\/(background|wallpaper)$/.test(content)) {
+    else if (/^\/(bg|background|wallpaper)$/.test(content)) {
         AMQ_addStyle(`
             #loadingScreen, #gameContainer {
                 background-image: -webkit-image-set(url(../img/backgrounds/normal/bg-x1.jpg) 1x, url(../img/backgrounds/normal/bg-x2.jpg) 2x);
@@ -1323,18 +1330,22 @@ function parsePM(message) {
                 background-image: -webkit-image-set(url(../img/backgrounds/blur/bg-x1.jpg) 1x, url(../img/backgrounds/blur/bg-x2.jpg) 2x);
             }
         `);
-        localStorage.setItem("mega_commands_background", "");
+        localStorage.removeItem("mega_commands_background");
     }
-    else if (/^\/(background|wallpaper) .+$/.test(content)) {
+    else if (/^\/(bg|background|wallpaper) (link|url)$/.test(content)) {
+        if (localStorage.getItem("mega_commands_background")) sendPM(message.target, localStorage.getItem("mega_commands_background"));
+    }
+    else if (/^\/(bg|background|wallpaper) http.+\.(jpg|jpeg|png|gif|tiff|bmp|webp)$/.test(content)) {
         let url = /^\S+ (.+)$/.exec(content)[1];
-        if (/^http.*\.(jpg|jpeg|png|gif|tiff|bmp|webp)$/.test(url)) {
-            AMQ_addStyle(`
-                #loadingScreen, #gameContainer, #gameChatPage .col-xs-9 {
-                    background-image: url(${url});
-                }
-            `);
-            localStorage.setItem("mega_commands_background", url);
-        }
+        AMQ_addStyle(`
+            #loadingScreen, #gameContainer {
+                background-image: url(${url});
+            }
+            #gameChatPage .col-xs-9 {
+                background-image: none;
+            }
+        `);
+        localStorage.setItem("mega_commands_background", url);
     }
     else if (/^\/detect$/.test(content)) {
         sendPM(message.target, `invisible: ${detect.invisible}, players: ${detect.players.join(", ")}`);
