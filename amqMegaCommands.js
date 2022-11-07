@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            AMQ Mega Commands
 // @namespace       https://github.com/kempanator
-// @version         0.34
+// @version         0.35
 // @description     Commands for AMQ Chat
 // @author          kempanator
 // @match           https://animemusicquiz.com/*
@@ -99,7 +99,7 @@ if (localStorage.getItem("mega_commands_background")) {
     `);
 }
 
-const version = "0.34";
+const version = "0.35";
 let commands = true;
 let auto_vote_skip = null;
 let auto_submit_answer;
@@ -217,7 +217,7 @@ function setup() {
             volumeController.setMuted(false);
             volumeController.adjustVolume();
         }
-	}).bindListener();
+    }).bindListener();
     new Listener("answer results", (payload) => {
         if (auto_mute_delay !== null || auto_unmute_delay !== null) {
             document.querySelector("#qpVolume").classList.remove("disabled");
@@ -369,7 +369,9 @@ function setup() {
 }
 
 function parseChat(message) {
-    if (message.sender !== selfName || isRankedMode()) return;
+    if (isRankedMode()) return;
+    if (message.message === "/forceall version") sendChatMessage(version, message.teamMessage);
+    if (message.sender !== selfName) return;
     if (message.message === "/commands on") commands = true;
     if (!commands) return;
     let content = message.message;
@@ -877,32 +879,11 @@ function parseChat(message) {
             sendChatMessage(version, isTeamMessage);
         }
         else if (option === "clear") {
-            localStorage.removeItem("mega_commands_auto_submit_answer");
-            localStorage.removeItem("mega_commands_auto_ready");
-            localStorage.removeItem("mega_commands_auto_accept_invite");
-            localStorage.removeItem("mega_commands_auto_join_room");
-            localStorage.removeItem("mega_commands_auto_vote_lobby");
-            localStorage.removeItem("mega_commands_auto_status");
-            localStorage.removeItem("mega_commands_background");
-            localStorage.removeItem("mega_commands_player_detection");
+            clearLocalStorage();
             sendSystemMessage("mega commands local storage cleared");
         }
         else if (option === "auto") {
-            if (auto_vote_skip !== null) sendSystemMessage("Auto Vote Skip: Enabled");
-            if (auto_submit_answer) sendSystemMessage("Auto Submit Answer: Enabled");
-            if (auto_copy_player) sendSystemMessage("Auto Copy: " + auto_copy_player);
-            if (auto_throw) sendSystemMessage("Auto Throw: " + auto_throw);
-            if (auto_mute_delay !== null) sendSystemMessage("Auto Mute: " + (auto_mute_delay / 1000) + "s");
-            if (auto_unmute_delay !== null) sendSystemMessage("Auto Unmute: " + (auto_unmute_delay / 1000) + "s");
-            if (auto_ready) sendSystemMessage("Auto Ready: Enabled");
-            if (auto_start) sendSystemMessage("Auto Start: Enabled");
-            if (auto_host) sendSystemMessage("Auto Host: " + auto_host);
-            if (auto_invite) sendSystemMessage("Auto Invite: " + auto_invite);
-            if (auto_accept_invite) sendSystemMessage("Auto Accept Invite: Enabled");
-            if (auto_vote_lobby) sendSystemMessage("Auto Vote Lobby: Enabled");
-            if (auto_switch) sendSystemMessage("Auto Switch: " + auto_switch);
-            if (auto_status) sendSystemMessage("Auto Status: " + auto_status);
-            if (auto_join_room) sendSystemMessage("Auto Join Room: " + auto_join_room.id);
+            autoList().forEach((item) => sendSystemMessage(item));
         }
     }
     else if (/^\/version$/.test(content)) {
@@ -1290,32 +1271,11 @@ function parsePM(message) {
             sendPM(message.target, version);
         }
         else if (option === "clear") {
-            localStorage.removeItem("mega_commands_auto_submit_answer");
-            localStorage.removeItem("mega_commands_auto_ready");
-            localStorage.removeItem("mega_commands_auto_accept_invite");
-            localStorage.removeItem("mega_commands_auto_join_room");
-            localStorage.removeItem("mega_commands_auto_vote_lobby");
-            localStorage.removeItem("mega_commands_auto_status");
-            localStorage.removeItem("mega_commands_background");
-            localStorage.removeItem("mega_commands_player_detection");
+            clearLocalStorage();
             sendPM(message.target, "mega commands local storage cleared");
         }
         else if (option === "auto") {
-            if (auto_vote_skip !== null) sendSystemMessage("Auto Vote Skip: Enabled");
-            if (auto_submit_answer) sendSystemMessage("Auto Submit Answer: Enabled");
-            if (auto_copy_player) sendSystemMessage("Auto Copy: " + auto_copy_player);
-            if (auto_throw) sendSystemMessage("Auto Throw: " + auto_throw);
-            if (auto_mute_delay !== null) sendSystemMessage("Auto Mute: " + (auto_mute_delay / 1000) + "s");
-            if (auto_unmute_delay !== null) sendSystemMessage("Auto Unmute: " + (auto_unmute_delay / 1000) + "s");
-            if (auto_ready) sendSystemMessage("Auto Ready: Enabled");
-            if (auto_start) sendSystemMessage("Auto Start: Enabled");
-            if (auto_host) sendSystemMessage("Auto Host: " + auto_host);
-            if (auto_invite) sendSystemMessage("Auto Invite: " + auto_invite);
-            if (auto_accept_invite) sendSystemMessage("Auto Accept Invite: Enabled");
-            if (auto_vote_lobby) sendSystemMessage("Auto Vote Lobby: Enabled");
-            if (auto_switch) sendSystemMessage("Auto Switch: " + auto_switch);
-            if (auto_status) sendSystemMessage("Auto Status: " + auto_status);
-            if (auto_join_room) sendSystemMessage("Auto Join Room: " + auto_join_room.id);
+            autoList().forEach((item) => sendSystemMessage(item));
         }
     }
     else if (/^\/version$/.test(content)) {
@@ -1488,22 +1448,7 @@ function parseIncomingPM(message) {
             lobby.promoteHost(getPlayerNameCorrectCase(/^\S+ (\w+)$/.exec(content)[1]));
         }
         else if (/^\/forceautolist$/.test(content)) {
-            let list = [];
-            if (auto_vote_skip !== null) list.push("Auto Vote Skip: Enabled");
-            if (auto_submit_answer) list.push("Auto Submit Answer: Enabled");
-            if (auto_copy_player) list.push("Auto Copy: " + auto_copy_player);
-            if (auto_throw) list.push("Auto Throw: " + auto_throw);
-            if (auto_mute_delay !== null) list.push("Auto Mute: " + (auto_mute_delay / 1000) + "s");
-            if (auto_unmute_delay !== null) list.push("Auto Unmute: " + (auto_unmute_delay / 1000) + "s");
-            if (auto_ready) list.push("Auto Ready: Enabled");
-            if (auto_start) list.push("Auto Start: Enabled");
-            if (auto_host) list.push("Auto Host: " + auto_host);
-            if (auto_invite) list.push("Auto Invite: " + auto_invite);
-            if (auto_accept_invite) list.push("Auto Accept Invite: Enabled");
-            if (auto_vote_lobby) list.push("Auto Vote Lobby: Enabled");
-            if (auto_switch) list.push("Auto Switch: " + auto_switch);
-            if (auto_status) list.push("Auto Status: " + auto_status);
-            if (auto_join_room) list.push("Auto Join Room: " + auto_join_room.id);
+            let list = autoList();
             if (list.length) list.forEach((text, i) => setTimeout(() => { sendPM(message.sender, text) }, i * 200));
         }
     }
@@ -1805,6 +1750,39 @@ function getPlayerNameCorrectCase(name) {
         }
     }
     return name;
+}
+
+// return list of every auto function that is enabled
+function autoList() {
+    let list = [];
+    if (auto_vote_skip !== null) list.push("Auto Vote Skip: Enabled");
+    if (auto_submit_answer) list.push("Auto Submit Answer: Enabled");
+    if (auto_copy_player) list.push("Auto Copy: " + auto_copy_player);
+    if (auto_throw) list.push("Auto Throw: " + auto_throw);
+    if (auto_mute_delay !== null) list.push("Auto Mute: " + (auto_mute_delay / 1000) + "s");
+    if (auto_unmute_delay !== null) list.push("Auto Unmute: " + (auto_unmute_delay / 1000) + "s");
+    if (auto_ready) list.push("Auto Ready: Enabled");
+    if (auto_start) list.push("Auto Start: Enabled");
+    if (auto_host) list.push("Auto Host: " + auto_host);
+    if (auto_invite) list.push("Auto Invite: " + auto_invite);
+    if (auto_accept_invite) list.push("Auto Accept Invite: Enabled");
+    if (auto_vote_lobby) list.push("Auto Vote Lobby: Enabled");
+    if (auto_switch) list.push("Auto Switch: " + auto_switch);
+    if (auto_status) list.push("Auto Status: " + auto_status);
+    if (auto_join_room) list.push("Auto Join Room: " + auto_join_room.id);
+    return list;
+}
+
+// clear all local storage for this script
+function clearLocalStorage() {
+    localStorage.removeItem("mega_commands_auto_submit_answer");
+    localStorage.removeItem("mega_commands_auto_ready");
+    localStorage.removeItem("mega_commands_auto_accept_invite");
+    localStorage.removeItem("mega_commands_auto_join_room");
+    localStorage.removeItem("mega_commands_auto_vote_lobby");
+    localStorage.removeItem("mega_commands_auto_status");
+    localStorage.removeItem("mega_commands_background");
+    localStorage.removeItem("mega_commands_player_detection");
 }
 
 // overload changeView function for auto ready
