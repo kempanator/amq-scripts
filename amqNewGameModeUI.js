@@ -90,7 +90,7 @@ function setup() {
     AMQ_addScriptData({
         name: "New Game Mode UI",
         author: "kempanator",
-        description: `<p>Click the + button in the options bar during quiz to open the new game mode user interface</p>`
+        description: `<p>Click the button in the options bar during quiz to open the new game mode user interface</p>`
     });
 
     AMQ_addStyle(`
