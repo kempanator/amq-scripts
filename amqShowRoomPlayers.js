@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name            AMQ Show Room Players
 // @namespace       https://github.com/kempanator
-// @version         0.5
-// @description     Added extra functionality to room tiles
+// @version         0.4
+// @description     Adds extra functionality to room tiles
 // @author          kempanator
 // @match           https://animemusicquiz.com/*
 // @grant           none
@@ -41,6 +41,7 @@ function setup() {
                     if (payload.newHost) {
                         roomBrowser.activeRooms[payload.roomId].updateAvatar(payload.newHost.avatar);
                         $(`#rbRoom-${payload.roomId} img.rbrRoomImage`).removeClass().addClass(`rbrRoomImage sizeMod${payload.newHost.avatar.avatar.sizeModifier}`);
+                        //roomBrowser.activeRooms[payload.roomId].avatarPreloadImage.lazyLoadEvent();
                         updateRoomTile(payload.roomId, payload.newHost.name);
                     }
                     else {
@@ -70,6 +71,7 @@ function updateRoomTile(roomId, host) {
     for (let player of players) {
         let li = $("<li></li>").text(player);
         if (roomBrowser.activeRooms[roomId]._friendsInGameMap[player]) li.css("color", "#4497EA");
+        //if (socialTab.onlineFriends[player] || socialTab.offlineFriends[player]) li.css("color", "#4497EA");
         $playerList.append(li);
     }
     if (host) {
