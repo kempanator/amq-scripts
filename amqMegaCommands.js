@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            AMQ Mega Commands
 // @namespace       https://github.com/kempanator
-// @version         0.35
+// @version         0.36
 // @description     Commands for AMQ Chat
 // @author          kempanator
 // @match           https://animemusicquiz.com/*
@@ -57,6 +57,7 @@ IN GAME/LOBBY
 /queue                join/leave queue
 /volume [0-100]       change volume
 /dropdown             enable/disable anime dropdown
+/dropdownspec         enable drop down while spectating
 
 OTHER
 /roll                 roll number, player, playerteam, spectator
@@ -99,10 +100,10 @@ if (localStorage.getItem("mega_commands_background")) {
     `);
 }
 
-const version = "0.35";
+const version = "0.36";
 let commands = true;
 let auto_vote_skip = null;
-let auto_submit_answer;
+let auto_key;
 let auto_throw = "";
 let auto_copy_player = "";
 let auto_mute_delay = null;
@@ -149,13 +150,14 @@ const info = {
 };
 
 function setup() {
-    auto_submit_answer = localStorage.getItem("mega_commands_auto_submit_answer") === "true";
+    auto_key = localStorage.getItem("mega_commands_auto_key") === "true";
     auto_ready = localStorage.getItem("mega_commands_auto_ready") === "true";
     auto_accept_invite = localStorage.getItem("mega_commands_auto_accept_invite") === "true";
     auto_join_room = JSON.parse(localStorage.getItem("mega_commands_auto_join_room"));
     auto_vote_lobby = localStorage.getItem("mega_commands_auto_vote_lobby") === "true";
     auto_status = localStorage.getItem("mega_commands_auto_status");
     detect = JSON.parse(localStorage.getItem("mega_commands_player_detection")) || {invisible: false, players: []};
+    dropdown_in_spec = localStorage.getItem("mega_commands_dropdown_in_spec") === "true";
     if (auto_status === "do not disturb") socialTab.socialStatus.changeSocialStatus(2);
     if (auto_status === "away") socialTab.socialStatus.changeSocialStatus(3);
     if (auto_status === "invisible") socialTab.socialStatus.changeSocialStatus(4);
@@ -195,10 +197,17 @@ function setup() {
                 volumeController.adjustVolume();
             }, auto_unmute_delay);
         }
+        if (dropdown_in_spec) {
+            setTimeout(() => {
+                if (!quiz.answerInput.autoCompleteController.list.length) quiz.answerInput.autoCompleteController.updateList();
+                $("#qpAnswerInput").removeAttr("disabled");
+                $("#qpAnswerInput").val("");
+            }, 1);
+        }
     }).bindListener();
     new Listener("Game Starting", (payload) => {
         if (auto_vote_skip !== null) sendSystemMessage("Auto Vote Skip: Enabled");
-        if (auto_submit_answer) sendSystemMessage("Auto Submit Answer: Enabled");
+        if (auto_key) sendSystemMessage("Auto Key: Enabled");
         if (auto_copy_player) sendSystemMessage("Auto Copy: " + auto_copy_player);
         if (auto_throw) sendSystemMessage("Auto Throw: " + auto_throw);
         if (auto_mute_delay !== null) sendSystemMessage("Auto Mute: " + (auto_mute_delay / 1000) + "s");
@@ -331,7 +340,7 @@ function setup() {
     }).bindListener();
     document.querySelector("#qpAnswerInput").addEventListener("input", (event) => {
         let answer = event.target.value || " ";
-        if (auto_submit_answer) {
+        if (auto_key) {
             socket.sendCommand({ type: "quiz", command: "quiz answer", data: { answer: answer, isPlaying: true, volumeAtMax: false } });
         }
     });
@@ -542,9 +551,9 @@ function parseChat(message) {
         sendSystemMessage(`auto vote skip after ${seconds} seconds`);     
     }
     else if (/^\/(ak|autokey|autosubmit)$/.test(content)) {
-        auto_submit_answer = !auto_submit_answer;
-        localStorage.setItem("mega_commands_auto_submit_answer", auto_submit_answer);
-        sendSystemMessage("auto submit answer " + (auto_submit_answer ? "enabled" : "disabled"));
+        auto_key = !auto_key;
+        localStorage.setItem("mega_commands_auto_key", auto_key);
+        sendSystemMessage("auto key " + (auto_key ? "enabled" : "disabled"));
     }
     else if (/^\/(at|autothrow)$/.test(content)) {
         auto_throw = "";
@@ -743,10 +752,15 @@ function parseChat(message) {
             }
         }, 1);
     }
-    else if (/^\/dropdown$/.test(content)) {
+    else if (/^\/(dd|dropdown)$/.test(content)) {
         dropdown = !dropdown;
         sendSystemMessage("dropdown " + (dropdown ? "enabled" : "disabled"));
         quiz.answerInput.autoCompleteController.newList();
+    }
+    else if (/^\/(dds|dropdownspec|dropdownspectate)$/.test(content)) {
+        dropdown_in_spec = !dropdown_in_spec;
+        sendSystemMessage("dropdown while spectating " + (dropdown_in_spec ? "enabled" : "disabled"));
+        localStorage.setItem("mega_commands_dropdown_in_spec", dropdown_in_spec);
     }
     else if (/^\/password$/.test(content)) {
         let password = hostModal.getSettings().password;
@@ -987,9 +1001,9 @@ function parsePM(message) {
         sendSystemMessage(`auto vote skip after ${seconds} seconds`);     
     }
     else if (/^\/(ak|autokey|autosubmit)$/.test(content)) {
-        auto_submit_answer = !auto_submit_answer;
-        localStorage.setItem("mega_commands_auto_submit_answer", auto_submit_answer);
-        sendSystemMessage("auto submit answer " + (auto_submit_answer ? "enabled" : "disabled"));
+        auto_key = !auto_key;
+        localStorage.setItem("mega_commands_auto_key", auto_key);
+        sendSystemMessage("auto key " + (auto_key ? "enabled" : "disabled"));
     }
     else if (/^\/(at|autothrow)$/.test(content)) {
         auto_throw = "";
@@ -1414,10 +1428,15 @@ function parsePM(message) {
             let time = parseInt((/^\S+ ([0-9]+)$/).exec(content)[1]) * 1000;
             rejoinRoom(time);
         }
-        else if (/^\/dropdown$/.test(content)) {
+        else if (/^\/(dd|dropdown)$/.test(content)) {
             dropdown = !dropdown;
             sendPM(message.target, "dropdown " + (dropdown ? "enabled" : "disabled"));
             quiz.answerInput.autoCompleteController.newList();
+        }
+        else if (/^\/(dds|dropdownspec|dropdownspectate)$/.test(content)) {
+            dropdown_in_spec = !dropdown_in_spec;
+            sendSystemMessage("dropdown while spectating " + (dropdown_in_spec ? "enabled" : "disabled"));
+            localStorage.setItem("mega_commands_dropdown_in_spec", dropdown_in_spec);
         }
         else if (/^\/password$/.test(content)) {
             let password = hostModal.getSettings().password;
@@ -1448,8 +1467,7 @@ function parseIncomingPM(message) {
             lobby.promoteHost(getPlayerNameCorrectCase(/^\S+ (\w+)$/.exec(content)[1]));
         }
         else if (/^\/forceautolist$/.test(content)) {
-            let list = autoList();
-            if (list.length) list.forEach((text, i) => setTimeout(() => { sendPM(message.sender, text) }, i * 200));
+            autoList().forEach((text, i) => setTimeout(() => { sendPM(message.sender, text) }, i * 200));
         }
     }
 }
@@ -1756,7 +1774,7 @@ function getPlayerNameCorrectCase(name) {
 function autoList() {
     let list = [];
     if (auto_vote_skip !== null) list.push("Auto Vote Skip: Enabled");
-    if (auto_submit_answer) list.push("Auto Submit Answer: Enabled");
+    if (auto_key) list.push("Auto Key: Enabled");
     if (auto_copy_player) list.push("Auto Copy: " + auto_copy_player);
     if (auto_throw) list.push("Auto Throw: " + auto_throw);
     if (auto_mute_delay !== null) list.push("Auto Mute: " + (auto_mute_delay / 1000) + "s");
@@ -1775,7 +1793,7 @@ function autoList() {
 
 // clear all local storage for this script
 function clearLocalStorage() {
-    localStorage.removeItem("mega_commands_auto_submit_answer");
+    localStorage.removeItem("mega_commands_auto_key");
     localStorage.removeItem("mega_commands_auto_ready");
     localStorage.removeItem("mega_commands_auto_accept_invite");
     localStorage.removeItem("mega_commands_auto_join_room");
