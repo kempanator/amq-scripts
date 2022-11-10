@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            AMQ New Game Mode UI
 // @namespace       https://github.com/kempanator
-// @version         0.3
+// @version         0.4
 // @description     adds a user interface to new game mode to keep track of guesses
 // @author          kempanator
 // @match           https://animemusicquiz.com/*
@@ -32,12 +32,8 @@ let autothrowCount = false;
 $("#qpOptionContainer").width($("#qpOptionContainer").width() + 35);
 $("#qpOptionContainer > div").append($(`<div id="qpNGM" class="clickAble qpOption"><img src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB4AAAAeCAMAAAAM7l6QAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAGUExURdnZ2QAAAE/vHxMAAAACdFJOU/8A5bcwSgAAAAlwSFlzAAAOwwAADsMBx2+oZAAAAFdJREFUOE/VjsENwCAMA8n+S4NN09qI9lOBxL0cXxSlxCen69JgGFmsoRIUymoNGGds0K+41iuMqiFZ5mCajuSgmoWBsrt73W+4flIOqq8km/rajD86ogIU2QKttGjahwAAAABJRU5ErkJggg=='/></div>`)
     .click(() => {
-        if (ngmWindow.isVisible()) {
-            ngmWindow.close();
-        }
-        else {
-            ngmWindow.open();
-        }
+        if (ngmWindow.isVisible()) ngmWindow.close();
+        else ngmWindow.open();
     })
     .popover({
         content: "New Game Mode UI",
@@ -48,19 +44,16 @@ $("#qpOptionContainer > div").append($(`<div id="qpNGM" class="clickAble qpOptio
 
 function setup() {
     new Listener("Game Starting", (payload) => {
-        setTimeout(() => { updateWindow() }, 1);
+        setTimeout(() => { updateWindow() }, 10);
 	}).bindListener();
     new Listener("Join Game", (payload) => {
-        setTimeout(() => { updateWindow() }, 1);
+        setTimeout(() => { updateWindow() }, 10);
 	}).bindListener();
     new Listener("Spectate Game", (payload) => {
-        setTimeout(() => { updateWindow() }, 1);
-    }).bindListener();
-    new Listener("leave game",  (payload) => {
-        setTimeout(() => { updateWindow() }, 1);
+        setTimeout(() => { updateWindow() }, 10);
     }).bindListener();
     new Listener("quiz over", (payload) => {
-        setTimeout(() => { updateWindow() }, 1);
+        setTimeout(() => { updateWindow() }, 10);
     }).bindListener();
     new Listener("play next song", (payload) => {
         if (autothrowCount && guessCounter.length && hostModal.getSettings().scoreType === 3) {
