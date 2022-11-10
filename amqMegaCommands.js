@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            AMQ Mega Commands
 // @namespace       https://github.com/kempanator
-// @version         0.36
+// @version         0.37
 // @description     Commands for AMQ Chat
 // @author          kempanator
 // @match           https://animemusicquiz.com/*
@@ -100,7 +100,7 @@ if (localStorage.getItem("mega_commands_background")) {
     `);
 }
 
-const version = "0.36";
+const version = "0.37";
 let commands = true;
 let auto_vote_skip = null;
 let auto_key;
@@ -226,6 +226,12 @@ function setup() {
             volumeController.setMuted(false);
             volumeController.adjustVolume();
         }
+        if (dropdown_in_spec && quiz.isSpectator) {
+            setTimeout(() => {
+                if (!quiz.answerInput.autoCompleteController.list.length) quiz.answerInput.autoCompleteController.updateList();
+                $("#qpAnswerInput").removeAttr("disabled");
+            }, 1);
+        }
     }).bindListener();
     new Listener("answer results", (payload) => {
         if (auto_mute_delay !== null || auto_unmute_delay !== null) {
@@ -244,7 +250,13 @@ function setup() {
     }).bindListener();
     new Listener("quiz over", (payload) => {
         document.querySelector("#qpVolume").classList.remove("disabled");
-        if (auto_switch) setTimeout(() => { autoSwitch() }, 10);
+        if (auto_switch) setTimeout(() => { autoSwitch() }, 100);
+        setTimeout(() => {
+            if (auto_host && lobby.isHost) {
+                if (auto_host === "{random}") lobby.promoteHost(getRandomOtherPlayer());
+                else if (isInYourRoom(auto_host)) lobby.promoteHost(getPlayerNameCorrectCase(auto_host));
+            }
+        }, 10);
     }).bindListener();
     new Listener("Join Game", (payload) => {
         if (payload.error) {
