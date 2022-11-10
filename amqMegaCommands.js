@@ -197,7 +197,7 @@ function setup() {
                 volumeController.adjustVolume();
             }, auto_unmute_delay);
         }
-        if (dropdown_in_spec) {
+        if (dropdown_in_spec && quiz.isSpectator) {
             setTimeout(() => {
                 if (!quiz.answerInput.autoCompleteController.list.length) quiz.answerInput.autoCompleteController.updateList();
                 $("#qpAnswerInput").removeAttr("disabled");
