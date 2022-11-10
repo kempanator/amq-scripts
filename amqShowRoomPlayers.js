@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            AMQ Show Room Players
 // @namespace       https://github.com/kempanator
-// @version         0.3
+// @version         0.5
 // @description     Added extra functionality to room tiles
 // @author          kempanator
 // @match           https://animemusicquiz.com/*
@@ -16,7 +16,7 @@ New room tile features:
 1. Click host name to open player profile
 2. Mouse over the players bar to show full player list (friends are highlighted blue)
 3. Invisible friends are no longer hidden
-4. Bug fix for friends list and avatar not getting updated
+4. Bug fix for friends list and host avatar not getting updated
 */
 
 if (document.querySelector("#startPage")) return;
@@ -39,7 +39,6 @@ function setup() {
                 if (roomBrowser.activeRooms[payload.roomId]) {
                     roomBrowser.activeRooms[payload.roomId].updateFriends();
                     if (payload.newHost) {
-                        console.log(payload);
                         roomBrowser.activeRooms[payload.roomId].updateAvatar(payload.newHost.avatar);
                         $(`#rbRoom-${payload.roomId} img.rbrRoomImage`).removeClass().addClass(`rbrRoomImage sizeMod${payload.newHost.avatar.avatar.sizeModifier}`);
                         updateRoomTile(payload.roomId, payload.newHost.name);
@@ -59,6 +58,7 @@ function setup() {
             <p>1. Click host name to open player profile</p>
             <p>2. Mouse over the players bar to show full player list (friends are highlighted blue)</p>
             <p>3. Invisible friends are no longer hidden</p>
+            <p>4. Bug fix for friends list and host avatar not getting updated</p>
         `
     });
 }
