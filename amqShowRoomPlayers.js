@@ -41,7 +41,6 @@ function setup() {
                     if (payload.newHost) {
                         roomBrowser.activeRooms[payload.roomId].updateAvatar(payload.newHost.avatar);
                         $(`#rbRoom-${payload.roomId} img.rbrRoomImage`).removeClass().addClass(`rbrRoomImage sizeMod${payload.newHost.avatar.avatar.sizeModifier}`);
-                        //roomBrowser.activeRooms[payload.roomId].avatarPreloadImage.lazyLoadEvent();
                         updateRoomTile(payload.roomId, payload.newHost.name);
                     }
                     else {
@@ -71,7 +70,6 @@ function updateRoomTile(roomId, host) {
     for (let player of players) {
         let li = $("<li></li>").text(player);
         if (roomBrowser.activeRooms[roomId]._friendsInGameMap[player]) li.css("color", "#4497EA");
-        //if (socialTab.onlineFriends[player] || socialTab.offlineFriends[player]) li.css("color", "#4497EA");
         $playerList.append(li);
     }
     if (host) {
