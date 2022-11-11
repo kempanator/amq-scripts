@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            AMQ Mega Commands
 // @namespace       https://github.com/kempanator
-// @version         0.37
+// @version         0.38
 // @description     Commands for AMQ Chat
 // @author          kempanator
 // @match           https://animemusicquiz.com/*
@@ -100,7 +100,7 @@ if (localStorage.getItem("mega_commands_background")) {
     `);
 }
 
-const version = "0.37";
+const version = "0.38";
 let commands = true;
 let auto_vote_skip = null;
 let auto_key;
@@ -250,13 +250,8 @@ function setup() {
     }).bindListener();
     new Listener("quiz over", (payload) => {
         document.querySelector("#qpVolume").classList.remove("disabled");
+        setTimeout(() => { autoHost() }, 10);
         if (auto_switch) setTimeout(() => { autoSwitch() }, 100);
-        setTimeout(() => {
-            if (auto_host && lobby.isHost) {
-                if (auto_host === "{random}") lobby.promoteHost(getRandomOtherPlayer());
-                else if (isInYourRoom(auto_host)) lobby.promoteHost(getPlayerNameCorrectCase(auto_host));
-            }
-        }, 10);
     }).bindListener();
     new Listener("Join Game", (payload) => {
         if (payload.error) {
@@ -285,18 +280,10 @@ function setup() {
         if (auto_switch) setTimeout(() => { autoSwitch() }, 100);
     }).bindListener();
     new Listener("New Player", (payload) => {
-        setTimeout(() => {
-            if (auto_host === payload.name.toLowerCase() && lobby.inLobby && lobby.isHost) {
-                lobby.promoteHost(payload.name);
-            }
-        }, 1);
+        setTimeout(() => { autoHost() }, 1);
     }).bindListener();
     new Listener("New Spectator", (payload) => {
-        setTimeout(() => {
-            if (auto_host === payload.name.toLowerCase() && lobby.inLobby && lobby.isHost) {
-                lobby.promoteHost(payload.name);
-            }
-        }, 1);
+        setTimeout(() => { autoHost() }, 1);
     }).bindListener();
     new Listener("Player Ready Change",  (payload) => {
         autoStart();
@@ -315,14 +302,7 @@ function setup() {
         }
     }).bindListener();
     new Listener("Host Promotion", (payload) => {
-        if (auto_host && payload.newHost === selfName) {
-            if (auto_host === "{random}") {
-                lobby.promoteHost(getRandomOtherPlayer());
-            }
-            else if (isInYourRoom(auto_host)) {
-                lobby.promoteHost(getPlayerNameCorrectCase(auto_host));
-            }
-        }
+        setTimeout(() => { autoHost() }, 1);
         setTimeout(() => { autoReady() }, 1);
     }).bindListener();
     new Listener("game invite", (payload) => {
@@ -631,9 +611,7 @@ function parseChat(message) {
     else if (/^\/autohost \S+$/.test(content)) {
         auto_host = /^\S+ (\S+)$/.exec(content)[1].toLowerCase();
         sendSystemMessage("auto hosting " + auto_host);
-        if (lobby.inLobby && lobby.isHost && isInYourRoom(auto_host)) { 
-            lobby.promoteHost(getPlayerNameCorrectCase(auto_host));
-        }
+        autoHost();
     }
     else if (/^\/autoinvite$/.test(content)) {
         auto_invite = "";
@@ -1081,9 +1059,7 @@ function parsePM(message) {
     else if (/^\/autohost \S+$/.test(content)) {
         auto_host = /^\S+ (\S+)$/.exec(content)[1].toLowerCase();
         sendSystemMessage("auto hosting " + auto_host);
-        if (lobby.inLobby && lobby.isHost && isInYourRoom(auto_host)) { 
-            lobby.promoteHost(getPlayerNameCorrectCase(auto_host));
-        }
+        autoHost();
     }
     else if (/^\/autoinvite$/.test(content)) {
         auto_invite = "";
@@ -1729,6 +1705,18 @@ function autoSwitch() {
     if (lobby.inLobby) {
         if (auto_switch === "player" && lobby.isSpectator) socket.sendCommand({ type: "lobby", command: "change to player" });
         else if (auto_switch === "spectator" && !lobby.isSpectator) lobby.changeToSpectator(selfName);
+    }
+}
+
+// check conditions and promote host
+function autoHost() {
+    if (auto_host && lobby.inLobby && lobby.isHost) {
+        if (auto_host === "{random}") {
+            lobby.promoteHost(getRandomOtherPlayer());
+        }
+        else if (isInYourRoom(auto_host)) {
+            lobby.promoteHost(getPlayerNameCorrectCase(auto_host));
+        }
     }
 }
 
