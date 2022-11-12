@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            AMQ Mega Commands
 // @namespace       https://github.com/kempanator
-// @version         0.38
+// @version         0.39
 // @description     Commands for AMQ Chat
 // @author          kempanator
 // @match           https://animemusicquiz.com/*
@@ -61,6 +61,7 @@ IN GAME/LOBBY
 
 OTHER
 /roll                 roll number, player, playerteam, spectator
+/shuffle [list]       shuffle a list of anything (separate with commas)
 /rules                show list of gamemodes and rules
 /info                 show list of external utilities
 /clear                clear chat
@@ -100,7 +101,7 @@ if (localStorage.getItem("mega_commands_background")) {
     `);
 }
 
-const version = "0.38";
+const version = "0.39";
 let commands = true;
 let auto_vote_skip = null;
 let auto_key;
@@ -430,6 +431,21 @@ function parseChat(message) {
         let list = getSpectatorList();
         sendChatMessage(list.length ? list[Math.floor(Math.random() * list.length)] : "no spectators", isTeamMessage);
     }
+    else if (/^\/shuffle ?teams?$/.test(content)) {
+        if (hostModal.getSettings().teamSize === 1) return sendChatMessage("team size must be greater than 1", isTeamMessage);
+        let teamDictionary = getTeamDictionary();
+        if (Object.keys(teamDictionary).length > 0) {
+            let teams = Object.keys(teamDictionary);
+            teams.sort((a, b) => parseInt(a) - parseInt(b));
+            for (let team of teams) {
+                sendChatMessage(`Team ${team}: ` + shuffleArray(teamDictionary[team]).join(", "), isTeamMessage);
+            }
+        }
+    }
+    else if (/^\/shuffle .+$/.test(content)) {
+        let array = /^\S+ (.+)$/.exec(content)[1].split(",").map((x) => x.trim());
+        if (array.length > 1) sendChatMessage(shuffleArray(array).join(", "), isTeamMessage);
+    }
     else if (/^\/size [0-9]+$/.test(content)) {
         let option = parseInt(/^\S+ ([0-9]+)$/.exec(content)[1]);
         let settings = hostModal.getSettings();
@@ -736,11 +752,7 @@ function parseChat(message) {
         volumeController.adjustVolume();
     }
     else if (/^\/clear$/.test(content)) {
-        setTimeout(() => {
-            for (let element of document.querySelector("#gcMessageContainer").querySelectorAll("li")) {
-                element.remove();
-            }
-        }, 1);
+        setTimeout(() => { document.querySelectorAll("#gcMessageContainer li").forEach((e) => e.remove()) }, 1);
     }
     else if (/^\/(dd|dropdown)$/.test(content)) {
         dropdown = !dropdown;
@@ -978,6 +990,10 @@ function parsePM(message) {
         let low = parseInt(/^\S+ (-?[0-9]+) -?[0-9]+$/.exec(content)[1]);
         let high = parseInt(/^\S+ -?[0-9]+ (-?[0-9]+)$/.exec(content)[1]);
         sendPM(message.target, "rolls " + (Math.floor(Math.random() * (high - low + 1)) + low));
+    }
+    else if (/^\/shuffle .+$/.test(content)) {
+        let array = /^\S+ (.+)$/.exec(content)[1].split(",").map((x) => x.trim());
+        if (array.length > 1) sendPM(message.target, shuffleArray(array).join(", "));
     }
     else if (/^\/(autoskip|autovoteskip)$/.test(content)) {
         if (auto_vote_skip === null) auto_vote_skip = 100;
