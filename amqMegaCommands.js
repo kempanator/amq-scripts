@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            AMQ Mega Commands
 // @namespace       https://github.com/kempanator
-// @version         0.39
+// @version         0.40
 // @description     Commands for AMQ Chat
 // @author          kempanator
 // @match           https://animemusicquiz.com/*
@@ -101,7 +101,7 @@ if (localStorage.getItem("mega_commands_background")) {
     `);
 }
 
-const version = "0.39";
+const version = "0.40";
 let commands = true;
 let auto_vote_skip = null;
 let auto_key;
@@ -388,7 +388,7 @@ function parseChat(message) {
         sendChatMessage(getTeamList(getTeamNumber(selfName)).join(", "), isTeamMessage);
     }
     else if (/^\/roll$/.test(content)) {
-        sendSystemMessage("roll commands: #, player, otherplayer, teammate, otherteammate, playerteam, spectator");
+        sendSystemMessage("roll commands: #, player, otherplayer, teammate, otherteammate, playerteam, spectator, relay");
     }
     else if (/^\/roll [0-9]+$/.test(content)) {
         let number = parseInt(/^\S+ ([0-9]+)$/.exec(content)[1]);
@@ -417,30 +417,26 @@ function parseChat(message) {
     }
     else if (/^\/roll (pt|playerteams?|teams?)$/.test(content)) {
         if (hostModal.getSettings().teamSize === 1) return sendChatMessage("team size must be greater than 1", isTeamMessage);
-        let teamDictionary = getTeamDictionary();
-        if (Object.keys(teamDictionary).length > 0) {
-            let teams = Object.keys(teamDictionary);
-            teams.sort((a, b) => parseInt(a) - parseInt(b));
-            for (let team of teams) {
-                let name = teamDictionary[team][Math.floor(Math.random() * teamDictionary[team].length)];
-                sendChatMessage(`Team ${team}: ${name}`, isTeamMessage);
-            }
+        let dict = getTeamDictionary();
+        if (Object.keys(dict).length === 0) return;
+        let teams = Object.keys(dict);
+        teams.sort((a, b) => parseInt(a) - parseInt(b));
+        for (let team of teams) {
+            let name = dict[team][Math.floor(Math.random() * dict[team].length)];
+            sendChatMessage(`Team ${team}: ${name}`, isTeamMessage);
         }
     }
     else if (/^\/roll (s|spectators?)$/.test(content)) {
         let list = getSpectatorList();
         sendChatMessage(list.length ? list[Math.floor(Math.random() * list.length)] : "no spectators", isTeamMessage);
     }
-    else if (/^\/shuffle ?teams?$/.test(content)) {
+    else if (/^\/roll relay$/.test(content)) {
         if (hostModal.getSettings().teamSize === 1) return sendChatMessage("team size must be greater than 1", isTeamMessage);
-        let teamDictionary = getTeamDictionary();
-        if (Object.keys(teamDictionary).length > 0) {
-            let teams = Object.keys(teamDictionary);
-            teams.sort((a, b) => parseInt(a) - parseInt(b));
-            for (let team of teams) {
-                sendChatMessage(`Team ${team}: ` + shuffleArray(teamDictionary[team]).join(", "), isTeamMessage);
-            }
-        }
+        let dict = getTeamDictionary();
+        if (Object.keys(dict).length === 0) return;
+        let teams = Object.keys(dict);
+        teams.sort((a, b) => parseInt(a) - parseInt(b));
+        teams.forEach((team) => sendChatMessage(`Team ${team}: ` + shuffleArray(dict[team]).join(" ➜ "), isTeamMessage));
     }
     else if (/^\/shuffle .+$/.test(content)) {
         let array = /^\S+ (.+)$/.exec(content)[1].split(",").map((x) => x.trim());
@@ -1378,19 +1374,28 @@ function parsePM(message) {
         }
         else if (/^\/roll (pt|playerteams?|teams?)$/.test(content)) {
             if (hostModal.getSettings().teamSize === 1) return sendPM(message.target, "team size must be greater than 1");
-            let teamDictionary = getTeamDictionary();
-            if (Object.keys(teamDictionary).length > 0) {
-                let teams = Object.keys(teamDictionary);
-                teams.sort((a, b) => parseInt(a) - parseInt(b));
-                for (let team of teams) {
-                    let name = teamDictionary[team][Math.floor(Math.random() * teamDictionary[team].length)];
-                    sendPM(message.target, `Team ${team}: ${name}`);
-                }
-            }
+            let dict = getTeamDictionary();
+            if (Object.keys(dict).length === 0) return;
+            let teams = Object.keys(dict);
+            teams.sort((a, b) => parseInt(a) - parseInt(b));
+            teams.forEach((team, i) => {
+                let name = dict[team][Math.floor(Math.random() * dict[team].length)];
+                setTimeout(() => { sendPM(message.target, `Team ${team}: ${name}`) }, (i + 1) * 300);
+            });
         }
         else if (/^\/roll (s|spectators?)$/.test(content)) {
             let list = getSpectatorList();
             sendPM(message.target, list.length ? list[Math.floor(Math.random() * list.length)] : "no spectators");
+        }
+        else if (/^\/roll relay$/.test(content)) {
+            if (hostModal.getSettings().teamSize === 1) return sendPM(message.target, "team size must be greater than 1");
+            let dict = getTeamDictionary();
+            if (Object.keys(dict).length === 0) return;
+            let teams = Object.keys(dict);
+            teams.sort((a, b) => parseInt(a) - parseInt(b));
+            teams.forEach((team, i) => {
+                setTimeout(() => { sendPM(message.target, `Team ${team}: ` + shuffleArray(dict[team]).join(" ➜ ")) }, (i + 1) * 300);
+            });
         }
         else if (/^\/ready$/.test(content)) {
             if (lobby.inLobby && !lobby.isHost && !lobby.isSpectator && lobby.settings.gameMode !== "Ranked") {
