@@ -11,9 +11,9 @@
 // @updateURL       https://raw.githubusercontent.com/kempanator/amq-scripts/main/amqShowLootedShows.js
 // ==/UserScript==
 
-if (document.getElementById("startPage")) return;
+if (document.querySelector("#startPage")) return;
 let loadInterval = setInterval(() => {
-    if (document.getElementById("loadingScreen").classList.contains("hidden")) {
+    if (document.querySelector("#loadingScreen").classList.contains("hidden")) {
         setup();
         clearInterval(loadInterval);
     }
@@ -22,7 +22,7 @@ let loadInterval = setInterval(() => {
 function setup() {
     new Listener("battle royal phase over", (payload) => {
         if (!battleRoyal.isSpectator) {
-            for (let element of document.querySelector("#brCollectedList").querySelectorAll("li")) {
+            for (let element of document.querySelectorAll("#brCollectedList li")) {
                 gameChat.systemMessage(element.innerText.substring(2));
             }
         }
