@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            AMQ Mega Commands
 // @namespace       https://github.com/kempanator
-// @version         0.40
+// @version         0.41
 // @description     Commands for AMQ Chat
 // @author          kempanator
 // @match           https://animemusicquiz.com/*
@@ -101,7 +101,7 @@ if (localStorage.getItem("mega_commands_background")) {
     `);
 }
 
-const version = "0.40";
+const version = "0.41";
 let commands = true;
 let auto_vote_skip = null;
 let auto_key;
@@ -119,6 +119,8 @@ let auto_switch = "";
 let auto_vote_lobby;
 let auto_status;
 let dropdown = true;
+let dropdown_in_spec;
+let print_loot;
 let detect;
 let anime_list;
 const rules = {
@@ -159,6 +161,7 @@ function setup() {
     auto_status = localStorage.getItem("mega_commands_auto_status");
     detect = JSON.parse(localStorage.getItem("mega_commands_player_detection")) || {invisible: false, players: []};
     dropdown_in_spec = localStorage.getItem("mega_commands_dropdown_in_spec") === "true";
+    print_loot = localStorage.getItem("mega_commands_print_loot") === "true";
     if (auto_status === "do not disturb") socialTab.socialStatus.changeSocialStatus(2);
     if (auto_status === "away") socialTab.socialStatus.changeSocialStatus(3);
     if (auto_status === "invisible") socialTab.socialStatus.changeSocialStatus(4);
@@ -247,6 +250,13 @@ function setup() {
                 quiz.returnVoteController.buttonSelected(quiz.returnVoteController.$VOTE_YES_BUTTON);
                 quiz.returnVoteController.vote(true);
             }, 100);
+        }
+    }).bindListener();
+    new Listener("battle royal phase over", (payload) => {
+        if (print_loot && !battleRoyal.isSpectator) {
+            for (let element of document.querySelectorAll("#brCollectedList li")) {
+                gameChat.systemMessage(element.innerText.substring(2));
+            }
         }
     }).bindListener();
     new Listener("quiz over", (payload) => {
@@ -438,9 +448,13 @@ function parseChat(message) {
         teams.sort((a, b) => parseInt(a) - parseInt(b));
         teams.forEach((team) => sendChatMessage(`Team ${team}: ` + shuffleArray(dict[team]).join(" ➜ "), isTeamMessage));
     }
+    else if (/^\/roll .+,.+$/.test(content)) {
+        let list = /^\S+ (.+)$/.exec(content)[1].split(",").map((x) => x.trim()).filter((x) => !!x);
+        if (list.length > 1) sendChatMessage(list[Math.floor(Math.random() * list.length)], isTeamMessage);
+    }
     else if (/^\/shuffle .+$/.test(content)) {
-        let array = /^\S+ (.+)$/.exec(content)[1].split(",").map((x) => x.trim());
-        if (array.length > 1) sendChatMessage(shuffleArray(array).join(", "), isTeamMessage);
+        let list = /^\S+ (.+)$/.exec(content)[1].split(",").map((x) => x.trim()).filter((x) => !!x);
+        if (list.length > 1) sendChatMessage(shuffleArray(list).join(", "), isTeamMessage);
     }
     else if (/^\/size [0-9]+$/.test(content)) {
         let option = parseInt(/^\S+ ([0-9]+)$/.exec(content)[1]);
@@ -963,7 +977,7 @@ function parseChat(message) {
     else if (/^\/detect \w+$/.test(content)) {
         let name = /^\S+ (\w+)$/.exec(content)[1];
         if (detect.players.includes(name)) {
-            detect.players.pop(name);
+            detect.players = detect.players.filter((item) => item !== name);
             sendSystemMessage(`${name} removed from detection system`);
         }
         else {
@@ -971,6 +985,11 @@ function parseChat(message) {
             sendSystemMessage(`now detecting ${name} in the room browser`);
         }
         localStorage.setItem("mega_commands_player_detection", JSON.stringify(detect));
+    }
+    else if (/^\/printloot$/.test(content)) {
+        print_loot = !print_loot;
+        localStorage.setItem("mega_commands_print_loot", print_loot);
+        sendSystemMessage("print loot " + (print_loot ? "enabled" : "disabled"));
     }
 }
 
@@ -987,9 +1006,13 @@ function parsePM(message) {
         let high = parseInt(/^\S+ -?[0-9]+ (-?[0-9]+)$/.exec(content)[1]);
         sendPM(message.target, "rolls " + (Math.floor(Math.random() * (high - low + 1)) + low));
     }
+    else if (/^\/roll .+,.+$/.test(content)) {
+        let list = /^\S+ (.+)$/.exec(content)[1].split(",").map((x) => x.trim()).filter((x) => !!x);
+        if (list.length > 1) sendPM(message.target, list[Math.floor(Math.random() * list.length)]);
+    }
     else if (/^\/shuffle .+$/.test(content)) {
-        let array = /^\S+ (.+)$/.exec(content)[1].split(",").map((x) => x.trim());
-        if (array.length > 1) sendPM(message.target, shuffleArray(array).join(", "));
+        let list = /^\S+ (.+)$/.exec(content)[1].split(",").map((x) => x.trim()).filter((x) => !!x);
+        if (list.length > 1) sendPM(message.target, shuffleArray(list).join(", "));
     }
     else if (/^\/(autoskip|autovoteskip)$/.test(content)) {
         if (auto_vote_skip === null) auto_vote_skip = 100;
@@ -1337,7 +1360,7 @@ function parsePM(message) {
     else if (/^\/detect \w+$/.test(content)) {
         let name = /^\S+ (\w+)$/.exec(content)[1];
         if (detect.players.includes(name)) {
-            detect.players.pop(name);
+            detect.players = detect.players.filter((item) => item !== name);
             sendPM(message.target, `${name} removed from detection system`);
         }
         else {
@@ -1345,6 +1368,11 @@ function parsePM(message) {
             sendPM(message.target, `now detecting ${name} in the room browser`);
         }
         localStorage.setItem("mega_commands_player_detection", JSON.stringify(detect));
+    }
+    else if (/^\/printloot$/.test(content)) {
+        print_loot = !print_loot;
+        localStorage.setItem("mega_commands_print_loot", print_loot);
+        sendPM(message.target, "print loot " + (print_loot ? "enabled" : "disabled"));
     }
     if (inRoom()) {
         if (/^\/players$/.test(content)) {
@@ -1822,6 +1850,8 @@ function clearLocalStorage() {
     localStorage.removeItem("mega_commands_auto_status");
     localStorage.removeItem("mega_commands_background");
     localStorage.removeItem("mega_commands_player_detection");
+    localStorage.removeItem("mega_commands_dropdown_in_spec");
+    localStorage.removeItem("mega_commands_print_loot");
 }
 
 // overload changeView function for auto ready
