@@ -108,21 +108,21 @@ RoomTile.prototype.updateFriends = function () {
 // updates the room tile avatar when a new host is promoted
 RoomTile.prototype.updateAvatar = function (avatarInfo) {
     let avatarSrc = cdnFormater.newAvatarSrc(
-		avatarInfo.avatar.avatarName,
-		avatarInfo.avatar.outfitName,
-		avatarInfo.avatar.optionName,
-		avatarInfo.avatar.optionActive,
-		avatarInfo.avatar.colorName,
-		cdnFormater.AVATAR_POSE_IDS.BASE
-	);
+        avatarInfo.avatar.avatarName,
+        avatarInfo.avatar.outfitName,
+        avatarInfo.avatar.optionName,
+        avatarInfo.avatar.optionActive,
+        avatarInfo.avatar.colorName,
+        cdnFormater.AVATAR_POSE_IDS.BASE
+    );
     let avatarSrcSet = cdnFormater.newAvatarSrcSet(
-		avatarInfo.avatar.avatarName,
-		avatarInfo.avatar.outfitName,
-		avatarInfo.avatar.optionName,
-		avatarInfo.avatar.optionActive,
-		avatarInfo.avatar.colorName,
-		cdnFormater.AVATAR_POSE_IDS.BASE
-	);
+        avatarInfo.avatar.avatarName,
+        avatarInfo.avatar.outfitName,
+        avatarInfo.avatar.optionName,
+        avatarInfo.avatar.optionActive,
+        avatarInfo.avatar.colorName,
+        cdnFormater.AVATAR_POSE_IDS.BASE
+    );
     this.avatarPreloadImage = new PreloadImage(
         this.$tile.find(".rbrRoomImage"),
         avatarSrc,
