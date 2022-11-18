@@ -63,7 +63,7 @@ function setup() {
     });
 }
 
-// input room id number and host name (optional)
+// input room id number
 function updateRoomTile(roomId) {
     let $playerList = $("<ul></ul>");
     let players = roomBrowser.activeRooms[roomId]._players.sort((a, b) => a.localeCompare(b));
