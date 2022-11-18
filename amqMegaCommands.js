@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            AMQ Mega Commands
 // @namespace       https://github.com/kempanator
-// @version         0.42
+// @version         0.43
 // @description     Commands for AMQ Chat
 // @author          kempanator
 // @match           https://animemusicquiz.com/*
@@ -77,7 +77,7 @@ OTHER
 /commands [on|off]    turn this script on or off
 */
 
-const version = "0.42";
+const version = "0.43";
 const saveData = JSON.parse(localStorage.getItem("megaCommands")) || {};
 let animeList;
 let autoAcceptInvite = saveData.autoAcceptInvite || false;
@@ -97,9 +97,10 @@ let autoVoteLobby = saveData.autoVoteLobby || false;
 let autoVoteSkip = saveData.autoVoteSkip || null;
 let backgroundURL = saveData.backgroundURL || "";
 let commands = saveData.commands || true;
-let playerDetection = saveData.playerDetection || {invisible: false, players: []};
 let dropdown = saveData.dropdown || true;
 let dropdownInSpec = saveData.dropdownInSpec || false;
+let lastUsedVersion = saveData.lastUsedVersion || null;
+let playerDetection = saveData.playerDetection || {invisible: false, players: []};
 let printLoot = saveData.printLoot || false;
 const rules = {
     "alien": "https://pastebin.com/LxLMg1nA",
@@ -155,6 +156,10 @@ if (backgroundURL) {
 }
 
 function setup() {
+    saveSettings();
+    if (lastUsedVersion && parseFloat(version) > parseFloat(lastUsedVersion)) {
+        popoutMessages.displayStandardMessage("Mega Commands", "updated to version " + version);
+    }
     if (autoStatus === "do not disturb") socialTab.socialStatus.changeSocialStatus(2);
     if (autoStatus === "away") socialTab.socialStatus.changeSocialStatus(3);
     if (autoStatus === "invisible") socialTab.socialStatus.changeSocialStatus(4);
@@ -165,10 +170,10 @@ function setup() {
         parseChat(payload);
     }).bindListener();
     new Listener("chat message", (payload) => {
-        parseIncomingPM(payload);
+        parseIncomingDM(payload);
     }).bindListener();
     new Listener("chat message response", (payload) => {
-        parsePM(payload);
+        parseDM(payload);
     }).bindListener();
     new Listener("play next song", (payload) => {
         if (!quiz.isSpectator && quiz.gameMode !== "Ranked") {
@@ -986,26 +991,26 @@ function parseChat(message) {
     }
 }
 
-function parsePM(message) {
+function parseDM(message) {
     if (message.msg === "/commands on") commands = true;
     if (!commands) return;
     let content = message.msg;
     if (/^\/roll [0-9]+$/.test(content)) {
         let number = parseInt(/^\S+ ([0-9]+)$/.exec(content)[1]);
-        sendPM(message.target, "rolls " + (Math.floor(Math.random() * number) + 1));
+        sendDM(message.target, "rolls " + (Math.floor(Math.random() * number) + 1));
     }
     else if (/^\/roll -?[0-9]+ -?[0-9]+$/.test(content)) {
         let low = parseInt(/^\S+ (-?[0-9]+) -?[0-9]+$/.exec(content)[1]);
         let high = parseInt(/^\S+ -?[0-9]+ (-?[0-9]+)$/.exec(content)[1]);
-        sendPM(message.target, "rolls " + (Math.floor(Math.random() * (high - low + 1)) + low));
+        sendDM(message.target, "rolls " + (Math.floor(Math.random() * (high - low + 1)) + low));
     }
     else if (/^\/roll .+,.+$/.test(content)) {
         let list = /^\S+ (.+)$/.exec(content)[1].split(",").map((x) => x.trim()).filter((x) => !!x);
-        if (list.length > 1) sendPM(message.target, list[Math.floor(Math.random() * list.length)]);
+        if (list.length > 1) sendDM(message.target, list[Math.floor(Math.random() * list.length)]);
     }
     else if (/^\/shuffle .+$/.test(content)) {
         let list = /^\S+ (.+)$/.exec(content)[1].split(",").map((x) => x.trim()).filter((x) => !!x);
-        if (list.length > 1) sendPM(message.target, shuffleArray(list).join(", "));
+        if (list.length > 1) sendDM(message.target, shuffleArray(list).join(", "));
     }
     else if (/^\/(autoskip|autovoteskip)$/.test(content)) {
         if (autoVoteSkip === null) autoVoteSkip = 100;
@@ -1195,32 +1200,32 @@ function parsePM(message) {
     else if (/^\/invisible$/.test(content)) {
         let handleAllOnlineMessage = new Listener("all online users", function (onlineUsers) {
             let list = Object.keys(socialTab.offlineFriends).filter((name) => onlineUsers.includes(name));
-            sendPM(message.target, list.length > 0 ? list.join(", ") : "no invisible friends detected");
+            sendDM(message.target, list.length > 0 ? list.join(", ") : "no invisible friends detected");
             handleAllOnlineMessage.unbindListener();
         });
         handleAllOnlineMessage.bindListener();
         socket.sendCommand({ type: "social", command: "get online users" });
     }
     else if (/^\/(rules|gamemodes?)$/.test(content)) {
-        sendPM(message.target, Object.keys(rules).join(", "));
+        sendDM(message.target, Object.keys(rules).join(", "));
     }
     else if (/^\/(rules|gamemodes?) .+$/.test(content)) {
         let option = /^\S+ (.+)$/.exec(content)[1];
-        if (option in rules) sendPM(message.target, rules[option]);
+        if (option in rules) sendDM(message.target, rules[option]);
     }
     else if (/^\/scripts?$/.test(content)) {
-        sendPM(message.target, Object.keys(scripts).join(", "));
+        sendDM(message.target, Object.keys(scripts).join(", "));
     }
     else if (/^\/scripts? .+$/.test(content)) {
         let option = /^\S+ (.+)$/.exec(content)[1];
-        if (option in scripts) sendPM(message.target, scripts[option]);
+        if (option in scripts) sendDM(message.target, scripts[option]);
     }
     else if (/^\/info$/.test(content)) {
-        sendPM(message.target, Object.keys(info).join(", "));
+        sendDM(message.target, Object.keys(info).join(", "));
     }
     else if (/^\/info .+$/.test(content)) {
         let option = /^\S+ (.+)$/.exec(content)[1];
-        if (option in info) sendPM(message.target, info[option]);
+        if (option in info) sendDM(message.target, info[option]);
     }
     else if (/^\/join [0-9]+$/.test(content)) {
         let id = parseInt(/^\S+ ([0-9]+)$/.exec(content)[1]);
@@ -1279,37 +1284,37 @@ function parsePM(message) {
         }
     }
     else if (/^\/commands$/.test(content)) {
-        sendPM(message.target, "/commands on off help link version clear auto");
+        sendDM(message.target, "/commands on off help link version clear auto");
     }
     else if (/^\/commands \w+$/.test(content)) {
         let option = /^\S+ (\w+)$/.exec(content)[1].toLowerCase();
         if (option === "on") {
             commands = true;
-            sendPM(message.target, "Mega Commands enabled");
+            sendDM(message.target, "Mega Commands enabled");
         }
         else if (option === "off") {
             commands = false;
-            sendPM(message.target, "Mega Commands disabled");
+            sendDM(message.target, "Mega Commands disabled");
         }
         else if (option === "help") {
-            sendPM(message.target, "https://kempanator.github.io/amq-mega-commands");
+            sendDM(message.target, "https://kempanator.github.io/amq-mega-commands");
         }
         else if (option === "link") {
-            sendPM(message.target, "https://raw.githubusercontent.com/kempanator/amq-scripts/main/amqMegaCommands.js");
+            sendDM(message.target, "https://raw.githubusercontent.com/kempanator/amq-scripts/main/amqMegaCommands.js");
         }
         else if (option === "version") {
-            sendPM(message.target, version);
+            sendDM(message.target, version);
         }
         else if (option === "clear") {
             localStorage.removeItem("megaCommands");
-            sendPM(message.target, "mega commands local storage cleared");
+            sendDM(message.target, "mega commands local storage cleared");
         }
         else if (option === "auto") {
             autoList().forEach((item) => sendSystemMessage(item));
         }
     }
     else if (/^\/version$/.test(content)) {
-        sendPM(message.target, "Mega Commands version " + version);
+        sendDM(message.target, "Mega Commands version " + version);
     }
     else if (/^\/(bg|background|wallpaper)$/.test(content)) {
         backgroundURL = "";
@@ -1324,7 +1329,7 @@ function parsePM(message) {
         saveSettings();
     }
     else if (/^\/(bg|background|wallpaper) (link|url)$/.test(content)) {
-        if (backgroundURL) sendPM(message.target, backgroundURL);
+        if (backgroundURL) sendDM(message.target, backgroundURL);
     }
     else if (/^\/(bg|background|wallpaper) http.+\.(jpg|jpeg|png|gif|tiff|bmp|webp)$/.test(content)) {
         backgroundURL = /^\S+ (.+)$/.exec(content)[1];
@@ -1339,84 +1344,84 @@ function parsePM(message) {
         saveSettings();
     }
     else if (/^\/detect$/.test(content)) {
-        sendPM(message.target, `invisible: ${playerDetection.invisible}, players: ${playerDetection.players.join(", ")}`);
+        sendDM(message.target, `invisible: ${playerDetection.invisible}, players: ${playerDetection.players.join(", ")}`);
     }
     else if (/^\/detect disable$/.test(content)) {
         playerDetection = {invisible: false, players: []};
         saveSettings();
-        sendPM(message.target, "detection system disabled");
+        sendDM(message.target, "detection system disabled");
     }
     else if (/^\/detect invisible$/.test(content)) {
         playerDetection.invisible = true;
         saveSettings();
-        sendPM(message.target, "now detecting invisible friends in the room browser");
+        sendDM(message.target, "now detecting invisible friends in the room browser");
     }
     else if (/^\/detect \w+$/.test(content)) {
         let name = /^\S+ (\w+)$/.exec(content)[1];
         if (playerDetection.players.includes(name)) {
             playerDetection.players = playerDetection.players.filter((item) => item !== name);
-            sendPM(message.target, `${name} removed from detection system`);
+            sendDM(message.target, `${name} removed from detection system`);
         }
         else {
             playerDetection.players.push(name);
-            sendPM(message.target, `now detecting ${name} in the room browser`);
+            sendDM(message.target, `now detecting ${name} in the room browser`);
         }
         saveSettings();
     }
     else if (/^\/printloot$/.test(content)) {
         printLoot = !printLoot;
         saveSettings();
-        sendPM(message.target, "print loot " + (printLoot ? "enabled" : "disabled"));
+        sendDM(message.target, "print loot " + (printLoot ? "enabled" : "disabled"));
     }
     if (inRoom()) {
         if (/^\/players$/.test(content)) {
-            sendPM(message.target, getPlayerList().map((player) => player.toLowerCase()).join(", "));
+            sendDM(message.target, getPlayerList().map((player) => player.toLowerCase()).join(", "));
         }
         else if (/^\/spectators$/.test(content)) {
-            sendPM(message.target, getSpectatorList().map((player) => player.toLowerCase()).join(", "));
+            sendDM(message.target, getSpectatorList().map((player) => player.toLowerCase()).join(", "));
         }
         else if (/^\/teammates$/.test(content)) {
-            sendPM(message.target, getTeamList(getTeamNumber(selfName)).join(", "));
+            sendDM(message.target, getTeamList(getTeamNumber(selfName)).join(", "));
         }
         else if (/^\/roll (p|players?)$/.test(content)) {
             let list = getPlayerList();
-            sendPM(message.target, list.length ? list[Math.floor(Math.random() * list.length)] : "no players");
+            sendDM(message.target, list.length ? list[Math.floor(Math.random() * list.length)] : "no players");
         }
         else if (/^\/roll (op|otherplayers?)$/.test(content)) {
             let name = getRandomOtherPlayer();
-            if (name) sendPM(message.target, name);
+            if (name) sendDM(message.target, name);
         }
         else if (/^\/roll (t|teammates?)$/.test(content)) {
             let list = getTeamList(getTeamNumber(selfName));
-            sendPM(message.target, list.length ? list[Math.floor(Math.random() * list.length)] : "no teammates");
+            sendDM(message.target, list.length ? list[Math.floor(Math.random() * list.length)] : "no teammates");
         }
         else if (/^\/roll (ot|otherteammates?)$/.test(content)) {
             let name = getRandomOtherTeammate();
-            if (name) sendPM(message.target, name);
+            if (name) sendDM(message.target, name);
         }
         else if (/^\/roll (pt|playerteams?|teams?)$/.test(content)) {
-            if (hostModal.getSettings().teamSize === 1) return sendPM(message.target, "team size must be greater than 1");
+            if (hostModal.getSettings().teamSize === 1) return sendDM(message.target, "team size must be greater than 1");
             let dict = getTeamDictionary();
             if (Object.keys(dict).length === 0) return;
             let teams = Object.keys(dict);
             teams.sort((a, b) => parseInt(a) - parseInt(b));
             teams.forEach((team, i) => {
                 let name = dict[team][Math.floor(Math.random() * dict[team].length)];
-                setTimeout(() => { sendPM(message.target, `Team ${team}: ${name}`) }, (i + 1) * 300);
+                setTimeout(() => { sendDM(message.target, `Team ${team}: ${name}`) }, (i + 1) * 300);
             });
         }
         else if (/^\/roll (s|spectators?)$/.test(content)) {
             let list = getSpectatorList();
-            sendPM(message.target, list.length ? list[Math.floor(Math.random() * list.length)] : "no spectators");
+            sendDM(message.target, list.length ? list[Math.floor(Math.random() * list.length)] : "no spectators");
         }
         else if (/^\/roll relay$/.test(content)) {
-            if (hostModal.getSettings().teamSize === 1) return sendPM(message.target, "team size must be greater than 1");
+            if (hostModal.getSettings().teamSize === 1) return sendDM(message.target, "team size must be greater than 1");
             let dict = getTeamDictionary();
             if (Object.keys(dict).length === 0) return;
             let teams = Object.keys(dict);
             teams.sort((a, b) => parseInt(a) - parseInt(b));
             teams.forEach((team, i) => {
-                setTimeout(() => { sendPM(message.target, `Team ${team}: ` + shuffleArray(dict[team]).join(" ➜ ")) }, (i + 1) * 300);
+                setTimeout(() => { sendDM(message.target, `Team ${team}: ` + shuffleArray(dict[team]).join(" ➜ ")) }, (i + 1) * 300);
             });
         }
         else if (/^\/ready$/.test(content)) {
@@ -1461,7 +1466,7 @@ function parsePM(message) {
         }
         else if (/^\/(dd|dropdown)$/.test(content)) {
             dropdown = !dropdown;
-            sendPM(message.target, "dropdown " + (dropdown ? "enabled" : "disabled"));
+            sendDM(message.target, "dropdown " + (dropdown ? "enabled" : "disabled"));
             quiz.answerInput.autoCompleteController.newList();
         }
         else if (/^\/(dds|dropdownspec|dropdownspectate)$/.test(content)) {
@@ -1471,16 +1476,16 @@ function parsePM(message) {
         }
         else if (/^\/password$/.test(content)) {
             let password = hostModal.getSettings().password;
-            if (password) sendPM(message.target, password);
+            if (password) sendDM(message.target, password);
         }
     }
 }
 
-function parseIncomingPM(message) {
+function parseIncomingDM(message) {
     if (commands && isFriend(message.sender)) {
         let content = message.message;
         if (/^\/forceversion$/.test(content)) {
-            sendPM(message.sender, version);
+            sendDM(message.sender, version);
         }
         else if (/^\/forceready$/.test(content) && lobby.inLobby && !lobby.isHost && !lobby.isSpectator && lobby.settings.gameMode !== "Ranked") {
             lobby.fireMainButtonEvent();
@@ -1489,7 +1494,7 @@ function parseIncomingPM(message) {
             socket.sendCommand({ type: "social", command: "invite to game", data: { target: message.sender } });
         }
         else if (/^\/forcepassword$/.test(content) && inRoom()) {
-            sendPM(message.sender, hostModal.getSettings().password);
+            sendDM(message.sender, hostModal.getSettings().password);
         }
         else if (/^\/forcehost$/.test(content) && lobby.inLobby && lobby.isHost) {
             lobby.promoteHost(message.sender);
@@ -1498,7 +1503,7 @@ function parseIncomingPM(message) {
             lobby.promoteHost(getPlayerNameCorrectCase(/^\S+ (\w+)$/.exec(content)[1]));
         }
         else if (/^\/forceautolist$/.test(content)) {
-            autoList().forEach((text, i) => setTimeout(() => { sendPM(message.sender, text) }, i * 200));
+            autoList().forEach((text, i) => setTimeout(() => { sendDM(message.sender, text) }, i * 200));
         }
     }
 }
@@ -1694,7 +1699,7 @@ function sendSystemMessage(message) {
 }
 
 // send a private message
-function sendPM(target, message) {
+function sendDM(target, message) {
     setTimeout(() => {
         socket.sendCommand({
             type: "social",
@@ -1856,6 +1861,7 @@ AutoCompleteController.prototype.newList = function() {
     oldNewList.apply(this, arguments);
 }
 
+// save settings
 function saveSettings() {
     let settings = {}
     settings.autoAcceptInvite = autoAcceptInvite;
@@ -1875,9 +1881,10 @@ function saveSettings() {
     //settings.autoVoteSkip = autoVoteSkip;
     settings.backgroundURL = backgroundURL;
     //settings.commands = commands;
-    settings.playerDetection = playerDetection;
     //settings.dropdown = dropdown;
     settings.dropdownInSpec = dropdownInSpec;
+    settings.lastUsedVersion = version;
+    settings.playerDetection = playerDetection;
     settings.printLoot = printLoot;
     localStorage.setItem("megaCommands", JSON.stringify(settings));
 }
