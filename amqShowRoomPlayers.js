@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            AMQ Show Room Players
 // @namespace       https://github.com/kempanator
-// @version         0.4
+// @version         0.5
 // @description     Adds extra functionality to room tiles
 // @author          kempanator
 // @match           https://animemusicquiz.com/*
@@ -29,8 +29,11 @@ let loadInterval = setInterval(() => {
 
 function setup() {
     new Listener("New Rooms", (payload) => {
-        payload.forEach(item => {
-            setTimeout(() => { updateRoomTile(item.id, item.host) }, 1);
+        payload.forEach((item) => {
+            setTimeout(() => {
+                updateRoomTile(item.id);
+                roomBrowser.activeRooms[item.id].clickHostName(item.host);
+            }, 1);
         });
     }).bindListener();
     new Listener("Room Change", (payload) => {
@@ -38,13 +41,10 @@ function setup() {
             setTimeout(() => {
                 if (roomBrowser.activeRooms[payload.roomId]) {
                     roomBrowser.activeRooms[payload.roomId].updateFriends();
+                    updateRoomTile(payload.roomId);
                     if (payload.newHost) {
                         roomBrowser.activeRooms[payload.roomId].updateAvatar(payload.newHost.avatar);
-                        $(`#rbRoom-${payload.roomId} img.rbrRoomImage`).removeClass().addClass(`rbrRoomImage sizeMod${payload.newHost.avatar.avatar.sizeModifier}`);
-                        updateRoomTile(payload.roomId, payload.newHost.name);
-                    }
-                    else {
-                        updateRoomTile(payload.roomId);
+                        roomBrowser.activeRooms[payload.roomId].clickHostName(payload.newHost.name);
                     }
                 }
             }, 1);
@@ -64,7 +64,7 @@ function setup() {
 }
 
 // input room id number and host name (optional)
-function updateRoomTile(roomId, host) {
+function updateRoomTile(roomId) {
     let $playerList = $("<ul></ul>");
     let players = roomBrowser.activeRooms[roomId]._players.sort((a, b) => a.localeCompare(b));
     for (let player of players) {
@@ -72,18 +72,13 @@ function updateRoomTile(roomId, host) {
         if (roomBrowser.activeRooms[roomId]._friendsInGameMap[player]) li.css("color", "#4497EA");
         $playerList.append(li);
     }
-    if (host) {
-        $(`#rbRoom-${roomId} .rbrHost`).css("cursor", "pointer").unbind("click").click(() => {
-            playerProfileController.loadProfile(host, $(`#rbRoom-${roomId}`), {}, () => {}, false, true);
-        });
-    }
     if ($(`#rbRoom-${roomId} .rbrProgressContainer`).data("bs.popover")) {
         $(`#rbRoom-${roomId} .rbrProgressContainer`).data("bs.popover").options.content = $playerList[0].outerHTML;
         $(`#rbRoom-${roomId} .rbrProgressContainer`).data("bs.popover").options.title = players.length + " Player" + (players.length === 1 ? "" : "s");
     }
     else {
         $(`#rbRoom-${roomId} .rbrFriendPopover`).data("bs.popover").options.placement = "bottom";
-        $(`#rbRoom-${roomId} .rbrProgressContainer`).tooltip("destroy").removeAttr("data-original-title").attr("data-toggle", "popover").popover({
+        $(`#rbRoom-${roomId} .rbrProgressContainer`).tooltip("destroy").removeAttr("data-toggle data-placement data-original-title").popover({
             container: "#roomBrowserPage",
             placement: "bottom",
             trigger: "hover",
@@ -105,8 +100,17 @@ RoomTile.prototype.updateFriends = function () {
     this.updateFriendInfo();
 };
 
+// add click event to host name to open player profile
+RoomTile.prototype.clickHostName = function (host) {
+    this.$tile.find(".rbrHost").css("cursor", "pointer").unbind("click").click(() => {
+        playerProfileController.loadProfile(host, $(`#rbRoom-${this.id}`), {}, () => {}, false, true);
+    });
+}
+
 // updates the room tile avatar when a new host is promoted
 RoomTile.prototype.updateAvatar = function (avatarInfo) {
+    this.avatarPreloadImage.cancel();
+    this.$tile.find(".rbrRoomImage").removeClass().addClass(`rbrRoomImage sizeMod${avatarInfo.avatar.sizeModifier}`);
     let avatarSrc = cdnFormater.newAvatarSrc(
         avatarInfo.avatar.avatarName,
         avatarInfo.avatar.outfitName,
