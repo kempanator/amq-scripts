@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            AMQ Mega Commands
 // @namespace       https://github.com/kempanator
-// @version         0.43
+// @version         0.44
 // @description     Commands for AMQ Chat
 // @author          kempanator
 // @match           https://animemusicquiz.com/*
@@ -77,7 +77,7 @@ OTHER
 /commands [on|off]    turn this script on or off
 */
 
-const version = "0.43";
+const version = "0.44";
 const saveData = JSON.parse(localStorage.getItem("megaCommands")) || {};
 let animeList;
 let autoAcceptInvite = saveData.autoAcceptInvite || false;
@@ -315,7 +315,8 @@ function setup() {
         setTimeout(() => { checkAutoReady() }, 1);
     }).bindListener();
     new Listener("game invite", (payload) => {
-        if (autoAcceptInvite && !inRoom() && isFriend(payload.sender)) {
+        if (autoAcceptInvite && !inRoom() && ((autoAcceptInvite === true && isFriend(payload.sender))
+        || (Array.isArray(autoAcceptInvite) && autoAcceptInvite.includes(payload.sender.toLowerCase())))) {
             roomBrowser.fireSpectateGame(payload.gameId, undefined, true);
         }
     }).bindListener();
@@ -649,6 +650,11 @@ function parseChat(message) {
         autoAcceptInvite = !autoAcceptInvite;
         saveSettings();
         sendSystemMessage("auto accept invite " + (autoAcceptInvite ? "enabled" : "disabled"));
+    }
+    else if (/^\/autoaccept .+$/.test(content)) {
+        autoAcceptInvite = /^\S+ (.+)$/.exec(content)[1].split(",").map((x) => x.trim().toLowerCase()).filter((x) => !!x);
+        saveSettings();
+        sendSystemMessage("auto accept invite only from " + autoAcceptInvite.join(", "));
     }
     else if (/^\/autojoin$/.test(content)) {
         if (autoJoinRoom || isSoloMode() || isRankedMode()) {
@@ -1106,6 +1112,11 @@ function parseDM(message) {
         autoAcceptInvite = !autoAcceptInvite;
         saveSettings();
         sendSystemMessage("auto accept invite " + (autoAcceptInvite ? "enabled" : "disabled"));
+    }
+    else if (/^\/autoaccept .+$/.test(content)) {
+        autoAcceptInvite = /^\S+ (.+)$/.exec(content)[1].split(",").map((x) => x.trim().toLowerCase()).filter((x) => !!x);
+        saveSettings();
+        sendSystemMessage("auto accept invite only from " + autoAcceptInvite.join(", "));
     }
     else if (/^\/autojoin$/.test(content)) {
         if (autoJoinRoom || isSoloMode() || isRankedMode()) {
