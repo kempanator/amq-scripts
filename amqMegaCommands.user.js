@@ -775,6 +775,7 @@ function parseChat(message) {
     }
     else if (/^\/(dds|dropdownspec|dropdownspectate)$/.test(content)) {
         dropdownInSpec = !dropdownInSpec;
+        if (dropdownInSpec) $("#qpAnswerInput").removeAttr("disabled");
         sendSystemMessage("dropdown while spectating " + (dropdownInSpec ? "enabled" : "disabled"));
         saveSettings();
     }
@@ -1482,6 +1483,7 @@ function parseDM(message) {
         }
         else if (/^\/(dds|dropdownspec|dropdownspectate)$/.test(content)) {
             dropdownInSpec = !dropdownInSpec;
+            if (dropdownInSpec) $("#qpAnswerInput").removeAttr("disabled");
             sendSystemMessage("dropdown while spectating " + (dropdownInSpec ? "enabled" : "disabled"));
             saveSettings();
         }
