@@ -904,7 +904,7 @@ function parseChat(message) {
             sendChatMessage("https://kempanator.github.io/amq-mega-commands", isTeamMessage);
         }
         else if (option === "link") {
-            sendChatMessage("https://raw.githubusercontent.com/kempanator/amq-scripts/main/amqMegaCommands.js", isTeamMessage);
+            sendChatMessage("https://raw.githubusercontent.com/kempanator/amq-scripts/main/amqMegaCommands.user.js", isTeamMessage);
         }
         else if (option === "version") {
             sendChatMessage(version, isTeamMessage);
@@ -1312,7 +1312,7 @@ function parseDM(message) {
             sendDM(message.target, "https://kempanator.github.io/amq-mega-commands");
         }
         else if (option === "link") {
-            sendDM(message.target, "https://raw.githubusercontent.com/kempanator/amq-scripts/main/amqMegaCommands.js");
+            sendDM(message.target, "https://raw.githubusercontent.com/kempanator/amq-scripts/main/amqMegaCommands.user.js");
         }
         else if (option === "version") {
             sendDM(message.target, version);
