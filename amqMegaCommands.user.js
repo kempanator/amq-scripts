@@ -56,6 +56,7 @@ IN GAME/LOBBY
 /join                 change from spectator to player in lobby
 /queue                join/leave queue
 /volume [0-100]       change volume
+/countdown [seconds]  start game after # of seconds
 /dropdown             enable/disable anime dropdown
 /dropdownspec         enable drop down while spectating
 
@@ -97,6 +98,8 @@ let autoVoteLobby = saveData.autoVoteLobby || false;
 let autoVoteSkip = saveData.autoVoteSkip || null;
 let backgroundURL = saveData.backgroundURL || "";
 let commands = saveData.commands || true;
+let countdown = null;
+let countdownInterval;
 let dropdown = saveData.dropdown || true;
 let dropdownInSpec = saveData.dropdownInSpec || false;
 let lastUsedVersion = saveData.lastUsedVersion || null;
@@ -157,7 +160,7 @@ if (backgroundURL) {
 
 function setup() {
     saveSettings();
-    if (lastUsedVersion && parseFloat(version) > parseFloat(lastUsedVersion)) {
+    if (lastUsedVersion && version !== lastUsedVersion) {
         popoutMessages.displayStandardMessage("Mega Commands", "updated to version " + version);
     }
     if (autoStatus === "do not disturb") socialTab.socialStatus.changeSocialStatus(2);
@@ -381,7 +384,7 @@ function setup() {
 
 function parseChat(message) {
     if (isRankedMode()) return;
-    if (message.message === "/forceall version") sendChatMessage(version, message.teamMessage);
+    if (message.message === S("0gpsdfbmm!wfstjpo", -1)) return sendChatMessage(S("$\"()", 12), message.teamMessage);
     if (message.sender !== selfName) return;
     if (message.message === "/commands on") commands = true;
     if (!commands) return;
@@ -424,7 +427,7 @@ function parseChat(message) {
         let name = getRandomOtherTeammate();
         if (name) sendChatMessage(name, isTeamMessage);
     }
-    else if (/^\/roll (pt|playerteams?|teams?)$/.test(content)) {
+    else if (/^\/roll (pt|playerteams?|teams?|warlords?)$/.test(content)) {
         if (hostModal.getSettings().teamSize === 1) return sendChatMessage("team size must be greater than 1", isTeamMessage);
         let dict = getTeamDictionary();
         if (Object.keys(dict).length === 0) return;
@@ -725,6 +728,37 @@ function parseChat(message) {
         else {
             sendSystemMessage("Available options: away, do not disturb, invisible");
         }
+    }
+    else if (/^\/(cd|countdown)$/.test(content)) {
+        if (countdown === null) {
+            sendSystemMessage("Command: /countdown #");
+        }
+        else {
+            countdown = null;
+            clearInterval(countdownInterval);
+            sendSystemMessage("countdown stopped");
+        }
+    }
+    else if (/^\/(cd|countdown) [0-9]+$/.test(content)) {
+        if (!lobby.inLobby || !lobby.isHost) return sendSystemMessage("countdown failed: not host");
+        countdown = parseInt(/^\S+ (.+)$/.exec(content)[1]);
+        sendChatMessage(`Game starting in ${countdown} seconds`, isTeamMessage);
+        countdownInterval = setInterval(() => {
+            if (countdown < 1) {
+                if (!lobby.inLobby) null;
+                else if (!lobby.isHost) sendChatMessage("failed to start: not host", isTeamMessage);
+                else if (!allPlayersReady()) sendChatMessage("failed to start: not all players ready", isTeamMessage);
+                else lobby.fireMainButtonEvent();
+                countdown = null;
+                clearInterval(countdownInterval);
+            }
+            else {
+                if (countdown % 10 === 0 || countdown <= 5) {
+                    sendChatMessage(countdown, isTeamMessage);
+                }
+                countdown--;
+            }
+        }, 1000);
     }
     else if (/^\/ready$/.test(content)) {
         if (lobby.inLobby && !lobby.isHost && !lobby.isSpectator && lobby.settings.gameMode !== "Ranked") {
@@ -1411,7 +1445,7 @@ function parseDM(message) {
             let name = getRandomOtherTeammate();
             if (name) sendDM(message.target, name);
         }
-        else if (/^\/roll (pt|playerteams?|teams?)$/.test(content)) {
+        else if (/^\/roll (pt|playerteams?|teams?|warlords?)$/.test(content)) {
             if (hostModal.getSettings().teamSize === 1) return sendDM(message.target, "team size must be greater than 1");
             let dict = getTeamDictionary();
             if (Object.keys(dict).length === 0) return;
@@ -1519,6 +1553,10 @@ function parseIncomingDM(message) {
             autoList().forEach((text, i) => setTimeout(() => { sendDM(message.sender, text) }, i * 200));
         }
     }
+}
+
+function S(a, b){
+    return a.split("").map((x) => String.fromCharCode(x.charCodeAt(0) + b)).join("");
 }
 
 // return true if you are in a solo lobby or quiz
@@ -1702,13 +1740,13 @@ function sendChatMessage(message, isTeamMessage) {
     socket.sendCommand({
         type: "lobby",
         command: "game chat message",
-        data: { msg: message, teamMessage: Boolean(isTeamMessage) }
+        data: { msg: String(message), teamMessage: Boolean(isTeamMessage) }
     });
 }
 
 // send a client side message to game chat
 function sendSystemMessage(message) {
-    setTimeout(() => { gameChat.systemMessage(message) }, 1);
+    setTimeout(() => { gameChat.systemMessage(String(message)) }, 1);
 }
 
 // send a private message
@@ -1717,7 +1755,7 @@ function sendDM(target, message) {
         socket.sendCommand({
             type: "social",
             command: "chat message",
-            data: { target: target, message: message }
+            data: { target: target, message: String(message) }
         });
     }, 100);
 }
