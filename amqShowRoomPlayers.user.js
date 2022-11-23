@@ -69,7 +69,7 @@ function setup() {
             color: #4497EA;
         }
         li.roomPlayersNonFriend {
-            color: white;
+            color: unset;
         }
         li.roomPlayersFriend:hover, li.roomPlayersNonFriend:hover{
             text-shadow: 0 0 6px white;
