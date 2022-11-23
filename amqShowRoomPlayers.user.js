@@ -108,20 +108,13 @@ function updateRoomTile(roomId) {
             let _this = this;
             $(this).popover("show");
             $(".popover").off("mouseleave").on("mouseleave", function() {
-                if (!roomBrowser.activeRooms[roomId]) {
-                    $(".popover").off().remove();
-                }
-                else if (!$(`#rbRoom-${roomId}:hover`).length) {
-                    $(_this).popover("hide");
-                }
+                if (!roomBrowser.activeRooms[roomId]) $(".popover").off().remove();
+                else if (!$(`#rbRoom-${roomId}:hover`).length) $(_this).popover("hide");
             });
             $(`#rbRoom-${roomId}`).off("mouseleave").on("mouseleave", function() {
-                if (!$(".popover:hover").length) {
-                    $(_this).popover("hide");
-                }
+                if (!$(".popover:hover").length) $(_this).popover("hide");
             });
             $(".popover").off("click").on("click", "li", function(e) {
-                console.log(e.target.innerText);
                 playerProfileController.loadProfile(e.target.innerText, $(`#rbRoom-${roomId}`), {}, () => {}, false, true);
             })
         })
