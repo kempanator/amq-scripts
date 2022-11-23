@@ -67,11 +67,13 @@ function setup() {
     AMQ_addStyle(`
         li.roomPlayersFriend {
             color: #4497EA;
+            cursor: pointer;
         }
         li.roomPlayersNonFriend {
             color: unset;
+            cursor: pointer;
         }
-        li.roomPlayersFriend:hover, li.roomPlayersNonFriend:hover{
+        li.roomPlayersFriend:hover, li.roomPlayersNonFriend:hover {
             text-shadow: 0 0 6px white;
         }
     `);
@@ -82,7 +84,7 @@ function updateRoomTile(roomId) {
     let $playerList = $("<ul></ul>");
     let players = roomBrowser.activeRooms[roomId]._players.sort((a, b) => a.localeCompare(b));
     for (let player of players) {
-        let li = $("<li></li>").text(player).css("cursor", "pointer");
+        let li = $("<li></li>").text(player);
         if (roomBrowser.activeRooms[roomId]._friendsInGameMap[player]) li.addClass("roomPlayersFriend");
         else li.addClass("roomPlayersNonFriend");
         $playerList.append(li);
