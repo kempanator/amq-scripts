@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            AMQ Show Room Players
 // @namespace       https://github.com/kempanator
-// @version         0.6
+// @version         0.7
 // @description     Adds extra functionality to room tiles
 // @author          kempanator
 // @match           https://animemusicquiz.com/*
@@ -104,24 +104,26 @@ function updateRoomTile(roomId) {
             title: players.length + " Player" + (players.length === 1 ? "" : "s"),
             content: $playerList[0].outerHTML
         })
-        .on("mouseenter", function() {
+        .off("mouseenter").on("mouseenter", function() {
             let _this = this;
             $(this).popover("show");
-            $(".popover").on("mouseleave", function() {
-                $(_this).popover("hide");
+            $(".popover").off("mouseleave").on("mouseleave", function() {
+                if (!roomBrowser.activeRooms[roomId]) {
+                    $(".popover").off().remove();
+                }
+                else if (!$(`#rbRoom-${roomId}:hover`).length) {
+                    $(_this).popover("hide");
+                }
             });
-            $(".popover").off("click").on("click", "li", function(e) {
-                playerProfileController.loadProfile(e.target.innerText, $(`#rbRoom-${roomId}`), {}, () => {}, false, true)
-            })
-        })
-        .on("mouseleave", function() {
-            let _this = this;
-            setTimeout(function() {
+            $(`#rbRoom-${roomId}`).off("mouseleave").on("mouseleave", function() {
                 if (!$(".popover:hover").length) {
                     $(_this).popover("hide");
-                    $(".popover").off("click");
                 }
-            }, 300);
+            });
+            $(".popover").off("click").on("click", "li", function(e) {
+                console.log(e.target.innerText);
+                playerProfileController.loadProfile(e.target.innerText, $(`#rbRoom-${roomId}`), {}, () => {}, false, true);
+            })
         })
     }
 }
