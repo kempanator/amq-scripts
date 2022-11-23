@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            AMQ Show Room Players
 // @namespace       https://github.com/kempanator
-// @version         0.5
+// @version         0.6
 // @description     Adds extra functionality to room tiles
 // @author          kempanator
 // @match           https://animemusicquiz.com/*
@@ -13,12 +13,14 @@
 
 /*
 New room tile features:
-1. Click host name to open player profile
-2. Mouse over the players bar to show full player list (friends are highlighted blue)
-3. Invisible friends are no longer hidden
-4. Bug fix for friends list and host avatar not getting updated
+1. Mouse over players bar to show full player list (friends are highlighted blue)
+2. Click name in player list to open profile
+3. Click host name to open profile
+4. Invisible friends are no longer hidden
+5. Bug fix for friends list and host avatar not getting updated
 */
 
+"use strict";
 if (document.querySelector("#startPage")) return;
 let loadInterval = setInterval(() => {
     if (document.querySelector("#loadingScreen").classList.contains("hidden")) {
@@ -55,12 +57,24 @@ function setup() {
         author: "kempanator",
         description: `
             <p>New room tile features:</p>
-            <p>1. Click host name to open player profile</p>
-            <p>2. Mouse over the players bar to show full player list (friends are highlighted blue)</p>
-            <p>3. Invisible friends are no longer hidden</p>
-            <p>4. Bug fix for friends list and host avatar not getting updated</p>
+            <p>1. Mouse over players bar to show full player list (friends are highlighted blue)</p>
+            <p>2. Click name in player list to open profile</p>
+            <p>3. Click host name to open profile</p>
+            <p>4. Invisible friends are no longer hidden</p>
+            <p>5. Bug fix for friends list and host avatar not getting updated</p>
         `
     });
+    AMQ_addStyle(`
+        li.roomPlayersFriend {
+            color: #4497EA;
+        }
+        li.roomPlayersNonFriend {
+            color: white;
+        }
+        li.roomPlayersFriend:hover, li.roomPlayersNonFriend:hover{
+            text-shadow: 0 0 6px white;
+        }
+    `);
 }
 
 // input room id number
@@ -68,8 +82,9 @@ function updateRoomTile(roomId) {
     let $playerList = $("<ul></ul>");
     let players = roomBrowser.activeRooms[roomId]._players.sort((a, b) => a.localeCompare(b));
     for (let player of players) {
-        let li = $("<li></li>").text(player);
-        if (roomBrowser.activeRooms[roomId]._friendsInGameMap[player]) li.css("color", "#4497EA");
+        let li = $("<li></li>").text(player).css("cursor", "pointer");
+        if (roomBrowser.activeRooms[roomId]._friendsInGameMap[player]) li.addClass("roomPlayersFriend");
+        else li.addClass("roomPlayersNonFriend");
         $playerList.append(li);
     }
     if ($(`#rbRoom-${roomId} .rbrProgressContainer`).data("bs.popover")) {
@@ -78,19 +93,39 @@ function updateRoomTile(roomId) {
     }
     else {
         $(`#rbRoom-${roomId} .rbrFriendPopover`).data("bs.popover").options.placement = "bottom";
-        $(`#rbRoom-${roomId} .rbrProgressContainer`).tooltip("destroy").removeAttr("data-toggle data-placement data-original-title").popover({
+        $(`#rbRoom-${roomId} .rbrProgressContainer`).tooltip("destroy").removeAttr("data-toggle data-placement data-original-title")
+        .popover({
             container: "#roomBrowserPage",
             placement: "bottom",
-            trigger: "hover",
+            trigger: "manual",
             html: true,
             title: players.length + " Player" + (players.length === 1 ? "" : "s"),
             content: $playerList[0].outerHTML
-        });
+        })
+        .on("mouseenter", function() {
+            let _this = this;
+            $(this).popover("show");
+            $(".popover").on("mouseleave", function() {
+                $(_this).popover("hide");
+            });
+            $(".popover").off("click").on("click", "li", function(e) {
+                playerProfileController.loadProfile(e.target.innerText, $(`#rbRoom-${roomId}`), {}, () => {}, false, true)
+            })
+        })
+        .on("mouseleave", function() {
+            let _this = this;
+            setTimeout(function() {
+                if (!$(".popover:hover").length) {
+                    $(_this).popover("hide");
+                    $(".popover").off("click");
+                }
+            }, 300);
+        })
     }
 }
 
 // overload updateFriends function to also show invisible friends
-RoomTile.prototype.updateFriends = function () {
+RoomTile.prototype.updateFriends = function() {
     this._friendsInGameMap = {};
     this._players.forEach((player) => {
         if (socialTab.onlineFriends[player] || socialTab.offlineFriends[player]) {
@@ -101,16 +136,16 @@ RoomTile.prototype.updateFriends = function () {
 };
 
 // add click event to host name to open player profile
-RoomTile.prototype.clickHostName = function (host) {
+RoomTile.prototype.clickHostName = function(host) {
     this.$tile.find(".rbrHost").css("cursor", "pointer").unbind("click").click(() => {
         playerProfileController.loadProfile(host, $(`#rbRoom-${this.id}`), {}, () => {}, false, true);
     });
-}
+};
 
 // updates the room tile avatar when a new host is promoted
-RoomTile.prototype.updateAvatar = function (avatarInfo) {
+RoomTile.prototype.updateAvatar = function(avatarInfo) {
     this.avatarPreloadImage.cancel();
-    this.$tile.find(".rbrRoomImage").removeClass().addClass(`rbrRoomImage sizeMod${avatarInfo.avatar.sizeModifier}`);
+    this.$tile.find(".rbrRoomImage").removeAttr("src srcset sizes").removeClass().addClass(`rbrRoomImage sizeMod${avatarInfo.avatar.sizeModifier}`);
     let avatarSrc = cdnFormater.newAvatarSrc(
         avatarInfo.avatar.avatarName,
         avatarInfo.avatar.outfitName,

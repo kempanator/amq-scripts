@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            AMQ New Game Mode UI
 // @namespace       https://github.com/kempanator
-// @version         0.4
+// @version         0.5
 // @description     Adds a user interface to new game mode to keep track of guesses
 // @author          kempanator
 // @match           https://animemusicquiz.com/*
@@ -12,7 +12,7 @@
 // @updateURL       https://raw.githubusercontent.com/kempanator/amq-scripts/main/amqNewGameModeUI.user.js
 // ==/UserScript==
 
-
+"use strict";
 if (document.querySelector("#startPage")) return;
 let loadInterval = setInterval(() => {
     if (document.querySelector("#loadingScreen").classList.contains("hidden")) {
@@ -177,9 +177,13 @@ function updateWindow() {
             animation: false
         })
     );
-    ngmWindow.panels[0].panel.append($(`<button type="button" class="btn btn-primary ngmButton"><i aria-hidden="true" class="fa fa-comment"></button>`)
+    ngmWindow.panels[0].panel.append($(`<button type="button" class="btn btn-primary ngmButton"><i aria-hidden="true" class="fa fa-comment"></i></button>`)
         .click(() => {
-            sendChatMessage(guessCounter.join(""));
+            socket.sendCommand({
+                type: "lobby",
+                command: "game chat message",
+                data: { msg: guessCounter.join(""), teamMessage: $("#gcTeamChatSwitch").hasClass("active") }
+            });
         })
         .popover({
             content: "send team count to chat",
@@ -269,18 +273,4 @@ function getRemainingGuesses() {
 // return true if guess counts are currently accurate
 function checkCount() {
     return correctGuesses % (guessCounter.length * numGuesses) === guessCounter.length * numGuesses - guessCounter.reduce((a, b) => a + b);
-}
-
-// send a regular public message in game chat
-function sendChatMessage(message) {
-    socket.sendCommand({
-        type: "lobby",
-        command: "game chat message",
-        data: { msg: message, teamMessage: false }
-    });
-}
-
-// send a client side message to game chat
-function sendSystemMessage(message) {
-    setTimeout(() => { gameChat.systemMessage(message) }, 1);
 }
