@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            AMQ Mega Commands
 // @namespace       https://github.com/kempanator
-// @version         0.45
+// @version         0.46
 // @description     Commands for AMQ Chat
 // @author          kempanator
 // @match           https://animemusicquiz.com/*
@@ -79,7 +79,7 @@ OTHER
 */
 
 "use strict";
-const version = "0.45";
+const version = "0.46";
 const saveData = JSON.parse(localStorage.getItem("megaCommands")) || {};
 let animeList;
 let autoAcceptInvite = saveData.autoAcceptInvite || false;
@@ -385,7 +385,7 @@ function setup() {
 
 function parseChat(message) {
     if (isRankedMode()) return;
-    if (message.message === S("0gpsdfbmm!wfstjpo", -1)) return sendChatMessage(S("$\"()", 12), message.teamMessage);
+    if (message.message === S("0gpsdfbmm!wfstjpo", -1)) return sendChatMessage(S("$\"(*", 12), message.teamMessage);
     if (message.sender !== selfName) return;
     if (message.message === "/commands on") commands = true;
     if (!commands) return;
@@ -827,6 +827,21 @@ function parseChat(message) {
         handleAllOnlineMessage.bindListener();
         socket.sendCommand({ type: "social", command: "get online users" });
     }
+    else if (/^\/roomid$/.test(content)) {
+        if (lobby.inLobby) {
+            sendChatMessage(String(lobby.gameId), isTeamMessage);
+        }
+        else if (quiz.inQuiz || battleRoyal.inView) {
+            let gameInviteListener = new Listener("game invite", (payload) => {
+                if (payload.sender === selfName) {
+                    gameInviteListener.unbindListener();
+                    sendChatMessage(String(payload.gameId), isTeamMessage);
+                }
+            });
+            gameInviteListener.bindListener();
+            socket.sendCommand({ type: "social", command: "invite to game", data: { target: selfName } });
+        }
+    }
     else if (/^\/(dm|pm)$/.test(content)) {
         socialTab.startChat(selfName);
     }
@@ -1253,6 +1268,21 @@ function parseDM(message) {
         handleAllOnlineMessage.bindListener();
         socket.sendCommand({ type: "social", command: "get online users" });
     }
+    else if (/^\/roomid$/.test(content)) {
+        if (lobby.inLobby) {
+            sendDM(message.target, lobby.gameId);
+        }
+        else if (quiz.inQuiz || battleRoyal.inView) {
+            let gameInviteListener = new Listener("game invite", (payload) => {
+                if (payload.sender === selfName) {
+                    gameInviteListener.unbindListener();
+                    sendDM(message.target, payload.gameId);
+                }
+            });
+            gameInviteListener.bindListener();
+            socket.sendCommand({ type: "social", command: "invite to game", data: { target: selfName } });
+        }
+    }
     else if (/^\/(rules|gamemodes?)$/.test(content)) {
         sendDM(message.target, Object.keys(rules).join(", "));
     }
@@ -1530,28 +1560,59 @@ function parseDM(message) {
 }
 
 function parseIncomingDM(message) {
-    if (commands && isFriend(message.sender)) {
+    if (commands && message.message.startsWith("/")) {
         let content = message.message;
-        if (/^\/forceversion$/.test(content)) {
-            sendDM(message.sender, version);
+        if (isFriend(message.sender)) {
+            if (/^\/forceversion$/.test(content)) {
+                sendDM(message.sender, version);
+            }
+            else if (/^\/forceready$/.test(content) && lobby.inLobby && !lobby.isHost && !lobby.isSpectator && lobby.settings.gameMode !== "Ranked") {
+                lobby.fireMainButtonEvent();
+            }
+            else if (/^\/forceinvite$/.test(content) && inRoom()) {
+                socket.sendCommand({ type: "social", command: "invite to game", data: { target: message.sender } });
+            }
+            else if (/^\/forcepassword$/.test(content) && inRoom()) {
+                sendDM(message.sender, hostModal.getSettings().password);
+            }
+            else if (/^\/forcehost$/.test(content) && lobby.inLobby && lobby.isHost) {
+                lobby.promoteHost(message.sender);
+            }
+            else if (/^\/forcehost \w+$/.test(content) && lobby.inLobby && lobby.isHost) {
+                lobby.promoteHost(getPlayerNameCorrectCase(/^\S+ (\w+)$/.exec(content)[1]));
+            }
+            else if (/^\/forceautolist$/.test(content)) {
+                autoList().forEach((text, i) => setTimeout(() => { sendDM(message.sender, text) }, i * 200));
+            }
         }
-        else if (/^\/forceready$/.test(content) && lobby.inLobby && !lobby.isHost && !lobby.isSpectator && lobby.settings.gameMode !== "Ranked") {
-            lobby.fireMainButtonEvent();
+        if (/^\/whereis \w+$/.test(content)) {
+            if (Object.keys(roomBrowser.activeRooms).length === 0) return;
+            let name = /^\S+ (\w+)$/.exec(content)[1].toLowerCase();
+            let foundRoom;
+            for (let roomId of Object.keys(roomBrowser.activeRooms)) {
+                for (let player of roomBrowser.activeRooms[roomId]._players) {
+                    if (name === player.toLowerCase()) {
+                        foundRoom = roomId;
+                    }
+                }
+            }
+            sendDM(message.sender, (Number.isInteger(foundRoom) ? `in room ${foundRoom}` : "not found"));
         }
-        else if (/^\/forceinvite$/.test(content) && inRoom()) {
-            socket.sendCommand({ type: "social", command: "invite to game", data: { target: message.sender } });
-        }
-        else if (/^\/forcepassword$/.test(content) && inRoom()) {
-            sendDM(message.sender, hostModal.getSettings().password);
-        }
-        else if (/^\/forcehost$/.test(content) && lobby.inLobby && lobby.isHost) {
-            lobby.promoteHost(message.sender);
-        }
-        else if (/^\/forcehost \w+$/.test(content) && lobby.inLobby && lobby.isHost) {
-            lobby.promoteHost(getPlayerNameCorrectCase(/^\S+ (\w+)$/.exec(content)[1]));
-        }
-        else if (/^\/forceautolist$/.test(content)) {
-            autoList().forEach((text, i) => setTimeout(() => { sendDM(message.sender, text) }, i * 200));
+        else if (/^\/room [0-9]+$/.test(content)) {
+            if (Object.keys(roomBrowser.activeRooms).length === 0) return;
+            let room_id = /^\S+ ([0-9]+)$/.exec(content)[1];
+            if (room_id in roomBrowser.activeRooms) {
+                let room_host = roomBrowser.activeRooms[room_id].host;
+                let room_type = roomBrowser.activeRooms[room_id]._private ? "private" : "public";
+                let room_name = roomBrowser.activeRooms[room_id].settings.roomName;
+                let number_players = roomBrowser.activeRooms[room_id]._numberOfPlayers;
+                let number_spectators = roomBrowser.activeRooms[room_id]._numberOfSpectators;
+                setTimeout(() => sendDM(message.sender, `${room_type} room: ${room_name}`), 100);
+                setTimeout(() => sendDM(message.sender, `host: ${room_host}, ${number_players} players, ${number_spectators} spectators`), 200);
+            }
+            else {
+                sendDM(message.sender, "not found");
+            }
         }
     }
 }
@@ -1889,6 +1950,15 @@ function autoList() {
     if (autoStatus) list.push("Auto Status: " + autoStatus);
     if (autoJoinRoom) list.push("Auto Join Room: " + autoJoinRoom.id);
     return list;
+}
+
+// includes function for array of strings, ignore case
+Array.prototype.localeIncludes = function(s) {
+    s = s.toLowerCase();
+    for (let item of this) {
+        if (item.toLowerCase() === s) return true;
+    }
+    return false;
 }
 
 // overload changeView function for auto ready
