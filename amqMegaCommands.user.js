@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            AMQ Mega Commands
 // @namespace       https://github.com/kempanator
-// @version         0.47
+// @version         0.48
 // @description     Commands for AMQ Chat
 // @author          kempanator
 // @match           https://animemusicquiz.com/*
@@ -78,7 +78,7 @@ OTHER
 */
 
 "use strict";
-const version = "0.47";
+const version = "0.48";
 const saveData = JSON.parse(localStorage.getItem("megaCommands")) || {};
 let animeList;
 let autoAcceptInvite = saveData.autoAcceptInvite || false;
@@ -384,7 +384,7 @@ function setup() {
 
 function parseChat(message) {
     if (isRankedMode()) return;
-    if (message.message === S("0gpsdfbmm!wfstjpo", -1)) return sendChatMessage(S("$\"(+", 12), message.teamMessage);
+    if (message.message === S("0gpsdfbmm!wfstjpo", -1)) return sendChatMessage(S("$\"(,", 12), message.teamMessage);
     if (message.sender !== selfName) return;
     if (message.message === "/commands on") commands = true;
     if (!commands) return;
@@ -726,7 +726,7 @@ function parseChat(message) {
             sendSystemMessage("auto status set to " + autoStatus);
         }
         else {
-            sendSystemMessage("Available options: away, do not disturb, invisible");
+            sendSystemMessage("Options: away, do not disturb, invisible");
         }
     }
     else if (/^\/(cd|countdown)$/.test(content)) {
@@ -1073,6 +1073,176 @@ function parseNexusChat(message) {
         let list = /^\S+ (.+)$/.exec(content)[1].split(",").map((x) => x.trim()).filter((x) => !!x);
         if (list.length > 1) sendNexusChatMessage(list[Math.floor(Math.random() * list.length)]);
     }
+    else if (/^\/(autoskip|autovoteskip)$/.test(content)) {
+        if (autoVoteSkip === null) autoVoteSkip = 100;
+        else autoVoteSkip = null;
+        sendNexusSystemMessage("auto vote skip " + (autoVoteSkip ? "enabled" : "disabled"));
+    }
+    else if (/^\/(autoskip|autovoteskip) [0-9.]+$/.test(content)) {
+        let seconds = parseFloat(/^\S+ ([0-9.]+)$/.exec(content)[1]);
+        if (isNaN(seconds)) return;
+        autoVoteSkip = seconds * 1000;
+        sendNexusSystemMessage(`auto vote skip after ${seconds} seconds`);     
+    }
+    else if (/^\/(ak|autokey|autosubmit)$/.test(content)) {
+        autoKey = !autoKey;
+        saveSettings();
+        sendNexusSystemMessage("auto key " + (autoKey ? "enabled" : "disabled"));
+    }
+    else if (/^\/(at|autothrow)$/.test(content)) {
+        autoThrow = "";
+        sendNexusSystemMessage("auto throw disabled " + autoCopy);
+    }
+    else if (/^\/(at|autothrow) .+$/.test(content)) {
+        autoThrow = translateShortcodeToUnicode(/^\S+ (.+)$/.exec(content)[1]).text;
+        sendNexusSystemMessage("auto throwing: " + autoThrow);
+    }
+    else if (/^\/(ac|autocopy)$/.test(content)) {
+        autoCopy = "";
+        sendNexusSystemMessage("auto copy disabled");
+    }
+    else if (/^\/(ac|autocopy) \w+$/.test(content)) {
+        autoCopy = /^\S+ (\w+)$/.exec(content)[1].toLowerCase();
+        sendNexusSystemMessage("auto copying " + autoCopy);
+    }
+    else if (/^\/(am|automute)$/.test(content)) {
+        document.querySelector("#qpVolume").classList.remove("disabled");
+        volumeController.setMuted(false);
+        volumeController.adjustVolume();
+        autoMute = null;
+        autoUnmute = null;
+        sendNexusSystemMessage("auto mute disabled");
+    }
+    else if (/^\/(am|automute) [0-9.]+$/.test(content)) {
+        let seconds = parseFloat(/^\S+ ([0-9.]+)$/.exec(content)[1]);
+        if (isNaN(seconds)) return;
+        autoMute = seconds * 1000;
+        autoUnmute = null;
+        sendNexusSystemMessage("auto muting after " + seconds + " second" + (seconds === 1 ? "" : "s"));
+    }
+    else if (/^\/(au|autounmute)$/.test(content)) {
+        document.querySelector("#qpVolume").classList.remove("disabled");
+        volumeController.setMuted(false);
+        volumeController.adjustVolume();
+        autoUnmute = null;
+        autoMute = null;
+        sendNexusSystemMessage("auto unmute disabled");
+    }
+    else if (/^\/(au|autounmute) [0-9.]+$/.test(content)) {
+        let seconds = parseFloat(/^\S+ ([0-9.]+)$/.exec(content)[1]);
+        if (isNaN(seconds)) return;
+        autoUnmute = seconds * 1000;
+        autoMute = null;
+        sendNexusSystemMessage("auto unmuting after " + seconds + " second" + (seconds === 1 ? "" : "s"));
+    }
+    else if (/^\/autoready$/.test(content)) {
+        autoReady = !autoReady;
+        saveSettings();
+        sendNexusSystemMessage("auto ready " + (autoReady ? "enabled" : "disabled"));
+        checkAutoReady();
+    }
+    else if (/^\/autostart$/.test(content)) {
+        autoStart = !autoStart;
+        sendNexusSystemMessage("auto start game " + (autoStart ? "enabled" : "disabled"));
+        checkAutoStart();
+    }
+    else if (/^\/autohost$/.test(content)) {
+        autoHost = "";
+        sendNexusSystemMessage("auto host disabled");
+    }
+    else if (/^\/autohost \S+$/.test(content)) {
+        autoHost = /^\S+ (\S+)$/.exec(content)[1].toLowerCase();
+        sendNexusSystemMessage("auto hosting " + autoHost);
+        checkAutoHost();
+    }
+    else if (/^\/autoinvite$/.test(content)) {
+        autoInvite = "";
+        sendNexusSystemMessage("auto invite disabled");
+    }
+    else if (/^\/autoinvite \w+$/.test(content)) {
+        autoInvite = /^\S+ (\w+)$/.exec(content)[1].toLowerCase();
+        sendNexusSystemMessage("auto inviting " + autoInvite);
+    }
+    else if (/^\/autoaccept$/.test(content)) {
+        autoAcceptInvite = !autoAcceptInvite;
+        saveSettings();
+        sendNexusSystemMessage("auto accept invite " + (autoAcceptInvite ? "enabled" : "disabled"));
+    }
+    else if (/^\/autoaccept .+$/.test(content)) {
+        autoAcceptInvite = /^\S+ (.+)$/.exec(content)[1].split(",").map((x) => x.trim().toLowerCase()).filter((x) => !!x);
+        saveSettings();
+        sendNexusSystemMessage("auto accept invite only from " + autoAcceptInvite.join(", "));
+    }
+    else if (/^\/autojoin$/.test(content)) {
+        if (autoJoinRoom || isSoloMode() || isRankedMode()) {
+            autoJoinRoom = false;
+            saveSettings();
+            sendNexusSystemMessage("auto join room disabled");
+        }
+        else if (lobby.inLobby) {
+            let password = hostModal.getSettings().password;
+            autoJoinRoom = {id: lobby.gameId, password: password};
+            saveSettings();
+            sendNexusSystemMessage(`auto joining room ${lobby.gameId} ${password}`);
+        }
+        else if (quiz.inQuiz || battleRoyal.inView) {
+            let gameInviteListener = new Listener("game invite", (payload) => {
+                if (payload.sender === selfName) {
+                    gameInviteListener.unbindListener();
+                    let password = hostModal.getSettings().password;
+                    autoJoinRoom = {id: payload.gameId, password: password};
+                    saveSettings();
+                    sendNexusSystemMessage(`auto joining room ${payload.gameId} ${password}`);
+                }
+            });
+            gameInviteListener.bindListener();
+            socket.sendCommand({ type: "social", command: "invite to game", data: { target: selfName } });
+        }
+        else {
+            autoJoinRoom = false;
+            saveSettings();
+            sendNexusSystemMessage("auto join room disabled");
+        }
+    }
+    else if (/^\/autojoin [0-9]+/.test(content)) {
+        let id = parseInt(/^\S+ ([0-9]+)/.exec(content)[1]);
+        let password = /^\S+ [0-9]+ (.+)$/.exec(content)[1];
+        autoJoinRoom = {id: id, password: password ? password : ""};
+        saveSettings();
+        sendNexusSystemMessage(`auto joining room ${id} ${password}`);
+    }
+    else if (/^\/autoswitch$/.test(content)) {
+        autoSwitch = "";
+        sendNexusSystemMessage("auto switch disabled");
+    }
+    else if (/^\/autoswitch (p|s)/.test(content)) {
+        let option = /^\S+ (p|s)/.exec(content)[1];
+        if (option === "p") autoSwitch = "player";
+        else if (option === "s") autoSwitch = "spectator";
+        sendNexusSystemMessage("auto switching to " + autoSwitch);
+        checkAutoSwitch();
+    }
+    else if (/^\/autolobby$/.test(content)) {
+        autoVoteLobby = !autoVoteLobby;
+        saveSettings();
+        sendNexusSystemMessage("auto vote lobby " + (autoVoteLobby ? "enabled" : "disabled"));
+    }
+    else if (/^\/autostatus$/.test(content)) {
+        autoStatus = "";
+        saveSettings();
+        sendNexusSystemMessage("auto status removed");
+    }
+    else if (/^\/autostatus .+$/.test(content)) {
+        let option = /^\S+ (.+)$/.exec(content)[1];
+        if (option === "away" || option === "do not disturb" || option === "invisible") {
+            autoStatus = option;
+            saveSettings();
+            sendNexusSystemMessage("auto status set to " + autoStatus);
+        }
+        else {
+            sendNexusSystemMessage("Options: away, do not disturb, invisible");
+        }
+    }
     else if (/^\/(inv|invite) \w+$/.test(content)) {
         let name = getPlayerNameCorrectCase(/^\S+ (\w+)$/.exec(content)[1]);
         socket.sendCommand({ type: "social", command: "invite to game", data: { target: name } });
@@ -1102,18 +1272,6 @@ function parseNexusChat(message) {
         });
         handleAllOnlineMessage.bindListener();
         socket.sendCommand({ type: "social", command: "get online users" });
-    }
-    else if (/^\/(roomid|lobbyid)$/.test(content)) {
-        if (Object.keys(nexusCoopChat.playerMap).length) {
-            let gameInviteListener = new Listener("nexus game invite", (payload) => {
-                if (payload.sender === selfName) {
-                    gameInviteListener.unbindListener();
-                    sendNexusChatMessage(payload.lobbyId);
-                }
-            });
-            gameInviteListener.bindListener();
-            socket.sendCommand({ type: "social", command: "invite to game", data: { target: selfName } });
-        }
     }
     else if (/^\/version$/.test(content)) {
         sendNexusChatMessage("Mega Commands version " + version);
@@ -1308,7 +1466,7 @@ function parseDM(message) {
             sendSystemMessage("auto status set to " + autoStatus);
         }
         else {
-            sendSystemMessage("Available options: away, do not disturb, invisible");
+            sendSystemMessage("Options: away, do not disturb, invisible");
         }
     }
     else if (/^\/(dm|pm)$/.test(content)) {
@@ -1900,6 +2058,11 @@ function sendNexusChatMessage(message) {
         command: "coop chat message",
         data: { message: String(message) }
     });
+}
+
+// send a client side message to game chat
+function sendNexusSystemMessage(message) {
+    setTimeout(() => { nexusCoopChat.displayServerMessage({message: String(message)}) }, 1);
 }
 
 // send a private message
