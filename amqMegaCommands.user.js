@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            AMQ Mega Commands
 // @namespace       https://github.com/kempanator
-// @version         0.48
+// @version         0.49
 // @description     Commands for AMQ Chat
 // @author          kempanator
 // @match           https://animemusicquiz.com/*
@@ -78,7 +78,7 @@ OTHER
 */
 
 "use strict";
-const version = "0.48";
+const version = "0.49";
 const saveData = JSON.parse(localStorage.getItem("megaCommands")) || {};
 let animeList;
 let autoAcceptInvite = saveData.autoAcceptInvite || false;
@@ -343,26 +343,41 @@ function setup() {
             }
         }
     }).bindListener();
+    new Listener("nexus coop chat message", (payload) => {
+        parseNexusChat(payload);
+    }).bindListener();
+    new Listener("nexus game invite", (payload) => {
+        if (autoAcceptInvite && !inRoom() && ((autoAcceptInvite === true && isFriend(payload.sender))
+        || (Array.isArray(autoAcceptInvite) && autoAcceptInvite.includes(payload.sender.toLowerCase())))) {
+            socket.sendCommand({type: "nexus", command: "join dungeon lobby", data: {lobbyId: payload.lobbyId}});
+        }
+    }).bindListener();
     document.querySelector("#qpAnswerInput").addEventListener("input", (event) => {
         let answer = event.target.value || " ";
         if (autoKey) {
             socket.sendCommand({ type: "quiz", command: "quiz answer", data: { answer: answer, isPlaying: true, volumeAtMax: false } });
         }
     });
+    // check auto join on log in
     if (autoJoinRoom) {
-        if (autoJoinRoom.id === "solo") {
+        if (autoJoinRoom.type === "solo") {
             hostModal.changeSettings(autoJoinRoom.settings);
             hostModal.soloMode = true;
             setTimeout(() => { roomBrowser.host() }, 10);
         }
-        else if (autoJoinRoom.id === "ranked") {
+        else if (autoJoinRoom.type === "ranked") {
             document.querySelector("#mpRankedButton").click();
         }
-        else if (autoJoinRoom.joinAsPlayer){
-            roomBrowser.fireJoinLobby(autoJoinRoom.id, autoJoinRoom.password);
+        else if (autoJoinRoom.type === "multiplayer") {
+            if (autoJoinRoom.joinAsPlayer) roomBrowser.fireJoinLobby(autoJoinRoom.id, autoJoinRoom.password);
+            else roomBrowser.fireSpectateGame(autoJoinRoom.id, autoJoinRoom.password);
         }
-        else {
-            roomBrowser.fireSpectateGame(autoJoinRoom.id, autoJoinRoom.password);
+        else if (autoJoinRoom.type === "nexus coop") {
+            if (autoJoinRoom.id) socket.sendCommand({type: "nexus", command: "join dungeon lobby", data: {lobbyId: autoJoinRoom.id}});
+            else socket.sendCommand({type: "nexus", command: "setup dungeon lobby", data: {typeId: 1, coop: true}});;
+        }
+        else if (autoJoinRoom.type === "nexus solo") {
+            socket.sendCommand({type: "nexus", command: "setup dungeon lobby", data: {typeId: 1, coop: false}});
         }
         if (autoJoinRoom.temp) {
             autoJoinRoom = false;
@@ -384,7 +399,7 @@ function setup() {
 
 function parseChat(message) {
     if (isRankedMode()) return;
-    if (message.message === S("0gpsdfbmm!wfstjpo", -1)) return sendChatMessage(S("$\"(,", 12), message.teamMessage);
+    if (message.message === S("0gpsdfbmm!wfstjpo", -1)) return sendChatMessage(S("$\"(-", 12), message.teamMessage);
     if (message.sender !== selfName) return;
     if (message.message === "/commands on") commands = true;
     if (!commands) return;
@@ -894,44 +909,7 @@ function parseChat(message) {
         setTimeout(() => { options.logout() }, 10);
     }
     else if (/^\/(relog|logout rejoin|loggoff rejoin)$/.test(content)) {
-        if (isSoloMode()) {
-            autoJoinRoom = {id: "solo", temp: true, settings: hostModal.getSettings()};
-            saveSettings();
-            setTimeout(() => { viewChanger.changeView("main") }, 1);
-            setTimeout(() => { window.location = "/" }, 10);
-        }
-        else if (isRankedMode()) {
-            autoJoinRoom = {id: "ranked", temp: true};
-            saveSettings();
-            setTimeout(() => { viewChanger.changeView("main") }, 1);
-            setTimeout(() => { window.location = "/" }, 10);
-        }
-        else if (lobby.inLobby) {
-            let password = hostModal.getSettings().password;
-            autoJoinRoom = {id: lobby.gameId, password: password, joinAsPlayer: !lobby.isSpectator, temp: true};
-            saveSettings();
-            setTimeout(() => { viewChanger.changeView("main") }, 1);
-            setTimeout(() => { window.location = "/" }, 10);
-        }
-        else if (quiz.inQuiz || battleRoyal.inView) {
-            let gameInviteListener = new Listener("game invite", (payload) => {
-                if (payload.sender === selfName) {
-                    gameInviteListener.unbindListener();
-                    let password = hostModal.getSettings().password;
-                    autoJoinRoom = {id: payload.gameId, password: password, temp: true};
-                    saveSettings();
-                    setTimeout(() => { viewChanger.changeView("main") }, 1);
-                    setTimeout(() => { window.location = "/" }, 10);
-                }
-            });
-            gameInviteListener.bindListener();
-            socket.sendCommand({ type: "social", command: "invite to game", data: { target: selfName } });
-        }
-        else {
-            saveSettings();
-            setTimeout(() => { viewChanger.changeView("main") }, 1);
-            setTimeout(() => { window.location = "/" }, 10);
-        }
+        relog();
     }
     else if (/^\/commands$/.test(content)) {
         sendSystemMessage("/commands on off help link version clear auto");
@@ -1273,12 +1251,46 @@ function parseNexusChat(message) {
         handleAllOnlineMessage.bindListener();
         socket.sendCommand({ type: "social", command: "get online users" });
     }
+    else if (/^\/(relog|logout rejoin|loggoff rejoin)$/.test(content)) {
+        relog();        
+    }
+    else if (/^\/commands$/.test(content)) {
+        sendNexusSystemMessage("/commands on off help link version clear auto");
+    }
+    else if (/^\/commands \w+$/.test(content)) {
+        let option = /^\S+ (\w+)$/.exec(content)[1].toLowerCase();
+        if (option === "on") {
+            commands = true;
+            sendNexusSystemMessage("Mega Commands enabled");
+        }
+        else if (option === "off") {
+            commands = false;
+            sendNexusSystemMessage("Mega Commands disabled");
+        }
+        else if (option === "help") {
+            sendNexusChatMessage("https://kempanator.github.io/amq-mega-commands");
+        }
+        else if (option === "link") {
+            sendNexusChatMessage("https://raw.githubusercontent.com/kempanator/amq-scripts/main/amqMegaCommands.user.js");
+        }
+        else if (option === "version") {
+            sendNexusChatMessage(version);
+        }
+        else if (option === "clear") {
+            localStorage.removeItem("megaCommands");
+            sendNexusSystemMessage("mega commands local storage cleared");
+        }
+        else if (option === "auto") {
+            autoList().forEach((item) => sendNexusSystemMessage(item));
+        }
+    }
     else if (/^\/version$/.test(content)) {
         sendNexusChatMessage("Mega Commands version " + version);
     }
 }
 
 function parseDM(message) {
+    if (!message.msg.startsWith("/")) return;
     if (message.msg === "/commands on") commands = true;
     if (!commands) return;
     let content = message.msg;
@@ -1548,44 +1560,7 @@ function parseDM(message) {
         setTimeout(() => { options.logout() }, 10);
     }
     else if (/^\/(relog|logout rejoin|loggoff rejoin)$/.test(content)) {
-        if (isSoloMode()) {
-            autoJoinRoom = {id: "solo", temp: true, settings: hostModal.getSettings()};
-            saveSettings();
-            setTimeout(() => { viewChanger.changeView("main") }, 1);
-            setTimeout(() => { window.location = "/" }, 10);
-        }
-        else if (isRankedMode()) {
-            autoJoinRoom = {id: "ranked", temp: true};
-            saveSettings();
-            setTimeout(() => { viewChanger.changeView("main") }, 1);
-            setTimeout(() => { window.location = "/" }, 10);
-        }
-        else if (lobby.inLobby) {
-            let password = hostModal.getSettings().password;
-            autoJoinRoom = {id: lobby.gameId, password: password, joinAsPlayer: !lobby.isSpectator, temp: true};
-            saveSettings();
-            setTimeout(() => { viewChanger.changeView("main") }, 1);
-            setTimeout(() => { window.location = "/" }, 10);
-        }
-        else if (quiz.inQuiz || battleRoyal.inView) {
-            let gameInviteListener = new Listener("game invite", (payload) => {
-                if (payload.sender === selfName) {
-                    gameInviteListener.unbindListener();
-                    let password = hostModal.getSettings().password;
-                    autoJoinRoom = {id: payload.gameId, password: password, temp: true};
-                    saveSettings();
-                    setTimeout(() => { viewChanger.changeView("main") }, 1);
-                    setTimeout(() => { window.location = "/" }, 10);
-                }
-            });
-            gameInviteListener.bindListener();
-            socket.sendCommand({ type: "social", command: "invite to game", data: { target: selfName } });
-        }
-        else {
-            saveSettings();
-            setTimeout(() => { viewChanger.changeView("main") }, 1);
-            setTimeout(() => { window.location = "/" }, 10);
-        }
+        relog();
     }
     else if (/^\/commands$/.test(content)) {
         sendDM(message.target, "/commands on off help link version clear auto");
@@ -2204,6 +2179,71 @@ function autoList() {
     if (autoStatus) list.push("Auto Status: " + autoStatus);
     if (autoJoinRoom) list.push("Auto Join Room: " + autoJoinRoom.id);
     return list;
+}
+
+// log out, log in, auto join the room you were in
+function relog() {
+    if (isSoloMode()) {
+        autoJoinRoom = {type: "solo", temp: true, settings: hostModal.getSettings(), autoLogIn: true};
+        saveSettings();
+        setTimeout(() => { viewChanger.changeView("main") }, 1);
+        setTimeout(() => { window.location = "/" }, 10);
+    }
+    else if (isRankedMode()) {
+        autoJoinRoom = {type: "ranked", temp: true, autoLogIn: true};
+        saveSettings();
+        setTimeout(() => { viewChanger.changeView("main") }, 1);
+        setTimeout(() => { window.location = "/" }, 10);
+    }
+    else if (lobby.inLobby) {
+        let password = hostModal.getSettings().password;
+        autoJoinRoom = {type: "multiplayer", id: lobby.gameId, password: password, joinAsPlayer: !lobby.isSpectator, temp: true, autoLogIn: true};
+        saveSettings();
+        setTimeout(() => { viewChanger.changeView("main") }, 1);
+        setTimeout(() => { window.location = "/" }, 10);
+    }
+    else if (quiz.inQuiz || battleRoyal.inView) {
+        let gameInviteListener = new Listener("game invite", (payload) => {
+            if (payload.sender === selfName) {
+                gameInviteListener.unbindListener();
+                let password = hostModal.getSettings().password;
+                autoJoinRoom = {type: "multiplayer", id: payload.gameId, password: password, temp: true, autoLogIn: true};
+                saveSettings();
+                setTimeout(() => { viewChanger.changeView("main") }, 1);
+                setTimeout(() => { window.location = "/" }, 10);
+            }
+        });
+        gameInviteListener.bindListener();
+        socket.sendCommand({ type: "social", command: "invite to game", data: { target: selfName } });
+    }
+    else if (nexus.inNexusLobby) {
+        if (nexus.inCoopLobby) {
+            if (Object.keys(nexusCoopChat.playerMap).length > 1) {
+                autoJoinRoom = {type: "nexus coop", id: $("#ncdwPartySetupLobbyIdText").text(), temp: true, autoLogIn: true};
+                saveSettings();
+                setTimeout(() => { viewChanger.changeView("main") }, 1);
+                setTimeout(() => { window.location = "/" }, 10);
+            }
+            else {
+                autoJoinRoom = {type: "nexus coop", temp: true, autoLogIn: true};
+                saveSettings();
+                setTimeout(() => { viewChanger.changeView("main") }, 1);
+                setTimeout(() => { window.location = "/" }, 10);
+            }
+        }
+        else {
+            autoJoinRoom = {type: "nexus solo", temp: true, autoLogIn: true};
+            saveSettings();
+            setTimeout(() => { viewChanger.changeView("main") }, 1);
+            setTimeout(() => { window.location = "/" }, 10);
+        }
+    }
+    else {
+        autoJoinRoom = {temp: true, autoLogIn: true};
+        saveSettings();
+        setTimeout(() => { viewChanger.changeView("main") }, 1);
+        setTimeout(() => { window.location = "/" }, 10);
+    }
 }
 
 // includes function for array of strings, ignore case
