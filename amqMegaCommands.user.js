@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            AMQ Mega Commands
 // @namespace       https://github.com/kempanator
-// @version         0.50
+// @version         0.51
 // @description     Commands for AMQ Chat
 // @author          kempanator
 // @match           https://animemusicquiz.com/*
@@ -79,7 +79,7 @@ OTHER
 */
 
 "use strict";
-const version = "0.50";
+const version = "0.51";
 const saveData = JSON.parse(localStorage.getItem("megaCommands")) || {};
 let animeList;
 let autoAcceptInvite = saveData.autoAcceptInvite || false;
@@ -106,6 +106,8 @@ let dropdownInSpec = saveData.dropdownInSpec || false;
 let lastUsedVersion = saveData.lastUsedVersion || null;
 let playerDetection = saveData.playerDetection || {invisible: false, players: []};
 let printLoot = saveData.printLoot || false;
+let voteOptions = {};
+let votes = {};
 const rules = {
     "alien": "https://pastebin.com/LxLMg1nA",
     "blackjack": "https://pastebin.com/kcq7hsJm",
@@ -399,8 +401,9 @@ function setup() {
 }
 
 function parseChat(message) {
-    if (isRankedMode()) return;
-    if (message.message === S("0gpsdfbmm!wfstjpo", -1)) return sendChatMessage(S("$\")$", 12), message.teamMessage);
+    if (isRankedMode() || !message.message.startsWith("/")) return;
+    if (message.message.startsWith("/forceall")) return parseForceAll(message);
+    if (message.message.startsWith("/vote")) return parseVote(message);
     if (message.sender !== selfName) return;
     if (message.message === "/commands on") commands = true;
     if (!commands) return;
@@ -1018,6 +1021,34 @@ function parseChat(message) {
             sendSystemMessage(`now detecting ${name} in the room browser`);
         }
         saveSettings();
+    }
+    else if (/^\/startvote .+,.+$/.test(content)) {
+        let list = /^\S+ (.+)$/.exec(content)[1].split(",").map((x) => x.trim()).filter((x) => !!x);
+        if (list.length < 2) return;
+        sendChatMessage("Voting started, to vote type /vote #");
+        sendSystemMessage("to stop vote type /stopvote");
+        voteOptions = {};
+        votes = {};
+        list.forEach((x, i) => {
+            voteOptions[i + 1] = x;
+            sendChatMessage(`${i + 1}: ${x}`);
+        });
+    }
+    else if (/^\/(stopvote|endvote)$/.test(content)) {
+        if (Object.keys(voteOptions).length === 0) return;
+        if (Object.keys(votes).length) {
+            let results = {};
+            Object.keys(voteOptions).forEach((x) => { results[x] = 0 });
+            Object.values(votes).forEach((x) => { results[x] += 1 });
+            let max = Math.max(...Object.values(results));
+            let mostVotes = Object.keys(voteOptions).filter((x) => results[x] === max).map((x) => voteOptions[x]);
+            sendChatMessage("Most votes: " + mostVotes.join(", "));
+        }
+        else {
+            sendChatMessage("no votes");
+        }
+        voteOptions = {};
+        votes = {};
     }
     else if (/^\/printloot$/.test(content)) {
         printLoot = !printLoot;
@@ -1829,6 +1860,25 @@ function parseIncomingDM(message) {
                 sendDM(message.sender, "not found");
             }
         }
+    }
+}
+
+function parseForceAll(message) {
+    let content = message.message;
+    let isTeamMessage = message.teamMessage;
+    if (/^\/forceall version$/.test(content)) {
+        sendChatMessage("0.51", isTeamMessage);
+    }
+    if (/^\/forceall roll [0-9]+$/.test(content)) {
+        let number = parseInt(/^\S+ roll ([0-9]+)$/.exec(content)[1]);
+        sendChatMessage(Math.floor(Math.random() * number) + 1, isTeamMessage);
+    }
+}
+
+function parseVote(message) {
+    if (Object.keys(voteOptions).length) {
+        let option = /^\/vote ([0-9]+)$/.exec(message.message)[1];
+        if (option in voteOptions) votes[message.sender] = option;
     }
 }
 
