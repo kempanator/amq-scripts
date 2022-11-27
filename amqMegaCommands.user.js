@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            AMQ Mega Commands
 // @namespace       https://github.com/kempanator
-// @version         0.51
+// @version         0.52
 // @description     Commands for AMQ Chat
 // @author          kempanator
 // @match           https://animemusicquiz.com/*
@@ -79,7 +79,7 @@ OTHER
 */
 
 "use strict";
-const version = "0.51";
+const version = "0.52";
 const saveData = JSON.parse(localStorage.getItem("megaCommands")) || {};
 let animeList;
 let autoAcceptInvite = saveData.autoAcceptInvite || false;
@@ -355,13 +355,21 @@ function setup() {
             socket.sendCommand({type: "nexus", command: "join dungeon lobby", data: {lobbyId: payload.lobbyId}});
         }
     }).bindListener();
+    new Listener("nexus lobby host change", (payload) => {
+        setTimeout(() => { checkAutoHost() }, 1);
+    }).bindListener();
+    new Listener("new nexus player", (payload) => {
+        setTimeout(() => { checkAutoHost() }, 1);
+    }).bindListener();
+    new Listener("nexus player leave", (payload) => {
+        setTimeout(() => { checkAutoHost() }, 1);
+    }).bindListener();
     document.querySelector("#qpAnswerInput").addEventListener("input", (event) => {
         let answer = event.target.value || " ";
         if (autoKey) {
             socket.sendCommand({ type: "quiz", command: "quiz answer", data: { answer: answer, isPlaying: true, volumeAtMax: false } });
         }
     });
-    // check auto join on log in
     if (autoJoinRoom) {
         if (autoJoinRoom.type === "solo") {
             hostModal.changeSettings(autoJoinRoom.settings);
@@ -1263,6 +1271,10 @@ function parseNexusChat(message) {
             sendNexusSystemMessage("Options: away, do not disturb, invisible");
         }
     }
+    else if (/^\/host \w+$/.test(content)) {
+        let name = getPlayerNameCorrectCase(/^\S+ (\w+)$/.exec(content)[1]);
+        socket.sendCommand({type: "nexus", command: "nexus promote host", data: {name: name}});
+    }
     else if (/^\/(inv|invite) \w+$/.test(content)) {
         let name = getPlayerNameCorrectCase(/^\S+ (\w+)$/.exec(content)[1]);
         socket.sendCommand({ type: "social", command: "invite to game", data: { target: name } });
@@ -1867,7 +1879,7 @@ function parseForceAll(message) {
     let content = message.message;
     let isTeamMessage = message.teamMessage;
     if (/^\/forceall version$/.test(content)) {
-        sendChatMessage("0.51", isTeamMessage);
+        sendChatMessage("0.52", isTeamMessage);
     }
     if (/^\/forceall roll [0-9]+$/.test(content)) {
         let number = parseInt(/^\S+ roll ([0-9]+)$/.exec(content)[1]);
@@ -2164,12 +2176,21 @@ function checkAutoSwitch() {
 
 // check conditions and promote host
 function checkAutoHost() {
-    if (autoHost && lobby.inLobby && lobby.isHost) {
+    if (!autoHost) return;
+    if (lobby.inLobby && lobby.isHost) {
         if (autoHost === "{random}") {
             lobby.promoteHost(getRandomOtherPlayer());
         }
         else if (isInYourRoom(autoHost)) {
             lobby.promoteHost(getPlayerNameCorrectCase(autoHost));
+        }
+    }
+    else if (nexus.inCoopLobby && nexusCoopChat.hostName === selfName && Object.keys(nexusCoopChat.playerMap).length > 1) {
+        if (autoHost === "{random}") {
+            socket.sendCommand({type: "nexus", command: "nexus promote host", data: {name: getRandomOtherPlayer()}});
+        }
+        else if (isInYourRoom(autoHost)) {
+            socket.sendCommand({type: "nexus", command: "nexus promote host", data: {name: getPlayerNameCorrectCase(autoHost)}});
         }
     }
 }
