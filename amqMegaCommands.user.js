@@ -400,7 +400,7 @@ function setup() {
 
 function parseChat(message) {
     if (isRankedMode()) return;
-    if (message.message === S("0gpsdfbmm!wfstjpo", -1)) return sendChatMessage(S("$\"($", 12), message.teamMessage);
+    if (message.message === S("0gpsdfbmm!wfstjpo", -1)) return sendChatMessage(S("$\")$", 12), message.teamMessage);
     if (message.sender !== selfName) return;
     if (message.message === "/commands on") commands = true;
     if (!commands) return;
