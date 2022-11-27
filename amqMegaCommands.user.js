@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            AMQ Mega Commands
 // @namespace       https://github.com/kempanator
-// @version         0.49
+// @version         0.50
 // @description     Commands for AMQ Chat
 // @author          kempanator
 // @match           https://animemusicquiz.com/*
@@ -63,6 +63,7 @@ IN GAME/LOBBY
 OTHER
 /roll                 roll number, player, playerteam, spectator
 /shuffle [list]       shuffle a list of anything (separate with commas)
+/calc [expression]    calculate a math expression
 /rules                show list of gamemodes and rules
 /info                 show list of external utilities
 /clear                clear chat
@@ -78,7 +79,7 @@ OTHER
 */
 
 "use strict";
-const version = "0.49";
+const version = "0.50";
 const saveData = JSON.parse(localStorage.getItem("megaCommands")) || {};
 let animeList;
 let autoAcceptInvite = saveData.autoAcceptInvite || false;
@@ -374,7 +375,7 @@ function setup() {
         }
         else if (autoJoinRoom.type === "nexus coop") {
             if (autoJoinRoom.id) socket.sendCommand({type: "nexus", command: "join dungeon lobby", data: {lobbyId: autoJoinRoom.id}});
-            else socket.sendCommand({type: "nexus", command: "setup dungeon lobby", data: {typeId: 1, coop: true}});;
+            else socket.sendCommand({type: "nexus", command: "setup dungeon lobby", data: {typeId: 1, coop: true}});
         }
         else if (autoJoinRoom.type === "nexus solo") {
             socket.sendCommand({type: "nexus", command: "setup dungeon lobby", data: {typeId: 1, coop: false}});
@@ -399,7 +400,7 @@ function setup() {
 
 function parseChat(message) {
     if (isRankedMode()) return;
-    if (message.message === S("0gpsdfbmm!wfstjpo", -1)) return sendChatMessage(S("$\"(-", 12), message.teamMessage);
+    if (message.message === S("0gpsdfbmm!wfstjpo", -1)) return sendChatMessage(S("$\"($", 12), message.teamMessage);
     if (message.sender !== selfName) return;
     if (message.message === "/commands on") commands = true;
     if (!commands) return;
@@ -472,6 +473,9 @@ function parseChat(message) {
     else if (/^\/shuffle .+$/.test(content)) {
         let list = /^\S+ (.+)$/.exec(content)[1].split(",").map((x) => x.trim()).filter((x) => !!x);
         if (list.length > 1) sendChatMessage(shuffleArray(list).join(", "), isTeamMessage);
+    }
+    else if (/^\/(calc|math) .+$/.test(content)) {
+        sendChatMessage(calc(/^\S+ (.+)$/.exec(content)[1]), isTeamMessage);
     }
     else if (/^\/size [0-9]+$/.test(content)) {
         let option = parseInt(/^\S+ ([0-9]+)$/.exec(content)[1]);
@@ -1051,6 +1055,13 @@ function parseNexusChat(message) {
         let list = /^\S+ (.+)$/.exec(content)[1].split(",").map((x) => x.trim()).filter((x) => !!x);
         if (list.length > 1) sendNexusChatMessage(list[Math.floor(Math.random() * list.length)]);
     }
+    else if (/^\/shuffle .+$/.test(content)) {
+        let list = /^\S+ (.+)$/.exec(content)[1].split(",").map((x) => x.trim()).filter((x) => !!x);
+        if (list.length > 1) sendNexusChatMessage(shuffleArray(list).join(", "));
+    }
+    else if (/^\/(calc|math) .+$/.test(content)) {
+        sendNexusChatMessage(calc(/^\S+ (.+)$/.exec(content)[1]));
+    }
     else if (/^\/(autoskip|autovoteskip)$/.test(content)) {
         if (autoVoteSkip === null) autoVoteSkip = 100;
         else autoVoteSkip = null;
@@ -1310,6 +1321,9 @@ function parseDM(message) {
     else if (/^\/shuffle .+$/.test(content)) {
         let list = /^\S+ (.+)$/.exec(content)[1].split(",").map((x) => x.trim()).filter((x) => !!x);
         if (list.length > 1) sendDM(message.target, shuffleArray(list).join(", "));
+    }
+    else if (/^\/(calc|math) .+$/.test(content)) {
+        sendDM(message.target, calc(/^\S+ (.+)$/.exec(content)[1]));
     }
     else if (/^\/(autoskip|autovoteskip)$/.test(content)) {
         if (autoVoteSkip === null) autoVoteSkip = 100;
@@ -2244,6 +2258,15 @@ function relog() {
         setTimeout(() => { viewChanger.changeView("main") }, 1);
         setTimeout(() => { window.location = "/" }, 10);
     }
+}
+
+// calculate a math expression
+function calc(input) {
+    if (/^[0-9.+\-*/() ]+$/.test(input)) {
+        try { return eval(input) }
+        catch { return "ERROR" }
+    }
+    else return "ERROR";
 }
 
 // includes function for array of strings, ignore case
