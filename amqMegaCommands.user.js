@@ -803,8 +803,8 @@ function parseChat(message) {
         lobby.changeToSpectator(selfName);
     }
     else if (/^\/(spec|spectate) \w+$/.test(content)) {
-        let name = getPlayerNameCorrectCase(/^\S+ (\w+)$/.exec(content)[1]);
-        lobby.changeToSpectator(name);
+        let name = getClosestNameInRoom(/^\S+ (\w+)$/.exec(content)[1]);
+        if (isInYourRoom(name)) lobby.changeToSpectator(getPlayerNameCorrectCase(name));
     }
     else if (/^\/join$/.test(content)) {
         socket.sendCommand({ type: "lobby", command: "change to player" });
@@ -817,8 +817,8 @@ function parseChat(message) {
         if (isInYourRoom(name)) lobby.promoteHost(getPlayerNameCorrectCase(name));
     }
     else if (/^\/kick \w+$/.test(content)) {
-        let name = getPlayerNameCorrectCase(/^\S+ (\w+)$/.exec(content)[1]);
-        socket.sendCommand({ type: "lobby", command: "kick player", data: { playerName: name } });
+        let name = getClosestNameInRoom(/^\S+ (\w+)$/.exec(content)[1]);
+        if (isInYourRoom(name)) socket.sendCommand({ type: "lobby", command: "kick player", data: { playerName: getPlayerNameCorrectCase(name) } });
     }
     else if (/^\/(lb|lobby|returntolobby)$/.test(content)) {
         quiz.startReturnLobbyVote();
@@ -1776,8 +1776,8 @@ function parseDM(message) {
             lobby.changeToSpectator(selfName);
         }
         else if (/^\/(spec|spectate) \w+$/.test(content)) {
-            let name = getPlayerNameCorrectCase(/^\S+ (\w+)$/.exec(content)[1]);
-            lobby.changeToSpectator(name);
+            let name = getClosestNameInRoom(/^\S+ (\w+)$/.exec(content)[1]);
+            if (isInYourRoom(name)) lobby.changeToSpectator(getPlayerNameCorrectCase(name));
         }
         else if (/^\/join$/.test(content)) {
             socket.sendCommand({ type: "lobby", command: "change to player" });
@@ -1790,8 +1790,8 @@ function parseDM(message) {
             if (isInYourRoom(name)) lobby.promoteHost(getPlayerNameCorrectCase(name));
         }
         else if (/^\/kick \w+$/.test(content)) {
-            let name = getPlayerNameCorrectCase(/^\S+ (\w+)$/.exec(content)[1]);
-            socket.sendCommand({ type: "lobby", command: "kick player", data: { playerName: name } });
+            let name = getClosestNameInRoom(/^\S+ (\w+)$/.exec(content)[1]);
+            if (isInYourRoom(name)) socket.sendCommand({ type: "lobby", command: "kick player", data: { playerName: getPlayerNameCorrectCase(name) } });
         }
         else if (/^\/(lb|lobby|returntolobby)$/.test(content)) {
             socket.sendCommand({ type: "quiz", command: "start return lobby vote" });
