@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            AMQ Mega Commands
 // @namespace       https://github.com/kempanator
-// @version         0.52
+// @version         0.53
 // @description     Commands for AMQ Chat
 // @author          kempanator
 // @match           https://animemusicquiz.com/*
@@ -79,7 +79,7 @@ OTHER
 */
 
 "use strict";
-const version = "0.52";
+const version = "0.53";
 const saveData = JSON.parse(localStorage.getItem("megaCommands")) || {};
 let animeList;
 let autoAcceptInvite = saveData.autoAcceptInvite || false;
@@ -662,11 +662,11 @@ function parseChat(message) {
         sendSystemMessage("auto start game " + (autoStart ? "enabled" : "disabled"));
         checkAutoStart();
     }
-    else if (/^\/autohost$/.test(content)) {
+    else if (/^\/(ah|autohost)$/.test(content)) {
         autoHost = "";
         sendSystemMessage("auto host disabled");
     }
-    else if (/^\/autohost \S+$/.test(content)) {
+    else if (/^\/(ah|autohost) \S+$/.test(content)) {
         autoHost = /^\S+ (\S+)$/.exec(content)[1].toLowerCase();
         sendSystemMessage("auto hosting " + autoHost);
         checkAutoHost();
@@ -813,8 +813,8 @@ function parseChat(message) {
         gameChat.joinLeaveQueue();
     }
     else if (/^\/host \w+$/.test(content)) {
-        let name = getPlayerNameCorrectCase(/^\S+ (\w+)$/.exec(content)[1]);
-        lobby.promoteHost(name);
+        let name = getClosestNameInRoom(/^\S+ (\w+)$/.exec(content)[1]);
+        if (isInYourRoom(name)) lobby.promoteHost(getPlayerNameCorrectCase(name));
     }
     else if (/^\/kick \w+$/.test(content)) {
         let name = getPlayerNameCorrectCase(/^\S+ (\w+)$/.exec(content)[1]);
@@ -1174,11 +1174,11 @@ function parseNexusChat(message) {
         sendNexusSystemMessage("auto start game " + (autoStart ? "enabled" : "disabled"));
         checkAutoStart();
     }
-    else if (/^\/autohost$/.test(content)) {
+    else if (/^\/(ah|autohost)$/.test(content)) {
         autoHost = "";
         sendNexusSystemMessage("auto host disabled");
     }
-    else if (/^\/autohost \S+$/.test(content)) {
+    else if (/^\/(ah|autohost) \S+$/.test(content)) {
         autoHost = /^\S+ (\S+)$/.exec(content)[1].toLowerCase();
         sendNexusSystemMessage("auto hosting " + autoHost);
         checkAutoHost();
@@ -1272,8 +1272,8 @@ function parseNexusChat(message) {
         }
     }
     else if (/^\/host \w+$/.test(content)) {
-        let name = getPlayerNameCorrectCase(/^\S+ (\w+)$/.exec(content)[1]);
-        socket.sendCommand({type: "nexus", command: "nexus promote host", data: {name: name}});
+        let name = getClosestNameInRoom(/^\S+ (\w+)$/.exec(content)[1]);
+        if (isInYourRoom(name)) socket.sendCommand({type: "nexus", command: "nexus promote host", data: {name: getPlayerNameCorrectCase(name)}});
     }
     else if (/^\/(inv|invite) \w+$/.test(content)) {
         let name = getPlayerNameCorrectCase(/^\S+ (\w+)$/.exec(content)[1]);
@@ -1441,11 +1441,11 @@ function parseDM(message) {
         sendSystemMessage("auto start game " + (autoStart ? "enabled" : "disabled"));
         checkAutoStart();
     }
-    else if (/^\/autohost$/.test(content)) {
+    else if (/^\/(ah|autohost)$/.test(content)) {
         autoHost = "";
         sendSystemMessage("auto host disabled");
     }
-    else if (/^\/autohost \S+$/.test(content)) {
+    else if (/^\/(ah|autohost) \S+$/.test(content)) {
         autoHost = /^\S+ (\S+)$/.exec(content)[1].toLowerCase();
         sendSystemMessage("auto hosting " + autoHost);
         checkAutoHost();
@@ -1786,8 +1786,8 @@ function parseDM(message) {
             gameChat.joinLeaveQueue();
         }
         else if (/^\/host \w+$/.test(content)) {
-            let name = getPlayerNameCorrectCase(/^\S+ (\w+)$/.exec(content)[1]);
-            lobby.promoteHost(name);
+            let name = getClosestNameInRoom(/^\S+ (\w+)$/.exec(content)[1]);
+            if (isInYourRoom(name)) lobby.promoteHost(getPlayerNameCorrectCase(name));
         }
         else if (/^\/kick \w+$/.test(content)) {
             let name = getPlayerNameCorrectCase(/^\S+ (\w+)$/.exec(content)[1]);
@@ -1825,10 +1825,7 @@ function parseIncomingDM(message) {
     if (commands && message.message.startsWith("/")) {
         let content = message.message;
         if (isFriend(message.sender)) {
-            if (/^\/forceversion$/.test(content)) {
-                sendDM(message.sender, version);
-            }
-            else if (/^\/forceready$/.test(content) && lobby.inLobby && !lobby.isHost && !lobby.isSpectator && lobby.settings.gameMode !== "Ranked") {
+            if (/^\/forceready$/.test(content) && lobby.inLobby && !lobby.isHost && !lobby.isSpectator && lobby.settings.gameMode !== "Ranked") {
                 lobby.fireMainButtonEvent();
             }
             else if (/^\/forceinvite$/.test(content) && inRoom()) {
@@ -1847,7 +1844,10 @@ function parseIncomingDM(message) {
                 autoList().forEach((text, i) => setTimeout(() => { sendDM(message.sender, text) }, i * 200));
             }
         }
-        if (/^\/whereis \w+$/.test(content)) {
+        if (/^\/forceversion$/.test(content)) {
+            sendDM(message.sender, version);
+        }
+        else if (/^\/whereis \w+$/.test(content)) {
             if (Object.keys(roomBrowser.activeRooms).length === 0) return;
             let name = /^\S+ (\w+)$/.exec(content)[1].toLowerCase();
             let foundRoom;
@@ -1879,7 +1879,7 @@ function parseForceAll(message) {
     let content = message.message;
     let isTeamMessage = message.teamMessage;
     if (/^\/forceall version$/.test(content)) {
-        sendChatMessage("0.52", isTeamMessage);
+        sendChatMessage("0.53", isTeamMessage);
     }
     if (/^\/forceall roll [0-9]+$/.test(content)) {
         let number = parseInt(/^\S+ roll ([0-9]+)$/.exec(content)[1]);
