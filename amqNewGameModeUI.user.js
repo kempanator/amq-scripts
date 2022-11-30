@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            AMQ New Game Mode UI
 // @namespace       https://github.com/kempanator
-// @version         0.5
+// @version         0.6
 // @description     Adds a user interface to new game mode to keep track of guesses
 // @author          kempanator
 // @match           https://animemusicquiz.com/*
@@ -21,6 +21,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
+const version = "0.6";
 let ngmWindow;
 let numGuesses = 5;
 let guessCounter = [];
@@ -43,6 +44,18 @@ $("#qpOptionContainer > div").append($(`<div id="qpNGM" class="clickAble qpOptio
 );
 
 function setup() {
+    new Listener("game chat update", (payload) => {
+        for (let message of payload.messages) {
+            if (message.sender === selfName && message.message === "/version") {
+                setTimeout(() => { gameChat.systemMessage("New Game Mode UI - " + version) }, 1);
+            }
+        }
+    }).bindListener();
+    new Listener("Game Chat Message", (payload) => {
+        if (payload.sender === selfName && payload.message === "/version") {
+            setTimeout(() => { gameChat.systemMessage("New Game Mode UI - " + version) }, 1);
+        }
+    }).bindListener();
     new Listener("Game Starting", (payload) => {
         setTimeout(() => { updateWindow() }, 10);
 	}).bindListener();
