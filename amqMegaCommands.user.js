@@ -1243,9 +1243,12 @@ function parseForceAll(content, type) {
     if (/^\/forceall version$/.test(content)) {
         sendMessage(version, type);
     }
-    if (/^\/forceall roll [0-9]+$/.test(content)) {
+    else if (/^\/forceall roll [0-9]+$/.test(content)) {
         let number = parseInt(/^\S+ roll ([0-9]+)$/.exec(content)[1]);
         sendMessage(Math.floor(Math.random() * number) + 1, type);
+    }
+    else if (/^\/forceall mutestatus$/.test(content)) {
+        sendMessage(volumeController.muted ? "🔇" : "🔉 " + Math.round(volumeController.volume * 100) + "%", type);
     }
 }
 
