@@ -70,7 +70,7 @@ OTHER
 /dm [name] [text]     direct message a player
 /profile [name]       show profile window of any player
 /password             reveal private room password
-/invisible            show invisible friends (this command might be broken)
+/invisible            show invisible friends
 /background [url]     change the background
 /logout               log out
 /relog                log out, log in, and auto join the room you were in
@@ -1229,7 +1229,7 @@ function parseIncomingDM(content, sender) {
             if (roomId in roomBrowser.activeRooms) {
                 let room = roomBrowser.activeRooms[roomId];
                 setTimeout(() => sendMessage(`${room._private ? "private" : "public"} room: ${room.roomName}`, "dm", sender), 100);
-                setTimeout(() => sendMessage(`host: ${room.host}, players: ${room._numberOfPlayers}, spectators: ${room._numberOfSpectators}`, "dm", sender), 200);
+                setTimeout(() => sendMessage(`host: ${room.host}, players: ${room._numberOfPlayers}, spectators: ${room._numberOfSpectators}`, "dm", sender), 300);
             }
             else {
                 sendMessage("not found", "dm", sender);
@@ -1241,7 +1241,7 @@ function parseIncomingDM(content, sender) {
 // parse force all command
 function parseForceAll(content, type) {
     if (/^\/forceall version$/.test(content)) {
-        sendMessage(version, type);
+        sendMessage("0.54", type);
     }
     else if (/^\/forceall roll [0-9]+$/.test(content)) {
         let number = parseInt(/^\S+ roll ([0-9]+)$/.exec(content)[1]);
@@ -1273,28 +1273,16 @@ function sendMessage(content, type, target, sys) {
         setTimeout(() => { socket.sendCommand({type: "social", command: "chat message", data: {target: target, message: content}}) }, 100);
     }
     else if (type === "chat") {
-        if (sys) {
-            setTimeout(() => { gameChat.systemMessage(content) }, 1);
-        }
-        else {
-            socket.sendCommand({type: "lobby", command: "game chat message", data: { msg: content, teamMessage: false }});
-        }
+        if (sys) setTimeout(() => { gameChat.systemMessage(content) }, 1);
+        else socket.sendCommand({type: "lobby", command: "game chat message", data: { msg: content, teamMessage: false }});
     }
     else if (type === "teamchat") {
-        if (sys) {
-            setTimeout(() => { gameChat.systemMessage(content) }, 1);
-        }
-        else {
-            socket.sendCommand({type: "lobby", command: "game chat message", data: { msg: content, teamMessage: true }});
-        }
+        if (sys) setTimeout(() => { gameChat.systemMessage(content) }, 1);
+        else socket.sendCommand({type: "lobby", command: "game chat message", data: { msg: content, teamMessage: true }});
     }
     else if (type === "nexus") {
-        if (sys) {
-            setTimeout(() => { nexusCoopChat.displayServerMessage({message: content}) }, 1);
-        }
-        else {
-            socket.sendCommand({type: "nexus", command: "coop chat message", data: {message: content}});
-        }
+        if (sys) setTimeout(() => { nexusCoopChat.displayServerMessage({message: content}) }, 1);
+        else socket.sendCommand({type: "nexus", command: "coop chat message", data: {message: content}});
     }
 }
 
