@@ -140,11 +140,12 @@ const info = {
 };
 
 if (document.querySelector("#startPage")) {
-    if (autoJoinRoom && document.querySelector(".loginMainForm h1").innerText === "Account Already Online") {
+    if (autoJoinRoom.autoLogIn && document.querySelector(".loginMainForm h1").innerText === "Account Already Online") {
         setTimeout(() => { document.querySelector(".loginMainForm a").click() }, 100);
     }
     return;
 }
+
 let loadInterval = setInterval(() => {
     if (document.querySelector("#loadingScreen").classList.contains("hidden")) {
         setup();
