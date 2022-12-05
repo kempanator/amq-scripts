@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            AMQ Mega Commands
 // @namespace       https://github.com/kempanator
-// @version         0.54
+// @version         0.55
 // @description     Commands for AMQ Chat
 // @author          kempanator
 // @match           https://animemusicquiz.com/*
@@ -61,8 +61,10 @@ IN GAME/LOBBY
 /dropdownspec         enable drop down while spectating
 
 OTHER
-/roll                 roll number, player, playerteam, spectator
+/roll                 roll number, player, teammate, playerteam, spectator
 /shuffle [list]       shuffle a list of anything (separate with commas)
+/startvote [list]     start a vote with a list of options (separate with commas)
+/stopvote             stop the vote and print results
 /calc [expression]    calculate a math expression
 /rules                show list of gamemodes and rules
 /info                 show list of external utilities
@@ -79,7 +81,7 @@ OTHER
 */
 
 "use strict";
-const version = "0.54";
+const version = "0.55";
 const saveData = JSON.parse(localStorage.getItem("megaCommands")) || {};
 let animeList;
 let autoAcceptInvite = saveData.autoAcceptInvite || false;
@@ -409,12 +411,9 @@ function setup() {
             saveSettings();
         }
     }
-    const profileElement = document.querySelector("#playerProfileLayer");
     new MutationObserver(function() {
-        if (profileElement.querySelector(".ppFooterOptionIcon, .startChat")) {
-            profileElement.querySelector(".ppFooterOptionIcon, .startChat").classList.remove("disabled");
-        }
-    }).observe(profileElement, {childList: true});
+        $("#playerProfileLayer .ppFooterOptionIcon").removeClass("disabled");
+    }).observe(document.querySelector("#playerProfileLayer"), {childList: true});
     AMQ_addScriptData({
         name: "Mega Commands",
         author: "kempanator",
@@ -1241,7 +1240,7 @@ function parseIncomingDM(content, sender) {
 // parse force all command
 function parseForceAll(content, type) {
     if (/^\/forceall version$/.test(content)) {
-        sendMessage("0.54", type);
+        sendMessage("0.55", type);
     }
     else if (/^\/forceall roll [0-9]+$/.test(content)) {
         let number = parseInt(/^\S+ roll ([0-9]+)$/.exec(content)[1]);
