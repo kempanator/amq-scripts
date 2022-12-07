@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            AMQ Show Room Players
 // @namespace       https://github.com/kempanator
-// @version         0.8
+// @version         0.9
 // @description     Adds extra functionality to room tiles
 // @author          kempanator
 // @match           https://animemusicquiz.com/*
@@ -28,7 +28,7 @@ let loadInterval = setInterval(() => {
         clearInterval(loadInterval);
     }
 }, 500);
-const version = "0.8";
+const version = "0.9";
 
 function setup() {
     new Listener("game chat update", (payload) => {
@@ -190,4 +190,13 @@ RoomTile.prototype.updateAvatar = function(avatarInfo) {
         false,
         this.$tile
     );
+};
+
+// overload removeRoomTile function to also remove room players popover
+RoomBrowser.prototype.removeRoomTile = function (tileId) {
+    $(`#rbRoom-${tileId} .rbrProgressContainer`).popover("destroy");
+    $(`#rbRoom-${tileId}`).remove();
+    delete this.activeRooms[tileId];
+    this.numberOfRooms--;
+    this.updateNumberOfRoomsText();
 };

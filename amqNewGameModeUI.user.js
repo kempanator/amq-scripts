@@ -58,10 +58,10 @@ function setup() {
     }).bindListener();
     new Listener("Game Starting", (payload) => {
         setTimeout(() => { updateWindow() }, 10);
-	}).bindListener();
+    }).bindListener();
     new Listener("Join Game", (payload) => {
         setTimeout(() => { updateWindow() }, 10);
-	}).bindListener();
+    }).bindListener();
     new Listener("Spectate Game", (payload) => {
         setTimeout(() => { updateWindow() }, 10);
     }).bindListener();
@@ -72,7 +72,7 @@ function setup() {
         if (autothrowCount && guessCounter.length && hostModal.getSettings().scoreType === 3) {
             setTimeout(() => { sendCount() }, 100);
         }
-	}).bindListener();
+    }).bindListener();
     new Listener("answer results", (payload) => {
         if (quiz.teamMode && !quiz.isSpectator && hostModal.getSettings().scoreType === 3) {
             correctGuesses = getCorrectGuesses(payload);
