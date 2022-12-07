@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            AMQ Show Room Players
 // @namespace       https://github.com/kempanator
-// @version         0.9
+// @version         0.10
 // @description     Adds extra functionality to room tiles
 // @author          kempanator
 // @match           https://animemusicquiz.com/*
@@ -28,7 +28,7 @@ let loadInterval = setInterval(() => {
         clearInterval(loadInterval);
     }
 }, 500);
-const version = "0.9";
+const version = "0.10";
 
 function setup() {
     new Listener("game chat update", (payload) => {
@@ -46,7 +46,7 @@ function setup() {
     new Listener("New Rooms", (payload) => {
         payload.forEach((item) => {
             setTimeout(() => {
-                updateRoomTile(item.id);
+                roomBrowser.activeRooms[item.id].createRoomPlayers();
                 roomBrowser.activeRooms[item.id].clickHostName(item.host);
             }, 1);
         });
@@ -56,7 +56,7 @@ function setup() {
             setTimeout(() => {
                 if (roomBrowser.activeRooms[payload.roomId]) {
                     roomBrowser.activeRooms[payload.roomId].updateFriends();
-                    updateRoomTile(payload.roomId);
+                    roomBrowser.activeRooms[payload.roomId].updateRoomPlayers();
                     if (payload.newHost) {
                         roomBrowser.activeRooms[payload.roomId].updateAvatar(payload.newHost.avatar);
                         roomBrowser.activeRooms[payload.roomId].clickHostName(payload.newHost.name);
@@ -92,49 +92,7 @@ function setup() {
     `);
 }
 
-// input room id number
-function updateRoomTile(roomId) {
-    let $playerList = $("<ul></ul>");
-    let players = roomBrowser.activeRooms[roomId]._players.sort((a, b) => a.localeCompare(b));
-    for (let player of players) {
-        let li = $("<li></li>").text(player);
-        if (roomBrowser.activeRooms[roomId]._friendsInGameMap[player]) li.addClass("roomPlayersFriend");
-        else li.addClass("roomPlayersNonFriend");
-        $playerList.append(li);
-    }
-    if ($(`#rbRoom-${roomId} .rbrProgressContainer`).data("bs.popover")) {
-        $(`#rbRoom-${roomId} .rbrProgressContainer`).data("bs.popover").options.content = $playerList[0].outerHTML;
-        $(`#rbRoom-${roomId} .rbrProgressContainer`).data("bs.popover").options.title = players.length + " Player" + (players.length === 1 ? "" : "s");
-    }
-    else {
-        $(`#rbRoom-${roomId} .rbrFriendPopover`).data("bs.popover").options.placement = "bottom";
-        $(`#rbRoom-${roomId} .rbrProgressContainer`).tooltip("destroy").removeAttr("data-toggle data-placement data-original-title")
-        .popover({
-            container: "#roomBrowserPage",
-            placement: "bottom",
-            trigger: "manual",
-            html: true,
-            title: players.length + " Player" + (players.length === 1 ? "" : "s"),
-            content: $playerList[0].outerHTML
-        })
-        .off("mouseenter").on("mouseenter", function() {
-            let _this = this;
-            $(this).popover("show");
-            $(".popover").off("mouseleave").on("mouseleave", function() {
-                if (!roomBrowser.activeRooms[roomId]) $(".popover").off().remove();
-                else if (!$(`#rbRoom-${roomId}:hover`).length) $(_this).popover("hide");
-            });
-            $(`#rbRoom-${roomId}`).off("mouseleave").on("mouseleave", function() {
-                if (!$(".popover:hover").length) $(_this).popover("hide");
-            });
-            $(".popover").off("click").on("click", "li", function(e) {
-                playerProfileController.loadProfile(e.target.innerText, $(`#rbRoom-${roomId}`), {}, () => {}, false, true);
-            });
-        });
-    }
-}
-
-// overload updateFriends function to also show invisible friends
+// override updateFriends function to also show invisible friends
 RoomTile.prototype.updateFriends = function() {
     this._friendsInGameMap = {};
     this._players.forEach((player) => {
@@ -145,14 +103,81 @@ RoomTile.prototype.updateFriends = function() {
     this.updateFriendInfo();
 };
 
+// override removeRoomTile function to also remove room players popover
+RoomBrowser.prototype.removeRoomTile = function(tileId) {
+    $(`#rbRoom-${tileId} .rbrProgressContainer`).popover("destroy");
+    $(`#rbRoom-${tileId}`).remove();
+    delete this.activeRooms[tileId];
+    this.numberOfRooms--;
+    this.updateNumberOfRoomsText();
+};
+
 // add click event to host name to open player profile
 RoomTile.prototype.clickHostName = function(host) {
-    this.$tile.find(".rbrHost").css("cursor", "pointer").unbind("click").click(() => {
+    this.$tile.find(".rbrHost").css("cursor", "pointer").off("click").click(() => {
         playerProfileController.loadProfile(host, $(`#rbRoom-${this.id}`), {}, () => {}, false, true);
     });
 };
 
-// updates the room tile avatar when a new host is promoted
+// create room players popover
+RoomTile.prototype.createRoomPlayers = function() {
+    let thisRoomTile = this;
+    let $playerList = $("<ul></ul>");
+    let players = this._players.sort((a, b) => a.localeCompare(b));
+    for (let player of players) {
+        let li = $("<li></li>").text(player);
+        if (this._friendsInGameMap[player]) li.addClass("roomPlayersFriend");
+        else li.addClass("roomPlayersNonFriend");
+        $playerList.append(li);
+    }
+    this.$tile.find(".rbrFriendPopover").data("bs.popover").options.placement = "bottom";
+    this.$tile.find(".rbrProgressContainer").tooltip("destroy").removeAttr("data-toggle data-placement data-original-title")
+    .popover({
+        container: "#roomBrowserPage",
+        placement: "bottom",
+        trigger: "manual",
+        html: true,
+        title: players.length + " Player" + (players.length === 1 ? "" : "s"),
+        content: $playerList[0].outerHTML
+    })
+    .off("mouseenter").on("mouseenter", function() {
+        let thisProgressBar = this;
+        $(this).popover("show");
+        $(".popover").off("mouseleave").on("mouseleave", function() {
+            if (!$(`#rbRoom-${thisRoomTile.id}:hover`).length) {
+                $(thisRoomTile.$tile).off("mouseleave");
+                $(".popover").off("mouseleave click");
+                $(thisProgressBar).popover("hide");
+            }
+        });
+        $(thisRoomTile.$tile).off("mouseleave").on("mouseleave", function() {
+            if (!$(".popover:hover").length) {
+                $(thisRoomTile.$tile).off("mouseleave");
+                $(".popover").off("mouseleave click");
+                $(thisProgressBar).popover("hide");
+            }
+        });
+        $(".popover").off("click").on("click", "li", function(e) {
+            playerProfileController.loadProfile(e.target.innerText, $(thisRoomTile.$tile), {}, () => {}, false, true);
+        });
+    });
+}
+
+// update room players popover
+RoomTile.prototype.updateRoomPlayers = function() {
+    let $playerList = $("<ul></ul>");
+    let players = this._players.sort((a, b) => a.localeCompare(b));
+    for (let player of players) {
+        let li = $("<li></li>").text(player);
+        if (this._friendsInGameMap[player]) li.addClass("roomPlayersFriend");
+        else li.addClass("roomPlayersNonFriend");
+        $playerList.append(li);
+    }
+    this.$tile.find(".rbrProgressContainer").data("bs.popover").options.content = $playerList[0].outerHTML;
+    this.$tile.find(".rbrProgressContainer").data("bs.popover").options.title = players.length + " Player" + (players.length === 1 ? "" : "s");
+}
+
+// update the room tile avatar when a new host is promoted
 RoomTile.prototype.updateAvatar = function(avatarInfo) {
     this.avatarPreloadImage.cancel();
     this.$tile.find(".rbrRoomImage").removeAttr("src srcset sizes").removeClass().addClass(`rbrRoomImage sizeMod${avatarInfo.avatar.sizeModifier}`);
@@ -190,13 +215,4 @@ RoomTile.prototype.updateAvatar = function(avatarInfo) {
         false,
         this.$tile
     );
-};
-
-// overload removeRoomTile function to also remove room players popover
-RoomBrowser.prototype.removeRoomTile = function (tileId) {
-    $(`#rbRoom-${tileId} .rbrProgressContainer`).popover("destroy");
-    $(`#rbRoom-${tileId}`).remove();
-    delete this.activeRooms[tileId];
-    this.numberOfRooms--;
-    this.updateNumberOfRoomsText();
 };

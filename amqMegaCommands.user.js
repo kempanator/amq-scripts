@@ -1676,7 +1676,7 @@ Array.prototype.localeIncludes = function(s) {
     return false;
 }
 
-// overload changeView function for auto ready
+// override changeView function for auto ready
 ViewChanger.prototype.changeView = (function() {
     let old = ViewChanger.prototype.changeView;
     return function() {
@@ -1690,7 +1690,7 @@ ViewChanger.prototype.changeView = (function() {
     }
 })();
 
-// overload newList function for drop down disable
+// override newList function for drop down disable
 const oldNewList = AutoCompleteController.prototype.newList;
 AutoCompleteController.prototype.newList = function() {
     if (this.list.length > 0) animeList = this.list;
