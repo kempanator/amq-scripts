@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            AMQ Mega Commands
 // @namespace       https://github.com/kempanator
-// @version         0.55
+// @version         0.56
 // @description     Commands for AMQ Chat
 // @author          kempanator
 // @match           https://animemusicquiz.com/*
@@ -81,7 +81,7 @@ OTHER
 */
 
 "use strict";
-const version = "0.55";
+const version = "0.56";
 const saveData = JSON.parse(localStorage.getItem("megaCommands")) || {};
 let animeList;
 let autoAcceptInvite = saveData.autoAcceptInvite || false;
@@ -342,7 +342,7 @@ function setup() {
     new Listener("friend state change", (payload) => {
         if (payload.online && autoInvite === payload.name.toLowerCase() && inRoom() && !isInYourRoom(autoInvite) && !isSoloMode() && !isRankedMode()) {
             sendSystemMessage(payload.name + " online: auto inviting");
-            setTimeOut(() => { socket.sendCommand({ type: "social", command: "invite to game", data: { target: payload.name } }), 1000 });
+            setTimeOut(() => { socket.sendCommand({type: "social", command: "invite to game", data: {target: payload.name}}), 1000 });
         }
     }).bindListener();
     new Listener("New Rooms", (payload) => {
@@ -384,7 +384,7 @@ function setup() {
     document.querySelector("#qpAnswerInput").addEventListener("input", (event) => {
         let answer = event.target.value || " ";
         if (autoKey) {
-            socket.sendCommand({ type: "quiz", command: "quiz answer", data: { answer: answer, isPlaying: true, volumeAtMax: false } });
+            socket.sendCommand({type: "quiz", command: "quiz answer", data: {answer: answer, isPlaying: true, volumeAtMax: false}});
         }
     });
     if (autoJoinRoom) {
@@ -418,7 +418,10 @@ function setup() {
     AMQ_addScriptData({
         name: "Mega Commands",
         author: "kempanator",
-        description: `<a href="https://kempanator.github.io/amq-mega-commands" target="_blank">https://kempanator.github.io/amq-mega-commands</a>`
+        description: `
+            <p>Version: ${version}</p>
+            <p>Command List: <a href="https://kempanator.github.io/amq-mega-commands" target="_blank">https://kempanator.github.io/amq-mega-commands</a></p>
+        `
     });
 }
 
@@ -602,7 +605,7 @@ function parseCommand(content, type, target) {
         quiz.skipClicked();
     }
     else if (/^\/pause$/.test(content)) {
-        socket.sendCommand({ type: "quiz", command: "quiz " + (quiz.pauseButton.pauseOn ? "unpause" : "pause") });
+        socket.sendCommand({type: "quiz", command: "quiz " + (quiz.pauseButton.pauseOn ? "unpause" : "pause")});
     }
     else if (/^\/(autoskip|autovoteskip)$/.test(content)) {
         if (autoVoteSkip === null) autoVoteSkip = 100;
@@ -727,7 +730,7 @@ function parseCommand(content, type, target) {
                 }
             });
             gameInviteListener.bindListener();
-            socket.sendCommand({ type: "social", command: "invite to game", data: { target: selfName } });
+            socket.sendCommand({type: "social", command: "invite to game", data: {target: selfName}});
         }
         else {
             autoJoinRoom = false;
@@ -813,7 +816,7 @@ function parseCommand(content, type, target) {
     }
     else if (/^\/(inv|invite) \w+$/.test(content)) {
         let name = getPlayerNameCorrectCase(/^\S+ (\w+)$/.exec(content)[1]);
-        socket.sendCommand({ type: "social", command: "invite to game", data: { target: name } });
+        socket.sendCommand({type: "social", command: "invite to game", data: {target: name}});
     }
     else if (/^\/(spec|spectate)$/.test(content)) {
         lobby.changeToSpectator(selfName);
@@ -823,7 +826,7 @@ function parseCommand(content, type, target) {
         if (isInYourRoom(name)) lobby.changeToSpectator(getPlayerNameCorrectCase(name));
     }
     else if (/^\/join$/.test(content)) {
-        socket.sendCommand({ type: "lobby", command: "change to player" });
+        socket.sendCommand({type: "lobby", command: "change to player"});
     }
     else if (/^\/join [0-9]+$/.test(content)) {
         if (inRoom()) return;
@@ -854,7 +857,7 @@ function parseCommand(content, type, target) {
         let name = getClosestNameInRoom(/^\S+ (\w+)$/.exec(content)[1]);
         if (isInYourRoom(name)) {
             if (lobby.inLobby || quiz.inQuiz || battleRoyal.inView) {
-                socket.sendCommand({ type: "lobby", command: "kick player", data: { playerName: getPlayerNameCorrectCase(name) } });
+                socket.sendCommand({type: "lobby", command: "kick player", data: {playerName: getPlayerNameCorrectCase(name)}});
             }
             else if (nexus.inCoopLobby || nexus.inNexusGame) {
                 socket.sendCommand({type: "nexus", command: "nexus kick player", data: {name: "nyan_cat"}});
@@ -862,7 +865,7 @@ function parseCommand(content, type, target) {
         }
     }
     else if (/^\/(lb|lobby|returntolobby)$/.test(content)) {
-        socket.sendCommand({ type: "quiz", command: "start return lobby vote" });
+        socket.sendCommand({type: "quiz", command: "start return lobby vote"});
     }
     else if (/^\/(v|volume) [0-9]+$/.test(content)) {
         let option = parseFloat(/^\S+ ([0-9]+)$/.exec(content)[1]) / 100;
@@ -884,8 +887,8 @@ function parseCommand(content, type, target) {
         sendMessage("dropdown while spectating " + (dropdownInSpec ? "enabled" : "disabled"), type, target, true);
         saveSettings();
     }
-    else if (/^\/password$/.test(content)) {
-        sendMessage(hostModal.getSettings().password, type, target);
+    else if (/^\/(pw|password)$/.test(content)) {
+        sendMessage("password: " + hostModal.getSettings().password, type, target);
     }
     else if (/^\/online \w+$/.test(content)) {
         let name = /^\S+ (\w+)$/.exec(content)[1].toLowerCase();
@@ -894,7 +897,7 @@ function parseCommand(content, type, target) {
             handleAllOnlineMessage.unbindListener();
         });
         handleAllOnlineMessage.bindListener();
-        socket.sendCommand({ type: "social", command: "get online users" });
+        socket.sendCommand({type: "social", command: "get online users"});
     }
     else if (/^\/invisible$/.test(content)) {
         let handleAllOnlineMessage = new Listener("all online users", function (onlineUsers) {
@@ -903,7 +906,7 @@ function parseCommand(content, type, target) {
             handleAllOnlineMessage.unbindListener();
         });
         handleAllOnlineMessage.bindListener();
-        socket.sendCommand({ type: "social", command: "get online users" });
+        socket.sendCommand({type: "social", command: "get online users"});
     }
     else if (/^\/(roomid|lobbyid)$/.test(content)) {
         if (lobby.inLobby) {
@@ -917,7 +920,7 @@ function parseCommand(content, type, target) {
                 }
             });
             gameInviteListener.bindListener();
-            socket.sendCommand({ type: "social", command: "invite to game", data: { target: selfName } });
+            socket.sendCommand({type: "social", command: "invite to game", data: {target: selfName}});
         }
     }
     else if (/^\/(dm|pm)$/.test(content)) {
@@ -931,7 +934,7 @@ function parseCommand(content, type, target) {
         let name = getPlayerNameCorrectCase(/^\S+ (\w+) .+$/.exec(content)[1]);
         let text = /^\S+ \w+ (.+)$/.exec(content)[1];
         socialTab.startChat(name);
-        socket.sendCommand({ type: "social", command: "chat message", data: { target: name, message: text } });
+        socket.sendCommand({type: "social", command: "chat message", data: {target: name, message: text}});
     }
     else if (/^\/(prof|profile) \w+$/.test(content)) {
         let name = /^\S+ (\w+)$/.exec(content)[1].toLowerCase();
@@ -1004,7 +1007,7 @@ function parseCommand(content, type, target) {
                 }
             });
             gameInviteListener.bindListener();
-            socket.sendCommand({ type: "social", command: "invite to game", data: { target: selfName } });
+            socket.sendCommand({type: "social", command: "invite to game", data: {target: selfName}});
         }
         else if (nexus.inNexusLobby) {
             if (nexus.inCoopLobby) {
@@ -1048,7 +1051,7 @@ function parseCommand(content, type, target) {
                 socket.sendCommand({
                     type: "social",
                     command: "chat message",
-                    data: { target: alien, message: "Aliens: " + aliens.join(", ") + " (turn on your list and disable share entries)" }
+                    data: {target: alien, message: "Aliens: " + aliens.join(", ") + " (turn on your list and disable share entries)"}
                 });
             }, 500 * i);
         });
@@ -1177,16 +1180,16 @@ function parseCommand(content, type, target) {
 function parseIncomingDM(content, sender) {
     if (commands) {
         if (isFriend(sender)) {
-            if (/^\/forceready$/.test(content) && lobby.inLobby && !lobby.isHost && !lobby.isSpectator && lobby.settings.gameMode !== "Ranked") {
+            if (/^\/(fr|forceready)$/.test(content) && lobby.inLobby && !lobby.isHost && !lobby.isSpectator && lobby.settings.gameMode !== "Ranked") {
                 lobby.fireMainButtonEvent();
             }
-            else if (/^\/forceinvite$/.test(content) && inRoom()) {
-                socket.sendCommand({ type: "social", command: "invite to game", data: { target: sender } });
+            else if (/^\/(fi|forceinvite)$/.test(content) && inRoom()) {
+                socket.sendCommand({type: "social", command: "invite to game", data: {target: sender}});
             }
-            else if (/^\/forcepassword$/.test(content) && inRoom()) {
-                sendMessage(hostModal.getSettings().password, "dm", sender);
+            else if (/^\/(fp|forcepassword)$/.test(content) && inRoom()) {
+                sendMessage("password: " + hostModal.getSettings().password, "dm", sender);
             }
-            else if (/^\/forcehost$/.test(content)) {
+            else if (/^\/(fh|forcehost)$/.test(content)) {
                 if (lobby.inLobby && lobby.isHost) {
                     lobby.promoteHost(sender);
                 }
@@ -1194,7 +1197,7 @@ function parseIncomingDM(content, sender) {
                     socket.sendCommand({type: "nexus", command: "nexus promote host", data: {name: sender}});
                 }
             }
-            else if (/^\/forcehost \w+$/.test(content)) {
+            else if (/^\/(fh|forcehost) \w+$/.test(content)) {
                 let name = getPlayerNameCorrectCase(/^\S+ (\w+)$/.exec(content)[1]);
                 if (lobby.inLobby && lobby.isHost) {
                     lobby.promoteHost(name);
@@ -1207,7 +1210,7 @@ function parseIncomingDM(content, sender) {
                 autoList().forEach((text, i) => setTimeout(() => { sendMessage(text, "dm", sender) }, i * 200));
             }
         }
-        if (/^\/forceversion$/.test(content)) {
+        if (/^\/(fv|forceversion)$/.test(content)) {
             sendMessage(version, "dm", sender);
         }
         else if (/^\/whereis \w+$/.test(content)) {
@@ -1241,7 +1244,7 @@ function parseIncomingDM(content, sender) {
 // parse force all command
 function parseForceAll(content, type) {
     if (/^\/forceall version$/.test(content)) {
-        sendMessage("0.55", type);
+        sendMessage("0.56", type);
     }
     else if (/^\/forceall roll [0-9]+$/.test(content)) {
         let number = parseInt(/^\S+ roll ([0-9]+)$/.exec(content)[1]);
@@ -1249,6 +1252,9 @@ function parseForceAll(content, type) {
     }
     else if (/^\/forceall mutestatus$/.test(content)) {
         sendMessage(volumeController.muted ? "🔇" : "🔉 " + Math.round(volumeController.volume * 100) + "%", type);
+    }
+    else if (/^\/forceall skip$/.test(content)) {
+        quiz.skipClicked();
     }
 }
 
@@ -1274,11 +1280,11 @@ function sendMessage(content, type, target, sys) {
     }
     else if (type === "chat") {
         if (sys) setTimeout(() => { gameChat.systemMessage(content) }, 1);
-        else socket.sendCommand({type: "lobby", command: "game chat message", data: { msg: content, teamMessage: false }});
+        else socket.sendCommand({type: "lobby", command: "game chat message", data: {msg: content, teamMessage: false}});
     }
     else if (type === "teamchat") {
         if (sys) setTimeout(() => { gameChat.systemMessage(content) }, 1);
-        else socket.sendCommand({type: "lobby", command: "game chat message", data: { msg: content, teamMessage: true }});
+        else socket.sendCommand({type: "lobby", command: "game chat message", data: {msg: content, teamMessage: true}});
     }
     else if (type === "nexus") {
         if (sys) setTimeout(() => { nexusCoopChat.displayServerMessage({message: content}) }, 1);
@@ -1485,7 +1491,7 @@ function sendChatMessage(message, isTeamMessage) {
     socket.sendCommand({
         type: "lobby",
         command: "game chat message",
-        data: { msg: String(message), teamMessage: Boolean(isTeamMessage) }
+        data: {msg: String(message), teamMessage: Boolean(isTeamMessage)}
     });
 }
 
@@ -1499,7 +1505,7 @@ function sendNexusChatMessage(message) {
     socket.sendCommand({
         type: "nexus",
         command: "coop chat message",
-        data: { message: String(message) }
+        data: {message: String(message)}
     });
 }
 
@@ -1514,7 +1520,7 @@ function sendDM(target, message) {
         socket.sendCommand({
             type: "social",
             command: "chat message",
-            data: { target: target, message: String(message) }
+            data: {target: target, message: String(message)}
         });
     }, 100);
 }
@@ -1561,7 +1567,7 @@ function checkAutoStart() {
 // check conditions and switch between player and spectator
 function checkAutoSwitch() {
     if (lobby.inLobby) {
-        if (autoSwitch === "player" && lobby.isSpectator) socket.sendCommand({ type: "lobby", command: "change to player" });
+        if (autoSwitch === "player" && lobby.isSpectator) socket.sendCommand({type: "lobby", command: "change to player"});
         else if (autoSwitch === "spectator" && !lobby.isSpectator) lobby.changeToSpectator(selfName);
     }
 }
@@ -1609,7 +1615,7 @@ function rejoinRoom(time) {
                 }
             });
             gameInviteListener.bindListener();
-            socket.sendCommand({ type: "social", command: "invite to game", data: { target: selfName } });
+            socket.sendCommand({type: "social", command: "invite to game", data: {target: selfName}});
         }
     }, 1);
 }
