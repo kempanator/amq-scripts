@@ -1085,7 +1085,7 @@ function parseCommand(content, type, target) {
         saveSettings();
     }
     else if (/^\/detect$/.test(content)) {
-        sendMessage("invisible: " + playerDetection.invisible);
+        sendMessage("invisible: " + playerDetection.invisible, type, target, true);
         sendMessage("players: " + playerDetection.players.join(", "), type, target, true);
     }
     else if (/^\/detect disable$/.test(content)) {
