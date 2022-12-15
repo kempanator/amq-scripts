@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         AMQ Chat Plus
-// @namespace    https://github.com/xSardine
+// @namespace    https://github.com/kempanator
 // @version      0.1
 // @description  Add timestamps, color, and wider boxes to DMs
 // @author       kempanator
