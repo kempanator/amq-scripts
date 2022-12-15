@@ -46,15 +46,8 @@ function setup() {
     new Listener("New Rooms", (payload) => {
         payload.forEach((item) => {
             setTimeout(() => {
-                try {
-                    roomBrowser.activeRooms[item.id].createRoomPlayers();
-                    roomBrowser.activeRooms[item.id].clickHostName(item.host);
-                }
-                catch {
-                    popoutMessages.displayStandardMessage("Show Room Players Error", "room " + item.id);
-                    console.log("⚠️ Show Room Players Error:");
-                    console.log(roomBrowser.activeRooms[item.id]);
-                }
+                roomBrowser.activeRooms[item.id].createRoomPlayers();
+                roomBrowser.activeRooms[item.id].clickHostName(item.host);
             }, 1);
         });
     }).bindListener();
@@ -223,72 +216,3 @@ RoomTile.prototype.updateAvatar = function(avatarInfo) {
         this.$tile
     );
 };
-
-/*
-function updateRoomTile(roomId) {
-    let $playerList = $("<ul></ul>");
-    let players = roomBrowser.activeRooms[roomId]._players.sort((a, b) => a.localeCompare(b));
-    for (let player of players) {
-        let li = $("<li></li>").text(player);
-        if (roomBrowser.activeRooms[roomId]._friendsInGameMap[player]) li.addClass("roomPlayersFriend");
-        else li.addClass("roomPlayersNonFriend");
-        $playerList.append(li);
-    }
-    if ($(`#rbRoom-${roomId} .rbrProgressContainer`).data("bs.popover")) {
-        $(`#rbRoom-${roomId} .rbrProgressContainer`).data("bs.popover").options.content = $playerList[0].outerHTML;
-        $(`#rbRoom-${roomId} .rbrProgressContainer`).data("bs.popover").options.title = players.length + " Player" + (players.length === 1 ? "" : "s");
-    }
-    else {
-        $(`#rbRoom-${roomId} .rbrFriendPopover`).data("bs.popover").options.placement = "bottom";
-        $(`#rbRoom-${roomId} .rbrProgressContainer`).tooltip("destroy").removeAttr("data-toggle data-placement data-original-title")
-        .popover({
-            container: "#roomBrowserPage",
-            placement: "bottom",
-            trigger: "manual",
-            html: true,
-            title: players.length + " Player" + (players.length === 1 ? "" : "s"),
-            content: $playerList[0].outerHTML
-        })
-        .off("mouseenter").on("mouseenter", function() {
-            let _this = this;
-            $(this).popover("show");
-            $(".popover").off("mouseleave").on("mouseleave", function() {
-                if (!$(`#rbRoom-${roomId}:hover`).length) $(_this).popover("hide");
-            });
-            $(`#rbRoom-${roomId}`).off("mouseleave").on("mouseleave", function() {
-                if (!$(".popover:hover").length) $(_this).popover("hide");
-            });
-            $(".popover").off("click").on("click", "li", function(e) {
-                playerProfileController.loadProfile(e.target.innerText, $(`#rbRoom-${roomId}`), {}, () => {}, false, true);
-            });
-        });
-    }
-}
-*/
-
-
-
-/*
-.popover({
-            container: "#roomBrowserPage",
-            placement: "bottom",
-            trigger: "manual",
-            html: true,
-            title: players.length + " Player" + (players.length === 1 ? "" : "s"),
-            template: `<div class="popover roomPlayersPopover" role="tooltip"><div class="arrow"></div><h3 class="popover-title"></h3><div class="popover-content"></div></div>`,
-            content: $playerList[0].outerHTML
-        })
-        .off("mouseenter").on("mouseenter", function() {
-            let _this = this;
-            $(this).popover("show");
-            $(".roomPlayersPopover").off("mouseleave").on("mouseleave", function() {
-                if (!$(`#rbRoom-${roomId}:hover`).length) $(_this).popover("hide");
-            });
-            $(`#rbRoom-${roomId}`).off("mouseleave").on("mouseleave", function() {
-                if (!$(".roomPlayersPopover:hover").length) $(_this).popover("hide");
-            });
-            $(".roomPlayersPopover").off("click").on("click", "li", function(e) {
-                playerProfileController.loadProfile(e.target.innerText, $(`#rbRoom-${roomId}`), {}, () => {}, false, true);
-            });
-        });
-*/
