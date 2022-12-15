@@ -1,15 +1,15 @@
 // ==UserScript==
-// @name            AMQ New Game Mode UI
-// @namespace       https://github.com/kempanator
-// @version         0.6
-// @description     Adds a user interface to new game mode to keep track of guesses
-// @author          kempanator
-// @match           https://animemusicquiz.com/*
-// @grant           none
-// @require         https://raw.githubusercontent.com/TheJoseph98/AMQ-Scripts/master/common/amqScriptInfo.js
-// @require         https://raw.githubusercontent.com/TheJoseph98/AMQ-Scripts/master/common/amqWindows.js
-// @downloadURL     https://raw.githubusercontent.com/kempanator/amq-scripts/main/amqNewGameModeUI.user.js
-// @updateURL       https://raw.githubusercontent.com/kempanator/amq-scripts/main/amqNewGameModeUI.user.js
+// @name         AMQ New Game Mode UI
+// @namespace    https://github.com/kempanator
+// @version      0.6
+// @description  Adds a user interface to new game mode to keep track of guesses
+// @author       kempanator
+// @match        https://animemusicquiz.com/*
+// @grant        none
+// @require      https://raw.githubusercontent.com/TheJoseph98/AMQ-Scripts/master/common/amqScriptInfo.js
+// @require      https://raw.githubusercontent.com/TheJoseph98/AMQ-Scripts/master/common/amqWindows.js
+// @downloadURL  https://raw.githubusercontent.com/kempanator/amq-scripts/main/amqNewGameModeUI.user.js
+// @updateURL    https://raw.githubusercontent.com/kempanator/amq-scripts/main/amqNewGameModeUI.user.js
 // ==/UserScript==
 
 "use strict";
