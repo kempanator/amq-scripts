@@ -25,6 +25,7 @@ FEATURES:
 5. Add colors to usernames in DMs if you have the highlight friends script
 */
 
+"use strict";
 if (document.querySelector("#startPage")) return;
 let loadInterval = setInterval(() => {
     if (document.querySelector("#loadingScreen").classList.contains("hidden")) {
