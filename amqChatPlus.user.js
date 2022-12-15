@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Chat Plus
 // @namespace    https://github.com/kempanator
-// @version      0.1
+// @version      0.2
 // @description  Add timestamps, color, and wider boxes to DMs
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -34,7 +34,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.1";
+const version = "0.2";
 const widthExtension = 60;
 let saveData = JSON.parse(localStorage.getItem("highlightFriendsSettings"));
 
@@ -52,6 +52,11 @@ if (saveData) {
 AMQ_addStyle(`
     #chatContainer {
         width: calc(77% - 205px);
+    }
+    #xpOuterContainer {
+        margin: 0;
+        left: unset;
+        right: 835px;
     }
     #xpBarOuter {
         position: absolute;
@@ -132,7 +137,7 @@ ChatBox.prototype.writeMessage = function(sender, msg, emojis, allowHtml) {
     let dmUsernameClass = "dmUsername";
     if (sender === selfName) dmUsernameClass = "dmUsernameSelf";
     else if (socialTab.onlineFriends[sender] || socialTab.offlineFriends[sender]) dmUsernameClass = "dmUsernameFriend";
-    let newDMFormat = `\n\t<li>\n\t\t<span class="dmTimestamp">${timestamp}</span> <span class="${dmUsernameClass}">${sender}:</span> ${msg}\n\t</li>\n`
+    let newDMFormat = `\n\t<li>\n\t\t<span class="dmTimestamp">${timestamp}</span> <span class="${dmUsernameClass}">${sender}:</span> ${msg}\n\t</li>\n`;
     this.$CHAT_CONTENT.append(newDMFormat);
     if (atBottom) this.$CHAT_CONTENT.scrollTop(this.$CHAT_CONTENT.prop("scrollHeight"));
     this.$CHAT_CONTENT.perfectScrollbar("update");
