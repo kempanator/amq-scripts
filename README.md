@@ -1,5 +1,8 @@
 # amq-scripts
 
+### AMQ Chat Plus
+EXPERIMENTAL DO NOT DOWNLOAD
+
 ### AMQ Mega Commands
 EXPERIMENTAL DO NOT DOWNLOAD
 
