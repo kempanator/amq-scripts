@@ -56,15 +56,14 @@ AMQ_addStyle(`
     #xpOuterContainer {
         margin: 0;
         left: unset;
-        right: 835px;
+        right: 321px;
     }
     #xpBarOuter {
         position: absolute;
-        width: 120px;
-        left: 500px;
+        width: 110px;
     }
     #currencyContainer {
-        left: 620px;
+        left: 110px;
     }
     .chatBoxContainer {
         height: 240px;
@@ -99,6 +98,7 @@ function setup() {
             setTimeout(() => { gameChat.systemMessage("Chat Plus - " + version) }, 1);
         }
     }).bindListener();
+
     new MutationObserver(mutations => {
         mutations.forEach(mutation => {
             if (!mutation.addedNodes) return;
