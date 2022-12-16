@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Chat Plus
 // @namespace    https://github.com/kempanator
-// @version      0.2
+// @version      0.3
 // @description  Add timestamps, color, and wider boxes to DMs
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -34,7 +34,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.2";
+const version = "0.3";
 const widthExtension = 60;
 let saveData = JSON.parse(localStorage.getItem("highlightFriendsSettings"));
 
@@ -51,7 +51,7 @@ if (saveData) {
 
 AMQ_addStyle(`
     #chatContainer {
-        width: calc(77% - 205px);
+        width: calc(100% - 646px);
     }
     #xpOuterContainer {
         width: 110px;
