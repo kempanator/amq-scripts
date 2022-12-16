@@ -54,9 +54,10 @@ AMQ_addStyle(`
         width: calc(77% - 205px);
     }
     #xpOuterContainer {
+        width: 110px;
         margin: 0;
         left: unset;
-        right: 321px;
+        right: 450px;
     }
     #xpBarOuter {
         position: absolute;
