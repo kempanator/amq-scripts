@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ New Game Mode UI
 // @namespace    https://github.com/kempanator
-// @version      0.6
+// @version      0.7
 // @description  Adds a user interface to new game mode to keep track of guesses
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -21,7 +21,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.6";
+const version = "0.7";
 let ngmWindow;
 let numGuesses = 5;
 let guessCounter = [];
@@ -57,16 +57,28 @@ function setup() {
         }
     }).bindListener();
     new Listener("Game Starting", (payload) => {
-        setTimeout(() => { updateWindow() }, 10);
+        let selfPlayer = payload.players.find((player) => player.name === selfName);
+        let settings = hostModal.getSettings();
+        if (selfPlayer.inGame && settings.teamSize > 1 && settings.scoreType === 3) {
+            updateWindow(payload.players);
+        }
+        else {
+            clearWindow();
+        }
     }).bindListener();
     new Listener("Join Game", (payload) => {
-        setTimeout(() => { updateWindow() }, 10);
+        if (payload.settings.teamSize > 1 && payload.settings.scoreType === 3) {
+            updateWindow(payload.quizState.players);
+        }
+        else {
+            clearWindow();
+        }
     }).bindListener();
     new Listener("Spectate Game", (payload) => {
-        setTimeout(() => { updateWindow() }, 10);
+        clearWindow();
     }).bindListener();
     new Listener("quiz over", (payload) => {
-        setTimeout(() => { updateWindow() }, 10);
+        clearWindow();
     }).bindListener();
     new Listener("play next song", (payload) => {
         if (autothrowCount && guessCounter.length && hostModal.getSettings().scoreType === 3) {
@@ -77,7 +89,7 @@ function setup() {
         if (quiz.teamMode && !quiz.isSpectator && hostModal.getSettings().scoreType === 3) {
             correctGuesses = getCorrectGuesses(payload);
             $("#ngmTracker1").text(`Correct Answers: ${correctGuesses}`);
-            $("#ngmTracker2").text(`Remaining Guesses: ${getRemainingGuesses()}`);     
+            $("#ngmTracker2").text(`Remaining Guesses: ${getRemainingGuesses()}`);
         }
     }).bindListener();
 
@@ -96,9 +108,10 @@ function setup() {
     ngmWindow.addPanel({
         id: "ngmPanel",
         width: 1.0,
-        height: 200
+        height: 202,
+        scrollable: {x: false, y: true}
     });
-    updateWindow();
+    clearWindow();
 
     AMQ_addScriptData({
         name: "New Game Mode UI",
@@ -123,22 +136,25 @@ function setup() {
     `);
 }
 
-function updateWindow() {
-    if (!quiz.inQuiz || quiz.isSpectator || !quiz.teamMode || hostModal.getSettings().scoreType !== 3) {
-        ngmWindow.panels[0].clear();
-        ngmWindow.panels[0].panel.append($(`<div class="ngmText" style="text-align: center">Not in team game with lives</div>`));
-        guessCounter = [];
-        teamNumber = null;
-        teamList = null;
-        teamSlot = null;
-        correctGuesses = 0;
-        return;
-    }
+function clearWindow() {
     ngmWindow.panels[0].clear();
-    teamNumber = getTeamNumber();
-    teamList = getTeamList(teamNumber);
+    ngmWindow.panels[0].panel.append($(`<div class="ngmText" style="text-align: center">Not in team game with lives</div>`));
+    guessCounter = [];
+    teamNumber = null;
+    teamList = null;
+    teamSlot = null;
+    correctGuesses = 0;
+}
+
+// input array of Player objects
+function updateWindow(players) {
+    ngmWindow.panels[0].clear();
+    selfPlayer = players.find((player) => player.name === selfName);
+    teamNumber = selfPlayer.teamNumber;
+    teamList = players.filter((player) => player.teamNumber === teamNumber).map((player) => player.name);
     teamSlot = teamList.indexOf(selfName);
     guessCounter = Array(teamList.length).fill(numGuesses);
+    correctGuesses = 0;
     ngmWindow.panels[0].panel.append($(`<div id="ngmTracker1" class="ngmText">Correct Answers: ${correctGuesses}</div>`));
     ngmWindow.panels[0].panel.append($(`<div id="ngmTracker2" class="ngmText">Remaining Guesses: ${teamList.length * numGuesses}</div>`));
     for (let i = 0; i < guessCounter.length; i++) {
@@ -222,24 +238,12 @@ function updateWindow() {
     );
 }
 
-// return your team number (must be in quiz)
-function getTeamNumber() {
-    for (let player of Object.values(quiz.players)) {
-        if (player.isSelf) {
-            return player.teamNumber;
-        }
+// return true if player is spectator
+function isSpectator(name) {
+    for (let player of gameChat.spectators) {
+        if (player.name === name) return true;
     }
-}
-
-// input team number, return list of player names (must be in quiz)
-function getTeamList(team) {
-    let list = [];
-    for (let player of Object.values(quiz.players)) {
-        if (player.teamNumber === team) {
-            list.push(player._name);
-        }
-    }
-    return list;
+    return false;
 }
 
 // send your remaining guess count to answer box
