@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Show Room Players
 // @namespace    https://github.com/kempanator
-// @version      0.10
+// @version      0.11
 // @description  Adds extra functionality to room tiles
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -28,7 +28,7 @@ let loadInterval = setInterval(() => {
         clearInterval(loadInterval);
     }
 }, 500);
-const version = "0.10";
+const version = "0.11";
 
 function setup() {
     new Listener("game chat update", (payload) => {
@@ -46,8 +46,10 @@ function setup() {
     new Listener("New Rooms", (payload) => {
         payload.forEach((item) => {
             setTimeout(() => {
-                roomBrowser.activeRooms[item.id].createRoomPlayers();
-                roomBrowser.activeRooms[item.id].clickHostName(item.host);
+                if (roomBrowser.activeRooms[item.id]) {
+                    roomBrowser.activeRooms[item.id].createRoomPlayers();
+                    roomBrowser.activeRooms[item.id].clickHostName(item.host);
+                }
             }, 1);
         });
     }).bindListener();
