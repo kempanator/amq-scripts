@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Chat Plus
 // @namespace    https://github.com/kempanator
-// @version      0.5
+// @version      0.4
 // @description  Add timestamps, color, and wider boxes to DMs
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -34,9 +34,8 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.5";
+const version = "0.4";
 const widthExtension = 60;
-const heightExtension = 40;
 let saveData = JSON.parse(localStorage.getItem("highlightFriendsSettings"));
 
 if (saveData) {
@@ -49,21 +48,10 @@ if (saveData) {
         }
     `);
 }
-else {
-    AMQ_addStyle(`
-        .dmUsernameSelf {
-            color: #80c7ff;
-        }
-        .dmUsernameFriend {
-            color: #80ff80;
-        }
-    `);
-}
 
 AMQ_addStyle(`
     #chatContainer {
         width: calc(100% - 646px);
-        height: ${300 + heightExtension}px;
     }
     #xpOuterContainer {
         width: 110px;
@@ -79,14 +67,13 @@ AMQ_addStyle(`
         left: 110px;
     }
     .chatBoxContainer {
-        height: ${200 + heightExtension}px;
+        height: 240px;
     }
     .chatContent {
-        height: ${132 + heightExtension}px;
+        height: 175px;
     }
     .chatBox {
         width: ${155 + widthExtension}px;
-        bottom: ${0 - heightExtension}px;
     }
     .chatTopBar p {
         width: ${76 + widthExtension}px;
@@ -173,3 +160,37 @@ ChatBar.prototype.getInsideOffsets = function() {
     let insideRightOffset = insideLeftOffset + containerWidth - (165 + widthExtension);
     return {right: insideRightOffset, left: insideLeftOffset};
 };
+
+/*
+    #chatContainer {
+        height: 330px;
+        left: 240px;
+        width: calc(77% - 205px);
+    }
+    #activeChatScrollContainer {
+        padding-left: 0px;
+    }
+    .chatBox {
+        width: 294px;
+        margin-right: 20px;
+        bottom: -30px;
+    }
+    .chatTopBar p {
+        width: 182px;
+    }
+    .chatContent {
+        height: 209px;
+        margin-left: 2px;
+    }
+    .chatBoxContainer {
+        height: 275px;
+        bottom: 0px;
+    }
+    .chatBoxContainer .header {
+        height: 55px;
+        line-height: 25px;
+    }
+    .chatBoxContainer.open {
+        transform: translateY(-16%);
+    }
+*/
