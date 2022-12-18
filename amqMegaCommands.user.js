@@ -10,7 +10,7 @@
 // @downloadURL  https://raw.githubusercontent.com/kempanator/amq-scripts/main/amqMegaCommands.user.js
 // @updateURL    https://raw.githubusercontent.com/kempanator/amq-scripts/main/amqMegaCommands.user.js
 // ==/UserScript==
-
+//
 /*
 IMPORTANT: disable these scripts before installing
 - dice roller by thejoseph98

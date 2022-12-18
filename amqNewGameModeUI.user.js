@@ -11,7 +11,7 @@
 // @downloadURL  https://raw.githubusercontent.com/kempanator/amq-scripts/main/amqNewGameModeUI.user.js
 // @updateURL    https://raw.githubusercontent.com/kempanator/amq-scripts/main/amqNewGameModeUI.user.js
 // ==/UserScript==
-
+//
 "use strict";
 if (document.querySelector("#startPage")) return;
 let loadInterval = setInterval(() => {
