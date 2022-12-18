@@ -10,7 +10,7 @@
 // @downloadURL  https://raw.githubusercontent.com/kempanator/amq-scripts/main/amqChatPlus.user.js
 // @updateURL    https://raw.githubusercontent.com/kempanator/amq-scripts/main/amqChatPlus.user.js
 // ==/UserScript==
-//
+
 /*
 IMPORTANT: disable these scripts before installing
 - chat time stamps by thejoseph98

@@ -10,7 +10,7 @@
 // @downloadURL  https://raw.githubusercontent.com/kempanator/amq-scripts/main/amqShowRoomPlayers.user.js
 // @updateURL    https://raw.githubusercontent.com/kempanator/amq-scripts/main/amqShowRoomPlayers.user.js
 // ==/UserScript==
-//
+
 /*
 New room tile features:
 1. Mouse over players bar to show full player list (friends are highlighted blue)
