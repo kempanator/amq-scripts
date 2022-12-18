@@ -425,10 +425,12 @@ function setup() {
     });
 }
 
-// parse a command
-// content: message text
-// type: dm, chat, teamchat, nexus
-// target: name of player you are sending to if dm
+/**
+ * parse a command
+ * @param {String} content message text
+ * @param {String} type dm, chat, teamchat, nexus
+ * @param {String} target name of player you are sending to if dm
+ */
 function parseCommand(content, type, target) {
     if (content === "/commands on") commands = true;
     if (!commands) return;
@@ -1176,7 +1178,11 @@ function parseCommand(content, type, target) {
     }
 }
 
-// parse incoming dm
+/**
+ * parse incoming dm
+ * @param {String} content message text
+ * @param {String} sender name of player who sent the message
+ */
 function parseIncomingDM(content, sender) {
     if (commands) {
         if (isFriend(sender)) {
@@ -1241,7 +1247,11 @@ function parseIncomingDM(content, sender) {
     }
 }
 
-// parse force all command
+/**
+ * parse forceall command
+ * @param {String} content message text
+ * @param {String} type dm, chat, teamchat, nexus
+ */
 function parseForceAll(content, type) {
     if (/^\/forceall version$/.test(content)) {
         sendMessage("0.56", type);
@@ -1258,7 +1268,11 @@ function parseForceAll(content, type) {
     }
 }
 
-// parse vote
+/**
+ * parse vote
+ * @param {String} content message text
+ * @param {String} sender name of player who sent the message
+ */
 function parseVote(content, sender) {
     if (Object.keys(voteOptions).length) {
         let option = /^\/vote ([0-9]+)$/.exec(content)[1];
@@ -1266,11 +1280,13 @@ function parseVote(content, sender) {
     }
 }
 
-// send a message
-// content: message text
-// type: dm, chat, teamchat, nexus
-// target: name of player you are sending to if dm
-// sys: true if system message
+/**
+ * send a message
+ * @param {String} content message text
+ * @param {String} type dm, chat, teamchat, nexus
+ * @param {String} target name of player you are sending to if dm
+ * @param {Boolean} sys true if system message
+ */
 function sendMessage(content, type, target, sys) {
     if (content === null || content === undefined) return;
     content = String(content).trim();
@@ -1393,7 +1409,7 @@ function getSpectatorList() {
     return gameChat.spectators.map((player) => player.name);
 }
 
-// return object with team number as keys and list of player names as each value
+// return object with team numbers as keys and list of player names as each value
 function getTeamDictionary() {
     let teamDictionary = {};
     if (lobby.inLobby) {

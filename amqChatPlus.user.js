@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Chat Plus
 // @namespace    https://github.com/kempanator
-// @version      0.3
+// @version      0.4
 // @description  Add timestamps, color, and wider boxes to DMs
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -34,7 +34,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.3";
+const version = "0.4";
 const widthExtension = 60;
 let saveData = JSON.parse(localStorage.getItem("highlightFriendsSettings"));
 
@@ -74,6 +74,9 @@ AMQ_addStyle(`
     }
     .chatBox {
         width: ${155 + widthExtension}px;
+    }
+    .chatTopBar p {
+        width: ${76 + widthExtension}px;
     }
     .gcTimestamp {
         opacity: 0.5;
@@ -157,3 +160,37 @@ ChatBar.prototype.getInsideOffsets = function() {
     let insideRightOffset = insideLeftOffset + containerWidth - (165 + widthExtension);
     return {right: insideRightOffset, left: insideLeftOffset};
 };
+
+/*
+    #chatContainer {
+        height: 330px;
+        left: 240px;
+        width: calc(77% - 205px);
+    }
+    #activeChatScrollContainer {
+        padding-left: 0px;
+    }
+    .chatBox {
+        width: 294px;
+        margin-right: 20px;
+        bottom: -30px;
+    }
+    .chatTopBar p {
+        width: 182px;
+    }
+    .chatContent {
+        height: 209px;
+        margin-left: 2px;
+    }
+    .chatBoxContainer {
+        height: 275px;
+        bottom: 0px;
+    }
+    .chatBoxContainer .header {
+        height: 55px;
+        line-height: 25px;
+    }
+    .chatBoxContainer.open {
+        transform: translateY(-16%);
+    }
+*/
