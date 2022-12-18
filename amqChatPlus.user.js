@@ -65,7 +65,7 @@ AMQ_addStyle(`
         width: calc(100% - 646px);
         height: ${300 + heightExtension}px;
     }
-    activeChatScrollContainer {
+    #activeChatScrollContainer {
         margin-top: ${255 + heightExtension}px;
     }
     #xpOuterContainer {
@@ -89,7 +89,6 @@ AMQ_addStyle(`
     }
     .chatBox {
         width: ${155 + widthExtension}px;
-        bottom: ${0 - heightExtension}px;
     }
     .chatTopBar p {
         width: ${76 + widthExtension}px;
