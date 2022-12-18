@@ -48,6 +48,16 @@ if (saveData) {
         }
     `);
 }
+else {
+    AMQ_addStyle(`
+        .dmUsernameSelf {
+            color: #80c7ff;
+        }
+        .dmUsernameFriend {
+            color: #80ff80;
+        }
+    `);
+}
 
 AMQ_addStyle(`
     #chatContainer {
