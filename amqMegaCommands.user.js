@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.56
+// @version      0.57
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -81,7 +81,7 @@ OTHER
 */
 
 "use strict";
-const version = "0.56";
+const version = "0.57";
 const saveData = JSON.parse(localStorage.getItem("megaCommands")) || {};
 let animeList;
 let autoAcceptInvite = saveData.autoAcceptInvite || false;
@@ -816,6 +816,11 @@ function parseCommand(content, type, target) {
             lobby.fireMainButtonEvent();
         }
     }
+    else if (/^\/(inv|invite)$/.test(content)) {
+        if (type === "dm") {
+            socket.sendCommand({type: "social", command: "invite to game", data: {target: target}});
+        }
+    }
     else if (/^\/(inv|invite) \w+$/.test(content)) {
         let name = getPlayerNameCorrectCase(/^\S+ (\w+)$/.exec(content)[1]);
         socket.sendCommand({type: "social", command: "invite to game", data: {target: name}});
@@ -1254,7 +1259,7 @@ function parseIncomingDM(content, sender) {
  */
 function parseForceAll(content, type) {
     if (/^\/forceall version$/.test(content)) {
-        sendMessage("0.56", type);
+        sendMessage("0.57", type);
     }
     else if (/^\/forceall roll [0-9]+$/.test(content)) {
         let number = parseInt(/^\S+ roll ([0-9]+)$/.exec(content)[1]);

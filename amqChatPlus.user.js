@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Chat Plus
 // @namespace    https://github.com/kempanator
-// @version      0.6
+// @version      0.7
 // @description  Add timestamps, color, and wider boxes to DMs
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -36,7 +36,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.6";
+const version = "0.7";
 const saveData = JSON.parse(localStorage.getItem("chatPlus")) || {};
 const saveData2 = JSON.parse(localStorage.getItem("highlightFriendsSettings"));
 let dmTimestamps = saveData.dmTimestamps || true;
@@ -204,4 +204,23 @@ ChatBar.prototype.toggleIndicators = function() {
     else this.$LEFT_INDICATOR.removeClass("runAnimation");
 	if (activeOutsideRight) this.$RIGHT_INDICATOR.addClass("runAnimation");
 	else this.$RIGHT_INDICATOR.removeClass("runAnimation");
+};
+
+ChatBox.prototype.handleAlert = function (msg, callback) {
+	let atBottom = this.$CHAT_CONTENT.scrollTop() + this.$CHAT_CONTENT.innerHeight() >= this.$CHAT_CONTENT[0].scrollHeight;
+	this.$HEADER.text(msg);
+	if (callback) {
+		this.$HEADER.append(format(chatHeaderInputTemplate));
+		this.container.find(".accept").click(createFriendRequestHandler.call(this, true, callback));
+		this.container.find(".reject").click(createFriendRequestHandler.call(this, false, callback));
+	} else {
+		this.$HEADER.append(format(chatHeaderCloseTemplate));
+		this.container.find(".accept").click(this.closeHeader.bind(this));
+	}
+	this.$HEADER.removeClass("hidden");
+	var headerHeight = this.container.find(".header").outerHeight(true);
+	this.$CHAT_CONTENT.css("height", 132 + heightExtension - headerHeight);
+	if (atBottom) this.$CHAT_CONTENT.scrollTop(this.$CHAT_CONTENT.prop("scrollHeight"));
+	this.$CHAT_CONTENT.perfectScrollbar("update");
+	this.newUpdate();
 };
