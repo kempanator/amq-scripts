@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Chat Plus
 // @namespace    https://github.com/kempanator
-// @version      0.7
+// @version      0.8
 // @description  Add timestamps, color, and wider boxes to DMs
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -25,6 +25,7 @@ DM features:
 2. Add color to usernames
 3. Adjustable width and height
 4. Move level, ticket, and note count to the right to make more space for dms
+5. Bug fix for new dms not autoscrolling
 */
 
 "use strict";
@@ -36,7 +37,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.7";
+const version = "0.8";
 const saveData = JSON.parse(localStorage.getItem("chatPlus")) || {};
 const saveData2 = JSON.parse(localStorage.getItem("highlightFriendsSettings"));
 let dmTimestamps = saveData.dmTimestamps || true;
@@ -108,27 +109,22 @@ function setup() {
         }
     }).bindListener();
 
-    new MutationObserver(mutations => {
-        mutations.forEach(mutation => {
+    new MutationObserver((mutations) => {
+        for (let mutation of mutations) {
             if (!mutation.addedNodes || !gcTimestamps) return;
-            for (let i = 0; i < mutation.addedNodes.length; i++) {
-                let node = mutation.addedNodes[i];
-                if ($(node).hasClass("gcTimestamp")) return;
-                if ($(node).hasClass("ps__scrollbar-y-rail")) return;
-                if ($(node).hasClass("ps__scrollbar-x-rail")) return;
+            for (let node of mutation.addedNodes) {
+                let $node = $(node);
+                if ($node.is(".gcTimestamp .ps__scrollbar-y-rail .ps__scrollbar-x-rail")) return;
                 let date = new Date();
                 let timestamp = date.getHours().toString().padStart(2, 0) + ":" + date.getMinutes().toString().padStart(2, 0);
-                if ($(node).find(".gcTeamMessageIcon").length === 1) {
-                    $(node).find(".gcTeamMessageIcon").after($(`<span class="gcTimestamp">${timestamp}</span>`));
+                if ($node.find(".gcTeamMessageIcon").length === 1) {
+                    $node.find(".gcTeamMessageIcon").after($(`<span class="gcTimestamp">${timestamp}</span>`));
                 }
                 else {
-                    $(node).prepend($(`<span class="gcTimestamp">${timestamp}</span>`));
+                    $node.prepend($(`<span class="gcTimestamp">${timestamp}</span>`));
                 }
-                let chat = gameChat.$chatMessageContainer;
-                let atBottom = chat.scrollTop() + chat.innerHeight() >= chat[0].scrollHeight - 25;
-                if (atBottom) chat.scrollTop(chat.prop("scrollHeight"));
             }
-        });
+        };
     }).observe(document.querySelector("#gcMessageContainer"), {childList: true, attributes: false, CharacterData: false});
 
     AMQ_addScriptData({
@@ -143,6 +139,7 @@ function setup() {
                 <li>2. Add color to usernames</li>
                 <li>3. Adjustable width and height</li>
                 <li>4. Move level, ticket, and note count to the right to make more space for dms</li>
+                <li>5. Bug fix for new dms not autoscrolling</li>
             </ul>
         `
     });
@@ -161,7 +158,7 @@ ChatBox.prototype.writeMessage = function(sender, msg, emojis, allowHtml) {
     msg = passChatMessage(msg, emojis, allowHtml);
     let date = new Date();
     let timestamp = date.getHours().toString().padStart(2, 0) + ":" + date.getMinutes().toString().padStart(2, 0);
-    let atBottom = this.$CHAT_CONTENT.scrollTop() + this.$CHAT_CONTENT.innerHeight() >= this.$CHAT_CONTENT[0].scrollHeight;
+    let atBottom = this.$CHAT_CONTENT.scrollTop() + this.$CHAT_CONTENT.innerHeight() >= this.$CHAT_CONTENT[0].scrollHeight - 20;
     let dmUsernameClass = "dmUsername";
     if (sender === selfName) dmUsernameClass = "dmUsernameSelf";
     else if (socialTab.onlineFriends[sender] || socialTab.offlineFriends[sender]) dmUsernameClass = "dmUsernameFriend";
@@ -206,7 +203,7 @@ ChatBar.prototype.toggleIndicators = function() {
 	else this.$RIGHT_INDICATOR.removeClass("runAnimation");
 };
 
-ChatBox.prototype.handleAlert = function (msg, callback) {
+ChatBox.prototype.handleAlert = function(msg, callback) {
 	let atBottom = this.$CHAT_CONTENT.scrollTop() + this.$CHAT_CONTENT.innerHeight() >= this.$CHAT_CONTENT[0].scrollHeight;
 	this.$HEADER.text(msg);
 	if (callback) {
