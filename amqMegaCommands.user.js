@@ -1722,7 +1722,7 @@ AutoCompleteController.prototype.newList = function() {
 
 // save settings
 function saveSettings() {
-    let settings = {}
+    let settings = {};
     settings.autoAcceptInvite = autoAcceptInvite;
     //settings.autoCopy = autoCopy;
     //settings.autoHost = autoHost;

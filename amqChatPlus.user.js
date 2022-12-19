@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Chat Plus
 // @namespace    https://github.com/kempanator
-// @version      0.5
+// @version      0.6
 // @description  Add timestamps, color, and wider boxes to DMs
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -17,12 +17,14 @@ IMPORTANT: disable these scripts before installing
 - dm time stamps by xsardine
 - bigger dms css by xsardine
 
-FEATURES:
-1. Add timestamps to chat
-2. Add timestamps to DMs
-3. Increase size of DMs
-4. Move level, ticket, and note count to the right
-5. Add colors to usernames in DMs if you have the highlight friends script
+Game chat features:
+1. Add timestamps
+
+DM features:
+1. Add timestamps
+2. Add color to usernames
+3. Adjustable width and height
+4. Move level, ticket, and note count to the right to make more space for dms
 */
 
 "use strict";
@@ -34,31 +36,13 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.5";
-const widthExtension = 60;
-const heightExtension = 40;
-let saveData = JSON.parse(localStorage.getItem("highlightFriendsSettings"));
-
-if (saveData) {
-    AMQ_addStyle(`
-        .dmUsernameSelf {
-            color: ${saveData.smColorSelfColor};
-        }
-        .dmUsernameFriend {
-            color: ${saveData.smColorFriendColor};
-        }
-    `);
-}
-else {
-    AMQ_addStyle(`
-        .dmUsernameSelf {
-            color: #80c7ff;
-        }
-        .dmUsernameFriend {
-            color: #80ff80;
-        }
-    `);
-}
+const version = "0.6";
+const saveData = JSON.parse(localStorage.getItem("chatPlus")) || {};
+const saveData2 = JSON.parse(localStorage.getItem("highlightFriendsSettings"));
+let dmTimestamps = saveData.dmTimestamps || true;
+let gcTimestamps = saveData.gcTimestamps || true;
+let widthExtension = saveData.widthExtension || 60;
+let heightExtension = saveData.heightExtension || 40;
 
 AMQ_addStyle(`
     #chatContainer {
@@ -99,6 +83,12 @@ AMQ_addStyle(`
     .dmTimestamp {
         opacity: 0.5;
     }
+    .dmUsernameSelf {
+        color: ${saveData2 ? saveData2.smColorSelfColor : "#80c7ff"};
+    }
+    .dmUsernameFriend {
+        color: ${saveData2 ? saveData2.smColorFriendColor : "80ff80"};
+    }
     .dmUsername, .dmUsernameSelf, .dmUsernameFriend {
         font-weight: bold;
     }
@@ -120,7 +110,7 @@ function setup() {
 
     new MutationObserver(mutations => {
         mutations.forEach(mutation => {
-            if (!mutation.addedNodes) return;
+            if (!mutation.addedNodes || !gcTimestamps) return;
             for (let i = 0; i < mutation.addedNodes.length; i++) {
                 let node = mutation.addedNodes[i];
                 if ($(node).hasClass("gcTimestamp")) return;
@@ -144,8 +134,27 @@ function setup() {
     AMQ_addScriptData({
         name: "Chat Plus",
         author: "kempanator",
-        description: `Add timestamps, color, and wider boxes to DMs`
+        description: `
+            <ul><b>Game chat features:</b>
+                <li>1. Add timestamps</li>
+            </ul>
+            <ul><b>DM features:</b>
+                <li>1. Add timestamps</li>
+                <li>2. Add color to usernames</li>
+                <li>3. Adjustable width and height</li>
+                <li>4. Move level, ticket, and note count to the right to make more space for dms</li>
+            </ul>
+        `
     });
+}
+
+function saveSettings() {
+    let settings = {};
+    settings.dmTimestamps = dmTimestamps;
+    settings.gcTimestamps = gcTimestamps;
+    settings.widthExtension = widthExtension;
+    settings.heightExtension = heightExtension;
+    localStorage.setItem("chatPlus", JSON.stringify(settings));
 }
 
 ChatBox.prototype.writeMessage = function(sender, msg, emojis, allowHtml) {
@@ -156,7 +165,9 @@ ChatBox.prototype.writeMessage = function(sender, msg, emojis, allowHtml) {
     let dmUsernameClass = "dmUsername";
     if (sender === selfName) dmUsernameClass = "dmUsernameSelf";
     else if (socialTab.onlineFriends[sender] || socialTab.offlineFriends[sender]) dmUsernameClass = "dmUsernameFriend";
-    let newDMFormat = `\n\t<li>\n\t\t<span class="dmTimestamp">${timestamp}</span> <span class="${dmUsernameClass}">${sender}:</span> ${msg}\n\t</li>\n`;
+    let newDMFormat;
+    if (dmTimestamps) newDMFormat = `\n\t<li>\n\t\t<span class="dmTimestamp">${timestamp}</span> <span class="${dmUsernameClass}">${sender}:</span> ${msg}\n\t</li>\n`;
+    else newDMFormat = `\n\t<li>\n\t\t<span class="${dmUsernameClass}">${sender}:</span> ${msg}\n\t</li>\n`;
     this.$CHAT_CONTENT.append(newDMFormat);
     if (atBottom) this.$CHAT_CONTENT.scrollTop(this.$CHAT_CONTENT.prop("scrollHeight"));
     this.$CHAT_CONTENT.perfectScrollbar("update");
@@ -164,7 +175,7 @@ ChatBox.prototype.writeMessage = function(sender, msg, emojis, allowHtml) {
 
 ChatBar.prototype.updateLayout = function() {
     this._$ACTIVE_CHAT_SCROLL_CONTAINER.width(this.activeChats.length * (165 + widthExtension));
-    this.activeChatContainerDom.perfectScrollbar('update');
+    this.activeChatContainerDom.perfectScrollbar("update");
     this.toggleIndicators();
     this.closeOutsideChats();
 };
@@ -174,4 +185,23 @@ ChatBar.prototype.getInsideOffsets = function() {
     let insideLeftOffset = - this._$ACTIVE_CHAT_SCROLL_CONTAINER.position().left;
     let insideRightOffset = insideLeftOffset + containerWidth - (165 + widthExtension);
     return {right: insideRightOffset, left: insideLeftOffset};
+};
+
+ChatBar.prototype.toggleIndicators = function() {
+	let offsets = this.getInsideOffsets();
+	offsets.left -= (165 + widthExtension) / 2;
+	offsets.right += (165 + widthExtension) / 2;
+	let activeOutsideLeft = false;
+	let activeOutsideRight = false;
+	this.activeChats.forEach(chat => {
+		if (chat.object.update) {
+			let position = chat.object.getXOffset();
+			if (position < offsets.left) activeOutsideLeft = true;
+			else if (position > offsets.right) activeOutsideRight = true;
+		}
+	});
+	if (activeOutsideLeft) this.$LEFT_INDICATOR.addClass("runAnimation");
+    else this.$LEFT_INDICATOR.removeClass("runAnimation");
+	if (activeOutsideRight) this.$RIGHT_INDICATOR.addClass("runAnimation");
+	else this.$RIGHT_INDICATOR.removeClass("runAnimation");
 };
