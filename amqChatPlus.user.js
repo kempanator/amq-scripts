@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Chat Plus
 // @namespace    https://github.com/kempanator
-// @version      0.8
+// @version      0.9
 // @description  Add timestamps, color, and wider boxes to DMs
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -37,21 +37,25 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.8";
+const version = "0.9";
 const saveData = JSON.parse(localStorage.getItem("chatPlus")) || {};
 const saveData2 = JSON.parse(localStorage.getItem("highlightFriendsSettings"));
 let dmTimestamps = saveData.dmTimestamps || true;
 let gcTimestamps = saveData.gcTimestamps || true;
-let widthExtension = saveData.widthExtension || 60;
-let heightExtension = saveData.heightExtension || 40;
+let ncTimestamps = saveData.ncTimestamps || true;
+let dmWidthExtension = saveData.dmWidthExtension || 60;
+let dmHeightExtension = saveData.dmHeightExtension || 40;
+let ncWidth = saveData.ncWidth || 450;
+let ncHeight = saveData.ncHeight || 350;
+let gcMaxMessages = saveData.gcMaxMessages || 500;
 
 AMQ_addStyle(`
     #chatContainer {
         width: calc(100% - 646px);
-        height: ${300 + heightExtension}px;
+        height: ${300 + dmHeightExtension}px;
     }
     #activeChatScrollContainer {
-        margin-top: ${255 + heightExtension}px;
+        margin-top: ${255 + dmHeightExtension}px;
     }
     #xpOuterContainer {
         width: 110px;
@@ -67,16 +71,16 @@ AMQ_addStyle(`
         left: 110px;
     }
     .chatBoxContainer {
-        height: ${200 + heightExtension}px;
+        height: ${200 + dmHeightExtension}px;
     }
     .chatContent {
-        height: ${132 + heightExtension}px;
+        height: ${132 + dmHeightExtension}px;
     }
     .chatBox {
-        width: ${155 + widthExtension}px;
+        width: ${155 + dmWidthExtension}px;
     }
     .chatTopBar p {
-        width: ${76 + widthExtension}px;
+        width: ${76 + dmWidthExtension}px;
     }
     .gcTimestamp {
         opacity: 0.5;
@@ -84,11 +88,14 @@ AMQ_addStyle(`
     .dmTimestamp {
         opacity: 0.5;
     }
+    .ncTimestamp {
+        opacity: 0.7;
+    }
     .dmUsernameSelf {
         color: ${saveData2 ? saveData2.smColorSelfColor : "#80c7ff"};
     }
     .dmUsernameFriend {
-        color: ${saveData2 ? saveData2.smColorFriendColor : "80ff80"};
+        color: ${saveData2 ? saveData2.smColorFriendColor : "#80ff80"};
     }
     .dmUsername, .dmUsernameSelf, .dmUsernameFriend {
         font-weight: bold;
@@ -96,6 +103,7 @@ AMQ_addStyle(`
 `);
 
 function setup() {
+    gameChat.MAX_CHAT_MESSAGES = gcMaxMessages;
     new Listener("game chat update", (payload) => {
         for (let message of payload.messages) {
             if (message.sender === selfName && message.message === "/version") {
@@ -127,6 +135,19 @@ function setup() {
         };
     }).observe(document.querySelector("#gcMessageContainer"), {childList: true, attributes: false, CharacterData: false});
 
+    new MutationObserver((mutations) => {
+        for (let mutation of mutations) {
+            if (!mutation.addedNodes || !ncTimestamps) return;
+            for (let node of mutation.addedNodes) {
+                let $node = $(node);
+                if ($node.is(".gcTimestamp .ps__scrollbar-y-rail .ps__scrollbar-x-rail")) return;
+                let date = new Date();
+                let timestamp = date.getHours().toString().padStart(2, 0) + ":" + date.getMinutes().toString().padStart(2, 0);
+                $node.prepend($(`<span class="ncTimestamp">${timestamp}</span>`));
+            }
+        };
+    }).observe(document.querySelector("#nexusCoopChatContainerInner"), {childList: true, attributes: false, CharacterData: false});
+
     AMQ_addScriptData({
         name: "Chat Plus",
         author: "kempanator",
@@ -149,8 +170,8 @@ function saveSettings() {
     let settings = {};
     settings.dmTimestamps = dmTimestamps;
     settings.gcTimestamps = gcTimestamps;
-    settings.widthExtension = widthExtension;
-    settings.heightExtension = heightExtension;
+    settings.dmWidthExtension = dmWidthExtension;
+    settings.dmHeightExtension = dmHeightExtension;
     localStorage.setItem("chatPlus", JSON.stringify(settings));
 }
 
@@ -171,7 +192,7 @@ ChatBox.prototype.writeMessage = function(sender, msg, emojis, allowHtml) {
 };
 
 ChatBar.prototype.updateLayout = function() {
-    this._$ACTIVE_CHAT_SCROLL_CONTAINER.width(this.activeChats.length * (165 + widthExtension));
+    this._$ACTIVE_CHAT_SCROLL_CONTAINER.width(this.activeChats.length * (165 + dmWidthExtension));
     this.activeChatContainerDom.perfectScrollbar("update");
     this.toggleIndicators();
     this.closeOutsideChats();
@@ -180,14 +201,14 @@ ChatBar.prototype.updateLayout = function() {
 ChatBar.prototype.getInsideOffsets = function() {
     let containerWidth = this.activeChatContainerDom.innerWidth();
     let insideLeftOffset = - this._$ACTIVE_CHAT_SCROLL_CONTAINER.position().left;
-    let insideRightOffset = insideLeftOffset + containerWidth - (165 + widthExtension);
+    let insideRightOffset = insideLeftOffset + containerWidth - (165 + dmWidthExtension);
     return {right: insideRightOffset, left: insideLeftOffset};
 };
 
 ChatBar.prototype.toggleIndicators = function() {
 	let offsets = this.getInsideOffsets();
-	offsets.left -= (165 + widthExtension) / 2;
-	offsets.right += (165 + widthExtension) / 2;
+	offsets.left -= (165 + dmWidthExtension) / 2;
+	offsets.right += (165 + dmWidthExtension) / 2;
 	let activeOutsideLeft = false;
 	let activeOutsideRight = false;
 	this.activeChats.forEach(chat => {
@@ -216,7 +237,7 @@ ChatBox.prototype.handleAlert = function(msg, callback) {
 	}
 	this.$HEADER.removeClass("hidden");
 	var headerHeight = this.container.find(".header").outerHeight(true);
-	this.$CHAT_CONTENT.css("height", 132 + heightExtension - headerHeight);
+	this.$CHAT_CONTENT.css("height", 132 + dmHeightExtension - headerHeight);
 	if (atBottom) this.$CHAT_CONTENT.scrollTop(this.$CHAT_CONTENT.prop("scrollHeight"));
 	this.$CHAT_CONTENT.perfectScrollbar("update");
 	this.newUpdate();
