@@ -28,7 +28,7 @@ let loadInterval = setInterval(() => {
         clearInterval(loadInterval);
     }
 }, 500);
-const version = "0.12";
+const version = "0.13";
 
 function setup() {
     new Listener("game chat update", (payload) => {
