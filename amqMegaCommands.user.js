@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.58
+// @version      0.59
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -81,7 +81,7 @@ OTHER
 */
 
 "use strict";
-const version = "0.58";
+const version = "0.59";
 const saveData = JSON.parse(localStorage.getItem("megaCommands")) || {};
 let animeList;
 let autoAcceptInvite = saveData.autoAcceptInvite !== undefined ? saveData.autoAcceptInvite : false;
@@ -434,44 +434,44 @@ function setup() {
 function parseCommand(content, type, target) {
     if (content === "/commands on") commands = true;
     if (!commands) return;
-    if (/^\/players$/.test(content)) {
+    if (/^\/players$/i.test(content)) {
         sendMessage(getPlayerList().map((player) => player.toLowerCase()).join(", "), type, target);
     }
-    else if (/^\/spectators$/.test(content)) {
+    else if (/^\/spectators$/i.test(content)) {
         sendMessage(getSpectatorList().map((player) => player.toLowerCase()).join(", "), type, target);
     }
-    else if (/^\/teammates$/.test(content)) {
+    else if (/^\/teammates$/i.test(content)) {
         sendMessage(getTeamList(getTeamNumber(selfName)).join(", "), type, target);
     }
-    else if (/^\/roll$/.test(content)) {
+    else if (/^\/roll$/i.test(content)) {
         sendMessage("Options: #, player, otherplayer, teammate, otherteammate, playerteam, relay, spectator", type, target, true);
     }
-    else if (/^\/roll [0-9]+$/.test(content)) {
+    else if (/^\/roll [0-9]+$/i.test(content)) {
         let number = parseInt(/^\S+ ([0-9]+)$/.exec(content)[1]);
         sendMessage("rolls " + (Math.floor(Math.random() * number) + 1), type, target);
     }
-    else if (/^\/roll -?[0-9]+ -?[0-9]+$/.test(content)) {
+    else if (/^\/roll -?[0-9]+ -?[0-9]+$/i.test(content)) {
         let low = parseInt(/^\S+ (-?[0-9]+) -?[0-9]+$/.exec(content)[1]);
         let high = parseInt(/^\S+ -?[0-9]+ (-?[0-9]+)$/.exec(content)[1]);
         sendMessage("rolls " + (Math.floor(Math.random() * (high - low + 1)) + low), type, target);
     }
-    else if (/^\/roll (p|players?)$/.test(content)) {
+    else if (/^\/roll (p|players?)$/i.test(content)) {
         let list = getPlayerList();
         sendMessage(list.length ? list[Math.floor(Math.random() * list.length)] : "no players", type, target);
     }
-    else if (/^\/roll (op|otherplayers?)$/.test(content)) {
+    else if (/^\/roll (op|otherplayers?)$/i.test(content)) {
         let name = getRandomOtherPlayer();
         if (name) sendMessage(name, type, target);
     }
-    else if (/^\/roll (t|teammates?)$/.test(content)) {
+    else if (/^\/roll (t|teammates?)$/i.test(content)) {
         let list = getTeamList(getTeamNumber(selfName));
         sendMessage(list.length ? list[Math.floor(Math.random() * list.length)] : "no teammates", type, target);
     }
-    else if (/^\/roll (ot|otherteammates?)$/.test(content)) {
+    else if (/^\/roll (ot|otherteammates?)$/i.test(content)) {
         let name = getRandomOtherTeammate();
         if (name) sendMessage(name, type, target);
     }
-    else if (/^\/roll (pt|playerteams?|teams?|warlords?)$/.test(content)) {
+    else if (/^\/roll (pt|playerteams?|teams?|warlords?)$/i.test(content)) {
         if (hostModal.getSettings().teamSize === 1) return sendMessage("team size must be greater than 1", type, target);
         let dict = getTeamDictionary();
         if (Object.keys(dict).length > 0) {
@@ -483,11 +483,11 @@ function parseCommand(content, type, target) {
             });
         }
     }
-    else if (/^\/roll (s|spec|spectators?)$/.test(content)) {
+    else if (/^\/roll (s|spec|spectators?)$/i.test(content)) {
         let list = getSpectatorList();
         sendMessage(list.length ? list[Math.floor(Math.random() * list.length)] : "no spectators", type, target);
     }
-    else if (/^\/roll relays?$/.test(content)) {
+    else if (/^\/roll relays?$/i.test(content)) {
         if (hostModal.getSettings().teamSize === 1) return sendMessage("team size must be greater than 1", type, target);
         let dict = getTeamDictionary();
         if (Object.keys(dict).length === 0) return;
@@ -497,24 +497,24 @@ function parseCommand(content, type, target) {
             setTimeout(() => { sendMessage(`Team ${team}: ` + shuffleArray(dict[team]).join(" ➜ "), type, target) }, (i + 1) * 200);
         });
     }
-    else if (/^\/roll .+,.+$/.test(content)) {
+    else if (/^\/roll .+,.+$/i.test(content)) {
         let list = /^\S+ (.+)$/.exec(content)[1].split(",").map((x) => x.trim()).filter((x) => !!x);
         if (list.length > 1) sendMessage(list[Math.floor(Math.random() * list.length)], type, target);
     }
-    else if (/^\/shuffle .+$/.test(content)) {
+    else if (/^\/shuffle .+$/i.test(content)) {
         let list = /^\S+ (.+)$/.exec(content)[1].split(",").map((x) => x.trim()).filter((x) => !!x);
         if (list.length > 1) sendMessage(shuffleArray(list).join(", "), type, target);
     }
-    else if (/^\/(calc|math) .+$/.test(content)) {
+    else if (/^\/(calc|math) .+$/i.test(content)) {
         sendMessage(calc(/^\S+ (.+)$/.exec(content)[1]), type, target);
     }
-    else if (/^\/size [0-9]+$/.test(content)) {
+    else if (/^\/size [0-9]+$/i.test(content)) {
         let option = parseInt(/^\S+ ([0-9]+)$/.exec(content)[1]);
         let settings = hostModal.getSettings();
         settings.roomSize = option;
         changeGameSettings(settings);
     }
-    else if (/^\/(t|types?|songtypes?) \w+$/.test(content)) {
+    else if (/^\/(t|types?|songtypes?) \w+$/i.test(content)) {
         let option = /^\S+ (\w+)$/.exec(content)[1].toLowerCase();
         let settings = hostModal.getSettings();
         settings.songType.standardValue.openings = option.includes("o");
@@ -526,7 +526,7 @@ function parseCommand(content, type, target) {
         settings.songType.advancedValue.random = settings.numberOfSongs;
         changeGameSettings(settings);
     }
-    else if (/^\/(t|types?|songtypes?) \w+ [0-9]+$/.test(content)) {
+    else if (/^\/(t|types?|songtypes?) \w+ [0-9]+$/i.test(content)) {
         let option = /^\S+ (\w+) [0-9]+$/.exec(content)[1].toLowerCase();
         let value = parseInt(/^\S+ \w+ ([0-9]+)$/.exec(content)[1]);
         let settings = hostModal.getSettings();
@@ -536,7 +536,7 @@ function parseCommand(content, type, target) {
         else if (option[0] === "r") settings.songType.advancedValue.random = value;
         changeGameSettings(settings);
     }
-    else if (/^\/watched$/.test(content)) {
+    else if (/^\/watched$/i.test(content)) {
         let settings = hostModal.getSettings();
         settings.songSelection.standardValue = 1;
         settings.songSelection.advancedValue.watched = 0;
@@ -544,7 +544,7 @@ function parseCommand(content, type, target) {
         settings.songSelection.advancedValue.random = settings.numberOfSongs;
         changeGameSettings(settings);
     }
-    else if (/^\/random$/.test(content)) {
+    else if (/^\/random$/i.test(content)) {
         let settings = hostModal.getSettings();
         settings.songSelection.standardValue = 3;
         settings.songSelection.advancedValue.watched = settings.numberOfSongs;
@@ -552,7 +552,7 @@ function parseCommand(content, type, target) {
         settings.songSelection.advancedValue.random = 0;
         changeGameSettings(settings);
     }
-    else if (/^\/selection \w+ [0-9]+$/.test(content)) {
+    else if (/^\/selection \w+ [0-9]+$/i.test(content)) {
         let option = /^\S+ (\w+) [0-9]+$/.exec(content)[1].toLowerCase();
         let value = parseInt(/^\S+ \w+ ([0-9]+)$/.exec(content)[1]);
         let settings = hostModal.getSettings();
@@ -561,41 +561,41 @@ function parseCommand(content, type, target) {
         else if (option[0] === "r") settings.songSelection.advancedValue.random = value;
         changeGameSettings(settings);
     }
-    else if (/^\/(s|speed) [0-9.]+$/.test(content)) {
+    else if (/^\/(s|speed) [0-9.]+$/i.test(content)) {
         let option = parseFloat(/^\S+ ([0-9.]+)$/.exec(content)[1]);
         let settings = hostModal.getSettings();
         settings.playbackSpeed.randomOn = false;
         settings.playbackSpeed.standardValue = option;
         changeGameSettings(settings);
     }
-    else if (/^\/time [0-9]+$/.test(content)) {
+    else if (/^\/time [0-9]+$/i.test(content)) {
         let option = parseInt(/^\S+ ([0-9]+)$/.exec(content)[1]);
         let settings = hostModal.getSettings();
         settings.guessTime.randomOn = false;
         settings.guessTime.standardValue = option;
         changeGameSettings(settings);
     }
-    else if (/^\/lives [0-9]+$/.test(content)) {
+    else if (/^\/lives [0-9]+$/i.test(content)) {
         let option = parseInt(/^\S+ ([0-9]+)$/.exec(content)[1]);
         let settings = hostModal.getSettings();
         settings.scoreType = 3;
         settings.lives = option;
         changeGameSettings(settings);
     }
-    else if (/^\/team [0-9]+$/.test(content)) {
+    else if (/^\/team [0-9]+$/i.test(content)) {
         let option = parseInt(/^\S+ ([0-9]+)$/.exec(content)[1]);
         let settings = hostModal.getSettings();
         settings.teamSize.randomOn = false;
         settings.teamSize.standardValue = option;
         changeGameSettings(settings);
     }
-    else if (/^\/(n|songs|numsongs) [0-9]+$/.test(content)) {
+    else if (/^\/(n|songs|numsongs) [0-9]+$/i.test(content)) {
         let option = parseInt(/^\S+ ([0-9]+)$/.exec(content)[1]);
         let settings = hostModal.getSettings();
         settings.numberOfSongs = option;
         changeGameSettings(settings);
     }
-    else if (/^\/(d|dif|difficulty) [0-9]+[ -][0-9]+$/.test(content)) {
+    else if (/^\/(d|dif|difficulty) [0-9]+[ -][0-9]+$/i.test(content)) {
         let low = parseInt(/^\S+ ([0-9]+)[ -][0-9]+$/.exec(content)[1]);
         let high = parseInt(/^\S+ [0-9]+[ -]([0-9]+)$/.exec(content)[1]);
         let settings = hostModal.getSettings();
@@ -603,45 +603,45 @@ function parseCommand(content, type, target) {
         settings.songDifficulity.advancedValue = [low, high];
         changeGameSettings(settings);
     }
-    else if (/^\/skip$/.test(content)) {
+    else if (/^\/skip$/i.test(content)) {
         quiz.skipClicked();
     }
-    else if (/^\/pause$/.test(content)) {
+    else if (/^\/pause$/i.test(content)) {
         socket.sendCommand({type: "quiz", command: "quiz " + (quiz.pauseButton.pauseOn ? "unpause" : "pause")});
     }
-    else if (/^\/(autoskip|autovoteskip)$/.test(content)) {
+    else if (/^\/(autoskip|autovoteskip)$/i.test(content)) {
         if (autoVoteSkip === null) autoVoteSkip = 100;
         else autoVoteSkip = null;
         sendMessage("auto vote skip " + (autoVoteSkip ? "enabled" : "disabled"), type, target, true);
     }
-    else if (/^\/(autoskip|autovoteskip) [0-9.]+$/.test(content)) {
+    else if (/^\/(autoskip|autovoteskip) [0-9.]+$/i.test(content)) {
         let seconds = parseFloat(/^\S+ ([0-9.]+)$/.exec(content)[1]);
         if (isNaN(seconds)) return;
         autoVoteSkip = seconds * 1000;
         sendMessage(`auto vote skip after ${seconds} seconds`, type, target, true);
     }
-    else if (/^\/(ak|autokey|autosubmit)$/.test(content)) {
+    else if (/^\/(ak|autokey|autosubmit)$/i.test(content)) {
         autoKey = !autoKey;
         saveSettings();
         sendMessage("auto key " + (autoKey ? "enabled" : "disabled"), type, target, true);
     }
-    else if (/^\/(at|autothrow)$/.test(content)) {
+    else if (/^\/(at|autothrow)$/i.test(content)) {
         autoThrow = "";
         sendMessage("auto throw disabled " + autoCopy, type, target, true);
     }
-    else if (/^\/(at|autothrow) .+$/.test(content)) {
+    else if (/^\/(at|autothrow) .+$/i.test(content)) {
         autoThrow = translateShortcodeToUnicode(/^\S+ (.+)$/.exec(content)[1]).text;
         sendMessage("auto throwing: " + autoThrow, type, target, true);
     }
-    else if (/^\/(ac|autocopy)$/.test(content)) {
+    else if (/^\/(ac|autocopy)$/i.test(content)) {
         autoCopy = "";
         sendMessage("auto copy disabled", type, target, true);
     }
-    else if (/^\/(ac|autocopy) \w+$/.test(content)) {
+    else if (/^\/(ac|autocopy) \w+$/i.test(content)) {
         autoCopy = /^\S+ (\w+)$/.exec(content)[1].toLowerCase();
         sendMessage("auto copying " + autoCopy, type, target, true);
     }
-    else if (/^\/(am|automute)$/.test(content)) {
+    else if (/^\/(am|automute)$/i.test(content)) {
         document.querySelector("#qpVolume").classList.remove("disabled");
         volumeController.setMuted(false);
         volumeController.adjustVolume();
@@ -649,14 +649,14 @@ function parseCommand(content, type, target) {
         autoUnmute = null;
         sendMessage("auto mute disabled", type, target, true);
     }
-    else if (/^\/(am|automute) [0-9.]+$/.test(content)) {
+    else if (/^\/(am|automute) [0-9.]+$/i.test(content)) {
         let seconds = parseFloat(/^\S+ ([0-9.]+)$/.exec(content)[1]);
         if (isNaN(seconds)) return;
         autoMute = seconds * 1000;
         autoUnmute = null;
         sendMessage("auto muting after " + seconds + " second" + (seconds === 1 ? "" : "s"), type, target, true);
     }
-    else if (/^\/(au|autounmute)$/.test(content)) {
+    else if (/^\/(au|autounmute)$/i.test(content)) {
         document.querySelector("#qpVolume").classList.remove("disabled");
         volumeController.setMuted(false);
         volumeController.adjustVolume();
@@ -664,52 +664,52 @@ function parseCommand(content, type, target) {
         autoMute = null;
         sendMessage("auto unmute disabled", type, target, true);
     }
-    else if (/^\/(au|autounmute) [0-9.]+$/.test(content)) {
+    else if (/^\/(au|autounmute) [0-9.]+$/i.test(content)) {
         let seconds = parseFloat(/^\S+ ([0-9.]+)$/.exec(content)[1]);
         if (isNaN(seconds)) return;
         autoUnmute = seconds * 1000;
         autoMute = null;
         sendMessage("auto unmuting after " + seconds + " second" + (seconds === 1 ? "" : "s"), type, target, true);
     }
-    else if (/^\/autoready$/.test(content)) {
+    else if (/^\/autoready$/i.test(content)) {
         autoReady = !autoReady;
         saveSettings();
         sendMessage("auto ready " + (autoReady ? "enabled" : "disabled"), type, target, true);
         checkAutoReady();
     }
-    else if (/^\/autostart$/.test(content)) {
+    else if (/^\/autostart$/i.test(content)) {
         autoStart = !autoStart;
         sendMessage("auto start game " + (autoStart ? "enabled" : "disabled"), type, target, true);
         checkAutoStart();
     }
-    else if (/^\/(ah|autohost)$/.test(content)) {
+    else if (/^\/(ah|autohost)$/i.test(content)) {
         autoHost = "";
         sendMessage("auto host disabled", type, target, true);
     }
-    else if (/^\/(ah|autohost) \S+$/.test(content)) {
+    else if (/^\/(ah|autohost) \S+$/i.test(content)) {
         autoHost = /^\S+ (\S+)$/.exec(content)[1].toLowerCase();
         sendMessage("auto hosting " + autoHost, type, target, true);
         checkAutoHost();
     }
-    else if (/^\/autoinvite$/.test(content)) {
+    else if (/^\/autoinvite$/i.test(content)) {
         autoInvite = "";
         sendMessage("auto invite disabled", type, target, true);
     }
-    else if (/^\/autoinvite \w+$/.test(content)) {
+    else if (/^\/autoinvite \w+$/i.test(content)) {
         autoInvite = /^\S+ (\w+)$/.exec(content)[1].toLowerCase();
         sendMessage("auto inviting " + autoInvite, type, target, true);
     }
-    else if (/^\/autoaccept$/.test(content)) {
+    else if (/^\/autoaccept$/i.test(content)) {
         autoAcceptInvite = !autoAcceptInvite;
         saveSettings();
         sendMessage("auto accept invite " + (autoAcceptInvite ? "enabled" : "disabled"), type, target, true);
     }
-    else if (/^\/autoaccept .+$/.test(content)) {
+    else if (/^\/autoaccept .+$/i.test(content)) {
         autoAcceptInvite = /^\S+ (.+)$/.exec(content)[1].split(",").map((x) => x.trim().toLowerCase()).filter((x) => !!x);
         saveSettings();
         sendMessage("auto accept invite only from " + autoAcceptInvite.join(", "), type, target, true);
     }
-    else if (/^\/autojoin$/.test(content)) {
+    else if (/^\/autojoin$/i.test(content)) {
         if (autoJoinRoom || isSoloMode() || isRankedMode()) {
             autoJoinRoom = false;
             saveSettings();
@@ -740,35 +740,34 @@ function parseCommand(content, type, target) {
             sendMessage("auto join room disabled", type, target, true);
         }
     }
-    else if (/^\/autojoin [0-9]+/.test(content)) {
+    else if (/^\/autojoin [0-9]+/i.test(content)) {
         let id = parseInt(/^\S+ ([0-9]+)/.exec(content)[1]);
         let password = /^\S+ [0-9]+ (.+)$/.exec(content)[1];
         autoJoinRoom = {id: id, password: password ? password : ""};
         saveSettings();
         sendMessage(`auto joining room ${id} ${password}`, type, target, true);
     }
-    else if (/^\/autoswitch$/.test(content)) {
+    else if (/^\/autoswitch$/i.test(content)) {
         autoSwitch = "";
         sendMessage("auto switch disabled", type, target, true);
     }
-    else if (/^\/autoswitch (p|s)/.test(content)) {
-        let option = /^\S+ (p|s)/.exec(content)[1];
-        if (option === "p") autoSwitch = "player";
-        else if (option === "s") autoSwitch = "spectator";
+    else if (/^\/autoswitch (p|s)/i.test(content)) {
+        if (/^\S+ p/i.test(content)[1]) autoSwitch = "player";
+        else if (/^\S+ s/i.test(content)[1]) autoSwitch = "spectator";
         sendMessage("auto switching to " + autoSwitch, type, target, true);
         checkAutoSwitch();
     }
-    else if (/^\/autolobby$/.test(content)) {
+    else if (/^\/autolobby$/i.test(content)) {
         autoVoteLobby = !autoVoteLobby;
         saveSettings();
         sendMessage("auto vote lobby " + (autoVoteLobby ? "enabled" : "disabled"), type, target, true);
     }
-    else if (/^\/autostatus$/.test(content)) {
+    else if (/^\/autostatus$/i.test(content)) {
         autoStatus = "";
         saveSettings();
         sendMessage("auto status removed", type, target, true);
     }
-    else if (/^\/autostatus .+$/.test(content)) {
+    else if (/^\/autostatus .+$/i.test(content)) {
         let option = /^\S+ (.+)$/.exec(content)[1];
         if (option === "away" || option === "do not disturb" || option === "invisible") {
             autoStatus = option;
@@ -779,7 +778,7 @@ function parseCommand(content, type, target) {
             sendMessage("Options: away, do not disturb, invisible", type, target, true);
         }
     }
-    else if (/^\/(cd|countdown)$/.test(content)) {
+    else if (/^\/(cd|countdown)$/i.test(content)) {
         if (countdown === null) {
             sendMessage("Command: /countdown #", type, target, true);
         }
@@ -789,7 +788,7 @@ function parseCommand(content, type, target) {
             sendMessage("countdown stopped", type, target, true);
         }
     }
-    else if (/^\/(cd|countdown) [0-9]+$/.test(content)) {
+    else if (/^\/(cd|countdown) [0-9]+$/i.test(content)) {
         if (type !== "chat" || !lobby.inLobby) return;
         if (!lobby.isHost) return sendMessage("countdown failed: not host", type, target, true);
         countdown = parseInt(/^\S+ (.+)$/.exec(content)[1]);
@@ -811,45 +810,45 @@ function parseCommand(content, type, target) {
             }
         }, 1000);
     }
-    else if (/^\/ready$/.test(content)) {
+    else if (/^\/ready$/i.test(content)) {
         if (lobby.inLobby && !lobby.isHost && !lobby.isSpectator && lobby.settings.gameMode !== "Ranked") {
             lobby.fireMainButtonEvent();
         }
     }
-    else if (/^\/(inv|invite)$/.test(content)) {
+    else if (/^\/(inv|invite)$/i.test(content)) {
         if (type === "dm") {
             socket.sendCommand({type: "social", command: "invite to game", data: {target: target}});
         }
     }
-    else if (/^\/(inv|invite) \w+$/.test(content)) {
+    else if (/^\/(inv|invite) \w+$/i.test(content)) {
         let name = getPlayerNameCorrectCase(/^\S+ (\w+)$/.exec(content)[1]);
         socket.sendCommand({type: "social", command: "invite to game", data: {target: name}});
     }
-    else if (/^\/(spec|spectate)$/.test(content)) {
+    else if (/^\/(spec|spectate)$/i.test(content)) {
         lobby.changeToSpectator(selfName);
     }
-    else if (/^\/(spec|spectate) \w+$/.test(content)) {
+    else if (/^\/(spec|spectate) \w+$/i.test(content)) {
         let name = getClosestNameInRoom(/^\S+ (\w+)$/.exec(content)[1]);
         if (isInYourRoom(name)) lobby.changeToSpectator(getPlayerNameCorrectCase(name));
     }
-    else if (/^\/join$/.test(content)) {
+    else if (/^\/join$/i.test(content)) {
         socket.sendCommand({type: "lobby", command: "change to player"});
     }
-    else if (/^\/join [0-9]+$/.test(content)) {
+    else if (/^\/join [0-9]+$/i.test(content)) {
         if (inRoom()) return;
         let id = parseInt(/^\S+ ([0-9]+)$/.exec(content)[1]);
         roomBrowser.fireSpectateGame(id);
     }
-    else if (/^\/join [0-9]+ .+$/.test(content)) {
+    else if (/^\/join [0-9]+ .+$/i.test(content)) {
         if (inRoom()) return;
         let id = parseInt(/^\S+ ([0-9]+) .+$/.exec(content)[1]);
         let password = /^\S+ [0-9]+ (.+)$/.exec(content)[1];
         roomBrowser.fireSpectateGame(id, password);
     }
-    else if (/^\/queue$/.test(content)) {
+    else if (/^\/queue$/i.test(content)) {
         gameChat.joinLeaveQueue();
     }
-    else if (/^\/host \w+$/.test(content)) {
+    else if (/^\/host \w+$/i.test(content)) {
         let name = getClosestNameInRoom(/^\S+ (\w+)$/.exec(content)[1]);
         if (isInYourRoom(name)) {
             if (lobby.inLobby || quiz.inQuiz || battleRoyal.inView) {
@@ -860,7 +859,7 @@ function parseCommand(content, type, target) {
             }
         }
     }
-    else if (/^\/kick \w+$/.test(content)) {
+    else if (/^\/kick \w+$/i.test(content)) {
         let name = getClosestNameInRoom(/^\S+ (\w+)$/.exec(content)[1]);
         if (isInYourRoom(name)) {
             if (lobby.inLobby || quiz.inQuiz || battleRoyal.inView) {
@@ -871,33 +870,33 @@ function parseCommand(content, type, target) {
             }
         }
     }
-    else if (/^\/(lb|lobby|returntolobby)$/.test(content)) {
+    else if (/^\/(lb|lobby|returntolobby)$/i.test(content)) {
         socket.sendCommand({type: "quiz", command: "start return lobby vote"});
     }
-    else if (/^\/(v|volume) [0-9]+$/.test(content)) {
+    else if (/^\/(v|volume) [0-9]+$/i.test(content)) {
         let option = parseFloat(/^\S+ ([0-9]+)$/.exec(content)[1]) / 100;
         volumeController.volume = option;
         volumeController.setMuted(false);
         volumeController.adjustVolume();
     }
-    else if (/^\/clear$/.test(content)) {
+    else if (/^\/clear$/i.test(content)) {
         setTimeout(() => { document.querySelectorAll("#gcMessageContainer li").forEach((e) => e.remove()) }, 1);
     }
-    else if (/^\/(dd|dropdown)$/.test(content)) {
+    else if (/^\/(dd|dropdown)$/i.test(content)) {
         dropdown = !dropdown;
         sendMessage("dropdown " + (dropdown ? "enabled" : "disabled"), type, target, true);
         quiz.answerInput.autoCompleteController.newList();
     }
-    else if (/^\/(dds|dropdownspec|dropdownspectate)$/.test(content)) {
+    else if (/^\/(dds|dropdownspec|dropdownspectate)$/i.test(content)) {
         dropdownInSpec = !dropdownInSpec;
         if (dropdownInSpec) $("#qpAnswerInput").removeAttr("disabled");
         sendMessage("dropdown while spectating " + (dropdownInSpec ? "enabled" : "disabled"), type, target, true);
         saveSettings();
     }
-    else if (/^\/(pw|password)$/.test(content)) {
+    else if (/^\/(pw|password)$/i.test(content)) {
         sendMessage("password: " + hostModal.getSettings().password, type, target);
     }
-    else if (/^\/online \w+$/.test(content)) {
+    else if (/^\/online \w+$/i.test(content)) {
         let name = /^\S+ (\w+)$/.exec(content)[1].toLowerCase();
         let handleAllOnlineMessage = new Listener("all online users", function (onlineUsers) {
             sendMessage(onlineUsers.localeIncludes(name) ? "online" : "offline", type, target);
@@ -906,7 +905,7 @@ function parseCommand(content, type, target) {
         handleAllOnlineMessage.bindListener();
         socket.sendCommand({type: "social", command: "get online users"});
     }
-    else if (/^\/invisible$/.test(content)) {
+    else if (/^\/invisible$/i.test(content)) {
         let handleAllOnlineMessage = new Listener("all online users", function (onlineUsers) {
             let list = Object.keys(socialTab.offlineFriends).filter((name) => onlineUsers.includes(name));
             sendMessage(list.length > 0 ? list.join(", ") : "no invisible friends detected", type, target);
@@ -915,7 +914,7 @@ function parseCommand(content, type, target) {
         handleAllOnlineMessage.bindListener();
         socket.sendCommand({type: "social", command: "get online users"});
     }
-    else if (/^\/(roomid|lobbyid)$/.test(content)) {
+    else if (/^\/(roomid|lobbyid)$/i.test(content)) {
         if (lobby.inLobby) {
             sendMessage(lobby.gameId, type, target);
         }
@@ -930,59 +929,59 @@ function parseCommand(content, type, target) {
             socket.sendCommand({type: "social", command: "invite to game", data: {target: selfName}});
         }
     }
-    else if (/^\/(dm|pm)$/.test(content)) {
+    else if (/^\/(dm|pm)$/i.test(content)) {
         socialTab.startChat(selfName);
     }
-    else if (/^\/(dm|pm) \w+$/.test(content)) {
+    else if (/^\/(dm|pm) \w+$/i.test(content)) {
         let name = getPlayerNameCorrectCase(/^\S+ (\w+)$/.exec(content)[1]);
         socialTab.startChat(name);
     }
-    else if (/^\/(dm|pm) \w+ .+$/.test(content)) {
+    else if (/^\/(dm|pm) \w+ .+$/i.test(content)) {
         let name = getPlayerNameCorrectCase(/^\S+ (\w+) .+$/.exec(content)[1]);
         let text = /^\S+ \w+ (.+)$/.exec(content)[1];
         socialTab.startChat(name);
         socket.sendCommand({type: "social", command: "chat message", data: {target: name, message: text}});
     }
-    else if (/^\/(prof|profile) \w+$/.test(content)) {
+    else if (/^\/(prof|profile) \w+$/i.test(content)) {
         let name = /^\S+ (\w+)$/.exec(content)[1].toLowerCase();
         playerProfileController.loadProfile(name, $("#gameChatContainer"), {}, () => {}, false, true);
     }
-    else if (/^\/(rules|gamemodes?)$/.test(content)) {
+    else if (/^\/(rules|gamemodes?)$/i.test(content)) {
         sendMessage(Object.keys(rules).join(", "), type, target);
     }
-    else if (/^\/(rules|gamemodes?) .+$/.test(content)) {
+    else if (/^\/(rules|gamemodes?) .+$/i.test(content)) {
         let option = /^\S+ (.+)$/.exec(content)[1];
         if (option in rules) sendMessage(rules[option], type, target);
     }
-    else if (/^\/scripts?$/.test(content)) {
+    else if (/^\/scripts?$/i.test(content)) {
         sendMessage(Object.keys(scripts).join(", "), type, target);
     }
-    else if (/^\/scripts? .+$/.test(content)) {
+    else if (/^\/scripts? .+$/i.test(content)) {
         let option = /^\S+ (.+)$/.exec(content)[1];
         if (option in scripts) sendMessage(scripts[option], type, target);
     }
-    else if (/^\/info$/.test(content)) {
+    else if (/^\/info$/i.test(content)) {
         sendMessage(Object.keys(info).join(", "), type, target);
     }
-    else if (/^\/info .+$/.test(content)) {
+    else if (/^\/info .+$/i.test(content)) {
         let option = /^\S+ (.+)$/.exec(content)[1];
         if (option in info) sendMessage(info[option], type, target);
     }
-    else if (/^\/leave$/.test(content)) {
+    else if (/^\/leave$/i.test(content)) {
         setTimeout(() => { viewChanger.changeView("main") }, 1);
     }
-    else if (/^\/rejoin$/.test(content)) {
+    else if (/^\/rejoin$/i.test(content)) {
         rejoinRoom(100);
     }
-    else if (/^\/rejoin ([0-9]+)$/.test(content)) {
+    else if (/^\/rejoin ([0-9]+)$/i.test(content)) {
         let time = parseInt((/^\S+ ([0-9]+)$/).exec(content)[1]) * 1000;
         rejoinRoom(time);
     }
-    else if (/^\/(logout|logoff)$/.test(content)) {
+    else if (/^\/(logout|logoff)$/i.test(content)) {
         setTimeout(() => { viewChanger.changeView("main") }, 1);
         setTimeout(() => { options.logout() }, 10);
     }
-    else if (/^\/(relog|logout rejoin|loggoff rejoin)$/.test(content)) {
+    else if (/^\/(relog|logout rejoin|loggoff rejoin)$/i.test(content)) {
         if (isSoloMode()) {
             autoJoinRoom = {type: "solo", temp: true, settings: hostModal.getSettings(), autoLogIn: true};
             saveSettings();
@@ -1045,10 +1044,10 @@ function parseCommand(content, type, target) {
             setTimeout(() => { window.location = "/" }, 10);
         }
     }
-    else if (/^\/alien$/.test(content)) {
+    else if (/^\/alien$/i.test(content)) {
         sendMessage("command: /alien pick #", type, target, true);
     }
-    else if (/^\/alien pick [0-9]+$/.test(content)) {
+    else if (/^\/alien pick [0-9]+$/i.test(content)) {
         let n = parseInt(/^\S+ pick ([0-9]+)$/.exec(content)[1]);
         if (!inRoom() || n < 1) return;
         if (Object.keys(lobby.players).length < n) return sendMessage("not enough people", type, target);
@@ -1064,7 +1063,7 @@ function parseCommand(content, type, target) {
         });
         setTimeout(() => { sendMessage(n + " alien" + (n === 1 ? "" : "s") + " chosen", type, target) }, 500 * n);
     }
-    else if (/^\/(bg|background|wallpaper)$/.test(content)) {
+    else if (/^\/(bg|background|wallpaper)$/i.test(content)) {
         backgroundURL = "";
         AMQ_addStyle(`
             #loadingScreen, #gameContainer {
@@ -1076,10 +1075,10 @@ function parseCommand(content, type, target) {
         `);
         saveSettings();
     }
-    else if (/^\/(bg|background|wallpaper) (link|url)$/.test(content)) {
+    else if (/^\/(bg|background|wallpaper) (link|url)$/i.test(content)) {
         if (backgroundURL) sendMessage(backgroundURL, type, target);
     }
-    else if (/^\/(bg|background|wallpaper) http.+\.(jpg|jpeg|png|gif|tiff|bmp|webp)$/.test(content)) {
+    else if (/^\/(bg|background|wallpaper) http.+\.(jpg|jpeg|png|gif|tiff|bmp|webp)$/i.test(content)) {
         backgroundURL = /^\S+ (.+)$/.exec(content)[1];
         AMQ_addStyle(`
             #loadingScreen, #gameContainer {
@@ -1091,21 +1090,21 @@ function parseCommand(content, type, target) {
         `);
         saveSettings();
     }
-    else if (/^\/detect$/.test(content)) {
+    else if (/^\/detect$/i.test(content)) {
         sendMessage("invisible: " + playerDetection.invisible, type, target, true);
         sendMessage("players: " + playerDetection.players.join(", "), type, target, true);
     }
-    else if (/^\/detect disable$/.test(content)) {
+    else if (/^\/detect disable$/i.test(content)) {
         playerDetection = {invisible: false, players: []};
         saveSettings();
         sendMessage("detection system disabled", type, target, true);
     }
-    else if (/^\/detect invisible$/.test(content)) {
+    else if (/^\/detect invisible$/i.test(content)) {
         playerDetection.invisible = true;
         saveSettings();
         sendMessage("now detecting invisible friends in the room browser", type, target, true);
     }
-    else if (/^\/detect \w+$/.test(content)) {
+    else if (/^\/detect \w+$/i.test(content)) {
         let name = /^\S+ (\w+)$/.exec(content)[1];
         if (playerDetection.players.includes(name)) {
             playerDetection.players = playerDetection.players.filter((item) => item !== name);
@@ -1117,7 +1116,7 @@ function parseCommand(content, type, target) {
         }
         saveSettings();
     }
-    else if (/^\/startvote .+,.+$/.test(content)) {
+    else if (/^\/startvote .+,.+$/i.test(content)) {
         if (type !== "chat") return;
         let list = /^\S+ (.+)$/.exec(content)[1].split(",").map((x) => x.trim()).filter((x) => !!x);
         if (list.length < 2) return;
@@ -1130,7 +1129,7 @@ function parseCommand(content, type, target) {
             sendMessage(`${i + 1}: ${x}`, type, target);
         });
     }
-    else if (/^\/(stopvote|endvote)$/.test(content)) {
+    else if (/^\/(stopvote|endvote)$/i.test(content)) {
         if (Object.keys(voteOptions).length === 0) return;
         if (Object.keys(votes).length) {
             let results = {};
@@ -1146,39 +1145,39 @@ function parseCommand(content, type, target) {
         voteOptions = {};
         votes = {};
     }
-    else if (/^\/printloot$/.test(content)) {
+    else if (/^\/printloot$/i.test(content)) {
         printLoot = !printLoot;
         saveSettings();
         sendMessage("print loot " + (printLoot ? "enabled" : "disabled"), type, target, true);
     }
-    else if (/^\/commands$/.test(content)) {
+    else if (/^\/commands$/i.test(content)) {
         sendMessage("/commands on off help link version clear auto", type, target, true);
     }
-    else if (/^\/commands on$/.test(content)) {
+    else if (/^\/commands on$/i.test(content)) {
         commands = true;
         sendMessage("Mega Commands enabled", type, target, true);
     }
-    else if (/^\/commands off$/.test(content)) {
+    else if (/^\/commands off$/i.test(content)) {
         commands = false;
         sendMessage("Mega Commands disabled", type, target, true);
     }
-    else if (/^\/commands help$/.test(content)) {
+    else if (/^\/commands help$/i.test(content)) {
         sendMessage("https://kempanator.github.io/amq-mega-commands", type, target);
     }
-    else if (/^\/commands link$/.test(content)) {
+    else if (/^\/commands link$/i.test(content)) {
         sendMessage("https://raw.githubusercontent.com/kempanator/amq-scripts/main/amqMegaCommands.user.js", type, target);
     }
-    else if (/^\/commands version$/.test(content)) {
+    else if (/^\/commands version$/i.test(content)) {
         sendMessage(version, type, target);
     }
-    else if (/^\/commands clear$/.test(content)) {
+    else if (/^\/commands clear$/i.test(content)) {
         localStorage.removeItem("megaCommands");
         sendMessage("mega commands local storage cleared", type, target, true);
     }
-    else if (/^\/commands auto$/.test(content)) {
+    else if (/^\/commands auto$/i.test(content)) {
         autoList().forEach((item) => sendMessage(item, type, target, true));
     }
-    else if (/^\/version$/.test(content)) {
+    else if (/^\/version$/i.test(content)) {
         sendMessage("Mega Commands - " + version, type, target, true);
     }
 }
@@ -1191,16 +1190,16 @@ function parseCommand(content, type, target) {
 function parseIncomingDM(content, sender) {
     if (commands) {
         if (isFriend(sender)) {
-            if (/^\/(fr|forceready)$/.test(content) && lobby.inLobby && !lobby.isHost && !lobby.isSpectator && lobby.settings.gameMode !== "Ranked") {
+            if (/^\/(fr|forceready)$/i.test(content) && lobby.inLobby && !lobby.isHost && !lobby.isSpectator && lobby.settings.gameMode !== "Ranked") {
                 lobby.fireMainButtonEvent();
             }
-            else if (/^\/(fi|forceinvite)$/.test(content) && inRoom()) {
+            else if (/^\/(fi|forceinvite)$/i.test(content) && inRoom()) {
                 socket.sendCommand({type: "social", command: "invite to game", data: {target: sender}});
             }
-            else if (/^\/(fp|forcepassword)$/.test(content) && inRoom()) {
+            else if (/^\/(fp|forcepassword)$/i.test(content) && inRoom()) {
                 sendMessage("password: " + hostModal.getSettings().password, "dm", sender);
             }
-            else if (/^\/(fh|forcehost)$/.test(content)) {
+            else if (/^\/(fh|forcehost)$/i.test(content)) {
                 if (lobby.inLobby && lobby.isHost) {
                     lobby.promoteHost(sender);
                 }
@@ -1208,7 +1207,7 @@ function parseIncomingDM(content, sender) {
                     socket.sendCommand({type: "nexus", command: "nexus promote host", data: {name: sender}});
                 }
             }
-            else if (/^\/(fh|forcehost) \w+$/.test(content)) {
+            else if (/^\/(fh|forcehost) \w+$/i.test(content)) {
                 let name = getPlayerNameCorrectCase(/^\S+ (\w+)$/.exec(content)[1]);
                 if (lobby.inLobby && lobby.isHost) {
                     lobby.promoteHost(name);
@@ -1217,20 +1216,20 @@ function parseIncomingDM(content, sender) {
                     socket.sendCommand({type: "nexus", command: "nexus promote host", data: {name: name}});
                 }
             }
-            else if (/^\/forceautolist$/.test(content)) {
+            else if (/^\/forceautolist$/i.test(content)) {
                 autoList().forEach((text, i) => setTimeout(() => { sendMessage(text, "dm", sender) }, i * 200));
             }
         }
-        if (/^\/(fv|forceversion)$/.test(content)) {
+        if (/^\/(fv|forceversion)$/i.test(content)) {
             sendMessage(version, "dm", sender);
         }
-        else if (/^\/whereis \w+$/.test(content)) {
+        else if (/^\/whereis \w+$/i.test(content)) {
             if (Object.keys(roomBrowser.activeRooms).length === 0) return;
             let name = /^\S+ (\w+)$/.exec(content)[1];
             let foundRoom = Object.values(roomBrowser.activeRooms).find((room) => room._players.localeIncludes(name));
             sendMessage(Number.isInteger(foundRoom?.id) ? `in room ${foundRoom.id}` : "not found", "dm", sender);
         }
-        else if (/^\/room [0-9]+$/.test(content)) {
+        else if (/^\/room [0-9]+$/i.test(content)) {
             if (Object.keys(roomBrowser.activeRooms).length === 0) return;
             let roomId = /^\S+ ([0-9]+)$/.exec(content)[1];
             if (roomId in roomBrowser.activeRooms) {
@@ -1251,17 +1250,17 @@ function parseIncomingDM(content, sender) {
  * @param {String} type dm, chat, teamchat, nexus
  */
 function parseForceAll(content, type) {
-    if (/^\/forceall version$/.test(content)) {
-        sendMessage("0.58", type);
+    if (/^\/forceall version$/i.test(content)) {
+        sendMessage("0.59", type);
     }
-    else if (/^\/forceall roll [0-9]+$/.test(content)) {
+    else if (/^\/forceall roll [0-9]+$/i.test(content)) {
         let number = parseInt(/^\S+ roll ([0-9]+)$/.exec(content)[1]);
         sendMessage(Math.floor(Math.random() * number) + 1, type);
     }
-    else if (/^\/forceall mutestatus$/.test(content)) {
+    else if (/^\/forceall mutestatus$/i.test(content)) {
         sendMessage(volumeController.muted ? "🔇" : "🔉 " + Math.round(volumeController.volume * 100) + "%", type);
     }
-    else if (/^\/forceall skip$/.test(content)) {
+    else if (/^\/forceall skip$/i.test(content)) {
         quiz.skipClicked();
     }
 }
