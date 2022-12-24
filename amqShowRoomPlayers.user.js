@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Show Room Players
 // @namespace    https://github.com/kempanator
-// @version      0.11
+// @version      0.12
 // @description  Adds extra functionality to room tiles
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -28,7 +28,7 @@ let loadInterval = setInterval(() => {
         clearInterval(loadInterval);
     }
 }, 500);
-const version = "0.11";
+const version = "0.12";
 
 function setup() {
     new Listener("game chat update", (payload) => {
@@ -46,9 +46,10 @@ function setup() {
     new Listener("New Rooms", (payload) => {
         payload.forEach((item) => {
             setTimeout(() => {
-                if (roomBrowser.activeRooms[item.id]) {
-                    roomBrowser.activeRooms[item.id].createRoomPlayers();
-                    roomBrowser.activeRooms[item.id].clickHostName(item.host);
+                let room = roomBrowser.activeRooms[item.id];
+                if (room) {
+                    room.createRoomPlayers();
+                    room.clickHostName(item.host);
                 }
             }, 1);
         });
@@ -56,12 +57,13 @@ function setup() {
     new Listener("Room Change", (payload) => {
         if (payload.changeType === "players" || payload.changeType === "spectators") {
             setTimeout(() => {
-                if (roomBrowser.activeRooms[payload.roomId]) {
-                    roomBrowser.activeRooms[payload.roomId].updateFriends();
-                    roomBrowser.activeRooms[payload.roomId].updateRoomPlayers();
+                let room = roomBrowser.activeRooms[item.id];
+                if (room) {
+                    room.updateFriends();
+                    room.updateRoomPlayers();
                     if (payload.newHost) {
-                        roomBrowser.activeRooms[payload.roomId].updateAvatar(payload.newHost.avatar);
-                        roomBrowser.activeRooms[payload.roomId].clickHostName(payload.newHost.name);
+                        room.updateAvatar(payload.newHost.avatar);
+                        room.clickHostName(payload.newHost.name);
                     }
                 }
             }, 1);
@@ -71,12 +73,13 @@ function setup() {
         name: "Show Room Players",
         author: "kempanator",
         description: `
-            <p>New room tile features:</p>
-            <p>1. Mouse over players bar to show full player list (friends are highlighted blue)</p>
-            <p>2. Click name in player list to open profile</p>
-            <p>3. Click host name to open profile</p>
-            <p>4. Invisible friends are no longer hidden</p>
-            <p>5. Bug fix for friends list and host avatar not getting updated</p>
+            <ul><b>New room tile features:</b>
+                <li>1. Mouse over players bar to show full player list (friends are highlighted blue)</li>
+                <li>2. Click name in player list to open profile</li>
+                <li>3. Click host name to open profile</li>
+                <li>4. Invisible friends are no longer hidden</li>
+                <li>5. Bug fix for friends list and host avatar not getting updated</li>
+            </ul>
         `
     });
     AMQ_addStyle(`
@@ -163,7 +166,7 @@ RoomTile.prototype.createRoomPlayers = function() {
             playerProfileController.loadProfile(e.target.innerText, $(thisRoomTile.$tile), {}, () => {}, false, true);
         });
     });
-}
+};
 
 // update room players popover
 RoomTile.prototype.updateRoomPlayers = function() {
@@ -177,7 +180,7 @@ RoomTile.prototype.updateRoomPlayers = function() {
     }
     this.$tile.find(".rbrProgressContainer").data("bs.popover").options.content = $playerList[0].outerHTML;
     this.$tile.find(".rbrProgressContainer").data("bs.popover").options.title = players.length + " Player" + (players.length === 1 ? "" : "s");
-}
+};
 
 // update the room tile avatar when a new host is promoted
 RoomTile.prototype.updateAvatar = function(avatarInfo) {

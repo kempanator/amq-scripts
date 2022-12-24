@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.57
+// @version      0.58
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -81,33 +81,33 @@ OTHER
 */
 
 "use strict";
-const version = "0.57";
+const version = "0.58";
 const saveData = JSON.parse(localStorage.getItem("megaCommands")) || {};
 let animeList;
-let autoAcceptInvite = saveData.autoAcceptInvite || false;
-let autoCopy = saveData.autoCopy || "";
-let autoHost = saveData.autoHost || "";
-let autoInvite = saveData.autoInvite || "";
-let autoJoinRoom = saveData.autoJoinRoom || false;
-let autoKey = saveData.autoKey || false;
-let autoMute = saveData.autoMute || null;
-let autoReady = saveData.autoReady || false;
-let autoStart = saveData.autoStart || false;
-let autoStatus = saveData.autoStatus || "";
-let autoSwitch = saveData.autoSwitch || "";
-let autoThrow = saveData.autoThrow || "";
-let autoUnmute = saveData.autoUnmute || null;
-let autoVoteLobby = saveData.autoVoteLobby || false;
-let autoVoteSkip = saveData.autoVoteSkip || null;
-let backgroundURL = saveData.backgroundURL || "";
-let commands = saveData.commands || true;
+let autoAcceptInvite = saveData.autoAcceptInvite !== undefined ? saveData.autoAcceptInvite : false;
+let autoCopy = saveData.autoCopy !== undefined ? saveData.autoCopy : "";
+let autoHost = saveData.autoHost !== undefined ? saveData.autoHost : "";
+let autoInvite = saveData.autoInvite !== undefined ? saveData.autoInvite : "";
+let autoJoinRoom = saveData.autoJoinRoom !== undefined ? saveData.autoJoinRoom : false;
+let autoKey = saveData.autoKey !== undefined ? saveData.autoKey : false;
+let autoMute = saveData.autoMute !== undefined ? saveData.autoMute : null;
+let autoReady = saveData.autoReady !== undefined ? saveData.autoReady : false;
+let autoStart = saveData.autoStart !== undefined ? saveData.autoStart : false;
+let autoStatus = saveData.autoStatus !== undefined ? saveData.autoStatus : "";
+let autoSwitch = saveData.autoSwitch !== undefined ? saveData.autoSwitch : "";
+let autoThrow = saveData.autoThrow !== undefined ? saveData.autoThrow : "";
+let autoUnmute = saveData.autoUnmute !== undefined ? saveData.autoUnmute : null;
+let autoVoteLobby = saveData.autoVoteLobby !== undefined ? saveData.autoVoteLobby : false;
+let autoVoteSkip = saveData.autoVoteSkip !== undefined ? saveData.autoVoteSkip : null;
+let backgroundURL = saveData.backgroundURL !== undefined ? saveData.backgroundURL : "";
+let commands = saveData.commands !== undefined ? saveData.commands : true;
 let countdown = null;
 let countdownInterval;
-let dropdown = saveData.dropdown || true;
-let dropdownInSpec = saveData.dropdownInSpec || false;
-let lastUsedVersion = saveData.lastUsedVersion || null;
-let playerDetection = saveData.playerDetection || {invisible: false, players: []};
-let printLoot = saveData.printLoot || false;
+let dropdown = saveData.dropdown !== undefined ? saveData.dropdown : true;
+let dropdownInSpec = saveData.dropdownInSpec !== undefined ? saveData.dropdownInSpec : false;
+let lastUsedVersion = saveData.lastUsedVersion !== undefined ? saveData.lastUsedVersion : null;
+let playerDetection = saveData.playerDetection !== undefined ? saveData.playerDetection : {invisible: false, players: []};
+let printLoot = saveData.printLoot !== undefined ? saveData.printLoot : false;
 let voteOptions = {};
 let votes = {};
 const rules = {
@@ -1226,16 +1226,9 @@ function parseIncomingDM(content, sender) {
         }
         else if (/^\/whereis \w+$/.test(content)) {
             if (Object.keys(roomBrowser.activeRooms).length === 0) return;
-            let name = /^\S+ (\w+)$/.exec(content)[1].toLowerCase();
-            let foundRoom;
-            for (let roomId of Object.keys(roomBrowser.activeRooms)) {
-                for (let player of roomBrowser.activeRooms[roomId]._players) {
-                    if (name === player.toLowerCase()) {
-                        foundRoom = roomId;
-                    }
-                }
-            }
-            sendMessage(Number.isInteger(foundRoom) ? `in room ${foundRoom}` : "not found", "dm", sender);
+            let name = /^\S+ (\w+)$/.exec(content)[1];
+            let foundRoom = Object.values(roomBrowser.activeRooms).find((room) => room._players.localeIncludes(name));
+            sendMessage(Number.isInteger(foundRoom?.id) ? `in room ${foundRoom.id}` : "not found", "dm", sender);
         }
         else if (/^\/room [0-9]+$/.test(content)) {
             if (Object.keys(roomBrowser.activeRooms).length === 0) return;
@@ -1259,7 +1252,7 @@ function parseIncomingDM(content, sender) {
  */
 function parseForceAll(content, type) {
     if (/^\/forceall version$/.test(content)) {
-        sendMessage("0.57", type);
+        sendMessage("0.58", type);
     }
     else if (/^\/forceall roll [0-9]+$/.test(content)) {
         let number = parseInt(/^\S+ roll ([0-9]+)$/.exec(content)[1]);
