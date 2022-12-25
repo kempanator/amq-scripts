@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Chat Plus
 // @namespace    https://github.com/kempanator
-// @version      0.10
+// @version      0.11
 // @description  Add timestamps, color, and wider boxes to DMs
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -23,6 +23,7 @@ New chat/message features:
 3. Adjustable dm width and height
 4. Move level, ticket, and note count to the right
 5. Bug fix for new dms not autoscrolling
+6. Add a load image button when someone posts an image link in chat
 */
 
 "use strict";
@@ -34,10 +35,11 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.10";
+const version = "0.11";
 const saveData = JSON.parse(localStorage.getItem("chatPlus")) || {};
 const saveData2 = JSON.parse(localStorage.getItem("highlightFriendsSettings"));
 const $nexusChat = $("#nexusCoopMainContainer");
+const imageURLregex = /https?:\/\/\S+\.(?:png|jpe?g|gif|webp|bmp|tiff)/i;
 let gcTimestamps = saveData.gcTimestamps !== undefined ? saveData.gcTimestamps : true;
 let ncTimestamps = saveData.ncTimestamps !== undefined ? saveData.ncTimestamps : true;
 let dmTimestamps = saveData.dmTimestamps !== undefined ? saveData.dmTimestamps : true;
@@ -46,6 +48,8 @@ let dmColor = saveData.dmColor !== undefined ? saveData.dmColor : true;
 let dmWidthExtension = saveData.dmWidthExtension !== undefined ? saveData.dmWidthExtension : 60;
 let dmHeightExtension = saveData.dmHeightExtension !== undefined ? saveData.dmHeightExtension : 40;
 let shiftRight = saveData.shiftRight !== undefined ? saveData.shiftRight : true;
+let gcLoadImageButton = saveData.gcLoadImageButton !== undefined ? saveData.gcLoadImageButton : true;
+let gcAutoLoadImages = saveData.gcAutoLoadImages !== undefined ? saveData.gcAutoLoadImages : "never";
 //let gcMaxMessages = saveData.gcMaxMessages !== undefined ? saveData.gcMaxMessages : 200;
 //let ncMaxMessages = saveData.ncMaxMessages !== undefined ? saveData.ncMaxMessages : 100;
 applyStyles();
@@ -89,14 +93,39 @@ $("#settingsGraphicContainer").append($(`
                 <span><b>Extend DM (px):</b></span>
                 <span style="margin-left: 10px">Width</span>
                 <input id="chatPlusDMWidthExtension" type="text" style="width: 35px; color: black;">
-                <button id="chatPlusDMWidthExtensionButton" style="color: black">Go</button>
+                <button id="chatPlusDMWidthExtensionButton" class="btn btn-default" style="padding: 2px 5px">Go</button>
                 <span style="margin-left: 10px">Height</span>
                 <input id="chatPlusDMHeightExtension" type="text" style="width: 35px; color: black;">
-                <button id="chatPlusDMHeightExtensionButton" style="color: black">Go</button>
-                <span style="margin-left: 50px"><b>Shift Right</b>:</span>
+                <button id="chatPlusDMHeightExtensionButton" class="btn btn-default" style="padding: 2px 5px">Go</button>
+                <span style="margin-left: 60px">Shift Right</span>
                 <div class="customCheckbox" style="vertical-align: middle">
                     <input type="checkbox" id="chatPlusShiftRight">
                     <label for="chatPlusShiftRight"><i class="fa fa-check" aria-hidden="true"></i></label>
+                </div>
+            </div>
+            <div style="padding-top: 10px">
+                <span>Load Images in Chat</span>
+                <div class="customCheckbox" style="vertical-align: middle">
+                    <input type="checkbox" id="chatPlusLoadImages">
+                    <label for="chatPlusLoadImages"><i class="fa fa-check" aria-hidden="true"></i></label>
+                </div>
+                <span id="chatPlusAutoLoadImagesContainer">
+                    <span style="margin-left: 40px"><b>Auto Load:</b></span>
+                    <span style="margin-left: 10px">Never</span>
+                    <div class="customCheckbox" style="vertical-align: middle">
+                        <input type="checkbox" id="chatPlusAutoLoadImagesNever">
+                        <label for="chatPlusAutoLoadImagesNever"><i class="fa fa-check" aria-hidden="true"></i></label>
+                    </div>
+                    <span style="margin-left: 10px">Friends</span>
+                    <div class="customCheckbox" style="vertical-align: middle">
+                        <input type="checkbox" id="chatPlusAutoLoadImagesFriends">
+                        <label for="chatPlusAutoLoadImagesFriends"><i class="fa fa-check" aria-hidden="true"></i></label>
+                    </div>
+                    <span style="margin-left: 10px">All</span>
+                    <div class="customCheckbox" style="vertical-align: middle">
+                        <input type="checkbox" id="chatPlusAutoLoadImagesAll">
+                        <label for="chatPlusAutoLoadImagesAll"><i class="fa fa-check" aria-hidden="true"></i></label>
+                    </div>
                 </div>
             </div>
         </div>
@@ -105,17 +134,14 @@ $("#settingsGraphicContainer").append($(`
 
 $("#chatPlusGCTimestamps").prop("checked", gcTimestamps).click(() => {
     gcTimestamps = !gcTimestamps;
-    applyStyles();
     saveSettings();
 });
 $("#chatPlusNCTimestamps").prop("checked", ncTimestamps).click(() => {
     ncTimestamps = !ncTimestamps;
-    applyStyles();
     saveSettings();
 });
 $("#chatPlusDMTimestamps").prop("checked", dmTimestamps).click(() => {
     dmTimestamps = !dmTimestamps;
-    applyStyles();
     saveSettings();
 });
 $("#chatPlusNCColor").prop("checked", ncColor).click(() => {
@@ -151,6 +177,64 @@ $("#chatPlusShiftRight").prop("checked", shiftRight).click(() => {
     applyStyles();
     saveSettings();
 });
+$("#chatPlusLoadImages").prop("checked", gcLoadImageButton).click(() => {
+    gcLoadImageButton = !gcLoadImageButton;
+    if (gcLoadImageButton) $("#chatPlusAutoLoadImagesContainer").removeClass("disabled");
+    else $("#chatPlusAutoLoadImagesContainer").addClass("disabled");
+    saveSettings();
+});
+$("#chatPlusAutoLoadImagesNever").prop("checked", gcAutoLoadImages === "never").click(() => {
+    gcAutoLoadImages = "never";
+    $("#chatPlusAutoLoadImagesFriends").prop("checked", false);
+    $("#chatPlusAutoLoadImagesAll").prop("checked", false);
+    saveSettings();
+});
+$("#chatPlusAutoLoadImagesFriends").prop("checked", gcAutoLoadImages === "friends").click(() => {
+    gcAutoLoadImages = "friends";
+    $("#chatPlusAutoLoadImagesNever").prop("checked", false);
+    $("#chatPlusAutoLoadImagesAll").prop("checked", false);
+    saveSettings();
+});
+$("#chatPlusAutoLoadImagesAll").prop("checked", gcAutoLoadImages === "all").click(() => {
+    gcAutoLoadImages = "all";
+    $("#chatPlusAutoLoadImagesNever").prop("checked", false);
+    $("#chatPlusAutoLoadImagesFriends").prop("checked", false);
+    saveSettings();
+});
+if (!gcLoadImageButton) $("#chatPlusAutoLoadImagesContainer").addClass("disabled");
+
+AMQ_addStyle(`
+    .gcTimestamp {
+        opacity: 0.5;
+    }
+    .dmTimestamp {
+        opacity: 0.5;
+    }
+    .ncTimestamp {
+        opacity: 0.5;
+    }
+    .dmUsername {
+        font-weight: bold;
+    }
+    button.gcLoadImage {
+        background: #6D6D6D;
+        color: #d9d9d9;
+        display: block;
+        margin: 5px auto 2px;
+        padding: 3px 6px;
+    }
+    button.gcLoadImage:hover {
+        color: #d9d9d9;
+        opacity: .7;
+    }
+    img.gcLoadedImage {
+        display: block;
+        margin: auto;
+        padding: 5px 0 3px 0;
+        max-width: 70%;
+        max-height: 20%;
+    }
+`);
 
 function setup() {
     //gameChat.MAX_CHAT_MESSAGES = gcMaxMessages;
@@ -172,17 +256,35 @@ function setup() {
 
     new MutationObserver((mutations) => {
         for (let mutation of mutations) {
-            if (!mutation.addedNodes || !gcTimestamps) return;
+            if (!mutation.addedNodes) return;
             for (let node of mutation.addedNodes) {
                 let $node = $(node);
-                if ($node.is(".gcTimestamp .ps__scrollbar-y-rail .ps__scrollbar-x-rail")) return;
-                let date = new Date();
-                let timestamp = date.getHours().toString().padStart(2, 0) + ":" + date.getMinutes().toString().padStart(2, 0);
-                if ($node.find(".gcTeamMessageIcon").length === 1) {
-                    $node.find(".gcTeamMessageIcon").after($(`<span class="gcTimestamp">${timestamp}</span>`));
+                if (gcTimestamps) {
+                    if ($node.is(".gcTimestamp .ps__scrollbar-y-rail .ps__scrollbar-x-rail")) return;
+                    let date = new Date();
+                    let timestamp = date.getHours().toString().padStart(2, 0) + ":" + date.getMinutes().toString().padStart(2, 0);
+                    if ($node.find(".gcTeamMessageIcon").length === 1) {
+                        $node.find(".gcTeamMessageIcon").after($(`<span class="gcTimestamp">${timestamp}</span>`));
+                    }
+                    else {
+                        $node.prepend($(`<span class="gcTimestamp">${timestamp}</span>`));
+                    }
                 }
-                else {
-                    $node.prepend($(`<span class="gcTimestamp">${timestamp}</span>`));
+                if (gcLoadImageButton) {
+                    let match = $node.find(".gcMessage").text().match(imageURLregex);
+                    if (match) {
+                        let name = $node.find(".gcUserName").text();
+                        if (gcAutoLoadImages === "all" || (gcAutoLoadImages === "friends" && (name === selfName || socialTab.isFriend(name)))) {
+                            $node.append($(`<img></img>`).attr("src", match[0]).addClass("gcLoadedImage").click(function() { $(this).remove() }));
+                        }
+                        else {
+                            $node.append($(`<button>Load Image</button>`).addClass("btn gcLoadImage").click(function() {
+                                console.log($node);
+                                $(this).remove();
+                                $node.append($(`<img></img>`).attr("src", match[0]).addClass("gcLoadedImage").click(function() { $(this).remove() }));
+                            }));
+                        }
+                    }
                 }
             }
         }
@@ -254,24 +356,12 @@ function applyStyles() {
         .chatTopBar p {
             width: ${76 + dmWidthExtension}px;
         }
-        .gcTimestamp {
-            opacity: 0.5;
-        }
-        .dmTimestamp {
-            opacity: 0.5;
-        }
-        .ncTimestamp {
-            opacity: 0.7;
-        }
-        .dmUsername {
-            font-weight: bold;
-        }
         .dmUsername.self, .nexusCoopChatName.self {
             color: ${dmColor ? getSelfColor() : "inherit"};
         }
         .dmUsername.friend, .nexusCoopChatName.friend {
             color: ${dmColor ? getFriendColor() : "inherit"};
-        } 
+        }
     `);
 }
 
@@ -293,6 +383,8 @@ function saveSettings() {
     settings.dmWidthExtension = dmWidthExtension;
     settings.dmHeightExtension = dmHeightExtension;
     settings.shiftRight = shiftRight;
+    //settings.gcLoadImageButton = gcLoadImageButton;
+    //settings.gcAutoLoadImages = gcAutoLoadImages;
     localStorage.setItem("chatPlus", JSON.stringify(settings));
 }
 
