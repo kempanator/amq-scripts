@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Chat Plus
 // @namespace    https://github.com/kempanator
-// @version      0.11
+// @version      0.12
 // @description  Add timestamps, color, and wider boxes to DMs
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -23,7 +23,7 @@ New chat/message features:
 3. Adjustable dm width and height
 4. Move level, ticket, and note count to the right
 5. Bug fix for new dms not autoscrolling
-6. Add a load image button when someone posts an image link in chat
+6. Load images/audio/video directly in chat
 */
 
 "use strict";
@@ -35,11 +35,13 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.11";
+const version = "0.12";
 const saveData = JSON.parse(localStorage.getItem("chatPlus")) || {};
 const saveData2 = JSON.parse(localStorage.getItem("highlightFriendsSettings"));
 const $nexusChat = $("#nexusCoopMainContainer");
 const imageURLregex = /https?:\/\/\S+\.(?:png|jpe?g|gif|webp|bmp|tiff)/i;
+const audioURLregex = /https?:\/\/\S+\.(?:mp3|ogg|wav)/i;
+const videoURLregex = /https?:\/\/\S+\.(?:webm|mp4|mkv)/i;
 let gcTimestamps = saveData.gcTimestamps !== undefined ? saveData.gcTimestamps : true;
 let ncTimestamps = saveData.ncTimestamps !== undefined ? saveData.ncTimestamps : true;
 let dmTimestamps = saveData.dmTimestamps !== undefined ? saveData.dmTimestamps : true;
@@ -50,6 +52,10 @@ let dmHeightExtension = saveData.dmHeightExtension !== undefined ? saveData.dmHe
 let shiftRight = saveData.shiftRight !== undefined ? saveData.shiftRight : true;
 let gcLoadImageButton = saveData.gcLoadImageButton !== undefined ? saveData.gcLoadImageButton : true;
 let gcAutoLoadImages = saveData.gcAutoLoadImages !== undefined ? saveData.gcAutoLoadImages : "never";
+let gcLoadAudioButton = saveData.gcLoadAudioButton !== undefined ? saveData.gcLoadAudioButton : true;
+let gcAutoLoadAudio = saveData.gcAutoLoadAudio !== undefined ? saveData.gcAutoLoadAudio : "never";
+let gcLoadVideoButton = saveData.gcLoadVideoButton !== undefined ? saveData.gcLoadVideoButton : true;
+let gcAutoLoadVideo = saveData.gcAutoLoadVideo !== undefined ? saveData.gcAutoLoadVideo : "never";
 //let gcMaxMessages = saveData.gcMaxMessages !== undefined ? saveData.gcMaxMessages : 200;
 //let ncMaxMessages = saveData.ncMaxMessages !== undefined ? saveData.ncMaxMessages : 100;
 applyStyles();
@@ -104,13 +110,13 @@ $("#settingsGraphicContainer").append($(`
                 </div>
             </div>
             <div style="padding-top: 10px">
-                <span>Load Images in Chat</span>
+                <span style="width: 130px; display: inline-block;">Load Images in Chat</span>
                 <div class="customCheckbox" style="vertical-align: middle">
                     <input type="checkbox" id="chatPlusLoadImages">
                     <label for="chatPlusLoadImages"><i class="fa fa-check" aria-hidden="true"></i></label>
                 </div>
-                <span id="chatPlusAutoLoadImagesContainer">
-                    <span style="margin-left: 40px"><b>Auto Load:</b></span>
+                <span style="margin-left: 40px" id="chatPlusAutoLoadImagesContainer">
+                    <span style="width: 130px; display: inline-block;"><b>Auto Load Images:</b></span>
                     <span style="margin-left: 10px">Never</span>
                     <div class="customCheckbox" style="vertical-align: middle">
                         <input type="checkbox" id="chatPlusAutoLoadImagesNever">
@@ -126,7 +132,57 @@ $("#settingsGraphicContainer").append($(`
                         <input type="checkbox" id="chatPlusAutoLoadImagesAll">
                         <label for="chatPlusAutoLoadImagesAll"><i class="fa fa-check" aria-hidden="true"></i></label>
                     </div>
+                </span>
+            </div>
+            <div style="padding-top: 10px">
+                <span style="width: 130px; display: inline-block;">Load Audio in Chat</span>
+                <div class="customCheckbox" style="vertical-align: middle">
+                    <input type="checkbox" id="chatPlusLoadAudio">
+                    <label for="chatPlusLoadAudio"><i class="fa fa-check" aria-hidden="true"></i></label>
                 </div>
+                <span style="margin-left: 40px" id="chatPlusAutoLoadAudioContainer">
+                    <span style="width: 130px; display: inline-block;"><b>Auto Load Audio:</b></span>
+                    <span style="margin-left: 10px">Never</span>
+                    <div class="customCheckbox" style="vertical-align: middle">
+                        <input type="checkbox" id="chatPlusAutoLoadAudioNever">
+                        <label for="chatPlusAutoLoadAudioNever"><i class="fa fa-check" aria-hidden="true"></i></label>
+                    </div>
+                    <span style="margin-left: 10px">Friends</span>
+                    <div class="customCheckbox" style="vertical-align: middle">
+                        <input type="checkbox" id="chatPlusAutoLoadAudioFriends">
+                        <label for="chatPlusAutoLoadAudioFriends"><i class="fa fa-check" aria-hidden="true"></i></label>
+                    </div>
+                    <span style="margin-left: 10px">All</span>
+                    <div class="customCheckbox" style="vertical-align: middle">
+                        <input type="checkbox" id="chatPlusAutoLoadAudioAll">
+                        <label for="chatPlusAutoLoadAudioAll"><i class="fa fa-check" aria-hidden="true"></i></label>
+                    </div>
+                </span>
+            </div>
+            <div style="padding-top: 10px">
+                <span style="width: 130px; display: inline-block;">Load Video in Chat</span>
+                <div class="customCheckbox" style="vertical-align: middle">
+                    <input type="checkbox" id="chatPlusLoadVideo">
+                    <label for="chatPlusLoadVideo"><i class="fa fa-check" aria-hidden="true"></i></label>
+                </div>
+                <span style="margin-left: 40px" id="chatPlusAutoLoadVideoContainer">
+                    <span style="width: 130px; display: inline-block;"><b>Auto Load Video:</b></span>
+                    <span style="margin-left: 10px">Never</span>
+                    <div class="customCheckbox" style="vertical-align: middle">
+                        <input type="checkbox" id="chatPlusAutoLoadVideoNever">
+                        <label for="chatPlusAutoLoadVideoNever"><i class="fa fa-check" aria-hidden="true"></i></label>
+                    </div>
+                    <span style="margin-left: 10px">Friends</span>
+                    <div class="customCheckbox" style="vertical-align: middle">
+                        <input type="checkbox" id="chatPlusAutoLoadVideoFriends">
+                        <label for="chatPlusAutoLoadVideoFriends"><i class="fa fa-check" aria-hidden="true"></i></label>
+                    </div>
+                    <span style="margin-left: 10px">All</span>
+                    <div class="customCheckbox" style="vertical-align: middle">
+                        <input type="checkbox" id="chatPlusAutoLoadVideoAll">
+                        <label for="chatPlusAutoLoadVideoAll"><i class="fa fa-check" aria-hidden="true"></i></label>
+                    </div>
+                </span>
             </div>
         </div>
     </div>
@@ -201,7 +257,58 @@ $("#chatPlusAutoLoadImagesAll").prop("checked", gcAutoLoadImages === "all").clic
     $("#chatPlusAutoLoadImagesFriends").prop("checked", false);
     saveSettings();
 });
+$("#chatPlusLoadAudio").prop("checked", gcLoadAudioButton).click(() => {
+    gcLoadAudioButton = !gcLoadAudioButton;
+    if (gcLoadAudioButton) $("#chatPlusAutoLoadAudioContainer").removeClass("disabled");
+    else $("#chatPlusAutoLoadAudioContainer").addClass("disabled");
+    saveSettings();
+});
+$("#chatPlusAutoLoadAudioNever").prop("checked", gcAutoLoadAudio === "never").click(() => {
+    gcAutoLoadAudio = "never";
+    $("#chatPlusAutoLoadAudioFriends").prop("checked", false);
+    $("#chatPlusAutoLoadAudioAll").prop("checked", false);
+    saveSettings();
+});
+$("#chatPlusAutoLoadAudioFriends").prop("checked", gcAutoLoadAudio === "friends").click(() => {
+    gcAutoLoadAudio = "friends";
+    $("#chatPlusAutoLoadAudioNever").prop("checked", false);
+    $("#chatPlusAutoLoadAudioAll").prop("checked", false);
+    saveSettings();
+});
+$("#chatPlusAutoLoadAudioAll").prop("checked", gcAutoLoadAudio === "all").click(() => {
+    gcAutoLoadAudio = "all";
+    $("#chatPlusAutoLoadAudioNever").prop("checked", false);
+    $("#chatPlusAutoLoadAudioFriends").prop("checked", false);
+    saveSettings();
+});
+$("#chatPlusLoadVideo").prop("checked", gcLoadVideoButton).click(() => {
+    gcLoadVideoButton = !gcLoadVideoButton;
+    if (gcLoadVideoButton) $("#chatPlusAutoLoadVideoContainer").removeClass("disabled");
+    else $("#chatPlusAutoLoadVideoContainer").addClass("disabled");
+    saveSettings();
+});
+$("#chatPlusAutoLoadVideoNever").prop("checked", gcAutoLoadVideo === "never").click(() => {
+    gcAutoLoadVideo = "never";
+    $("#chatPlusAutoLoadVideoFriends").prop("checked", false);
+    $("#chatPlusAutoLoadVideoAll").prop("checked", false);
+    saveSettings();
+});
+$("#chatPlusAutoLoadVideoFriends").prop("checked", gcAutoLoadVideo === "friends").click(() => {
+    gcAutoLoadVideo = "friends";
+    $("#chatPlusAutoLoadVideoNever").prop("checked", false);
+    $("#chatPlusAutoLoadVideoAll").prop("checked", false);
+    saveSettings();
+});
+$("#chatPlusAutoLoadVideoAll").prop("checked", gcAutoLoadVideo === "all").click(() => {
+    gcAutoLoadVideo = "all";
+    $("#chatPlusAutoLoadVideoNever").prop("checked", false);
+    $("#chatPlusAutoLoadVideoFriends").prop("checked", false);
+    saveSettings();
+});
+
 if (!gcLoadImageButton) $("#chatPlusAutoLoadImagesContainer").addClass("disabled");
+if (!gcLoadAudioButton) $("#chatPlusAutoLoadAudioContainer").addClass("disabled");
+if (!gcLoadVideoButton) $("#chatPlusAutoLoadVideoContainer").addClass("disabled");
 
 AMQ_addStyle(`
     .gcTimestamp {
@@ -216,18 +323,32 @@ AMQ_addStyle(`
     .dmUsername {
         font-weight: bold;
     }
-    button.gcLoadImage {
+    button.gcLoadMedia {
         background: #6D6D6D;
         color: #d9d9d9;
         display: block;
         margin: 5px auto 2px;
         padding: 3px 6px;
     }
-    button.gcLoadImage:hover {
+    button.gcLoadMedia:hover {
         color: #d9d9d9;
         opacity: .7;
     }
     img.gcLoadedImage {
+        display: block;
+        margin: auto;
+        padding: 5px 0 3px 0;
+        max-width: 70%;
+        max-height: 20%;
+    }
+    audio.gcLoadedAudio {
+        display: block;
+        margin: auto;
+        padding: 5px 0 3px 0;
+        width: 80%;
+        height: 40px;
+    }
+    video.gcLoadedVideo {
         display: block;
         margin: auto;
         padding: 5px 0 3px 0;
@@ -275,14 +396,56 @@ function setup() {
                     if (match) {
                         let name = $node.find(".gcUserName").text();
                         if (gcAutoLoadImages === "all" || (gcAutoLoadImages === "friends" && (name === selfName || socialTab.isFriend(name)))) {
-                            $node.append($(`<img></img>`).attr("src", match[0]).addClass("gcLoadedImage").click(function() { $(this).remove() }));
+                            $node.append($(`<img></img>`).attr("src", match[0]).addClass("gcLoadedImage").click(function() {
+                                $(this).remove();
+                            }));
                         }
                         else {
-                            $node.append($(`<button>Load Image</button>`).addClass("btn gcLoadImage").click(function() {
-                                console.log($node);
+                            $node.append($(`<button>Load Image</button>`).addClass("btn gcLoadMedia").click(function() {
                                 $(this).remove();
-                                $node.append($(`<img></img>`).attr("src", match[0]).addClass("gcLoadedImage").click(function() { $(this).remove() }));
+                                $node.append($(`<img></img>`).attr("src", match[0]).addClass("gcLoadedImage").click(function() {
+                                    $(this).remove();
+                                }));
                             }));
+                        }
+                        if (gameChat.$chatMessageContainer.scrollTop() + gameChat.$chatMessageContainer.innerHeight() >= gameChat.$chatMessageContainer[0].scrollHeight - 100) {
+                            gameChat.$chatMessageContainer.scrollTop(gameChat.$chatMessageContainer.prop("scrollHeight"));
+                        }
+                    }
+                }
+                if (gcLoadAudioButton) {
+                    let match = $node.find(".gcMessage").text().match(audioURLregex);
+                    if (match) {
+                        let name = $node.find(".gcUserName").text();
+                        if (gcAutoLoadAudio === "all" || (gcAutoLoadAudio === "friends" && (name === selfName || socialTab.isFriend(name)))) {
+                            $node.append($(`<audio controls></audio>`).attr("src", match[0]).addClass("gcLoadedAudio"));
+                        }
+                        else {
+                            $node.append($(`<button>Load Audio</button>`).addClass("btn gcLoadMedia").click(function() {
+                                $(this).remove();
+                                $node.append($(`<audio controls></audio>`).attr("src", match[0]).addClass("gcLoadedAudio"));
+                            }));
+                        }
+                        if (gameChat.$chatMessageContainer.scrollTop() + gameChat.$chatMessageContainer.innerHeight() >= gameChat.$chatMessageContainer[0].scrollHeight - 100) {
+                            gameChat.$chatMessageContainer.scrollTop(gameChat.$chatMessageContainer.prop("scrollHeight"));
+                        }
+                    }
+                }
+                if (gcLoadVideoButton) {
+                    let match = $node.find(".gcMessage").text().match(videoURLregex);
+                    if (match) {
+                        let name = $node.find(".gcUserName").text();
+                        if (gcAutoLoadAudio === "all" || (gcAutoLoadAudio === "friends" && (name === selfName || socialTab.isFriend(name)))) {
+                            $node.append($(`<video controls></video>`).attr("src", match[0]).addClass("gcLoadedVideo"));
+                        }
+                        else {
+                            $node.append($(`<button>Load Video</button>`).addClass("btn gcLoadMedia").click(function() {
+                                $(this).remove();
+                                $node.append($(`<video controls></video>`).attr("src", match[0]).addClass("gcLoadedVideo"));
+                            }));
+                        }
+                        if (gameChat.$chatMessageContainer.scrollTop() + gameChat.$chatMessageContainer.innerHeight() >= gameChat.$chatMessageContainer[0].scrollHeight - 100) {
+                            gameChat.$chatMessageContainer.scrollTop(gameChat.$chatMessageContainer.prop("scrollHeight"));
                         }
                     }
                 }
@@ -318,6 +481,7 @@ function setup() {
                 <li>3. Adjustable dm width and height</li>
                 <li>4. Move level, ticket, and note count to the right</li>
                 <li>5. Bug fix for new dms not autoscrolling</li>
+                <li>6. Load images/audio/video directly in chat</li>
             </ul>
         `
     });
@@ -383,8 +547,12 @@ function saveSettings() {
     settings.dmWidthExtension = dmWidthExtension;
     settings.dmHeightExtension = dmHeightExtension;
     settings.shiftRight = shiftRight;
-    //settings.gcLoadImageButton = gcLoadImageButton;
-    //settings.gcAutoLoadImages = gcAutoLoadImages;
+    settings.gcLoadImageButton = gcLoadImageButton;
+    settings.gcAutoLoadImages = gcAutoLoadImages;
+    settings.gcLoadAudioButton = gcLoadAudioButton;
+    settings.gcAutoLoadAudio = gcAutoLoadAudio;
+    settings.gcLoadVideoButton = gcLoadVideoButton;
+    settings.gcAutoLoadVideo = gcAutoLoadVideo;
     localStorage.setItem("chatPlus", JSON.stringify(settings));
 }
 
