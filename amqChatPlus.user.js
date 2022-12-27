@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Chat Plus
 // @namespace    https://github.com/kempanator
-// @version      0.12
+// @version      0.13
 // @description  Add timestamps, color, and wider boxes to DMs
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -35,13 +35,13 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.12";
+const version = "0.13";
 const saveData = JSON.parse(localStorage.getItem("chatPlus")) || {};
 const saveData2 = JSON.parse(localStorage.getItem("highlightFriendsSettings"));
 const $nexusChat = $("#nexusCoopMainContainer");
 const imageURLregex = /https?:\/\/\S+\.(?:png|jpe?g|gif|webp|bmp|tiff)/i;
-const audioURLregex = /https?:\/\/\S+\.(?:mp3|ogg|wav)/i;
-const videoURLregex = /https?:\/\/\S+\.(?:webm|mp4|mkv)/i;
+const audioURLregex = /https?:\/\/\S+\.(?:mp3|ogg|m4a|flac|wav)/i;
+const videoURLregex = /https?:\/\/\S+\.(?:webm|mp4|mkv|avi|mov)/i;
 let gcTimestamps = saveData.gcTimestamps !== undefined ? saveData.gcTimestamps : true;
 let ncTimestamps = saveData.ncTimestamps !== undefined ? saveData.ncTimestamps : true;
 let dmTimestamps = saveData.dmTimestamps !== undefined ? saveData.dmTimestamps : true;
@@ -50,14 +50,10 @@ let dmColor = saveData.dmColor !== undefined ? saveData.dmColor : true;
 let dmWidthExtension = saveData.dmWidthExtension !== undefined ? saveData.dmWidthExtension : 60;
 let dmHeightExtension = saveData.dmHeightExtension !== undefined ? saveData.dmHeightExtension : 40;
 let shiftRight = saveData.shiftRight !== undefined ? saveData.shiftRight : true;
-let gcLoadImageButton = saveData.gcLoadImageButton !== undefined ? saveData.gcLoadImageButton : true;
-let gcAutoLoadImages = saveData.gcAutoLoadImages !== undefined ? saveData.gcAutoLoadImages : "never";
-let gcLoadAudioButton = saveData.gcLoadAudioButton !== undefined ? saveData.gcLoadAudioButton : true;
-let gcAutoLoadAudio = saveData.gcAutoLoadAudio !== undefined ? saveData.gcAutoLoadAudio : "never";
-let gcLoadVideoButton = saveData.gcLoadVideoButton !== undefined ? saveData.gcLoadVideoButton : true;
-let gcAutoLoadVideo = saveData.gcAutoLoadVideo !== undefined ? saveData.gcAutoLoadVideo : "never";
-//let gcMaxMessages = saveData.gcMaxMessages !== undefined ? saveData.gcMaxMessages : 200;
-//let ncMaxMessages = saveData.ncMaxMessages !== undefined ? saveData.ncMaxMessages : 100;
+let gcLoadMediaButton = saveData.gcLoadMediaButton !== undefined ? saveData.gcLoadMediaButton : true;
+let gcAutoLoadMedia = saveData.gcAutoLoadMedia !== undefined ? saveData.gcAutoLoadMedia : "never";
+let gcMaxMessages = saveData.gcMaxMessages !== undefined ? saveData.gcMaxMessages : 200;
+let ncMaxMessages = saveData.ncMaxMessages !== undefined ? saveData.ncMaxMessages : 100;
 applyStyles();
 
 $("#settingsGraphicContainer").append($(`
@@ -96,13 +92,18 @@ $("#settingsGraphicContainer").append($(`
                 </div>
             </div>
             <div style="padding-top: 10px">
+                <span><b>Max Messages:</b></span>
+                <span style="margin-left: 10px">Chat</span>
+                <input id="chatPlusGCMaxMessages" class="form-control" type="text" style="width: 40px">
+                <span style="margin-left: 10px">Nexus</span>
+                <input id="chatPlusNCMaxMessages" class="form-control" type="text" style="width: 40px">
+            </div>
+            <div style="padding-top: 10px">
                 <span><b>Extend DM (px):</b></span>
                 <span style="margin-left: 10px">Width</span>
-                <input id="chatPlusDMWidthExtension" type="text" style="width: 35px; color: black;">
-                <button id="chatPlusDMWidthExtensionButton" class="btn btn-default" style="padding: 2px 5px">Go</button>
+                <input id="chatPlusDMWidthExtension" class="form-control" type="text" style="width: 40px">
                 <span style="margin-left: 10px">Height</span>
-                <input id="chatPlusDMHeightExtension" type="text" style="width: 35px; color: black;">
-                <button id="chatPlusDMHeightExtensionButton" class="btn btn-default" style="padding: 2px 5px">Go</button>
+                <input id="chatPlusDMHeightExtension" class="form-control" type="text" style="width: 40px">
                 <span style="margin-left: 60px">Shift Right</span>
                 <div class="customCheckbox" style="vertical-align: middle">
                     <input type="checkbox" id="chatPlusShiftRight">
@@ -110,77 +111,27 @@ $("#settingsGraphicContainer").append($(`
                 </div>
             </div>
             <div style="padding-top: 10px">
-                <span style="width: 130px; display: inline-block;">Load Images in Chat</span>
+                <span>Load Media in Chat</span>
                 <div class="customCheckbox" style="vertical-align: middle">
-                    <input type="checkbox" id="chatPlusLoadImages">
-                    <label for="chatPlusLoadImages"><i class="fa fa-check" aria-hidden="true"></i></label>
+                    <input type="checkbox" id="chatPlusLoadMedia">
+                    <label for="chatPlusLoadMedia"><i class="fa fa-check" aria-hidden="true"></i></label>
                 </div>
-                <span style="margin-left: 40px" id="chatPlusAutoLoadImagesContainer">
-                    <span style="width: 130px; display: inline-block;"><b>Auto Load Images:</b></span>
+                <span style="margin-left: 40px" id="chatPlusAutoLoadMediaContainer">
+                    <span><b>Auto Load Media:</b></span>
                     <span style="margin-left: 10px">Never</span>
                     <div class="customCheckbox" style="vertical-align: middle">
-                        <input type="checkbox" id="chatPlusAutoLoadImagesNever">
-                        <label for="chatPlusAutoLoadImagesNever"><i class="fa fa-check" aria-hidden="true"></i></label>
+                        <input type="checkbox" id="chatPlusAutoLoadMediaNever">
+                        <label for="chatPlusAutoLoadMediaNever"><i class="fa fa-check" aria-hidden="true"></i></label>
                     </div>
                     <span style="margin-left: 10px">Friends</span>
                     <div class="customCheckbox" style="vertical-align: middle">
-                        <input type="checkbox" id="chatPlusAutoLoadImagesFriends">
-                        <label for="chatPlusAutoLoadImagesFriends"><i class="fa fa-check" aria-hidden="true"></i></label>
+                        <input type="checkbox" id="chatPlusAutoLoadMediaFriends">
+                        <label for="chatPlusAutoLoadMediaFriends"><i class="fa fa-check" aria-hidden="true"></i></label>
                     </div>
                     <span style="margin-left: 10px">All</span>
                     <div class="customCheckbox" style="vertical-align: middle">
-                        <input type="checkbox" id="chatPlusAutoLoadImagesAll">
-                        <label for="chatPlusAutoLoadImagesAll"><i class="fa fa-check" aria-hidden="true"></i></label>
-                    </div>
-                </span>
-            </div>
-            <div style="padding-top: 10px">
-                <span style="width: 130px; display: inline-block;">Load Audio in Chat</span>
-                <div class="customCheckbox" style="vertical-align: middle">
-                    <input type="checkbox" id="chatPlusLoadAudio">
-                    <label for="chatPlusLoadAudio"><i class="fa fa-check" aria-hidden="true"></i></label>
-                </div>
-                <span style="margin-left: 40px" id="chatPlusAutoLoadAudioContainer">
-                    <span style="width: 130px; display: inline-block;"><b>Auto Load Audio:</b></span>
-                    <span style="margin-left: 10px">Never</span>
-                    <div class="customCheckbox" style="vertical-align: middle">
-                        <input type="checkbox" id="chatPlusAutoLoadAudioNever">
-                        <label for="chatPlusAutoLoadAudioNever"><i class="fa fa-check" aria-hidden="true"></i></label>
-                    </div>
-                    <span style="margin-left: 10px">Friends</span>
-                    <div class="customCheckbox" style="vertical-align: middle">
-                        <input type="checkbox" id="chatPlusAutoLoadAudioFriends">
-                        <label for="chatPlusAutoLoadAudioFriends"><i class="fa fa-check" aria-hidden="true"></i></label>
-                    </div>
-                    <span style="margin-left: 10px">All</span>
-                    <div class="customCheckbox" style="vertical-align: middle">
-                        <input type="checkbox" id="chatPlusAutoLoadAudioAll">
-                        <label for="chatPlusAutoLoadAudioAll"><i class="fa fa-check" aria-hidden="true"></i></label>
-                    </div>
-                </span>
-            </div>
-            <div style="padding-top: 10px">
-                <span style="width: 130px; display: inline-block;">Load Video in Chat</span>
-                <div class="customCheckbox" style="vertical-align: middle">
-                    <input type="checkbox" id="chatPlusLoadVideo">
-                    <label for="chatPlusLoadVideo"><i class="fa fa-check" aria-hidden="true"></i></label>
-                </div>
-                <span style="margin-left: 40px" id="chatPlusAutoLoadVideoContainer">
-                    <span style="width: 130px; display: inline-block;"><b>Auto Load Video:</b></span>
-                    <span style="margin-left: 10px">Never</span>
-                    <div class="customCheckbox" style="vertical-align: middle">
-                        <input type="checkbox" id="chatPlusAutoLoadVideoNever">
-                        <label for="chatPlusAutoLoadVideoNever"><i class="fa fa-check" aria-hidden="true"></i></label>
-                    </div>
-                    <span style="margin-left: 10px">Friends</span>
-                    <div class="customCheckbox" style="vertical-align: middle">
-                        <input type="checkbox" id="chatPlusAutoLoadVideoFriends">
-                        <label for="chatPlusAutoLoadVideoFriends"><i class="fa fa-check" aria-hidden="true"></i></label>
-                    </div>
-                    <span style="margin-left: 10px">All</span>
-                    <div class="customCheckbox" style="vertical-align: middle">
-                        <input type="checkbox" id="chatPlusAutoLoadVideoAll">
-                        <label for="chatPlusAutoLoadVideoAll"><i class="fa fa-check" aria-hidden="true"></i></label>
+                        <input type="checkbox" id="chatPlusAutoLoadMediaAll">
+                        <label for="chatPlusAutoLoadMediaAll"><i class="fa fa-check" aria-hidden="true"></i></label>
                     </div>
                 </span>
             </div>
@@ -210,8 +161,7 @@ $("#chatPlusDMColor").prop("checked", dmColor).click(() => {
     applyStyles();
     saveSettings();
 });
-$("#chatPlusDMWidthExtension").val(dmWidthExtension);
-$("#chatPlusDMWidthExtensionButton").click(() => {
+$("#chatPlusDMWidthExtension").val(dmWidthExtension).blur(() => {
     let number = parseInt($("#chatPlusDMWidthExtension").val());
     if (!isNaN(number) && number >= 0) {
         dmWidthExtension = number;
@@ -219,8 +169,7 @@ $("#chatPlusDMWidthExtensionButton").click(() => {
         saveSettings();
     }
 });
-$("#chatPlusDMHeightExtension").val(dmHeightExtension);
-$("#chatPlusDMHeightExtensionButton").click(() => {
+$("#chatPlusDMHeightExtension").val(dmHeightExtension).blur(() => {
     let number = parseInt($("#chatPlusDMHeightExtension").val());
     if (!isNaN(number) && number >= 0) {
         dmHeightExtension = number;
@@ -233,82 +182,47 @@ $("#chatPlusShiftRight").prop("checked", shiftRight).click(() => {
     applyStyles();
     saveSettings();
 });
-$("#chatPlusLoadImages").prop("checked", gcLoadImageButton).click(() => {
-    gcLoadImageButton = !gcLoadImageButton;
-    if (gcLoadImageButton) $("#chatPlusAutoLoadImagesContainer").removeClass("disabled");
-    else $("#chatPlusAutoLoadImagesContainer").addClass("disabled");
+$("#chatPlusGCMaxMessages").val(gcMaxMessages).blur(() => {
+    let number = parseInt($("#chatPlusGCMaxMessages").val());
+    if (!isNaN(number) && number > 0) {
+        gcMaxMessages = number;
+        gameChat.MAX_CHAT_MESSAGES = number;
+        saveSettings();
+    }
+});
+$("#chatPlusNCMaxMessages").val(ncMaxMessages).blur(() => {
+    let number = parseInt($("#chatPlusNCMaxMessages").val());
+    if (!isNaN(number) && number > 0) {
+        ncMaxMessages = number;
+        nexusCoopChat.MAX_CHAT_MESSAGES = number;
+        saveSettings();
+    }
+});
+$("#chatPlusLoadMedia").prop("checked", gcLoadMediaButton).click(() => {
+    gcLoadMediaButton = !gcLoadMediaButton;
+    if (gcLoadMediaButton) $("#chatPlusAutoLoadMediaContainer").removeClass("disabled");
+    else $("#chatPlusAutoLoadMediaContainer").addClass("disabled");
     saveSettings();
 });
-$("#chatPlusAutoLoadImagesNever").prop("checked", gcAutoLoadImages === "never").click(() => {
-    gcAutoLoadImages = "never";
-    $("#chatPlusAutoLoadImagesFriends").prop("checked", false);
-    $("#chatPlusAutoLoadImagesAll").prop("checked", false);
+$("#chatPlusAutoLoadMediaNever").prop("checked", gcAutoLoadMedia === "never").click(() => {
+    gcAutoLoadMedia = "never";
+    $("#chatPlusAutoLoadMediaFriends").prop("checked", false);
+    $("#chatPlusAutoLoadMediaAll").prop("checked", false);
     saveSettings();
 });
-$("#chatPlusAutoLoadImagesFriends").prop("checked", gcAutoLoadImages === "friends").click(() => {
-    gcAutoLoadImages = "friends";
-    $("#chatPlusAutoLoadImagesNever").prop("checked", false);
-    $("#chatPlusAutoLoadImagesAll").prop("checked", false);
+$("#chatPlusAutoLoadMediaFriends").prop("checked", gcAutoLoadMedia === "friends").click(() => {
+    gcAutoLoadMedia = "friends";
+    $("#chatPlusAutoLoadMediaNever").prop("checked", false);
+    $("#chatPlusAutoLoadMediaAll").prop("checked", false);
     saveSettings();
 });
-$("#chatPlusAutoLoadImagesAll").prop("checked", gcAutoLoadImages === "all").click(() => {
-    gcAutoLoadImages = "all";
-    $("#chatPlusAutoLoadImagesNever").prop("checked", false);
-    $("#chatPlusAutoLoadImagesFriends").prop("checked", false);
+$("#chatPlusAutoLoadMediaAll").prop("checked", gcAutoLoadMedia === "all").click(() => {
+    gcAutoLoadMedia = "all";
+    $("#chatPlusAutoLoadMediaNever").prop("checked", false);
+    $("#chatPlusAutoLoadMediaFriends").prop("checked", false);
     saveSettings();
 });
-$("#chatPlusLoadAudio").prop("checked", gcLoadAudioButton).click(() => {
-    gcLoadAudioButton = !gcLoadAudioButton;
-    if (gcLoadAudioButton) $("#chatPlusAutoLoadAudioContainer").removeClass("disabled");
-    else $("#chatPlusAutoLoadAudioContainer").addClass("disabled");
-    saveSettings();
-});
-$("#chatPlusAutoLoadAudioNever").prop("checked", gcAutoLoadAudio === "never").click(() => {
-    gcAutoLoadAudio = "never";
-    $("#chatPlusAutoLoadAudioFriends").prop("checked", false);
-    $("#chatPlusAutoLoadAudioAll").prop("checked", false);
-    saveSettings();
-});
-$("#chatPlusAutoLoadAudioFriends").prop("checked", gcAutoLoadAudio === "friends").click(() => {
-    gcAutoLoadAudio = "friends";
-    $("#chatPlusAutoLoadAudioNever").prop("checked", false);
-    $("#chatPlusAutoLoadAudioAll").prop("checked", false);
-    saveSettings();
-});
-$("#chatPlusAutoLoadAudioAll").prop("checked", gcAutoLoadAudio === "all").click(() => {
-    gcAutoLoadAudio = "all";
-    $("#chatPlusAutoLoadAudioNever").prop("checked", false);
-    $("#chatPlusAutoLoadAudioFriends").prop("checked", false);
-    saveSettings();
-});
-$("#chatPlusLoadVideo").prop("checked", gcLoadVideoButton).click(() => {
-    gcLoadVideoButton = !gcLoadVideoButton;
-    if (gcLoadVideoButton) $("#chatPlusAutoLoadVideoContainer").removeClass("disabled");
-    else $("#chatPlusAutoLoadVideoContainer").addClass("disabled");
-    saveSettings();
-});
-$("#chatPlusAutoLoadVideoNever").prop("checked", gcAutoLoadVideo === "never").click(() => {
-    gcAutoLoadVideo = "never";
-    $("#chatPlusAutoLoadVideoFriends").prop("checked", false);
-    $("#chatPlusAutoLoadVideoAll").prop("checked", false);
-    saveSettings();
-});
-$("#chatPlusAutoLoadVideoFriends").prop("checked", gcAutoLoadVideo === "friends").click(() => {
-    gcAutoLoadVideo = "friends";
-    $("#chatPlusAutoLoadVideoNever").prop("checked", false);
-    $("#chatPlusAutoLoadVideoAll").prop("checked", false);
-    saveSettings();
-});
-$("#chatPlusAutoLoadVideoAll").prop("checked", gcAutoLoadVideo === "all").click(() => {
-    gcAutoLoadVideo = "all";
-    $("#chatPlusAutoLoadVideoNever").prop("checked", false);
-    $("#chatPlusAutoLoadVideoFriends").prop("checked", false);
-    saveSettings();
-});
-
-if (!gcLoadImageButton) $("#chatPlusAutoLoadImagesContainer").addClass("disabled");
-if (!gcLoadAudioButton) $("#chatPlusAutoLoadAudioContainer").addClass("disabled");
-if (!gcLoadVideoButton) $("#chatPlusAutoLoadVideoContainer").addClass("disabled");
+if (!gcLoadMediaButton) $("#chatPlusAutoLoadMediaContainer").addClass("disabled");
 
 AMQ_addStyle(`
     .gcTimestamp {
@@ -322,6 +236,12 @@ AMQ_addStyle(`
     }
     .dmUsername {
         font-weight: bold;
+    }
+    #smChatPlusSettings input.form-control {
+        height: initial;
+        color: black;
+        display: inline-block;
+        padding: 2px 4px;
     }
     button.gcLoadMedia {
         background: #6D6D6D;
@@ -358,8 +278,8 @@ AMQ_addStyle(`
 `);
 
 function setup() {
-    //gameChat.MAX_CHAT_MESSAGES = gcMaxMessages;
-    //nexusCoopChat.MAX_CHAT_MESSAGES = ncMaxMessages;
+    gameChat.MAX_CHAT_MESSAGES = gcMaxMessages;
+    nexusCoopChat.MAX_CHAT_MESSAGES = ncMaxMessages;
     //$nexusChat.css({resize: "both", overflow: "hidden"});
 
     new Listener("game chat update", (payload) => {
@@ -391,61 +311,60 @@ function setup() {
                         $node.prepend($(`<span class="gcTimestamp">${timestamp}</span>`));
                     }
                 }
-                if (gcLoadImageButton) {
-                    let match = $node.find(".gcMessage").text().match(imageURLregex);
-                    if (match) {
-                        let name = $node.find(".gcUserName").text();
-                        if (gcAutoLoadImages === "all" || (gcAutoLoadImages === "friends" && (name === selfName || socialTab.isFriend(name)))) {
-                            $node.append($(`<img></img>`).attr("src", match[0]).addClass("gcLoadedImage").click(function() {
-                                $(this).remove();
-                            }));
-                        }
-                        else {
-                            $node.append($(`<button>Load Image</button>`).addClass("btn gcLoadMedia").click(function() {
-                                $(this).remove();
-                                $node.append($(`<img></img>`).attr("src", match[0]).addClass("gcLoadedImage").click(function() {
+                if (gcLoadMediaButton) {
+                    let urls = extractUrls($node.find(".gcMessage").text());
+                    if (urls.length > 0) {
+                        if (imageURLregex.test(urls[0])) {
+                            let name = $node.find(".gcUserName").text();
+                            let atBottom = gameChat.$chatMessageContainer.scrollTop() + gameChat.$chatMessageContainer.innerHeight() >= gameChat.$chatMessageContainer[0].scrollHeight - 100;
+                            if (gcAutoLoadMedia === "all" || (gcAutoLoadMedia === "friends" && (name === selfName || socialTab.isFriend(name)))) {
+                                $node.append($(`<img></img>`).attr("src", urls[0]).addClass("gcLoadedImage").click(function() {
                                     $(this).remove();
                                 }));
-                            }));
+                            }
+                            else {
+                                $node.append($(`<button>Load Image</button>`).addClass("btn gcLoadMedia").click(function() {
+                                    let atBottom2 = gameChat.$chatMessageContainer.scrollTop() + gameChat.$chatMessageContainer.innerHeight() >= gameChat.$chatMessageContainer[0].scrollHeight - 100;
+                                    $(this).remove();
+                                    $node.append($(`<img></img>`).attr("src", urls[0]).addClass("gcLoadedImage").click(function() {
+                                        $(this).remove();
+                                    }));
+                                    if (atBottom2) gameChat.$chatMessageContainer.scrollTop(gameChat.$chatMessageContainer.prop("scrollHeight"));
+                                }));
+                            }
+                            if (atBottom) gameChat.$chatMessageContainer.scrollTop(gameChat.$chatMessageContainer.prop("scrollHeight"));
                         }
-                        if (gameChat.$chatMessageContainer.scrollTop() + gameChat.$chatMessageContainer.innerHeight() >= gameChat.$chatMessageContainer[0].scrollHeight - 100) {
-                            gameChat.$chatMessageContainer.scrollTop(gameChat.$chatMessageContainer.prop("scrollHeight"));
+                        else if (audioURLregex.test(urls[0])) {
+                            let name = $node.find(".gcUserName").text();
+                            let atBottom = gameChat.$chatMessageContainer.scrollTop() + gameChat.$chatMessageContainer.innerHeight() >= gameChat.$chatMessageContainer[0].scrollHeight - 100;
+                            if (gcAutoLoadMedia === "all" || (gcAutoLoadMedia === "friends" && (name === selfName || socialTab.isFriend(name)))) {
+                                $node.append($(`<audio controls></audio>`).attr("src", urls[0]).addClass("gcLoadedAudio"));
+                            }
+                            else {
+                                $node.append($(`<button>Load Audio</button>`).addClass("btn gcLoadMedia").click(function() {
+                                    let atBottom2 = gameChat.$chatMessageContainer.scrollTop() + gameChat.$chatMessageContainer.innerHeight() >= gameChat.$chatMessageContainer[0].scrollHeight - 100;
+                                    $(this).remove();
+                                    $node.append($(`<audio controls></audio>`).attr("src", urls[0]).addClass("gcLoadedAudio"));
+                                    if (atBottom2) gameChat.$chatMessageContainer.scrollTop(gameChat.$chatMessageContainer.prop("scrollHeight"));
+                                }));
+                            }
+                            if (atBottom) gameChat.$chatMessageContainer.scrollTop(gameChat.$chatMessageContainer.prop("scrollHeight"));
                         }
-                    }
-                }
-                if (gcLoadAudioButton) {
-                    let match = $node.find(".gcMessage").text().match(audioURLregex);
-                    if (match) {
-                        let name = $node.find(".gcUserName").text();
-                        if (gcAutoLoadAudio === "all" || (gcAutoLoadAudio === "friends" && (name === selfName || socialTab.isFriend(name)))) {
-                            $node.append($(`<audio controls></audio>`).attr("src", match[0]).addClass("gcLoadedAudio"));
-                        }
-                        else {
-                            $node.append($(`<button>Load Audio</button>`).addClass("btn gcLoadMedia").click(function() {
-                                $(this).remove();
-                                $node.append($(`<audio controls></audio>`).attr("src", match[0]).addClass("gcLoadedAudio"));
-                            }));
-                        }
-                        if (gameChat.$chatMessageContainer.scrollTop() + gameChat.$chatMessageContainer.innerHeight() >= gameChat.$chatMessageContainer[0].scrollHeight - 100) {
-                            gameChat.$chatMessageContainer.scrollTop(gameChat.$chatMessageContainer.prop("scrollHeight"));
-                        }
-                    }
-                }
-                if (gcLoadVideoButton) {
-                    let match = $node.find(".gcMessage").text().match(videoURLregex);
-                    if (match) {
-                        let name = $node.find(".gcUserName").text();
-                        if (gcAutoLoadAudio === "all" || (gcAutoLoadAudio === "friends" && (name === selfName || socialTab.isFriend(name)))) {
-                            $node.append($(`<video controls></video>`).attr("src", match[0]).addClass("gcLoadedVideo"));
-                        }
-                        else {
-                            $node.append($(`<button>Load Video</button>`).addClass("btn gcLoadMedia").click(function() {
-                                $(this).remove();
-                                $node.append($(`<video controls></video>`).attr("src", match[0]).addClass("gcLoadedVideo"));
-                            }));
-                        }
-                        if (gameChat.$chatMessageContainer.scrollTop() + gameChat.$chatMessageContainer.innerHeight() >= gameChat.$chatMessageContainer[0].scrollHeight - 100) {
-                            gameChat.$chatMessageContainer.scrollTop(gameChat.$chatMessageContainer.prop("scrollHeight"));
+                        else if (videoURLregex.test(urls[0])) {
+                            let name = $node.find(".gcUserName").text();
+                            let atBottom = gameChat.$chatMessageContainer.scrollTop() + gameChat.$chatMessageContainer.innerHeight() >= gameChat.$chatMessageContainer[0].scrollHeight - 100;
+                            if (gcAutoLoadMedia === "all" || (gcAutoLoadMedia === "friends" && (name === selfName || socialTab.isFriend(name)))) {
+                                $node.append($(`<video controls></video>`).attr("src", urls[0]).addClass("gcLoadedVideo"));
+                            }
+                            else {
+                                $node.append($(`<button>Load Video</button>`).addClass("btn gcLoadMedia").click(function() {
+                                    let atBottom2 = gameChat.$chatMessageContainer.scrollTop() + gameChat.$chatMessageContainer.innerHeight() >= gameChat.$chatMessageContainer[0].scrollHeight - 100;
+                                    $(this).remove();
+                                    $node.append($(`<video controls></video>`).attr("src", urls[0]).addClass("gcLoadedVideo"));
+                                    if (atBottom2) gameChat.$chatMessageContainer.scrollTop(gameChat.$chatMessageContainer.prop("scrollHeight"));
+                                }));
+                            }
+                            if (atBottom) gameChat.$chatMessageContainer.scrollTop(gameChat.$chatMessageContainer.prop("scrollHeight"));
                         }
                     }
                 }
@@ -455,18 +374,22 @@ function setup() {
 
     new MutationObserver((mutations) => {
         for (let mutation of mutations) {
-            if (!mutation.addedNodes || !ncTimestamps) return;
+            if (!mutation.addedNodes) return;
             for (let node of mutation.addedNodes) {
                 let $node = $(node);
                 if ($node.is(".ncTimestamp .ps__scrollbar-y-rail .ps__scrollbar-x-rail")) return;
-                let date = new Date();
-                let timestamp = date.getHours().toString().padStart(2, 0) + ":" + date.getMinutes().toString().padStart(2, 0);
-                let $timestampNode = $(`<span class="ncTimestamp">${timestamp}</span>`)
-                if (!$node.find(".nexusCoopChatName").length) $timestampNode.css("margin-right", "7px");
-                $node.prepend($timestampNode);
-                let name = $node.find(".nexusCoopChatName").text().slice(0, -1);
-                if (name === selfName) $node.find(".nexusCoopChatName").addClass("self");
-                else if (socialTab.isFriend(name)) $node.find(".nexusCoopChatName").addClass("friend");
+                if (ncTimestamps) {
+                    let date = new Date();
+                    let timestamp = date.getHours().toString().padStart(2, 0) + ":" + date.getMinutes().toString().padStart(2, 0);
+                    let $timestampNode = $(`<span class="ncTimestamp">${timestamp}</span>`);
+                    if (!$node.find(".nexusCoopChatName").length) $timestampNode.css("margin-right", "7px");
+                    $node.prepend($timestampNode);
+                }
+                if (ncColor) {
+                    let name = $node.find(".nexusCoopChatName").text().slice(0, -1);
+                    if (name === selfName) $node.find(".nexusCoopChatName").addClass("self");
+                    else if (socialTab.isFriend(name)) $node.find(".nexusCoopChatName").addClass("friend");
+                }
             }
         }
     }).observe(document.querySelector("#nexusCoopChatContainerInner"), {childList: true, attributes: false, CharacterData: false});
@@ -520,11 +443,17 @@ function applyStyles() {
         .chatTopBar p {
             width: ${76 + dmWidthExtension}px;
         }
-        .dmUsername.self, .nexusCoopChatName.self {
+        .dmUsername.self {
             color: ${dmColor ? getSelfColor() : "inherit"};
         }
-        .dmUsername.friend, .nexusCoopChatName.friend {
+        .dmUsername.friend {
             color: ${dmColor ? getFriendColor() : "inherit"};
+        }
+        .nexusCoopChatName.self {
+            color: ${ncColor ? getSelfColor() : "inherit"};
+        }
+        .nexusCoopChatName.friend {
+            color: ${ncColor ? getFriendColor() : "inherit"};
         }
     `);
 }
@@ -547,12 +476,8 @@ function saveSettings() {
     settings.dmWidthExtension = dmWidthExtension;
     settings.dmHeightExtension = dmHeightExtension;
     settings.shiftRight = shiftRight;
-    settings.gcLoadImageButton = gcLoadImageButton;
-    settings.gcAutoLoadImages = gcAutoLoadImages;
-    settings.gcLoadAudioButton = gcLoadAudioButton;
-    settings.gcAutoLoadAudio = gcAutoLoadAudio;
-    settings.gcLoadVideoButton = gcLoadVideoButton;
-    settings.gcAutoLoadVideo = gcAutoLoadVideo;
+    settings.gcLoadMediaButton = gcLoadMediaButton;
+    settings.gcAutoLoadMedia = gcAutoLoadMedia;
     localStorage.setItem("chatPlus", JSON.stringify(settings));
 }
 
@@ -668,7 +593,6 @@ nexusCoopChat.displayMessage = function({sender, message, emojis, badges}) {
 nexusCoopChat.resetDrag = function() {
     this.$container.css("transform", "");
     this.$container.removeClass("dragged");
-    $nexusChat.removeAttr("style");
-    $nexusChat.css({resize: "both", overflow: "hidden"});
+    $nexusChat.removeAttr("style").css({resize: "both", overflow: "hidden"});
 }
 */
