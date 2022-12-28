@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Chat Plus
 // @namespace    https://github.com/kempanator
-// @version      0.13
+// @version      0.14
 // @description  Add timestamps, color, and wider boxes to DMs
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -35,7 +35,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.13";
+const version = "0.14";
 const saveData = JSON.parse(localStorage.getItem("chatPlus")) || {};
 const saveData2 = JSON.parse(localStorage.getItem("highlightFriendsSettings"));
 const $nexusChat = $("#nexusCoopMainContainer");
@@ -49,6 +49,7 @@ let ncColor = saveData.ncColor !== undefined ? saveData.ncColor : false;
 let dmColor = saveData.dmColor !== undefined ? saveData.dmColor : true;
 let dmWidthExtension = saveData.dmWidthExtension !== undefined ? saveData.dmWidthExtension : 60;
 let dmHeightExtension = saveData.dmHeightExtension !== undefined ? saveData.dmHeightExtension : 40;
+let resizeNexusChat = saveData.resizeNexusChat !== undefined ? saveData.resizeNexusChat : false;
 let shiftRight = saveData.shiftRight !== undefined ? saveData.shiftRight : true;
 let gcLoadMediaButton = saveData.gcLoadMediaButton !== undefined ? saveData.gcLoadMediaButton : true;
 let gcAutoLoadMedia = saveData.gcAutoLoadMedia !== undefined ? saveData.gcAutoLoadMedia : "never";
@@ -97,6 +98,11 @@ $("#settingsGraphicContainer").append($(`
                 <input id="chatPlusGCMaxMessages" class="form-control" type="text" style="width: 40px">
                 <span style="margin-left: 10px">Nexus</span>
                 <input id="chatPlusNCMaxMessages" class="form-control" type="text" style="width: 40px">
+                <span style="margin-left: 48px"><b>Resize Nexus Chat</b></span>
+                <div class="customCheckbox" style="vertical-align: middle">
+                    <input type="checkbox" id="chatPlusResizeNexusChat">
+                    <label for="chatPlusResizeNexusChat"><i class="fa fa-check" aria-hidden="true"></i></label>
+                </div>
             </div>
             <div style="padding-top: 10px">
                 <span><b>Extend DM (px):</b></span>
@@ -104,14 +110,14 @@ $("#settingsGraphicContainer").append($(`
                 <input id="chatPlusDMWidthExtension" class="form-control" type="text" style="width: 40px">
                 <span style="margin-left: 10px">Height</span>
                 <input id="chatPlusDMHeightExtension" class="form-control" type="text" style="width: 40px">
-                <span style="margin-left: 60px">Shift Right</span>
+                <span style="margin-left: 37px"><b>Shift XP/Notes Right</b></span>
                 <div class="customCheckbox" style="vertical-align: middle">
                     <input type="checkbox" id="chatPlusShiftRight">
                     <label for="chatPlusShiftRight"><i class="fa fa-check" aria-hidden="true"></i></label>
                 </div>
             </div>
             <div style="padding-top: 10px">
-                <span>Load Media in Chat</span>
+                <span><b>Load Media in Chat</b></span>
                 <div class="customCheckbox" style="vertical-align: middle">
                     <input type="checkbox" id="chatPlusLoadMedia">
                     <label for="chatPlusLoadMedia"><i class="fa fa-check" aria-hidden="true"></i></label>
@@ -176,6 +182,12 @@ $("#chatPlusDMHeightExtension").val(dmHeightExtension).blur(() => {
         applyStyles();
         saveSettings();
     }
+});
+$("#chatPlusResizeNexusChat").prop("checked", resizeNexusChat).click(() => {
+    resizeNexusChat = !resizeNexusChat;
+    if (resizeNexusChat) $nexusChat.css({resize: "both", overflow: "hidden"});
+    else $nexusChat.removeAttr("style");
+    saveSettings();
 });
 $("#chatPlusShiftRight").prop("checked", shiftRight).click(() => {
     shiftRight = !shiftRight;
@@ -280,7 +292,7 @@ AMQ_addStyle(`
 function setup() {
     gameChat.MAX_CHAT_MESSAGES = gcMaxMessages;
     nexusCoopChat.MAX_CHAT_MESSAGES = ncMaxMessages;
-    //$nexusChat.css({resize: "both", overflow: "hidden"});
+    if (resizeNexusChat) $nexusChat.css({resize: "both", overflow: "hidden"});
 
     new Listener("game chat update", (payload) => {
         for (let message of payload.messages) {
@@ -475,6 +487,7 @@ function saveSettings() {
     settings.ncColor = ncColor;
     settings.dmWidthExtension = dmWidthExtension;
     settings.dmHeightExtension = dmHeightExtension;
+    settings.resizeNexusChat = resizeNexusChat;
     settings.shiftRight = shiftRight;
     settings.gcLoadMediaButton = gcLoadMediaButton;
     settings.gcAutoLoadMedia = gcAutoLoadMedia;
@@ -588,11 +601,9 @@ nexusCoopChat.displayMessage = function({sender, message, emojis, badges}) {
     this.insertMsg($chatMessage);
 }
 
-/*
 // override resetDrag function to remove custom width and height of nexus chat
 nexusCoopChat.resetDrag = function() {
     this.$container.css("transform", "");
     this.$container.removeClass("dragged");
-    $nexusChat.removeAttr("style").css({resize: "both", overflow: "hidden"});
+    if (resizeNexusChat) $nexusChat.removeAttr("style").css({resize: "both", overflow: "hidden"});
 }
-*/
