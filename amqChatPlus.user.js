@@ -572,4 +572,4 @@ nexusCoopChat.resetDrag = function() {
     this.$container.css("transform", "");
     this.$container.removeClass("dragged");
     if (resizeNexusChat) $nexusChat.removeAttr("style").css({resize: "both", overflow: "hidden"});
-}
+};
