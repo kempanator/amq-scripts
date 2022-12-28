@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ New Game Mode UI
 // @namespace    https://github.com/kempanator
-// @version      0.8
+// @version      0.9
 // @description  Adds a user interface to new game mode to keep track of guesses
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -21,14 +21,16 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.8";
+const version = "0.9";
 let ngmWindow;
 let numGuesses = 5;
 let guessCounter = [];
+let countButtons = [];
 let teamNumber = null; // your team number
 let teamList = null; // list of everyone on your team
 let teamSlot = null; // your index # on your team
 let correctGuesses = 0; // total correct guesses from your team
+let remainingGuesses = 0; // total remaining guesses from your team
 let autothrowCount = false;
 $("#qpOptionContainer").width($("#qpOptionContainer").width() + 35);
 $("#qpOptionContainer > div").append($(`<div id="qpNGM" class="clickAble qpOption"><img src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB4AAAAeCAMAAAAM7l6QAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAGUExURdnZ2QAAAE/vHxMAAAACdFJOU/8A5bcwSgAAAAlwSFlzAAAOwwAADsMBx2+oZAAAAFdJREFUOE/VjsENwCAMA8n+S4NN09qI9lOBxL0cXxSlxCen69JgGFmsoRIUymoNGGds0K+41iuMqiFZ5mCajuSgmoWBsrt73W+4flIOqq8km/rajD86ogIU2QKttGjahwAAAABJRU5ErkJggg=='/></div>`)
@@ -67,7 +69,7 @@ function setup() {
         }
     }).bindListener();
     new Listener("Join Game", (payload) => {
-        if (payload.settings.teamSize > 1 && payload.settings.scoreType === 3) {
+        if (payload.quizState && payload.settings.teamSize > 1 && payload.settings.scoreType === 3) {
             updateWindow(payload.quizState.players);
         }
         else {
@@ -82,23 +84,30 @@ function setup() {
     }).bindListener();
     new Listener("play next song", (payload) => {
         if (autothrowCount && guessCounter.length && hostModal.getSettings().scoreType === 3) {
-            setTimeout(() => { sendCount() }, 100);
+            setTimeout(() => {
+                socket.sendCommand({
+                    type: "quiz",
+                    command: "quiz answer",
+                    data: {answer: String(guessCounter[teamSlot]), isPlaying: true, volumeAtMax: false}
+                });
+            }, 100);
         }
     }).bindListener();
     new Listener("answer results", (payload) => {
         if (quiz.teamMode && !quiz.isSpectator && hostModal.getSettings().scoreType === 3) {
-            correctGuesses = getCorrectGuesses(payload);
-            $("#ngmTracker1").text(`Correct Answers: ${correctGuesses}`);
-            $("#ngmTracker2").text(`Remaining Guesses: ${getRemainingGuesses()}`);
+            correctGuesses = payload.players.find((player) => player.gamePlayerId === quiz.ownGamePlayerId).correctGuesses;
+            remainingGuesses = (teamList.length * numGuesses) - (correctGuesses % (teamList.length * numGuesses));
+            $("#ngmCorrectAnswers").text(`Correct Answers: ${correctGuesses}`);
+            $("#ngmRemainingGuesses").text(`Remaining Guesses: ${remainingGuesses}`);
         }
     }).bindListener();
 
     ngmWindow = new AMQWindow({
         id: "ngmWindow",
         title: "NGM",
-        width: 180,
-        height: 280,
-        minWidth: 180,
+        width: 170,
+        height: 270,
+        minWidth: 170,
         minHeight: 70,
         zIndex: 1060,
         resizable: true,
@@ -107,8 +116,7 @@ function setup() {
     ngmWindow.addPanel({
         id: "ngmPanel",
         width: 1.0,
-        height: 202,
-        scrollable: {x: false, y: true}
+        height: "100%",
     });
     clearWindow();
 
@@ -123,8 +131,8 @@ function setup() {
             width: 30px;
             margin-right: 5px;
         }
-        .ngmText {
-            margin: 0px 3px;
+        .ngmRow {
+            margin: 0 2px;
         }
         .ngmButton {
             margin: 3px;
@@ -137,12 +145,14 @@ function setup() {
 
 function clearWindow() {
     ngmWindow.panels[0].clear();
-    ngmWindow.panels[0].panel.append($(`<div class="ngmText" style="text-align: center">Not in team game with lives</div>`));
+    ngmWindow.panels[0].panel.append($(`<div style="text-align: center">Not in team game with lives</div>`));
     guessCounter = [];
+    countButtons = [];
     teamNumber = null;
     teamList = null;
     teamSlot = null;
     correctGuesses = 0;
+    remainingGuesses = 0;
 }
 
 // input array of Player objects
@@ -153,49 +163,52 @@ function updateWindow(players) {
     teamList = players.filter((player) => player.teamNumber === teamNumber).map((player) => player.name);
     teamSlot = teamList.indexOf(selfName);
     guessCounter = Array(teamList.length).fill(numGuesses);
-    correctGuesses = 0;
-    ngmWindow.panels[0].panel.append($(`<div id="ngmTracker1" class="ngmText">Correct Answers: ${correctGuesses}</div>`));
-    ngmWindow.panels[0].panel.append($(`<div id="ngmTracker2" class="ngmText">Remaining Guesses: ${teamList.length * numGuesses}</div>`));
+    countButtons = Array(teamList.length);
+    correctGuesses = selfPlayer.correctGuesses;
+    remainingGuesses = (teamList.length * numGuesses) - (correctGuesses % (teamList.length * numGuesses));
+    let $row1 = $(`<div class="ngmRow"></div>`);
+    let $row2 = $(`<div class="ngmRow"></div>`);
+    let $row3 = $(`<div class="ngmRow"></div>`);
+    let $row4 = $(`<div class="ngmRow"></div>`);
+    let $row5 = $(`<div class="ngmRow"></div>`);
+    let $row6 = $(`<div class="ngmRow" style="padding-top: 3px"></div>`);
+    $row1.append($(`<span id="ngmCorrectAnswers" style="padding: 0 3px">Correct Answers: ${correctGuesses}</span>`));
+    $row2.append($(`<span id="ngmRemainingGuesses" style="padding: 0 3px">Remaining Guesses: ${remainingGuesses}</span>`));
     for (let i = 0; i < guessCounter.length; i++) {
-        ngmWindow.panels[0].panel.append($(`<button id="ngmCountButton${i}" class="btn btn-default ngmButton">${guessCounter[i]}</button>`)
-            .click(() => {
-                updateCount(i);
-                updateCountButtons();
-            })
-        );
+        let $button = $(`<button class="btn btn-default ngmButton">${guessCounter[i]}</button>`).click(() => {
+            guessCounter[i] === 0 ? guessCounter[i] = numGuesses : guessCounter[i]--;
+            countButtons[i].text(guessCounter[i]);
+        });
+        countButtons[i] = $button;
+        $row3.append($button);
     }
-    ngmWindow.panels[0].panel.append($(`<br>`));
-    ngmWindow.panels[0].panel.append($(`<button class="btn btn-danger ngmButton ngmStatus"><img src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAArSURBVDhPYxgFo2AQAEYozfAfCKBMsgAjEIBoJjCPimDwGzgKRsHAAwYGACL9BAgJlOpKAAAAAElFTkSuQmCC'/></button>`)
+    $row4.append($(`<button class="btn btn-danger ngmButton ngmStatus"><img src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAArSURBVDhPYxgFo2AQAEYozfAfCKBMsgAjEIBoJjCPimDwGzgKRsHAAwYGACL9BAgJlOpKAAAAAElFTkSuQmCC'/></button>`)
         .click(() => {
             sendGuess("-");
         })
     );
-    ngmWindow.panels[0].panel.append($(`<button class="btn btn-warning ngmButton ngmStatus"><img src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAMAAAC6V+0/AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAGUExURf///wAAAFXC034AAAACdFJOU/8A5bcwSgAAAAlwSFlzAAAOwwAADsMBx2+oZAAAADlJREFUKFPNiskNACAMw5r9l6ZnlEq8Ef7UmBgu/BDNSXHa45TNg83hQNowP3vfJ0jloJo4i/IoAgcIXQE9Oa5xnQAAAABJRU5ErkJggg=='/></button>`)
+    $row4.append($(`<button class="btn btn-warning ngmButton ngmStatus"><img src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAMAAAC6V+0/AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAGUExURf///wAAAFXC034AAAACdFJOU/8A5bcwSgAAAAlwSFlzAAAOwwAADsMBx2+oZAAAADlJREFUKFPNiskNACAMw5r9l6ZnlEq8Ef7UmBgu/BDNSXHa45TNg83hQNowP3vfJ0jloJo4i/IoAgcIXQE9Oa5xnQAAAABJRU5ErkJggg=='/></button>`)
         .click(() => {
             sendGuess("~");
         })
     );
-    ngmWindow.panels[0].panel.append($(`<button class="btn btn-success ngmButton ngmStatus"><img src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAA9SURBVDhPYxj0gBFK4wT/gQDKBANGIIAysQImKE01MGog5QAeY+ixSSqAxf5IDkNcYDSnEASD38DBDhgYAD/fDB70XVBaAAAAAElFTkSuQmCC'/></button>`)
+    $row4.append($(`<button class="btn btn-success ngmButton ngmStatus"><img src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAA9SURBVDhPYxj0gBFK4wT/gQDKBANGIIAysQImKE01MGog5QAeY+ixSSqAxf5IDkNcYDSnEASD38DBDhgYAD/fDB70XVBaAAAAAElFTkSuQmCC'/></button>`)
         .click(() => {
             sendGuess("+");
         })
     );
-    ngmWindow.panels[0].panel.append($(`<br>`));
-    ngmWindow.panels[0].panel.append($(`<button class="btn btn-default ngmButton">Reset</button>`)
+    $row5.append($(`<button class="btn btn-default ngmButton">Reset</button>`)
         .click(() => {
-            guessCounter = [];
-            for (let i = 0; i < teamList.length; i++) {
-                guessCounter.push(numGuesses);
-                updateCountButtons();
-            }
+            guessCounter = Array(teamList.length).fill(numGuesses);
+            countButtons.forEach((element, i) => { element.text(guessCounter[i]) });
         })
     );
-    ngmWindow.panels[0].panel.append($(`<button id="ngmCountNumberButton" class="btn btn-info ngmButton">${numGuesses}</button>`)
+    $row5.append($(`<button id="ngmCountNumberButton" class="btn btn-info ngmButton">${numGuesses}</button>`)
         .click(() => {
             numGuesses === 1 ? numGuesses = 9 : numGuesses--;
             $("#ngmCountNumberButton").text(numGuesses);
             guessCounter = Array(teamList.length).fill(numGuesses);
-            updateCountButtons();
+            countButtons.forEach((element, i) => { element.text(guessCounter[i]) });
         })
         .popover({
             content: "# of guesses per person",
@@ -205,12 +218,12 @@ function updateWindow(players) {
             animation: false
         })
     );
-    ngmWindow.panels[0].panel.append($(`<button type="button" class="btn btn-primary ngmButton"><i aria-hidden="true" class="fa fa-comment"></i></button>`)
+    $row5.append($(`<button type="button" class="btn btn-primary ngmButton"><i aria-hidden="true" class="fa fa-comment"></i></button>`)
         .click(() => {
             socket.sendCommand({
                 type: "lobby",
                 command: "game chat message",
-                data: { msg: guessCounter.join(""), teamMessage: $("#gcTeamChatSwitch").hasClass("active") }
+                data: {msg: guessCounter.join(""), teamMessage: $("#gcTeamChatSwitch").hasClass("active")}
             });
         })
         .popover({
@@ -221,12 +234,7 @@ function updateWindow(players) {
             animation: false
         })
     );
-    ngmWindow.panels[0].panel.append($(`<br>`));
-    ngmWindow.panels[0].panel.append($(`<button id="ngmautothrowCountButton" class="btn btn-${autothrowCount ? "success" : "danger"} ngmButton">Autothrow Count</button>`)
-        .click(() => {
-            autothrowCount = !autothrowCount;
-            $("#ngmautothrowCountButton").removeClass("btn-success btn-danger").addClass(autothrowCount ? "btn-success" : "btn-danger");
-        })
+    $row6.append($(`<span id="ngmAutoThrowCountText" style="padding: 0 3px">Autothrow count</span>`)
         .popover({
             content: "automatically send your # of remaining guesses at the beginning of each song",
             placement: "bottom",
@@ -235,58 +243,26 @@ function updateWindow(players) {
             animation: false
         })
     );
-}
-
-// return true if player is spectator
-function isSpectator(name) {
-    for (let player of gameChat.spectators) {
-        if (player.name === name) return true;
-    }
-    return false;
-}
-
-// send your remaining guess count to answer box
-function sendCount() {
-    let text = String(guessCounter[teamSlot]);
-    socket.sendCommand({ type: "quiz", command: "quiz answer", data: { answer: text, isPlaying: true, volumeAtMax: false } });
+    $row6.append($(`
+        <div class="customCheckbox" style="margin-left: 3px; vertical-align: middle;">
+            <input type="checkbox" id="ngmAutoThrowCountCheckbox">
+            <label for="ngmAutoThrowCountCheckbox"><i class="fa fa-check" aria-hidden="true"></i></label>
+        </div>
+    `));
+    $row6.find("#ngmAutoThrowCountCheckbox").click(() => { autothrowCount = !autothrowCount; });
+    ngmWindow.panels[0].panel.append($row1);
+    ngmWindow.panels[0].panel.append($row2);
+    ngmWindow.panels[0].panel.append($row3);
+    ngmWindow.panels[0].panel.append($row4);
+    ngmWindow.panels[0].panel.append($row5);
+    ngmWindow.panels[0].panel.append($row6);
 }
 
 // send your remaining guess count and status to answer box
 function sendGuess(guess) {
-    let text = String(guessCounter[teamSlot] + guess);
-    socket.sendCommand({ type: "quiz", command: "quiz answer", data: { answer: text, isPlaying: true, volumeAtMax: false } });
-}
-
-// input team slot number, update team guess counter
-function updateCount(position) {
-    if (guessCounter[position] === 0) {
-        guessCounter[position] = numGuesses;
-    }
-    else {
-        guessCounter[position]--;
-    }
-}
-
-// update count buttons
-function updateCountButtons() {
-    for (let i = 0; i < guessCounter.length; i++) {
-        $("#ngmCountButton" + i).text(guessCounter[i]);
-    }
-}
-
-// input quiz answer results payload, return number of team total correct guesses
-function getCorrectGuesses(payload) {
-    for (let player of payload.players) {
-        if (player.gamePlayerId === quiz.ownGamePlayerId) return player.correctGuesses;
-    }
-}
-
-// return number of remaining guesses
-function getRemainingGuesses() {
-    return (teamList.length * numGuesses) - (correctGuesses % (teamList.length * numGuesses));
-}
-
-// return true if guess counts are currently accurate
-function checkCount() {
-    return correctGuesses % (guessCounter.length * numGuesses) === guessCounter.length * numGuesses - guessCounter.reduce((a, b) => a + b);
+    socket.sendCommand({
+        type: "quiz",
+        command: "quiz answer",
+        data: {answer: guessCounter[teamSlot] + guess, isPlaying: true, volumeAtMax: false}
+    });
 }
