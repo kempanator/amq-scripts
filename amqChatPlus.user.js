@@ -567,40 +567,6 @@ ChatBox.prototype.handleAlert = function(msg, callback) {
     this.newUpdate();
 };
 
-// override displayMessage to include username color
-nexusCoopChat.displayMessage = function({sender, message, emojis, badges}) {
-    let $chatMessage = $(format(this.CHAT_MESSAGE_TEMPLATE, escapeHtml(sender), passChatMessage(message, emojis)));
-    popoutEmotesInMessage($chatMessage, "#nexusCoopMainContainer");
-    let $badgeContainer = $chatMessage.find(".nexusCoopChatBadgeContainer");
-    badges.forEach((badge) => {
-        let $badge = $(this.BADGE_TEMPLATE);
-        new PreloadImage($badge, cdnFormater.newBadgeSrc(badge.fileName), cdnFormater.newBadgeSrcSet(badge.fileName));
-        $badge.popover({
-            content: createBadgePopoverHtml(badge.fileName, badge.name),
-            html: true,
-            delay: 50,
-            placement: "auto top",
-            trigger: "hover",
-            container: "#gcChatContent",
-        });
-        $badgeContainer.append($badge);
-    });
-    if (selfName !== sender) {
-        let $username = $chatMessage.find(".nexusCoopChatName");
-        $username.addClass("clickAble");
-        let openProfileFunction = () => {
-            playerProfileController.loadProfileIfClosed(sender, $username, {}, () => {}, false, true);
-        };
-        $username.click(openProfileFunction);
-    }
-    this.chatMesageList.push($chatMessage);
-    if (this.chageMessageList > this.MAX_CHAT_MESSAGES) {
-        let oldestMessage = this.chatMesageList.shift();
-        oldestMessage.remove();
-    }
-    this.insertMsg($chatMessage);
-}
-
 // override resetDrag function to remove custom width and height of nexus chat
 nexusCoopChat.resetDrag = function() {
     this.$container.css("transform", "");
