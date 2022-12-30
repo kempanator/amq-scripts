@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Chat Plus
 // @namespace    https://github.com/kempanator
-// @version      0.14
+// @version      0.15
 // @description  Add timestamps, color, and wider boxes to DMs
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -24,6 +24,7 @@ New chat/message features:
 4. Move level, ticket, and note count to the right
 5. Bug fix for new dms not autoscrolling
 6. Load images/audio/video directly in chat
+7. Add a gif search window in chat using tenor
 */
 
 "use strict";
@@ -35,10 +36,10 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.14";
+const version = "0.15";
+const apiKey = "LIVDSRZULELA";
 const saveData = JSON.parse(localStorage.getItem("chatPlus")) || {};
 const saveData2 = JSON.parse(localStorage.getItem("highlightFriendsSettings"));
-const $nexusChat = $("#nexusCoopMainContainer");
 const imageURLregex = /https?:\/\/\S+\.(?:png|jpe?g|gif|webp|bmp|tiff)/i;
 const audioURLregex = /https?:\/\/\S+\.(?:mp3|ogg|m4a|flac|wav)/i;
 const videoURLregex = /https?:\/\/\S+\.(?:webm|mp4|mkv|avi|mov)/i;
@@ -55,9 +56,14 @@ let gcLoadMediaButton = saveData.gcLoadMediaButton !== undefined ? saveData.gcLo
 let gcAutoLoadMedia = saveData.gcAutoLoadMedia !== undefined ? saveData.gcAutoLoadMedia : "never";
 let gcMaxMessages = saveData.gcMaxMessages !== undefined ? saveData.gcMaxMessages : 200;
 let ncMaxMessages = saveData.ncMaxMessages !== undefined ? saveData.ncMaxMessages : 100;
-applyStyles();
+let gifSearch = saveData.gifSearch !== undefined ? saveData.gifSearch : true;
+let gifSearchHeight = saveData.gifSearchHeight !== undefined ? saveData.gifSearchHeight : 200;
+let gifSendOnClick = saveData.gifSendOnClick !== undefined ? saveData.gifSendOnClick : true;
+let tenorQuery;
+let tenorPosition;
+let imagesPerRequest = 20;
 
-$("#settingsGraphicContainer").append($(`
+$("#settingsGraphicContainer").append(`
     <div class="row" style="padding-top: 10px">
         <div id="smChatPlusSettings" class="col-xs-12">
             <div style="text-align: center">
@@ -122,7 +128,7 @@ $("#settingsGraphicContainer").append($(`
                     <input type="checkbox" id="chatPlusLoadMedia">
                     <label for="chatPlusLoadMedia"><i class="fa fa-check" aria-hidden="true"></i></label>
                 </div>
-                <span style="margin-left: 40px" id="chatPlusAutoLoadMediaContainer">
+                <span id="chatPlusAutoLoadMediaContainer" style="margin-left: 40px">
                     <span><b>Auto Load Media:</b></span>
                     <span style="margin-left: 10px">Never</span>
                     <div class="customCheckbox" style="vertical-align: middle">
@@ -141,9 +147,43 @@ $("#settingsGraphicContainer").append($(`
                     </div>
                 </span>
             </div>
+            <div style="padding-top: 10px">
+                <span><b>Gif Search</b></span>
+                <div class="customCheckbox" style="vertical-align: middle">
+                    <input type="checkbox" id="chatPlusGifSearch">
+                    <label for="chatPlusGifSearch"><i class="fa fa-check" aria-hidden="true"></i></label>
+                </div>
+                <span id="chatPlusGifSearchContainer" style="margin-left: 40px">
+                    <span><b>Gif Window:</b></span>
+                    <span style="margin-left: 10px">Height</span>
+                    <input id="chatPlusGifSearchHeight" class="form-control" type="text" style="width: 40px">
+                    <span style="margin-left: 10px">Send on click</span>
+                    <div class="customCheckbox" style="vertical-align: middle">
+                        <input type="checkbox" id="chatPlusGifSendOnClick">
+                        <label for="chatPlusGifSendOnClick"><i class="fa fa-check" aria-hidden="true"></i></label>
+                    </div>
+                </span>
+            </div>
         </div>
     </div>
-`));
+`);
+
+$("#gameChatContainer .gcInputContainer").append(`
+    <div id="gcGifSearchContainer">
+        <div id="gcGifSearchButton" class="clickAble">
+            <i class="fa fa-picture-o" aria-hidden="true"></i>
+        </div>
+    </div>
+`);
+
+$("#gcMessageContainer").after(`
+    <div id="gcGifContainer">
+        <input id="tenorSearchInput" type="text" placeholder="gif search...">
+        <div id="tenorGifContainer"></div>
+    </div>
+`);
+
+const $tenorGifContainer = $("#tenorGifContainer");
 
 $("#chatPlusGCTimestamps").prop("checked", gcTimestamps).click(() => {
     gcTimestamps = !gcTimestamps;
@@ -185,8 +225,8 @@ $("#chatPlusDMHeightExtension").val(dmHeightExtension).blur(() => {
 });
 $("#chatPlusResizeNexusChat").prop("checked", resizeNexusChat).click(() => {
     resizeNexusChat = !resizeNexusChat;
-    if (resizeNexusChat) $nexusChat.css({resize: "both", overflow: "hidden"});
-    else $nexusChat.removeAttr("style");
+    if (resizeNexusChat) $("#nexusCoopMainContainer").css({"resize": "both", "overflow": "hidden", "min-width": "initial", "max-width": "initial"});
+    else $("#nexusCoopMainContainer").removeAttr("style");
     saveSettings();
 });
 $("#chatPlusShiftRight").prop("checked", shiftRight).click(() => {
@@ -213,7 +253,7 @@ $("#chatPlusNCMaxMessages").val(ncMaxMessages).blur(() => {
 $("#chatPlusLoadMedia").prop("checked", gcLoadMediaButton).click(() => {
     gcLoadMediaButton = !gcLoadMediaButton;
     if (gcLoadMediaButton) $("#chatPlusAutoLoadMediaContainer").removeClass("disabled");
-    else $("#chatPlusAutoLoadMediaContainer").addClass("disabled");
+    else $("#chatPlusAutoLoadMediaContainer").addClass("disabled");    
     saveSettings();
 });
 $("#chatPlusAutoLoadMediaNever").prop("checked", gcAutoLoadMedia === "never").click(() => {
@@ -234,7 +274,86 @@ $("#chatPlusAutoLoadMediaAll").prop("checked", gcAutoLoadMedia === "all").click(
     $("#chatPlusAutoLoadMediaFriends").prop("checked", false);
     saveSettings();
 });
+$("#chatPlusGifSearch").prop("checked", gifSearch).click(() => {
+    gifSearch = !gifSearch;
+    if (gifSearch) {
+        $("#gcGifSearchContainer").show();
+        $("#chatPlusGifSearchContainer").removeClass("disabled");
+    }
+    else {
+        $("#gcGifSearchContainer").hide();
+        $("#gcGifContainer").hide();
+        $("#chatPlusGifSearchContainer").addClass("disabled");
+    }
+    applyStyles();
+    saveSettings();
+});
+$("#chatPlusGifSearchHeight").val(gifSearchHeight).blur(() => {
+    let number = parseInt($("#chatPlusGifSearchHeight").val());
+    if (!isNaN(number) && number >= 0) {
+        gifSearchHeight = number;
+        applyStyles();
+        saveSettings();
+    }
+});
+$("#chatPlusGifSendOnClick").prop("checked", gifSendOnClick).click(() => {
+    gifSendOnClick = !gifSendOnClick;
+    saveSettings();
+});
+$("#gcGifSearchButton").click(() => {
+    if ($("#gcGifContainer").is(":visible")) {
+        $("#gcGifContainer").hide();
+    }
+    else {
+        $("#gcGifContainer").show();
+        $("#tenorSearchInput").val("").focus();
+    }
+});
+$("#tenorGifContainer").scroll(() => {
+    let atBottom = $tenorGifContainer.scrollTop() + $tenorGifContainer.innerHeight() >= tenorGifContainer.scrollHeight;
+    if (atBottom) console.log("at bottom");
+    if (atBottom) {
+        fetch(`https://api.tenor.com/v1/search?q=${tenorQuery}&key=${apiKey}&limit=${imagesPerRequest}&pos=${tenorPosition}`).then(response => response.json()).then(data => {
+            for (let gif of data.results) {
+                let url = gif.media[0].gif.url;
+                $tenorGifContainer.append($(`<img class="tenorGif" loading="lazy">`).attr("src", url).click(() => {
+                    if (gifSendOnClick) {
+                        $("#gcGifContainer").hide();
+                        socket.sendCommand({type: "lobby", command: "game chat message", data: {msg: url, teamMessage: $("#gcTeamChatSwitch").hasClass("active")}});
+                    }
+                    else {
+                        $("#gcInput").val((index, value) => value + url);
+                    }
+                }));
+            };
+        });
+        tenorPosition += imagesPerRequest;
+    }
+});
+$("#tenorSearchInput").keypress((event) => {
+    if (event.which === 13) {
+        $(".tenorGif").remove();
+        tenorQuery = $("#tenorSearchInput").val();
+        fetch(`https://api.tenor.com/v1/search?q=${tenorQuery}&key=${apiKey}&limit=${imagesPerRequest}`).then(response => response.json()).then(data => {
+            for (let gif of data.results) {
+                let url = gif.media[0].gif.url;
+                $tenorGifContainer.append($(`<img class="tenorGif" loading="lazy">`).attr("src", url).click(() => {
+                    if (gifSendOnClick) {
+                        $("#gcGifContainer").hide();
+                        socket.sendCommand({type: "lobby", command: "game chat message", data: {msg: url, teamMessage: $("#gcTeamChatSwitch").hasClass("active")}});
+                    }
+                    else {
+                        $("#gcInput").val((index, value) => value + url);
+                    }
+                }));
+            };
+        });
+        tenorPosition = imagesPerRequest;
+    }
+});
 if (!gcLoadMediaButton) $("#chatPlusAutoLoadMediaContainer").addClass("disabled");
+if (!gifSearch) $("#chatPlusGifSearchContainer").addClass("disabled");
+$("#tenorGifContainer").perfectScrollbar();
 
 AMQ_addStyle(`
     .gcTimestamp {
@@ -268,31 +387,64 @@ AMQ_addStyle(`
     }
     img.gcLoadedImage {
         display: block;
-        margin: auto;
-        padding: 5px 0 3px 0;
+        margin: 5px auto 3px;
         max-width: 70%;
-        max-height: 20%;
+        max-height: 200px;
     }
     audio.gcLoadedAudio {
         display: block;
-        margin: auto;
-        padding: 5px 0 3px 0;
+        margin: 5px auto 3px;
         width: 80%;
         height: 40px;
     }
     video.gcLoadedVideo {
         display: block;
-        margin: auto;
-        padding: 5px 0 3px 0;
+        margin: 5px auto 3px;
         max-width: 70%;
-        max-height: 20%;
+        max-height: 200px;
+    }
+    #gcGifSearchContainer {
+        position: absolute;
+        top: 35px;
+        right: 86px;
+        width: 24px;
+        height: 29px;
+        z-index: 20;
+    }
+    #gcGifSearchButton > i {
+        font-size: 25px;
+        color: #1b1b1b;
+    }
+    #gcGifContainer {
+        width: 100%;
+        display: none;
+        position: absolute;
+        bottom: 75px;
+        background-color: rgba(0, 0, 0, 0.5);
+        z-index: 20;
+    }
+    #tenorSearchInput {
+        color: black;
+        width: 100%;
+    }
+    #tenorGifContainer {
+        padding: 2px 0;
+        position: absolute;
+    }
+    .tenorGif {
+        height: 70px;
+        margin: 2px;
+        border-radius: 5px;
+        cursor: pointer;
     }
 `);
+
+applyStyles();
 
 function setup() {
     gameChat.MAX_CHAT_MESSAGES = gcMaxMessages;
     nexusCoopChat.MAX_CHAT_MESSAGES = ncMaxMessages;
-    if (resizeNexusChat) $nexusChat.css({resize: "both", overflow: "hidden"});
+    if (resizeNexusChat) $("#nexusCoopMainContainer").css({"resize": "both", "overflow": "hidden", "min-width": "initial", "max-width": "initial"});
 
     new Listener("game chat update", (payload) => {
         for (let message of payload.messages) {
@@ -330,7 +482,7 @@ function setup() {
                             let name = $node.find(".gcUserName").text();
                             let atBottom = gameChat.$chatMessageContainer.scrollTop() + gameChat.$chatMessageContainer.innerHeight() >= gameChat.$chatMessageContainer[0].scrollHeight - 100;
                             if (gcAutoLoadMedia === "all" || (gcAutoLoadMedia === "friends" && (name === selfName || socialTab.isFriend(name)))) {
-                                $node.append($(`<img></img>`).attr("src", urls[0]).addClass("gcLoadedImage").click(function() {
+                                $node.append($(`<img>`).attr("src", urls[0]).addClass("gcLoadedImage").on("load", () => mediaOnLoad(atBottom)).click(function() {
                                     $(this).remove();
                                 }));
                             }
@@ -338,13 +490,11 @@ function setup() {
                                 $node.append($(`<button>Load Image</button>`).addClass("btn gcLoadMedia").click(function() {
                                     let atBottom2 = gameChat.$chatMessageContainer.scrollTop() + gameChat.$chatMessageContainer.innerHeight() >= gameChat.$chatMessageContainer[0].scrollHeight - 100;
                                     $(this).remove();
-                                    $node.append($(`<img></img>`).attr("src", urls[0]).addClass("gcLoadedImage").click(function() {
+                                    $node.append($(`<img>`).attr("src", urls[0]).addClass("gcLoadedImage").on("load", () => mediaOnLoad(atBottom2)).click(function() {
                                         $(this).remove();
                                     }));
-                                    if (atBottom2) gameChat.$chatMessageContainer.scrollTop(gameChat.$chatMessageContainer.prop("scrollHeight"));
                                 }));
                             }
-                            if (atBottom) gameChat.$chatMessageContainer.scrollTop(gameChat.$chatMessageContainer.prop("scrollHeight"));
                         }
                         else if (audioURLregex.test(urls[0])) {
                             let name = $node.find(".gcUserName").text();
@@ -366,17 +516,15 @@ function setup() {
                             let name = $node.find(".gcUserName").text();
                             let atBottom = gameChat.$chatMessageContainer.scrollTop() + gameChat.$chatMessageContainer.innerHeight() >= gameChat.$chatMessageContainer[0].scrollHeight - 100;
                             if (gcAutoLoadMedia === "all" || (gcAutoLoadMedia === "friends" && (name === selfName || socialTab.isFriend(name)))) {
-                                $node.append($(`<video controls></video>`).attr("src", urls[0]).addClass("gcLoadedVideo"));
+                                $node.append($(`<video controls></video>`).attr("src", urls[0]).addClass("gcLoadedVideo").on("canplay", () => mediaOnLoad(atBottom)));
                             }
                             else {
                                 $node.append($(`<button>Load Video</button>`).addClass("btn gcLoadMedia").click(function() {
                                     let atBottom2 = gameChat.$chatMessageContainer.scrollTop() + gameChat.$chatMessageContainer.innerHeight() >= gameChat.$chatMessageContainer[0].scrollHeight - 100;
                                     $(this).remove();
-                                    $node.append($(`<video controls></video>`).attr("src", urls[0]).addClass("gcLoadedVideo"));
-                                    if (atBottom2) gameChat.$chatMessageContainer.scrollTop(gameChat.$chatMessageContainer.prop("scrollHeight"));
+                                    $node.append($(`<video controls></video>`).attr("src", urls[0]).addClass("gcLoadedVideo").on("canplay", () => mediaOnLoad(atBottom2)));
                                 }));
                             }
-                            if (atBottom) gameChat.$chatMessageContainer.scrollTop(gameChat.$chatMessageContainer.prop("scrollHeight"));
                         }
                     }
                 }
@@ -417,6 +565,7 @@ function setup() {
                 <li>4. Move level, ticket, and note count to the right</li>
                 <li>5. Bug fix for new dms not autoscrolling</li>
                 <li>6. Load images/audio/video directly in chat</li>
+                <li>7. Add a gif search window in chat using tenor</li>
             </ul>
         `
     });
@@ -467,6 +616,18 @@ function applyStyles() {
         .nexusCoopChatName.friend {
             color: ${ncColor ? getFriendColor() : "inherit"};
         }
+        .gcInputContainer .textAreaContainer {
+            width: ${gifSearch ? "calc(100% - 145px)" : "calc(100% - 120px)"};
+        }
+        #gcEmojiPickerOuterContainer, #gcGifSearchContainer {
+            right: ${gifSearch ? "111px" : "86px"};
+        }
+        #gcGifContainer {
+            height: ${gifSearchHeight}px;
+        }
+        #tenorGifContainer {
+            height: ${gifSearchHeight - 27}px;
+        }
     `);
 }
 
@@ -478,6 +639,14 @@ function getFriendColor() {
     return saveData2 ? saveData2.smColorFriendColor : "#80ff80";
 }
 
+function mediaOnLoad(atBottom) {
+    console.log("media on load");
+    if (atBottom) {
+        console.log("at bottom");
+        gameChat.$chatMessageContainer.scrollTop(gameChat.$chatMessageContainer.prop("scrollHeight"));
+    }
+}
+
 function saveSettings() {
     let settings = {};
     settings.gcTimestamps = gcTimestamps;
@@ -485,12 +654,17 @@ function saveSettings() {
     settings.dmTimestamps = dmTimestamps;
     settings.dmColor = dmColor;
     settings.ncColor = ncColor;
+    settings.gcMaxMessages = gcMaxMessages;
+    settings.ncMaxMessages = ncMaxMessages;
     settings.dmWidthExtension = dmWidthExtension;
     settings.dmHeightExtension = dmHeightExtension;
     settings.resizeNexusChat = resizeNexusChat;
     settings.shiftRight = shiftRight;
     settings.gcLoadMediaButton = gcLoadMediaButton;
     settings.gcAutoLoadMedia = gcAutoLoadMedia;
+    settings.gifSearch = gifSearch;
+    settings.gifSearchHeight = gifSearchHeight;
+    settings.gifSendOnClick = gifSendOnClick;
     localStorage.setItem("chatPlus", JSON.stringify(settings));
 }
 
@@ -571,5 +745,5 @@ ChatBox.prototype.handleAlert = function(msg, callback) {
 nexusCoopChat.resetDrag = function() {
     this.$container.css("transform", "");
     this.$container.removeClass("dragged");
-    if (resizeNexusChat) $nexusChat.removeAttr("style").css({resize: "both", overflow: "hidden"});
+    if (resizeNexusChat) $("#nexusCoopMainContainer").removeAttr("style").css({"resize": "both", "overflow": "hidden", "min-width": "initial", "max-width": "initial"});
 };
