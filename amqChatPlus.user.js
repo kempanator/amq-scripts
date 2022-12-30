@@ -209,7 +209,7 @@ $("#chatPlusDMColor").prop("checked", dmColor).click(() => {
 });
 $("#chatPlusDMWidthExtension").val(dmWidthExtension).blur(() => {
     let number = parseInt($("#chatPlusDMWidthExtension").val());
-    if (!isNaN(number) && number >= 0) {
+    if (Number.isInteger(number) && number >= 0) {
         dmWidthExtension = number;
         applyStyles();
         saveSettings();
@@ -217,7 +217,7 @@ $("#chatPlusDMWidthExtension").val(dmWidthExtension).blur(() => {
 });
 $("#chatPlusDMHeightExtension").val(dmHeightExtension).blur(() => {
     let number = parseInt($("#chatPlusDMHeightExtension").val());
-    if (!isNaN(number) && number >= 0) {
+    if (Number.isInteger(number) && number >= 0) {
         dmHeightExtension = number;
         applyStyles();
         saveSettings();
@@ -236,7 +236,7 @@ $("#chatPlusShiftRight").prop("checked", shiftRight).click(() => {
 });
 $("#chatPlusGCMaxMessages").val(gcMaxMessages).blur(() => {
     let number = parseInt($("#chatPlusGCMaxMessages").val());
-    if (!isNaN(number) && number > 0) {
+    if (Number.isInteger(number) && number > 0) {
         gcMaxMessages = number;
         gameChat.MAX_CHAT_MESSAGES = number;
         saveSettings();
@@ -244,7 +244,7 @@ $("#chatPlusGCMaxMessages").val(gcMaxMessages).blur(() => {
 });
 $("#chatPlusNCMaxMessages").val(ncMaxMessages).blur(() => {
     let number = parseInt($("#chatPlusNCMaxMessages").val());
-    if (!isNaN(number) && number > 0) {
+    if (Number.isInteger(number) && number > 0) {
         ncMaxMessages = number;
         nexusCoopChat.MAX_CHAT_MESSAGES = number;
         saveSettings();
@@ -311,7 +311,6 @@ $("#gcGifSearchButton").click(() => {
 });
 $("#tenorGifContainer").scroll(() => {
     let atBottom = $tenorGifContainer.scrollTop() + $tenorGifContainer.innerHeight() >= tenorGifContainer.scrollHeight;
-    if (atBottom) console.log("at bottom");
     if (atBottom) {
         fetch(`https://api.tenor.com/v1/search?q=${tenorQuery}&key=${apiKey}&limit=${imagesPerRequest}&pos=${tenorPosition}`).then(response => response.json()).then(data => {
             for (let gif of data.results) {
@@ -640,9 +639,7 @@ function getFriendColor() {
 }
 
 function mediaOnLoad(atBottom) {
-    console.log("media on load");
     if (atBottom) {
-        console.log("at bottom");
         gameChat.$chatMessageContainer.scrollTop(gameChat.$chatMessageContainer.prop("scrollHeight"));
     }
 }
