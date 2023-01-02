@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Chat Plus
 // @namespace    https://github.com/kempanator
-// @version      0.15
+// @version      0.16
 // @description  Add timestamps, color, and wider boxes to DMs
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -36,7 +36,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.15";
+const version = "0.16";
 const apiKey = "LIVDSRZULELA";
 const saveData = JSON.parse(localStorage.getItem("chatPlus")) || {};
 const saveData2 = JSON.parse(localStorage.getItem("highlightFriendsSettings"));
@@ -225,7 +225,7 @@ $("#chatPlusDMHeightExtension").val(dmHeightExtension).blur(() => {
 });
 $("#chatPlusResizeNexusChat").prop("checked", resizeNexusChat).click(() => {
     resizeNexusChat = !resizeNexusChat;
-    if (resizeNexusChat) $("#nexusCoopMainContainer").css({"resize": "both", "overflow": "hidden", "min-width": "initial", "max-width": "initial"});
+    if (resizeNexusChat) $("#nexusCoopMainContainer").css({"resize": "both", "overflow": "hidden", "min-width": "0", "max-width": "none"});
     else $("#nexusCoopMainContainer").removeAttr("style");
     saveSettings();
 });
@@ -443,7 +443,7 @@ applyStyles();
 function setup() {
     gameChat.MAX_CHAT_MESSAGES = gcMaxMessages;
     nexusCoopChat.MAX_CHAT_MESSAGES = ncMaxMessages;
-    if (resizeNexusChat) $("#nexusCoopMainContainer").css({"resize": "both", "overflow": "hidden", "min-width": "initial", "max-width": "initial"});
+    if (resizeNexusChat) $("#nexusCoopMainContainer").css({"resize": "both", "overflow": "hidden", "min-width": "0", "max-width": "none"});
 
     new Listener("game chat update", (payload) => {
         for (let message of payload.messages) {
@@ -463,6 +463,7 @@ function setup() {
             if (!mutation.addedNodes) return;
             for (let node of mutation.addedNodes) {
                 let $node = $(node);
+                let atBottom = gameChat.$chatMessageContainer.scrollTop() + gameChat.$chatMessageContainer.innerHeight() >= gameChat.$chatMessageContainer[0].scrollHeight - 100;
                 if (gcTimestamps) {
                     if ($node.is(".gcTimestamp .ps__scrollbar-y-rail .ps__scrollbar-x-rail")) return;
                     let date = new Date();
@@ -479,7 +480,6 @@ function setup() {
                     if (urls.length > 0) {
                         if (imageURLregex.test(urls[0])) {
                             let name = $node.find(".gcUserName").text();
-                            let atBottom = gameChat.$chatMessageContainer.scrollTop() + gameChat.$chatMessageContainer.innerHeight() >= gameChat.$chatMessageContainer[0].scrollHeight - 100;
                             if (gcAutoLoadMedia === "all" || (gcAutoLoadMedia === "friends" && (name === selfName || socialTab.isFriend(name)))) {
                                 $node.append($(`<img>`).attr("src", urls[0]).addClass("gcLoadedImage").on("load", () => mediaOnLoad(atBottom)).click(function() {
                                     $(this).remove();
@@ -497,7 +497,6 @@ function setup() {
                         }
                         else if (audioURLregex.test(urls[0])) {
                             let name = $node.find(".gcUserName").text();
-                            let atBottom = gameChat.$chatMessageContainer.scrollTop() + gameChat.$chatMessageContainer.innerHeight() >= gameChat.$chatMessageContainer[0].scrollHeight - 100;
                             if (gcAutoLoadMedia === "all" || (gcAutoLoadMedia === "friends" && (name === selfName || socialTab.isFriend(name)))) {
                                 $node.append($(`<audio controls></audio>`).attr("src", urls[0]).addClass("gcLoadedAudio"));
                             }
@@ -509,11 +508,9 @@ function setup() {
                                     if (atBottom2) gameChat.$chatMessageContainer.scrollTop(gameChat.$chatMessageContainer.prop("scrollHeight"));
                                 }));
                             }
-                            if (atBottom) gameChat.$chatMessageContainer.scrollTop(gameChat.$chatMessageContainer.prop("scrollHeight"));
                         }
                         else if (videoURLregex.test(urls[0])) {
                             let name = $node.find(".gcUserName").text();
-                            let atBottom = gameChat.$chatMessageContainer.scrollTop() + gameChat.$chatMessageContainer.innerHeight() >= gameChat.$chatMessageContainer[0].scrollHeight - 100;
                             if (gcAutoLoadMedia === "all" || (gcAutoLoadMedia === "friends" && (name === selfName || socialTab.isFriend(name)))) {
                                 $node.append($(`<video controls></video>`).attr("src", urls[0]).addClass("gcLoadedVideo").on("canplay", () => mediaOnLoad(atBottom)));
                             }
@@ -527,6 +524,7 @@ function setup() {
                         }
                     }
                 }
+                if (atBottom) gameChat.$chatMessageContainer.scrollTop(gameChat.$chatMessageContainer.prop("scrollHeight"));
             }
         }
     }).observe(document.querySelector("#gcMessageContainer"), {childList: true, attributes: false, CharacterData: false});
@@ -536,6 +534,7 @@ function setup() {
             if (!mutation.addedNodes) return;
             for (let node of mutation.addedNodes) {
                 let $node = $(node);
+                let atBottom = nexusCoopChat.$chatMessageContainer.scrollTop() + nexusCoopChat.$chatMessageContainer.innerHeight() >= nexusCoopChat.$chatMessageContainer[0].scrollHeight - 100;
                 if ($node.is(".ncTimestamp .ps__scrollbar-y-rail .ps__scrollbar-x-rail")) return;
                 if (ncTimestamps) {
                     let date = new Date();
@@ -549,6 +548,7 @@ function setup() {
                     if (name === selfName) $node.find(".nexusCoopChatName").addClass("self");
                     else if (socialTab.isFriend(name)) $node.find(".nexusCoopChatName").addClass("friend");
                 }
+                if (atBottom) nexusCoopChat.$chatMessageContainer.scrollTop(nexusCoopChat.$chatMessageContainer.prop("scrollHeight"));
             }
         }
     }).observe(document.querySelector("#nexusCoopChatContainerInner"), {childList: true, attributes: false, CharacterData: false});
@@ -742,5 +742,5 @@ ChatBox.prototype.handleAlert = function(msg, callback) {
 nexusCoopChat.resetDrag = function() {
     this.$container.css("transform", "");
     this.$container.removeClass("dragged");
-    if (resizeNexusChat) $("#nexusCoopMainContainer").removeAttr("style").css({"resize": "both", "overflow": "hidden", "min-width": "initial", "max-width": "initial"});
+    if (resizeNexusChat) $("#nexusCoopMainContainer").removeAttr("style").css({"resize": "both", "overflow": "hidden", "min-width": "0", "max-width": "none"});
 };
