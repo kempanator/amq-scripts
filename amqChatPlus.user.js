@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         AMQ Chat Plus
 // @namespace    https://github.com/kempanator
-// @version      0.16
-// @description  Add timestamps, color, and wider boxes to DMs
+// @version      0.17
+// @description  Add new features to chat and messages
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
 // @grant        none
@@ -25,6 +25,7 @@ New chat/message features:
 5. Bug fix for new dms not autoscrolling
 6. Load images/audio/video directly in chat
 7. Add a gif search window in chat using tenor
+8. Drag and drop or paste file into chat to automatically upload to litterbox
 */
 
 "use strict";
@@ -36,7 +37,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.16";
+const version = "0.17";
 const apiKey = "LIVDSRZULELA";
 const saveData = JSON.parse(localStorage.getItem("chatPlus")) || {};
 const saveData2 = JSON.parse(localStorage.getItem("highlightFriendsSettings"));
@@ -48,17 +49,20 @@ let ncTimestamps = saveData.ncTimestamps !== undefined ? saveData.ncTimestamps :
 let dmTimestamps = saveData.dmTimestamps !== undefined ? saveData.dmTimestamps : true;
 let ncColor = saveData.ncColor !== undefined ? saveData.ncColor : false;
 let dmColor = saveData.dmColor !== undefined ? saveData.dmColor : true;
+let reformatBottomBar = saveData.reformatBottomBar !== undefined ? saveData.reformatBottomBar : true;
+let xpBarWidth = saveData.xpBarWidth !== undefined ? saveData.xpBarWidth : 110;
+let xpBarFromRight = saveData.xpBarFromRight !== undefined ? saveData.xpBarFromRight : 496;
 let dmWidthExtension = saveData.dmWidthExtension !== undefined ? saveData.dmWidthExtension : 60;
 let dmHeightExtension = saveData.dmHeightExtension !== undefined ? saveData.dmHeightExtension : 40;
 let resizeNexusChat = saveData.resizeNexusChat !== undefined ? saveData.resizeNexusChat : false;
-let shiftRight = saveData.shiftRight !== undefined ? saveData.shiftRight : true;
 let gcLoadMediaButton = saveData.gcLoadMediaButton !== undefined ? saveData.gcLoadMediaButton : true;
 let gcAutoLoadMedia = saveData.gcAutoLoadMedia !== undefined ? saveData.gcAutoLoadMedia : "never";
-let gcMaxMessages = saveData.gcMaxMessages !== undefined ? saveData.gcMaxMessages : 200;
-let ncMaxMessages = saveData.ncMaxMessages !== undefined ? saveData.ncMaxMessages : 100;
 let gifSearch = saveData.gifSearch !== undefined ? saveData.gifSearch : true;
 let gifSearchHeight = saveData.gifSearchHeight !== undefined ? saveData.gifSearchHeight : 200;
 let gifSendOnClick = saveData.gifSendOnClick !== undefined ? saveData.gifSendOnClick : true;
+let gcMaxMessages = saveData.gcMaxMessages !== undefined ? saveData.gcMaxMessages : 200;
+let ncMaxMessages = saveData.ncMaxMessages !== undefined ? saveData.ncMaxMessages : 100;
+let gcUploadToLitterbox = saveData.gcUploadToLitterbox !== undefined ? saveData.gcUploadToLitterbox : true;
 let tenorQuery;
 let tenorPosition;
 let imagesPerRequest = 20;
@@ -99,28 +103,29 @@ $("#settingsGraphicContainer").append(`
                 </div>
             </div>
             <div style="padding-top: 10px">
-                <span><b>Max Messages:</b></span>
-                <span style="margin-left: 10px">Chat</span>
-                <input id="chatPlusGCMaxMessages" class="form-control" type="text" style="width: 40px">
-                <span style="margin-left: 10px">Nexus</span>
-                <input id="chatPlusNCMaxMessages" class="form-control" type="text" style="width: 40px">
-                <span style="margin-left: 48px"><b>Resize Nexus Chat</b></span>
+                <span><b>Extend DM (px):</b></span>
+                <span style="margin-left: 10px">Width</span>
+                <input id="chatPlusDMWidthExtension" class="form-control" type="text" style="width: 40px">
+                <span style="margin-left: 10px">Height</span>
+                <input id="chatPlusDMHeightExtension" class="form-control" type="text" style="width: 40px">
+                <span style="margin-left: 60px"><b>Resize Nexus Chat</b></span>
                 <div class="customCheckbox" style="vertical-align: middle">
                     <input type="checkbox" id="chatPlusResizeNexusChat">
                     <label for="chatPlusResizeNexusChat"><i class="fa fa-check" aria-hidden="true"></i></label>
                 </div>
             </div>
             <div style="padding-top: 10px">
-                <span><b>Extend DM (px):</b></span>
-                <span style="margin-left: 10px">Width</span>
-                <input id="chatPlusDMWidthExtension" class="form-control" type="text" style="width: 40px">
-                <span style="margin-left: 10px">Height</span>
-                <input id="chatPlusDMHeightExtension" class="form-control" type="text" style="width: 40px">
-                <span style="margin-left: 37px"><b>Shift XP/Notes Right</b></span>
+                <span><b>Reformat XP/Notes</b></span>
                 <div class="customCheckbox" style="vertical-align: middle">
-                    <input type="checkbox" id="chatPlusShiftRight">
-                    <label for="chatPlusShiftRight"><i class="fa fa-check" aria-hidden="true"></i></label>
+                    <input type="checkbox" id="chatPlusReformatBottomBar">
+                    <label for="chatPlusReformatBottomBar"><i class="fa fa-check" aria-hidden="true"></i></label>
                 </div>
+                <span id="chatPlusReformatBottomBarContainer" style="margin-left: 40px">
+                    <span style="margin-left: 10px">XP Bar Width</span>
+                    <input id="chatPlusXPBarWidth" class="form-control" type="text" style="width: 40px">
+                    <span style="margin-left: 20px"># Pixels From Right</span>
+                    <input id="chatPlusXPBarFromRight" class="form-control" type="text" style="width: 40px">
+                </span>
             </div>
             <div style="padding-top: 10px">
                 <span><b>Load Media in Chat</b></span>
@@ -164,12 +169,24 @@ $("#settingsGraphicContainer").append(`
                     </div>
                 </span>
             </div>
+            <div style="padding-top: 10px">
+                <span><b>Max Messages:</b></span>
+                <span style="margin-left: 10px">Chat</span>
+                <input id="chatPlusGCMaxMessages" class="form-control" type="text" style="width: 40px">
+                <span style="margin-left: 10px">Nexus</span>
+                <input id="chatPlusNCMaxMessages" class="form-control" type="text" style="width: 40px">
+                <span style="margin-left: 50px"><b>Auto Upload to Litterbox</b></span>
+                <div class="customCheckbox" style="vertical-align: middle">
+                    <input type="checkbox" id="chatPlusUploadToLitterbox">
+                    <label for="chatPlusUploadToLitterbox"><i class="fa fa-check" aria-hidden="true"></i></label>
+                </div>
+            </div>
         </div>
     </div>
 `);
 
-$("#gameChatContainer .gcInputContainer").append(`
-    <div id="gcGifSearchContainer">
+$("#gcChatContent .gcInputContainer").append(`
+    <div id="gcGifSearchOuterContainer">
         <div id="gcGifSearchButton" class="clickAble">
             <i class="fa fa-picture-o" aria-hidden="true"></i>
         </div>
@@ -207,6 +224,29 @@ $("#chatPlusDMColor").prop("checked", dmColor).click(() => {
     applyStyles();
     saveSettings();
 });
+$("#chatPlusReformatBottomBar").prop("checked", reformatBottomBar).click(() => {
+    reformatBottomBar = !reformatBottomBar;
+    if (reformatBottomBar) $("#chatPlusReformatBottomBarContainer").removeClass("disabled");
+    else $("#chatPlusReformatBottomBarContainer").addClass("disabled");
+    applyStyles();
+    saveSettings();
+});
+$("#chatPlusXPBarWidth").val(xpBarWidth).blur(() => {
+    let number = parseInt($("#chatPlusXPBarWidth").val());
+    if (Number.isInteger(number) && number >= 0) {
+        xpBarWidth = number;
+        applyStyles();
+        saveSettings();
+    }
+});
+$("#chatPlusXPBarFromRight").val(xpBarFromRight).blur(() => {
+    let number = parseInt($("#chatPlusXPBarFromRight").val());
+    if (Number.isInteger(number) && number >= 0) {
+        xpBarFromRight = number;
+        applyStyles();
+        saveSettings();
+    }
+});
 $("#chatPlusDMWidthExtension").val(dmWidthExtension).blur(() => {
     let number = parseInt($("#chatPlusDMWidthExtension").val());
     if (Number.isInteger(number) && number >= 0) {
@@ -229,11 +269,6 @@ $("#chatPlusResizeNexusChat").prop("checked", resizeNexusChat).click(() => {
     else $("#nexusCoopMainContainer").removeAttr("style");
     saveSettings();
 });
-$("#chatPlusShiftRight").prop("checked", shiftRight).click(() => {
-    shiftRight = !shiftRight;
-    applyStyles();
-    saveSettings();
-});
 $("#chatPlusGCMaxMessages").val(gcMaxMessages).blur(() => {
     let number = parseInt($("#chatPlusGCMaxMessages").val());
     if (Number.isInteger(number) && number > 0) {
@@ -253,7 +288,7 @@ $("#chatPlusNCMaxMessages").val(ncMaxMessages).blur(() => {
 $("#chatPlusLoadMedia").prop("checked", gcLoadMediaButton).click(() => {
     gcLoadMediaButton = !gcLoadMediaButton;
     if (gcLoadMediaButton) $("#chatPlusAutoLoadMediaContainer").removeClass("disabled");
-    else $("#chatPlusAutoLoadMediaContainer").addClass("disabled");    
+    else $("#chatPlusAutoLoadMediaContainer").addClass("disabled");
     saveSettings();
 });
 $("#chatPlusAutoLoadMediaNever").prop("checked", gcAutoLoadMedia === "never").click(() => {
@@ -277,11 +312,11 @@ $("#chatPlusAutoLoadMediaAll").prop("checked", gcAutoLoadMedia === "all").click(
 $("#chatPlusGifSearch").prop("checked", gifSearch).click(() => {
     gifSearch = !gifSearch;
     if (gifSearch) {
-        $("#gcGifSearchContainer").show();
+        $("#gcGifSearchOuterContainer").show();
         $("#chatPlusGifSearchContainer").removeClass("disabled");
     }
     else {
-        $("#gcGifSearchContainer").hide();
+        $("#gcGifSearchOuterContainer").hide();
         $("#gcGifContainer").hide();
         $("#chatPlusGifSearchContainer").addClass("disabled");
     }
@@ -308,6 +343,10 @@ $("#gcGifSearchButton").click(() => {
         $("#gcGifContainer").show();
         $("#tenorSearchInput").val("").focus();
     }
+});
+$("#chatPlusUploadToLitterbox").prop("checked", gcUploadToLitterbox).click(() => {
+    gcUploadToLitterbox = !gcUploadToLitterbox;
+    saveSettings();
 });
 $("#tenorGifContainer").scroll(() => {
     let atBottom = $tenorGifContainer.scrollTop() + $tenorGifContainer.innerHeight() >= tenorGifContainer.scrollHeight;
@@ -350,94 +389,65 @@ $("#tenorSearchInput").keypress((event) => {
         tenorPosition = imagesPerRequest;
     }
 });
+document.querySelector("#gcInput").ondrop = (event) => {
+    if (gcUploadToLitterbox) {
+        let file = event.dataTransfer.files[0];
+        if (file) {
+            event.preventDefault();
+            let $cooldownBarContainer = $("#gcInputCooldownContainer");
+            $cooldownBarContainer.data("bs.popover").options.content = "Uploading to litterbox...";
+            $cooldownBarContainer.popover("show");
+            let formData = new FormData();
+            formData.append("fileToUpload", file);
+            formData.append("reqtype", "fileupload");
+            formData.append("time", "1h");
+            fetch("https://litterbox.catbox.moe/resources/internals/api.php", {method: "POST", body: formData})
+                .then((response) => response.text())
+                .then((data) => {
+                    $cooldownBarContainer.popover("hide");
+                    document.querySelector("#gcInput").value += data;
+                })
+                .catch((response) => {
+                    $cooldownBarContainer.popover("hide");
+                    gameChat.systemMessage("Error: litterbox upload failed");
+                    console.log(response);
+                });
+        }
+    }
+}
+document.querySelector("#gcInput").addEventListener("paste", (event) => {
+    if (gcUploadToLitterbox) {
+        let file = event.clipboardData.files[0];
+        if (file) {
+            event.preventDefault();
+            let $cooldownBarContainer = $("#gcInputCooldownContainer");
+            $cooldownBarContainer.data("bs.popover").options.content = "Uploading to litterbox...";
+            $cooldownBarContainer.popover("show");
+            let formData = new FormData();
+            formData.append("fileToUpload", file);
+            formData.append("reqtype", "fileupload");
+            formData.append("time", "1h");
+            fetch("https://litterbox.catbox.moe/resources/internals/api.php", {method: "POST", body: formData})
+                .then((response) => response.text())
+                .then((data) => {
+                    $cooldownBarContainer.popover("hide");
+                    document.querySelector("#gcInput").value += data;
+                })
+                .catch((response) => {
+                    $cooldownBarContainer.popover("hide");
+                    gameChat.systemMessage("Error: litterbox upload failed");
+                    console.log(response);
+                });
+        }
+        else {
+            document.querySelector("#gcInput").value += event.clipboardData.getData("text");
+        }
+    }
+});
+if (!reformatBottomBar) $("#chatPlusReformatBottomBarContainer").addClass("disabled");
 if (!gcLoadMediaButton) $("#chatPlusAutoLoadMediaContainer").addClass("disabled");
 if (!gifSearch) $("#chatPlusGifSearchContainer").addClass("disabled");
 $("#tenorGifContainer").perfectScrollbar();
-
-AMQ_addStyle(`
-    .gcTimestamp {
-        opacity: 0.5;
-    }
-    .dmTimestamp {
-        opacity: 0.5;
-    }
-    .ncTimestamp {
-        opacity: 0.5;
-    }
-    .dmUsername {
-        font-weight: bold;
-    }
-    #smChatPlusSettings input.form-control {
-        height: initial;
-        color: black;
-        display: inline-block;
-        padding: 2px 4px;
-    }
-    button.gcLoadMedia {
-        background: #6D6D6D;
-        color: #d9d9d9;
-        display: block;
-        margin: 5px auto 2px;
-        padding: 3px 6px;
-    }
-    button.gcLoadMedia:hover {
-        color: #d9d9d9;
-        opacity: .7;
-    }
-    img.gcLoadedImage {
-        display: block;
-        margin: 5px auto 3px;
-        max-width: 70%;
-        max-height: 200px;
-    }
-    audio.gcLoadedAudio {
-        display: block;
-        margin: 5px auto 3px;
-        width: 80%;
-        height: 40px;
-    }
-    video.gcLoadedVideo {
-        display: block;
-        margin: 5px auto 3px;
-        max-width: 70%;
-        max-height: 200px;
-    }
-    #gcGifSearchContainer {
-        position: absolute;
-        top: 35px;
-        right: 86px;
-        width: 24px;
-        height: 29px;
-        z-index: 20;
-    }
-    #gcGifSearchButton > i {
-        font-size: 25px;
-        color: #1b1b1b;
-    }
-    #gcGifContainer {
-        width: 100%;
-        display: none;
-        position: absolute;
-        bottom: 75px;
-        background-color: rgba(0, 0, 0, 0.5);
-        z-index: 20;
-    }
-    #tenorSearchInput {
-        color: black;
-        width: 100%;
-    }
-    #tenorGifContainer {
-        padding: 2px 0;
-        position: absolute;
-    }
-    .tenorGif {
-        height: 70px;
-        margin: 2px;
-        border-radius: 5px;
-        cursor: pointer;
-    }
-`);
-
 applyStyles();
 
 function setup() {
@@ -571,25 +581,47 @@ function setup() {
 }
 
 function applyStyles() {
-    AMQ_addStyle(`
+    $("#chatPlusStyle").remove();
+    let style = document.createElement("style");
+    style.type = "text/css";
+    style.id = "chatPlusStyle";
+    style.appendChild(document.createTextNode(`
+        #smChatPlusSettings input.form-control {
+            height: initial;
+            color: black;
+            display: inline-block;
+            padding: 2px 4px;
+        }
+        .gcTimestamp {
+            opacity: 0.5;
+        }
+        .dmTimestamp {
+            opacity: 0.5;
+        }
+        .ncTimestamp {
+            opacity: 0.5;
+        }
+        .dmUsername {
+            font-weight: bold;
+        }
         #chatContainer {
-            width: ${shiftRight ? "calc(100% - 646px)" : "calc(50% - 205px)"};
+            width: ${reformatBottomBar ? "calc(100% - 85px - " + xpBarFromRight + "px - " + xpBarWidth + "px)" : "calc(50% - 205px)"};
             height: ${300 + dmHeightExtension}px;
         }
         #activeChatScrollContainer {
             margin-top: ${255 + dmHeightExtension}px;
         }
         #xpOuterContainer {
-            width: ${shiftRight ? "110px" : "240px"};
-            margin: ${shiftRight ? 0 : "auto"};
-            left: ${shiftRight ? "auto" : 0};
-            right: ${shiftRight ? "450px" : 0};
+            width: ${reformatBottomBar ? xpBarWidth + "px" : "240px"};
+            margin: ${reformatBottomBar ? 0 : "auto"};
+            left: ${reformatBottomBar ? "auto" : 0};
+            right: ${reformatBottomBar ? xpBarFromRight + "px" : 0};
         }
         #xpBarOuter {
-            width: ${shiftRight ? "110px" : "240px"};
+            width: ${reformatBottomBar ? xpBarWidth + "px" : "240px"};
         }
         #currencyContainer {
-            left: ${shiftRight ? "110px" : "240px"};
+            left: ${reformatBottomBar ? xpBarWidth + "px" : "240px"};
         }
         .chatBoxContainer {
             height: ${200 + dmHeightExtension}px;
@@ -618,16 +650,75 @@ function applyStyles() {
         .gcInputContainer .textAreaContainer {
             width: ${gifSearch ? "calc(100% - 145px)" : "calc(100% - 120px)"};
         }
-        #gcEmojiPickerOuterContainer, #gcGifSearchContainer {
+        button.gcLoadMedia {
+            background: #6D6D6D;
+            color: #d9d9d9;
+            display: block;
+            margin: 5px auto 2px;
+            padding: 3px 6px;
+        }
+        button.gcLoadMedia:hover {
+            color: #d9d9d9;
+            opacity: .7;
+        }
+        img.gcLoadedImage {
+            display: block;
+            margin: 5px auto 3px;
+            max-width: 70%;
+            max-height: 200px;
+        }
+        audio.gcLoadedAudio {
+            display: block;
+            margin: 5px auto 3px;
+            width: 80%;
+            height: 40px;
+        }
+        video.gcLoadedVideo {
+            display: block;
+            margin: 5px auto 3px;
+            max-width: 70%;
+            max-height: 200px;
+        }
+        #gcEmojiPickerOuterContainer {
             right: ${gifSearch ? "111px" : "86px"};
         }
+        #gcGifSearchOuterContainer {
+            position: absolute;
+            top: 35px;
+            right: ${gifSearch ? "111px" : "86px"};
+            width: 24px;
+            height: 29px;
+        }
+        #gcGifSearchButton > i {
+            font-size: 25px;
+            color: #1b1b1b;
+        }
         #gcGifContainer {
+            width: 100%;
             height: ${gifSearchHeight}px;
+            display: none;
+            position: absolute;
+            bottom: 75px;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 20;
+        }
+        #tenorSearchInput {
+            color: black;
+            width: 100%;
         }
         #tenorGifContainer {
             height: ${gifSearchHeight - 27}px;
+            padding: 2px 0;
+            position: absolute;
         }
-    `);
+        img.tenorGif {
+            height: 70px;
+            margin: 2px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+    `));
+    document.head.appendChild(style);
 }
 
 function getSelfColor() {
@@ -651,17 +742,20 @@ function saveSettings() {
     settings.dmTimestamps = dmTimestamps;
     settings.dmColor = dmColor;
     settings.ncColor = ncColor;
-    settings.gcMaxMessages = gcMaxMessages;
-    settings.ncMaxMessages = ncMaxMessages;
     settings.dmWidthExtension = dmWidthExtension;
     settings.dmHeightExtension = dmHeightExtension;
     settings.resizeNexusChat = resizeNexusChat;
-    settings.shiftRight = shiftRight;
+    settings.reformatBottomBar = reformatBottomBar;
+    settings.xpBarWidth = xpBarWidth;
+    settings.xpBarFromRight = xpBarFromRight;
     settings.gcLoadMediaButton = gcLoadMediaButton;
     settings.gcAutoLoadMedia = gcAutoLoadMedia;
     settings.gifSearch = gifSearch;
     settings.gifSearchHeight = gifSearchHeight;
     settings.gifSendOnClick = gifSendOnClick;
+    settings.gcMaxMessages = gcMaxMessages;
+    settings.ncMaxMessages = ncMaxMessages;
+    settings.gcUploadToLitterbox = gcUploadToLitterbox;
     localStorage.setItem("chatPlus", JSON.stringify(settings));
 }
 
