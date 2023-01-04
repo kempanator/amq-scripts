@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Chat Plus
 // @namespace    https://github.com/kempanator
-// @version      0.17
+// @version      0.18
 // @description  Add new features to chat and messages
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -37,7 +37,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.17";
+const version = "0.18";
 const apiKey = "LIVDSRZULELA";
 const saveData = JSON.parse(localStorage.getItem("chatPlus")) || {};
 const saveData2 = JSON.parse(localStorage.getItem("highlightFriendsSettings"));
@@ -200,8 +200,14 @@ $("#gcMessageContainer").after(`
     </div>
 `);
 
+const $gcInput = $("#gcInput");
 const $tenorGifContainer = $("#tenorGifContainer");
-
+$gcInput.popover({
+    container: "#gcChatContent",
+    placement: "top",
+    trigger: "manual",
+    content: ""
+});
 $("#chatPlusGCTimestamps").prop("checked", gcTimestamps).click(() => {
     gcTimestamps = !gcTimestamps;
     saveSettings();
@@ -360,7 +366,7 @@ $("#tenorGifContainer").scroll(() => {
                         socket.sendCommand({type: "lobby", command: "game chat message", data: {msg: url, teamMessage: $("#gcTeamChatSwitch").hasClass("active")}});
                     }
                     else {
-                        $("#gcInput").val((index, value) => value + url);
+                        $gcInput.val((index, value) => value + url);
                     }
                 }));
             };
@@ -381,7 +387,7 @@ $("#tenorSearchInput").keypress((event) => {
                         socket.sendCommand({type: "lobby", command: "game chat message", data: {msg: url, teamMessage: $("#gcTeamChatSwitch").hasClass("active")}});
                     }
                     else {
-                        $("#gcInput").val((index, value) => value + url);
+                        $gcInput.val((index, value) => value + url);
                     }
                 }));
             };
@@ -389,14 +395,26 @@ $("#tenorSearchInput").keypress((event) => {
         tenorPosition = imagesPerRequest;
     }
 });
-document.querySelector("#gcInput").ondrop = (event) => {
+$gcInput.on("dragenter", () => {
     if (gcUploadToLitterbox) {
-        let file = event.dataTransfer.files[0];
+        $gcInput.data("bs.popover").options.content = "Upload to litterbox";
+        $gcInput.popover("show");
+    }
+});
+$gcInput.on("dragleave", () => {
+    if (gcUploadToLitterbox) {
+        $gcInput.popover("hide");
+    }
+});
+$gcInput.on("drop", (event) => {
+    if (gcUploadToLitterbox) {
+        $gcInput.popover("hide");
+        let file = event.originalEvent.dataTransfer.files[0];
         if (file) {
             event.preventDefault();
-            let $cooldownBarContainer = $("#gcInputCooldownContainer");
-            $cooldownBarContainer.data("bs.popover").options.content = "Uploading to litterbox...";
-            $cooldownBarContainer.popover("show");
+            event.stopPropagation();
+            $gcInput.data("bs.popover").options.content = "Uploading to litterbox...";
+            $gcInput.popover("show");
             let formData = new FormData();
             formData.append("fileToUpload", file);
             formData.append("reqtype", "fileupload");
@@ -404,25 +422,26 @@ document.querySelector("#gcInput").ondrop = (event) => {
             fetch("https://litterbox.catbox.moe/resources/internals/api.php", {method: "POST", body: formData})
                 .then((response) => response.text())
                 .then((data) => {
-                    $cooldownBarContainer.popover("hide");
+                    $gcInput.popover("hide");
                     document.querySelector("#gcInput").value += data;
                 })
                 .catch((response) => {
-                    $cooldownBarContainer.popover("hide");
+                    $gcInput.popover("hide");
                     gameChat.systemMessage("Error: litterbox upload failed");
                     console.log(response);
                 });
         }
     }
-}
-document.querySelector("#gcInput").addEventListener("paste", (event) => {
+});
+$gcInput.on("paste", (event) => {
     if (gcUploadToLitterbox) {
-        let file = event.clipboardData.files[0];
+        $gcInput.popover("hide");
+        let file = event.originalEvent.clipboardData.files[0];
         if (file) {
             event.preventDefault();
-            let $cooldownBarContainer = $("#gcInputCooldownContainer");
-            $cooldownBarContainer.data("bs.popover").options.content = "Uploading to litterbox...";
-            $cooldownBarContainer.popover("show");
+            event.stopPropagation();
+            $gcInput.data("bs.popover").options.content = "Uploading to litterbox...";
+            $gcInput.popover("show");
             let formData = new FormData();
             formData.append("fileToUpload", file);
             formData.append("reqtype", "fileupload");
@@ -430,17 +449,14 @@ document.querySelector("#gcInput").addEventListener("paste", (event) => {
             fetch("https://litterbox.catbox.moe/resources/internals/api.php", {method: "POST", body: formData})
                 .then((response) => response.text())
                 .then((data) => {
-                    $cooldownBarContainer.popover("hide");
+                    $gcInput.popover("hide");
                     document.querySelector("#gcInput").value += data;
                 })
                 .catch((response) => {
-                    $cooldownBarContainer.popover("hide");
+                    $gcInput.popover("hide");
                     gameChat.systemMessage("Error: litterbox upload failed");
                     console.log(response);
                 });
-        }
-        else {
-            document.querySelector("#gcInput").value += event.clipboardData.getData("text");
         }
     }
 });
