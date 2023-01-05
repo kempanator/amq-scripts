@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.60
+// @version      0.61
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -23,7 +23,6 @@ GAME SETTINGS
 /type [oei]           change song types
 /watched              change selection type to watched
 /random               change selection type to random
-/speed [1-4]          change song speed
 /time [5-60]          change song guess time
 /lives [1-5]          change number of lives
 /team [1-8]           change team size
@@ -59,6 +58,7 @@ IN GAME/LOBBY
 /countdown [seconds]  start game after # of seconds
 /dropdown             enable/disable anime dropdown
 /dropdownspec         enable drop down while spectating
+/speed [number]       change client-side song playback speed
 
 OTHER
 /roll                 roll number, player, teammate, playerteam, spectator
@@ -81,7 +81,7 @@ OTHER
 */
 
 "use strict";
-const version = "0.60";
+const version = "0.61";
 const saveData = JSON.parse(localStorage.getItem("megaCommands")) || {};
 let animeList;
 let autoAcceptInvite = saveData.autoAcceptInvite !== undefined ? saveData.autoAcceptInvite : false;
@@ -106,6 +106,7 @@ let countdownInterval;
 let dropdown = saveData.dropdown !== undefined ? saveData.dropdown : true;
 let dropdownInSpec = saveData.dropdownInSpec !== undefined ? saveData.dropdownInSpec : false;
 let lastUsedVersion = saveData.lastUsedVersion !== undefined ? saveData.lastUsedVersion : null;
+let playbackSpeed = saveData.playbackSpeed !== undefined ? saveData.playbackSpeed : null;
 let playerDetection = saveData.playerDetection !== undefined ? saveData.playerDetection : {invisible: false, players: []};
 let printLoot = saveData.printLoot !== undefined ? saveData.printLoot : false;
 let voteOptions = {};
@@ -195,6 +196,10 @@ function setup() {
         parseCommand(payload.msg, "dm", payload.target);
     }).bindListener();
     new Listener("play next song", (payload) => {
+        if (playbackSpeed !== null) {
+            quizVideoController.moePlayers[0].playbackRate = playbackSpeed;
+            quizVideoController.moePlayers[1].playbackRate = playbackSpeed;
+        }
         if (!quiz.isSpectator && quiz.gameMode !== "Ranked") {
             if (autoThrow) quiz.answerInput.setNewAnswer(autoThrow);
             if (autoVoteSkip !== null) setTimeout(() => { quiz.skipClicked() }, autoVoteSkip);
@@ -233,6 +238,7 @@ function setup() {
         if (autoThrow) sendSystemMessage("Auto Throw: " + autoThrow);
         if (autoMute !== null) sendSystemMessage("Auto Mute: " + (autoMute / 1000) + "s");
         if (autoUnmute !== null) sendSystemMessage("Auto Unmute: " + (autoUnmute / 1000) + "s");
+        if (playbackSpeed !== null) sendSystemMessage("Song Playback Speed: " + playbackSpeed);
     }).bindListener();
     new Listener("team member answer", (payload) => {
         if (autoCopy && autoCopy === quiz.players[payload.gamePlayerId]._name.toLowerCase()) {
@@ -561,13 +567,6 @@ function parseCommand(content, type, target) {
         else if (option[0] === "r") settings.songSelection.advancedValue.random = value;
         changeGameSettings(settings);
     }
-    else if (/^\/(s|speed) [0-9.]+$/i.test(content)) {
-        let option = parseFloat(/^\S+ ([0-9.]+)$/.exec(content)[1]);
-        let settings = hostModal.getSettings();
-        settings.playbackSpeed.randomOn = false;
-        settings.playbackSpeed.standardValue = option;
-        changeGameSettings(settings);
-    }
     else if (/^\/time [0-9]+$/i.test(content)) {
         let option = parseInt(/^\S+ ([0-9]+)$/.exec(content)[1]);
         let settings = hostModal.getSettings();
@@ -609,12 +608,22 @@ function parseCommand(content, type, target) {
     else if (/^\/pause$/i.test(content)) {
         socket.sendCommand({type: "quiz", command: "quiz " + (quiz.pauseButton.pauseOn ? "unpause" : "pause")});
     }
-    else if (/^\/(autoskip|autovoteskip)$/i.test(content)) {
+    else if (/^\/speed$/i.test(content)) {
+        playbackSpeed = null;
+        sendMessage("song playback speed set to default", type, target, true);
+    }
+    else if (/^\/speed [0-9.]+$/i.test(content)) {
+        let option = parseFloat(/^\S+ ([0-9.]+)$/.exec(content)[1]);
+        if (isNaN(option) || option === 0) return;
+        playbackSpeed = option;
+        sendMessage("song playback speed set to " + playbackSpeed, type, target, true);
+    }
+    else if (/^\/(avs|autoskip|autovoteskip)$/i.test(content)) {
         if (autoVoteSkip === null) autoVoteSkip = 100;
         else autoVoteSkip = null;
         sendMessage("auto vote skip " + (autoVoteSkip ? "enabled" : "disabled"), type, target, true);
     }
-    else if (/^\/(autoskip|autovoteskip) [0-9.]+$/i.test(content)) {
+    else if (/^\/(avs|autoskip|autovoteskip) [0-9.]+$/i.test(content)) {
         let seconds = parseFloat(/^\S+ ([0-9.]+)$/.exec(content)[1]);
         if (isNaN(seconds)) return;
         autoVoteSkip = seconds * 1000;
@@ -1254,7 +1263,7 @@ function parseIncomingDM(content, sender) {
  */
 function parseForceAll(content, type) {
     if (/^\/forceall version$/i.test(content)) {
-        sendMessage("0.60", type);
+        sendMessage("0.61", type);
     }
     else if (/^\/forceall roll [0-9]+$/i.test(content)) {
         let number = parseInt(/^\S+ roll ([0-9]+)$/.exec(content)[1]);
@@ -1743,6 +1752,7 @@ function saveSettings() {
     //settings.dropdown = dropdown;
     settings.dropdownInSpec = dropdownInSpec;
     settings.lastUsedVersion = version;
+    //settings.playbackSpeed = playbackSpeed;
     settings.playerDetection = playerDetection;
     settings.printLoot = printLoot;
     localStorage.setItem("megaCommands", JSON.stringify(settings));
