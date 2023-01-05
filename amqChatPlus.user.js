@@ -25,7 +25,7 @@ New chat/message features:
 5. Bug fix for new dms not autoscrolling
 6. Load images/audio/video directly in chat
 7. Add a gif search window in chat using tenor
-8. Drag and drop or paste file into chat to automatically upload to litterbox
+8. Drag & drop or copy & paste file into chat/dm to automatically upload to litterbox
 */
 
 "use strict";
@@ -643,6 +643,7 @@ function setup() {
                 <li>5. Bug fix for new dms not autoscrolling</li>
                 <li>6. Load images/audio/video directly in chat</li>
                 <li>7. Add a gif search window in chat using tenor</li>
+                <li>8. Drag & drop or copy & paste file into chat/dm to automatically upload to litterbox</li>
             </ul>
         `
     });
