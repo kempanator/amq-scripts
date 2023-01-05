@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Chat Plus
 // @namespace    https://github.com/kempanator
-// @version      0.18
+// @version      0.19
 // @description  Add new features to chat and messages
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -37,7 +37,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.18";
+const version = "0.19";
 const apiKey = "LIVDSRZULELA";
 const saveData = JSON.parse(localStorage.getItem("chatPlus")) || {};
 const saveData2 = JSON.parse(localStorage.getItem("highlightFriendsSettings"));
@@ -423,7 +423,7 @@ $gcInput.on("drop", (event) => {
                 .then((response) => response.text())
                 .then((data) => {
                     $gcInput.popover("hide");
-                    document.querySelector("#gcInput").value += data;
+                    $gcInput.val((index, value) => value + data);
                 })
                 .catch((response) => {
                     $gcInput.popover("hide");
@@ -450,7 +450,7 @@ $gcInput.on("paste", (event) => {
                 .then((response) => response.text())
                 .then((data) => {
                     $gcInput.popover("hide");
-                    document.querySelector("#gcInput").value += data;
+                    $gcInput.val((index, value) => value + data);
                 })
                 .catch((response) => {
                     $gcInput.popover("hide");
@@ -578,6 +578,58 @@ function setup() {
             }
         }
     }).observe(document.querySelector("#nexusCoopChatContainerInner"), {childList: true, attributes: false, CharacterData: false});
+
+    new MutationObserver((mutations) => {
+        for (let mutation of mutations) {
+            if (!mutation.addedNodes) return;
+            for (let node of mutation.addedNodes) {
+                let $node = $(node);
+                if ($node.hasClass("chatBox")) {
+                    $node.find("textarea").on("drop", (event) => {
+                        if (gcUploadToLitterbox) {
+                            let file = event.originalEvent.dataTransfer.files[0];
+                            if (file) {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                let formData = new FormData();
+                                formData.append("fileToUpload", file);
+                                formData.append("reqtype", "fileupload");
+                                formData.append("time", "1h");
+                                fetch("https://litterbox.catbox.moe/resources/internals/api.php", {method: "POST", body: formData})
+                                    .then((response) => response.text())
+                                    .then((data) => {
+                                        $node.find("textarea").val((index, value) => value + data);
+                                    })
+                                    .catch((response) => {
+                                        console.log(response);
+                                    });
+                            }
+                        }
+                    }).on("paste", (event) => {
+                        if (gcUploadToLitterbox) {
+                            let file = event.originalEvent.clipboardData.files[0];
+                            if (file) {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                let formData = new FormData();
+                                formData.append("fileToUpload", file);
+                                formData.append("reqtype", "fileupload");
+                                formData.append("time", "1h");
+                                fetch("https://litterbox.catbox.moe/resources/internals/api.php", {method: "POST", body: formData})
+                                    .then((response) => response.text())
+                                    .then((data) => {
+                                        $node.find("textarea").val((index, value) => value + data);
+                                    })
+                                    .catch((response) => {
+                                        console.log(response);
+                                    });
+                            }
+                        }
+                    });
+                }
+            }
+        }
+    }).observe(document.querySelector("#activeChatScrollContainer"), {childList: true, attributes: false, CharacterData: false});
 
     AMQ_addScriptData({
         name: "Chat Plus",
