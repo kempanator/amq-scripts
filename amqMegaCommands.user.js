@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.61
+// @version      0.62
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -81,7 +81,7 @@ OTHER
 */
 
 "use strict";
-const version = "0.61";
+const version = "0.62";
 const saveData = JSON.parse(localStorage.getItem("megaCommands")) || {};
 let animeList;
 let autoAcceptInvite = saveData.autoAcceptInvite !== undefined ? saveData.autoAcceptInvite : false;
@@ -197,23 +197,26 @@ function setup() {
     }).bindListener();
     new Listener("play next song", (payload) => {
         if (playbackSpeed !== null) {
-            quizVideoController.moePlayers[0].playbackRate = playbackSpeed;
-            quizVideoController.moePlayers[1].playbackRate = playbackSpeed;
+            let speed = Array.isArray(playbackSpeed) ? Math.random() * (playbackSpeed[1] - playbackSpeed[0]) + playbackSpeed[0] : playbackSpeed;
+            quizVideoController.moePlayers[0].playbackRate = speed;
+            quizVideoController.moePlayers[1].playbackRate = speed;
         }
         if (!quiz.isSpectator && quiz.gameMode !== "Ranked") {
             if (autoThrow) quiz.answerInput.setNewAnswer(autoThrow);
             if (autoVoteSkip !== null) setTimeout(() => { quiz.skipClicked() }, autoVoteSkip);
         }
         if (autoMute !== null) {
+            let time = Array.isArray(autoMute) ? Math.floor(Math.random() * (autoMute[1] - autoMute[0] + 1)) + autoMute[0] : autoMute;
             document.querySelector("#qpVolume").classList.add("disabled");
             volumeController.setMuted(false);
             volumeController.adjustVolume();
             setTimeout(() => {
                 volumeController.setMuted(true);
                 volumeController.adjustVolume();
-            }, autoMute);
+            }, time);
         }
         if (autoUnmute !== null) {
+            let time = Array.isArray(autoUnmute) ? Math.floor(Math.random() * (autoUnmute[1] - autoUnmute[0] + 1)) + autoUnmute[0] : autoUnmute;
             document.querySelector("#qpVolume").classList.add("disabled");
             volumeController.setMuted(true);
             volumeController.adjustVolume();
@@ -221,13 +224,12 @@ function setup() {
                 document.querySelector("#qpVolume").classList.remove("disabled");
                 volumeController.setMuted(false);
                 volumeController.adjustVolume();
-            }, autoUnmute);
+            }, time);
         }
         if (dropdownInSpec && quiz.isSpectator) {
             setTimeout(() => {
                 if (!quiz.answerInput.autoCompleteController.list.length) quiz.answerInput.autoCompleteController.updateList();
-                $("#qpAnswerInput").removeAttr("disabled");
-                $("#qpAnswerInput").val("");
+                $("#qpAnswerInput").removeAttr("disabled").val("");
             }, 1);
         }
     }).bindListener();
@@ -236,9 +238,9 @@ function setup() {
         if (autoKey) sendSystemMessage("Auto Key: Enabled");
         if (autoCopy) sendSystemMessage("Auto Copy: " + autoCopy);
         if (autoThrow) sendSystemMessage("Auto Throw: " + autoThrow);
-        if (autoMute !== null) sendSystemMessage("Auto Mute: " + (autoMute / 1000) + "s");
-        if (autoUnmute !== null) sendSystemMessage("Auto Unmute: " + (autoUnmute / 1000) + "s");
-        if (playbackSpeed !== null) sendSystemMessage("Song Playback Speed: " + playbackSpeed);
+        if (autoMute !== null) sendSystemMessage("Auto Mute: " + (Array.isArray(autoMute) ? `random ${autoMute[0] / 1000}s - ${autoMute[1] / 1000}s` : `${autoMute / 1000}s`));
+        if (autoUnmute !== null) sendSystemMessage("Auto Unmute: " + (Array.isArray(autoUnmute) ? `random ${autoUnmute[0] / 1000}s - ${autoUnmute[1] / 1000}s` : `${autoUnmute / 1000}s`));
+        if (playbackSpeed !== null) sendSystemMessage("Song Playback Speed: " + (Array.isArray(playbackSpeed) ? `random ${playbackSpeed[0]}x - ${playbackSpeed[1]}x` : `${playbackSpeed}x`));
     }).bindListener();
     new Listener("team member answer", (payload) => {
         if (autoCopy && autoCopy === quiz.players[payload.gamePlayerId]._name.toLowerCase()) {
@@ -618,6 +620,13 @@ function parseCommand(content, type, target) {
         playbackSpeed = option;
         sendMessage("song playback speed set to " + playbackSpeed, type, target, true);
     }
+    else if (/^\/speed [0-9.]+[ -][0-9.]+$/i.test(content)) {
+        let low = parseFloat(/^\S+ ([0-9.]+)[ -][0-9.]+$/.exec(content)[1]);
+        let high = parseFloat(/^\S+ [0-9.]+[ -]([0-9.]+)$/.exec(content)[1]);
+        if (isNaN(low) || isNaN(high) || low >= high) return;
+        playbackSpeed = [low, high];
+        sendMessage(`song playback speed set to random # between ${low} - ${high}`, type, target, true);
+    }
     else if (/^\/(avs|autoskip|autovoteskip)$/i.test(content)) {
         if (autoVoteSkip === null) autoVoteSkip = 100;
         else autoVoteSkip = null;
@@ -663,7 +672,15 @@ function parseCommand(content, type, target) {
         if (isNaN(seconds)) return;
         autoMute = seconds * 1000;
         autoUnmute = null;
-        sendMessage("auto muting after " + seconds + " second" + (seconds === 1 ? "" : "s"), type, target, true);
+        sendMessage(`auto muting after ${seconds} second${seconds === 1 ? "" : "s"}`, type, target, true);
+    }
+    else if (/^\/(am|automute) [0-9.]+[ -][0-9.]+$/i.test(content)) {
+        let low = parseFloat(/^\S+ ([0-9.]+)[ -][0-9.]+$/.exec(content)[1]);
+        let high = parseFloat(/^\S+ [0-9.]+[ -]([0-9.]+)$/.exec(content)[1]);
+        if (isNaN(low) || isNaN(high) || low >= high) return;
+        autoMute = [low * 1000, high * 1000];
+        autoUnmute = null;
+        sendMessage(`auto muting after random # of seconds between ${low} - ${high}`, type, target, true);
     }
     else if (/^\/(au|autounmute)$/i.test(content)) {
         document.querySelector("#qpVolume").classList.remove("disabled");
@@ -678,7 +695,15 @@ function parseCommand(content, type, target) {
         if (isNaN(seconds)) return;
         autoUnmute = seconds * 1000;
         autoMute = null;
-        sendMessage("auto unmuting after " + seconds + " second" + (seconds === 1 ? "" : "s"), type, target, true);
+        sendMessage(`auto unmuting after ${seconds} second${seconds === 1 ? "" : "s"}`, type, target, true);
+    }
+    else if (/^\/(au|autounmute) [0-9.]+[ -][0-9.]+$/i.test(content)) {
+        let low = parseFloat(/^\S+ ([0-9.]+)[ -][0-9.]+$/.exec(content)[1]);
+        let high = parseFloat(/^\S+ [0-9.]+[ -]([0-9.]+)$/.exec(content)[1]);
+        if (isNaN(low) || isNaN(high) || low >= high) return;
+        autoUnmute = [low * 1000, high * 1000];
+        autoMute = null;
+        sendMessage(`auto unmuting after random # of seconds between ${low} - ${high}`, type, target, true);
     }
     else if (/^\/autoready$/i.test(content)) {
         autoReady = !autoReady;
@@ -1263,7 +1288,7 @@ function parseIncomingDM(content, sender) {
  */
 function parseForceAll(content, type) {
     if (/^\/forceall version$/i.test(content)) {
-        sendMessage("0.61", type);
+        sendMessage("0.62", type);
     }
     else if (/^\/forceall roll [0-9]+$/i.test(content)) {
         let number = parseInt(/^\S+ roll ([0-9]+)$/.exec(content)[1]);
@@ -1271,6 +1296,10 @@ function parseForceAll(content, type) {
     }
     else if (/^\/forceall mutestatus$/i.test(content)) {
         sendMessage(volumeController.muted ? "🔇" : "🔉 " + Math.round(volumeController.volume * 100) + "%", type);
+    }
+    else if (/^\/forceall speed$/i.test(content)) {
+        if (playbackSpeed === null) sendMessage("speed: default", type);
+        else sendMessage("speed: " + (Array.isArray(playbackSpeed) ? `random ${playbackSpeed[0]}x - ${playbackSpeed[1]}x` : `${playbackSpeed}x`), type);
     }
     else if (/^\/forceall skip$/i.test(content)) {
         quiz.skipClicked();
@@ -1675,8 +1704,8 @@ function autoList() {
     if (autoKey) list.push("Auto Key: Enabled");
     if (autoCopy) list.push("Auto Copy: " + autoCopy);
     if (autoThrow) list.push("Auto Throw: " + autoThrow);
-    if (autoMute !== null) list.push("Auto Mute: " + (autoMute / 1000) + "s");
-    if (autoUnmute !== null) list.push("Auto Unmute: " + (autoUnmute / 1000) + "s");
+    if (autoMute !== null) list.push("Auto Mute: " + (Array.isArray(autoMute) ? `random ${autoMute[0] / 1000}s - ${autoMute[1] / 1000}s` : `${autoMute / 1000}s`));
+    if (autoUnmute !== null) list.push("Auto Unmute: " + (Array.isArray(autoUnmute) ? `random ${autoUnmute[0] / 1000}s - ${autoUnmute[1] / 1000}s` : `${autoUnmute / 1000}s`));
     if (autoReady) list.push("Auto Ready: Enabled");
     if (autoStart) list.push("Auto Start: Enabled");
     if (autoHost) list.push("Auto Host: " + autoHost);

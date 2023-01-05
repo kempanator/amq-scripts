@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Chat Plus
 // @namespace    https://github.com/kempanator
-// @version      0.19
+// @version      0.20
 // @description  Add new features to chat and messages
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -37,7 +37,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.19";
+const version = "0.20";
 const apiKey = "LIVDSRZULELA";
 const saveData = JSON.parse(localStorage.getItem("chatPlus")) || {};
 const saveData2 = JSON.parse(localStorage.getItem("highlightFriendsSettings"));
@@ -108,7 +108,7 @@ $("#settingsGraphicContainer").append(`
                 <input id="chatPlusDMWidthExtension" class="form-control" type="text" style="width: 40px">
                 <span style="margin-left: 10px">Height</span>
                 <input id="chatPlusDMHeightExtension" class="form-control" type="text" style="width: 40px">
-                <span style="margin-left: 60px"><b>Resize Nexus Chat</b></span>
+                <span style="margin-left: 38px"><b>Resize Nexus Chat</b></span>
                 <div class="customCheckbox" style="vertical-align: middle">
                     <input type="checkbox" id="chatPlusResizeNexusChat">
                     <label for="chatPlusResizeNexusChat"><i class="fa fa-check" aria-hidden="true"></i></label>
@@ -120,8 +120,8 @@ $("#settingsGraphicContainer").append(`
                     <input type="checkbox" id="chatPlusReformatBottomBar">
                     <label for="chatPlusReformatBottomBar"><i class="fa fa-check" aria-hidden="true"></i></label>
                 </div>
-                <span id="chatPlusReformatBottomBarContainer" style="margin-left: 40px">
-                    <span style="margin-left: 10px">XP Bar Width</span>
+                <span id="chatPlusReformatBottomBarContainer" style="margin-left: 42px">
+                    <span>XP Bar Width</span>
                     <input id="chatPlusXPBarWidth" class="form-control" type="text" style="width: 40px">
                     <span style="margin-left: 20px"># Pixels From Right</span>
                     <input id="chatPlusXPBarFromRight" class="form-control" type="text" style="width: 40px">
@@ -158,7 +158,7 @@ $("#settingsGraphicContainer").append(`
                     <input type="checkbox" id="chatPlusGifSearch">
                     <label for="chatPlusGifSearch"><i class="fa fa-check" aria-hidden="true"></i></label>
                 </div>
-                <span id="chatPlusGifSearchContainer" style="margin-left: 40px">
+                <span id="chatPlusGifSearchContainer" style="margin-left: 98px">
                     <span><b>Gif Window:</b></span>
                     <span style="margin-left: 10px">Height</span>
                     <input id="chatPlusGifSearchHeight" class="form-control" type="text" style="width: 40px">
@@ -175,7 +175,7 @@ $("#settingsGraphicContainer").append(`
                 <input id="chatPlusGCMaxMessages" class="form-control" type="text" style="width: 40px">
                 <span style="margin-left: 10px">Nexus</span>
                 <input id="chatPlusNCMaxMessages" class="form-control" type="text" style="width: 40px">
-                <span style="margin-left: 50px"><b>Auto Upload to Litterbox</b></span>
+                <span style="margin-left: 50px"><b>Upload files to Litterbox</b></span>
                 <div class="customCheckbox" style="vertical-align: middle">
                     <input type="checkbox" id="chatPlusUploadToLitterbox">
                     <label for="chatPlusUploadToLitterbox"><i class="fa fa-check" aria-hidden="true"></i></label>
