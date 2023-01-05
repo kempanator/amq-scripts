@@ -58,7 +58,7 @@ IN GAME/LOBBY
 /countdown [seconds]  start game after # of seconds
 /dropdown             enable/disable anime dropdown
 /dropdownspec         enable drop down while spectating
-/speed [number]       change client-side song playback speed
+/speed [number]       change client-side song playback speed (0.0625 - 16)
 
 OTHER
 /roll                 roll number, player, teammate, playerteam, spectator
