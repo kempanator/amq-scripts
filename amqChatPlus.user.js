@@ -62,7 +62,7 @@ let gifSearchHeight = saveData.gifSearchHeight !== undefined ? saveData.gifSearc
 let gifSendOnClick = saveData.gifSendOnClick !== undefined ? saveData.gifSendOnClick : true;
 let gcMaxMessages = saveData.gcMaxMessages !== undefined ? saveData.gcMaxMessages : 200;
 let ncMaxMessages = saveData.ncMaxMessages !== undefined ? saveData.ncMaxMessages : 100;
-let gcUploadToLitterbox = saveData.gcUploadToLitterbox !== undefined ? saveData.gcUploadToLitterbox : true;
+let fileUploadToLitterbox = saveData.fileUploadToLitterbox !== undefined ? saveData.fileUploadToLitterbox : true;
 let tenorQuery;
 let tenorPosition;
 let imagesPerRequest = 20;
@@ -350,8 +350,8 @@ $("#gcGifSearchButton").click(() => {
         $("#tenorSearchInput").val("").focus();
     }
 });
-$("#chatPlusUploadToLitterbox").prop("checked", gcUploadToLitterbox).click(() => {
-    gcUploadToLitterbox = !gcUploadToLitterbox;
+$("#chatPlusUploadToLitterbox").prop("checked", fileUploadToLitterbox).click(() => {
+    fileUploadToLitterbox = !fileUploadToLitterbox;
     saveSettings();
 });
 $("#tenorGifContainer").scroll(() => {
@@ -396,18 +396,18 @@ $("#tenorSearchInput").keypress((event) => {
     }
 });
 $gcInput.on("dragenter", () => {
-    if (gcUploadToLitterbox) {
+    if (fileUploadToLitterbox) {
         $gcInput.data("bs.popover").options.content = "Upload to litterbox";
         $gcInput.popover("show");
     }
 });
 $gcInput.on("dragleave", () => {
-    if (gcUploadToLitterbox) {
+    if (fileUploadToLitterbox) {
         $gcInput.popover("hide");
     }
 });
 $gcInput.on("drop", (event) => {
-    if (gcUploadToLitterbox) {
+    if (fileUploadToLitterbox) {
         $gcInput.popover("hide");
         let file = event.originalEvent.dataTransfer.files[0];
         if (file) {
@@ -434,7 +434,7 @@ $gcInput.on("drop", (event) => {
     }
 });
 $gcInput.on("paste", (event) => {
-    if (gcUploadToLitterbox) {
+    if (fileUploadToLitterbox) {
         $gcInput.popover("hide");
         let file = event.originalEvent.clipboardData.files[0];
         if (file) {
@@ -586,7 +586,7 @@ function setup() {
                 let $node = $(node);
                 if ($node.hasClass("chatBox")) {
                     $node.find("textarea").on("drop", (event) => {
-                        if (gcUploadToLitterbox) {
+                        if (fileUploadToLitterbox) {
                             let file = event.originalEvent.dataTransfer.files[0];
                             if (file) {
                                 event.preventDefault();
@@ -606,7 +606,7 @@ function setup() {
                             }
                         }
                     }).on("paste", (event) => {
-                        if (gcUploadToLitterbox) {
+                        if (fileUploadToLitterbox) {
                             let file = event.originalEvent.clipboardData.files[0];
                             if (file) {
                                 event.preventDefault();
@@ -824,7 +824,7 @@ function saveSettings() {
     settings.gifSendOnClick = gifSendOnClick;
     settings.gcMaxMessages = gcMaxMessages;
     settings.ncMaxMessages = ncMaxMessages;
-    settings.gcUploadToLitterbox = gcUploadToLitterbox;
+    settings.fileUploadToLitterbox = fileUploadToLitterbox;
     localStorage.setItem("chatPlus", JSON.stringify(settings));
 }
 
