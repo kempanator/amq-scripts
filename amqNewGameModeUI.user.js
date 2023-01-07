@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ New Game Mode UI
 // @namespace    https://github.com/kempanator
-// @version      0.9
+// @version      0.10
 // @description  Adds a user interface to new game mode to keep track of guesses
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -21,7 +21,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.9";
+const version = "0.10";
 let ngmWindow;
 let numGuesses = 5;
 let guessCounter = [];
@@ -125,22 +125,7 @@ function setup() {
         author: "kempanator",
         description: `<p>Click the button in the options bar during quiz to open the new game mode user interface</p>`
     });
-
-    AMQ_addStyle(`
-        #qpNGM {
-            width: 30px;
-            margin-right: 5px;
-        }
-        .ngmRow {
-            margin: 0 2px;
-        }
-        .ngmButton {
-            margin: 3px;
-        }
-        .ngmStatus {
-            padding: 6px;
-        }
-    `);
+    applyStyles();
 }
 
 function clearWindow() {
@@ -265,4 +250,27 @@ function sendGuess(guess) {
         command: "quiz answer",
         data: {answer: guessCounter[teamSlot] + guess, isPlaying: true, volumeAtMax: false}
     });
+}
+
+// apply styles
+function applyStyles() {
+    let style = document.createElement("style");
+    style.type = "text/css";
+    style.id = "newGameModeUIStyle";
+    style.appendChild(document.createTextNode(`
+        #qpNGM {
+            width: 30px;
+            margin-right: 5px;
+        }
+        .ngmRow {
+            margin: 0 2px;
+        }
+        .ngmButton {
+            margin: 3px;
+        }
+        .ngmStatus {
+            padding: 6px;
+        }
+    `));
+    document.head.appendChild(style);
 }

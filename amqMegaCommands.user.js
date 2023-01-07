@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.62
+// @version      0.63
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -81,7 +81,7 @@ OTHER
 */
 
 "use strict";
-const version = "0.62";
+const version = "0.63";
 const saveData = JSON.parse(localStorage.getItem("megaCommands")) || {};
 let animeList;
 let autoAcceptInvite = saveData.autoAcceptInvite !== undefined ? saveData.autoAcceptInvite : false;
@@ -146,24 +146,13 @@ if (document.querySelector("#startPage")) {
     }
     return;
 }
-
 let loadInterval = setInterval(() => {
     if (document.querySelector("#loadingScreen").classList.contains("hidden")) {
         setup();
         clearInterval(loadInterval);
     }
 }, 500);
-
-if (backgroundURL) {
-    AMQ_addStyle(`
-        #loadingScreen, #gameContainer {
-            background-image: url(${backgroundURL});
-        }
-        #gameChatPage .col-xs-9 {
-            background-image: none;
-        }
-    `);
-}
+applyStyles();
 
 function setup() {
     saveSettings();
@@ -1099,14 +1088,7 @@ function parseCommand(content, type, target) {
     }
     else if (/^\/(bg|background|wallpaper)$/i.test(content)) {
         backgroundURL = "";
-        AMQ_addStyle(`
-            #loadingScreen, #gameContainer {
-                background-image: -webkit-image-set(url(../img/backgrounds/normal/bg-x1.jpg) 1x, url(../img/backgrounds/normal/bg-x2.jpg) 2x);
-            }
-            #gameChatPage .col-xs-9 {
-                background-image: -webkit-image-set(url(../img/backgrounds/blur/bg-x1.jpg) 1x, url(../img/backgrounds/blur/bg-x2.jpg) 2x);
-            }
-        `);
+        applyStyles();
         saveSettings();
     }
     else if (/^\/(bg|background|wallpaper) (link|url)$/i.test(content)) {
@@ -1114,14 +1096,7 @@ function parseCommand(content, type, target) {
     }
     else if (/^\/(bg|background|wallpaper) http.+\.(jpg|jpeg|png|gif|tiff|bmp|webp)$/i.test(content)) {
         backgroundURL = /^\S+ (.+)$/.exec(content)[1];
-        AMQ_addStyle(`
-            #loadingScreen, #gameContainer {
-                background-image: url(${backgroundURL});
-            }
-            #gameChatPage .col-xs-9 {
-                background-image: none;
-            }
-        `);
+        applyStyles();
         saveSettings();
     }
     else if (/^\/detect$/i.test(content)) {
@@ -1288,7 +1263,7 @@ function parseIncomingDM(content, sender) {
  */
 function parseForceAll(content, type) {
     if (/^\/forceall version$/i.test(content)) {
-        sendMessage("0.62", type);
+        sendMessage("0.63", type);
     }
     else if (/^\/forceall roll [0-9]+$/i.test(content)) {
         let number = parseInt(/^\S+ roll ([0-9]+)$/.exec(content)[1]);
@@ -1451,9 +1426,9 @@ function getSpectatorList() {
 function getTeamDictionary() {
     let teamDictionary = {};
     if (lobby.inLobby) {
-        for (let lobbyAvatar of document.querySelectorAll(".lobbyAvatar")) {
-            let name = lobbyAvatar.querySelector(".lobbyAvatarNameContainerInner h2").innerText;
-            let team = lobbyAvatar.querySelector(".lobbyAvatarTeamContainer h3").innerText;
+        for (let player of Object.values(lobby.players)) {
+            let name = player._name;
+            let team = player.lobbySlot.$TEAM_DISPLAY_TEXT.text();
             if (isNaN(parseInt(team))) return {};
             team in teamDictionary ? teamDictionary[team].push(name) : teamDictionary[team] = [name];
         }
@@ -1480,9 +1455,9 @@ function getTeamList(team) {
     if (!Number.isInteger(team)) return [];
     let list = [];
     if (lobby.inLobby) {
-        for (let lobbyAvatar of document.querySelectorAll(".lobbyAvatar")) {
-            if (parseInt(lobbyAvatar.querySelector(".lobbyAvatarTeamContainer h3").innerText) === team) {
-                list.push(lobbyAvatar.querySelector(".lobbyAvatarNameContainerInner h2").innerText);
+        for (let player of Object.values(lobby.players)) {
+            if (parseInt(player.lobbySlot.$TEAM_DISPLAY_TEXT.text()) === team) {
+                list.push(player._name);
             }
         }
     }
@@ -1506,9 +1481,9 @@ function getTeamList(team) {
 // input player name, return their team number
 function getTeamNumber(name) {
     if (lobby.inLobby) {
-        for (let lobbyAvatar of document.querySelectorAll(".lobbyAvatar")) {
-            if (lobbyAvatar.querySelector(".lobbyAvatarNameContainerInner h2").innerText === name) {
-                return parseInt(lobbyAvatar.querySelector(".lobbyAvatarTeamContainer h3").innerText);
+        for (let player of Object.values(lobby.players)) {
+            if (player._name === name) {
+                return parseInt(player.lobbySlot.$TEAM_DISPLAY_TEXT.text());
             }
         }
     }
@@ -1647,8 +1622,7 @@ function checkAutoHost() {
     }
 }
 
-// rejoin the room you are currently in
-// input number of milliseconds of delay
+// input number of milliseconds of delay, leave and rejoin the room you were in
 function rejoinRoom(time) {
     if (isSoloMode() || isRankedMode()) return;
     setTimeout(() => {
@@ -1756,6 +1730,23 @@ AutoCompleteController.prototype.newList = function() {
     if (this.list.length > 0) animeList = this.list;
     this.list = dropdown ? animeList : [];
     oldNewList.apply(this, arguments);
+}
+
+// apply styles
+function applyStyles() {
+    $("#megaCommandsStyle").remove();
+    let style = document.createElement("style");
+    style.type = "text/css";
+    style.id = "megaCommandsStyle";
+    style.appendChild(document.createTextNode(`
+        #loadingScreen, #gameContainer {
+            background-image: ${backgroundURL ? "url(" + backgroundURL + ")" : "-webkit-image-set(url(../img/backgrounds/normal/bg-x1.jpg) 1x, url(../img/backgrounds/normal/bg-x2.jpg) 2x)"};
+        }
+        #gameChatPage .col-xs-9 {
+            background-image: ${backgroundURL ? "none" : "-webkit-image-set(url(../img/backgrounds/blur/bg-x1.jpg) 1x, url(../img/backgrounds/blur/bg-x2.jpg) 2x)"};
+        }
+    `));
+    document.head.appendChild(style);
 }
 
 // save settings

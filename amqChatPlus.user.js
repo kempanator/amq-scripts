@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Chat Plus
 // @namespace    https://github.com/kempanator
-// @version      0.20
+// @version      0.21
 // @description  Add new features to chat and messages
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -37,7 +37,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.20";
+const version = "0.21";
 const apiKey = "LIVDSRZULELA";
 const saveData = JSON.parse(localStorage.getItem("chatPlus")) || {};
 const saveData2 = JSON.parse(localStorage.getItem("highlightFriendsSettings"));
@@ -420,16 +420,16 @@ $gcInput.on("drop", (event) => {
             formData.append("reqtype", "fileupload");
             formData.append("time", "1h");
             fetch("https://litterbox.catbox.moe/resources/internals/api.php", {method: "POST", body: formData})
-                .then((response) => response.text())
-                .then((data) => {
-                    $gcInput.popover("hide");
-                    $gcInput.val((index, value) => value + data);
-                })
-                .catch((response) => {
-                    $gcInput.popover("hide");
-                    gameChat.systemMessage("Error: litterbox upload failed");
-                    console.log(response);
-                });
+            .then((response) => response.text())
+            .then((data) => {
+                $gcInput.popover("hide");
+                $gcInput.val((index, value) => value + data);
+            })
+            .catch((response) => {
+                $gcInput.popover("hide");
+                gameChat.systemMessage("Error: litterbox upload failed");
+                console.log(response);
+            });
         }
     }
 });
@@ -447,16 +447,16 @@ $gcInput.on("paste", (event) => {
             formData.append("reqtype", "fileupload");
             formData.append("time", "1h");
             fetch("https://litterbox.catbox.moe/resources/internals/api.php", {method: "POST", body: formData})
-                .then((response) => response.text())
-                .then((data) => {
-                    $gcInput.popover("hide");
-                    $gcInput.val((index, value) => value + data);
-                })
-                .catch((response) => {
-                    $gcInput.popover("hide");
-                    gameChat.systemMessage("Error: litterbox upload failed");
-                    console.log(response);
-                });
+            .then((response) => response.text())
+            .then((data) => {
+                $gcInput.popover("hide");
+                $gcInput.val((index, value) => value + data);
+            })
+            .catch((response) => {
+                $gcInput.popover("hide");
+                gameChat.systemMessage("Error: litterbox upload failed");
+                console.log(response);
+            });
         }
     }
 });
@@ -596,13 +596,13 @@ function setup() {
                                 formData.append("reqtype", "fileupload");
                                 formData.append("time", "1h");
                                 fetch("https://litterbox.catbox.moe/resources/internals/api.php", {method: "POST", body: formData})
-                                    .then((response) => response.text())
-                                    .then((data) => {
-                                        $node.find("textarea").val((index, value) => value + data);
-                                    })
-                                    .catch((response) => {
-                                        console.log(response);
-                                    });
+                                .then((response) => response.text())
+                                .then((data) => {
+                                    $node.find("textarea").val((index, value) => value + data);
+                                })
+                                .catch((response) => {
+                                    console.log(response);
+                                });
                             }
                         }
                     }).on("paste", (event) => {
@@ -616,13 +616,13 @@ function setup() {
                                 formData.append("reqtype", "fileupload");
                                 formData.append("time", "1h");
                                 fetch("https://litterbox.catbox.moe/resources/internals/api.php", {method: "POST", body: formData})
-                                    .then((response) => response.text())
-                                    .then((data) => {
-                                        $node.find("textarea").val((index, value) => value + data);
-                                    })
-                                    .catch((response) => {
-                                        console.log(response);
-                                    });
+                                .then((response) => response.text())
+                                .then((data) => {
+                                    $node.find("textarea").val((index, value) => value + data);
+                                })
+                                .catch((response) => {
+                                    console.log(response);
+                                });
                             }
                         }
                     });
@@ -902,8 +902,8 @@ ChatBox.prototype.handleAlert = function(msg, callback) {
 };
 
 // override resetDrag function to remove custom width and height of nexus chat
+const oldResetDrag = nexusCoopChat.resetDrag;
 nexusCoopChat.resetDrag = function() {
-    this.$container.css("transform", "");
-    this.$container.removeClass("dragged");
+    oldResetDrag.apply(this, arguments);
     if (resizeNexusChat) $("#nexusCoopMainContainer").removeAttr("style").css({"resize": "both", "overflow": "hidden", "min-width": "0", "max-width": "none"});
 };
