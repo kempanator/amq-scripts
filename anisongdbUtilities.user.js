@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Anisongdb Utilities
 // @namespace    https://github.com/kempanator
-// @version      0.2
+// @version      0.3
 // @description  some extra functions for anisongdb.com
 // @author       kempanator
 // @match        https://anisongdb.com/*
@@ -11,6 +11,7 @@
 "use strict";
 const autoPlayMP3 = true; //auto play audio when you click the mp3 button for a song
 const jsonDownloadRename = true; //force your json file name to match your search query
+const jsonDownloadShortcut = true; //press CTRL B to download json file
 
 let loadInterval = setInterval(() => {
     if (document.querySelector("#table")) {
@@ -44,9 +45,11 @@ function setup() {
             this.setAttribute("download", name + ".json");
         });
     }
-    document.body.addEventListener("keypress", (event) => {
-        if (event.ctrlKey && event.code === "KeyB") {
-            document.querySelector("a.showFilter").click();
-        }
-    });
+    if (jsonDownloadShortcut) {
+        document.body.addEventListener("keypress", (event) => {
+            if (event.ctrlKey && event.code === "KeyB") {
+                document.querySelector("a.showFilter").click();
+            }
+        });
+    }
 }
