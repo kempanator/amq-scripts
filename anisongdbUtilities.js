@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Anisongdb Utilities
 // @namespace    https://github.com/kempanator
-// @version      0.1
+// @version      0.2
 // @description  some extra functions for anisongdb.com
 // @author       kempanator
 // @match        https://anisongdb.com/*
@@ -44,4 +44,9 @@ function setup() {
             this.setAttribute("download", name + ".json");
         });
     }
+    document.body.addEventListener("keypress", (event) => {
+        if (event.ctrlKey && event.code === "KeyB") {
+            document.querySelector("a.showFilter").click();
+        }
+    });
 }
