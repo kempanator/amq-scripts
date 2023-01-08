@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.63
+// @version      0.64
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -81,7 +81,7 @@ OTHER
 */
 
 "use strict";
-const version = "0.63";
+const version = "0.64";
 const saveData = JSON.parse(localStorage.getItem("megaCommands")) || {};
 let animeList;
 let autoAcceptInvite = saveData.autoAcceptInvite !== undefined ? saveData.autoAcceptInvite : false;
@@ -117,6 +117,7 @@ const rules = {
     "dualraidboss": "https://pastebin.com/XkG7WWwj",
     "newgamemode": "https://pastebin.com/TAyYVsii",
     "password": "https://pastebin.com/17vKE78J",
+    "pgm": "https://pastebin.com/CEc0uSHp",
     "pictionary": "https://pastebin.com/qc3NQJdX",
     "raidboss": "https://pastebin.com/NE28GUPq",
     "reversepassword": "https://pastebin.com/S8cQahNA",
@@ -1263,7 +1264,7 @@ function parseIncomingDM(content, sender) {
  */
 function parseForceAll(content, type) {
     if (/^\/forceall version$/i.test(content)) {
-        sendMessage("0.63", type);
+        sendMessage("0.64", type);
     }
     else if (/^\/forceall roll [0-9]+$/i.test(content)) {
         let number = parseInt(/^\S+ roll ([0-9]+)$/.exec(content)[1]);
