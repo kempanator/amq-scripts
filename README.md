@@ -1,7 +1,10 @@
 # amq-scripts
 
-### AMQ Chat Plus
+### AMQ Answer Stats
 EXPERIMENTAL DO NOT DOWNLOAD
+
+### AMQ Chat Plus
+Customizable chat/dms https://i.imgur.com/FAT78Ep.png
 
 ### AMQ Mega Commands
 EXPERIMENTAL DO NOT DOWNLOAD
