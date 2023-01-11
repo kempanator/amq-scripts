@@ -15,7 +15,7 @@
 /*
 Features:
 1. Add a window with answer stats
-2. Add an anisongdb search results window
+2. Add a window for anisongdb search results
 2. Add anisongdb anime and artist lookup buttons to song info
 3. Add anilist, kitsu, myanimelist, annid, 720, 480, mp3 links to song info
 4. Extra song info button is always visible
