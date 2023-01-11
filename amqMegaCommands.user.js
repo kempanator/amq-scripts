@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.64
+// @version      0.65
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -81,7 +81,7 @@ OTHER
 */
 
 "use strict";
-const version = "0.64";
+const version = "0.65";
 const saveData = JSON.parse(localStorage.getItem("megaCommands")) || {};
 let animeList;
 let autoAcceptInvite = saveData.autoAcceptInvite !== undefined ? saveData.autoAcceptInvite : false;
@@ -1264,7 +1264,7 @@ function parseIncomingDM(content, sender) {
  */
 function parseForceAll(content, type) {
     if (/^\/forceall version$/i.test(content)) {
-        sendMessage("0.64", type);
+        sendMessage("0.65", type);
     }
     else if (/^\/forceall roll [0-9]+$/i.test(content)) {
         let number = parseInt(/^\S+ roll ([0-9]+)$/.exec(content)[1]);
@@ -1567,6 +1567,14 @@ function changeGameSettings(settings) {
         hostModal.changeSettings(settingChanges);
         setTimeout(() => { lobby.changeGameSettings() }, 1);
     }
+}
+
+// input text, return name that matches the closest
+function getClosestNameInRoom(text) {
+    let re = new RegExp(text, "i");
+    let results = getPlayerList().concat(getSpectatorList()).filter((x) => re.test(x));
+    if (results.length === 1) return results[0];
+    else return text;
 }
 
 // check if all players are ready in lobby
