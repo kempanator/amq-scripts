@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.65
+// @version      0.66
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -81,7 +81,7 @@ OTHER
 */
 
 "use strict";
-const version = "0.65";
+const version = "0.66";
 const saveData = JSON.parse(localStorage.getItem("megaCommands")) || {};
 let animeList;
 let autoAcceptInvite = saveData.autoAcceptInvite !== undefined ? saveData.autoAcceptInvite : false;
@@ -105,6 +105,7 @@ let countdown = null;
 let countdownInterval;
 let dropdown = saveData.dropdown !== undefined ? saveData.dropdown : true;
 let dropdownInSpec = saveData.dropdownInSpec !== undefined ? saveData.dropdownInSpec : false;
+let hidePlayers = saveData.hidePlayers !== undefined ? saveData.hidePlayers : false;
 let lastUsedVersion = saveData.lastUsedVersion !== undefined ? saveData.lastUsedVersion : null;
 let playbackSpeed = saveData.playbackSpeed !== undefined ? saveData.playbackSpeed : null;
 let playerDetection = saveData.playerDetection !== undefined ? saveData.playerDetection : {invisible: false, players: []};
@@ -231,6 +232,7 @@ function setup() {
         if (autoMute !== null) sendSystemMessage("Auto Mute: " + (Array.isArray(autoMute) ? `random ${autoMute[0] / 1000}s - ${autoMute[1] / 1000}s` : `${autoMute / 1000}s`));
         if (autoUnmute !== null) sendSystemMessage("Auto Unmute: " + (Array.isArray(autoUnmute) ? `random ${autoUnmute[0] / 1000}s - ${autoUnmute[1] / 1000}s` : `${autoUnmute / 1000}s`));
         if (playbackSpeed !== null) sendSystemMessage("Song Playback Speed: " + (Array.isArray(playbackSpeed) ? `random ${playbackSpeed[0]}x - ${playbackSpeed[1]}x` : `${playbackSpeed}x`));
+        if (hidePlayers) setTimeout(() => { quizHidePlayers() }, 0);
     }).bindListener();
     new Listener("team member answer", (payload) => {
         if (autoCopy && autoCopy === quiz.players[payload.gamePlayerId]._name.toLowerCase()) {
@@ -278,6 +280,7 @@ function setup() {
         document.querySelector("#qpVolume").classList.remove("disabled");
         setTimeout(() => { checkAutoHost() }, 10);
         if (autoSwitch) setTimeout(() => { checkAutoSwitch() }, 100);
+        if (hidePlayers) setTimeout(() => { lobbyHidePlayers() }, 0);
     }).bindListener();
     new Listener("Join Game", (payload) => {
         if (payload.error) {
@@ -285,12 +288,18 @@ function setup() {
             saveSettings();
             return;
         }
-        if (autoReady) sendSystemMessage("Auto Ready: Enabled");
-        if (autoStart) sendSystemMessage("Auto Start: Enabled");
-        if (autoHost) sendSystemMessage("Auto Host: " + autoHost);
-        if (autoInvite) sendSystemMessage("Auto Invite: " + autoInvite);
-        if (autoAcceptInvite) sendSystemMessage("Auto Accept Invite: Enabled");
-        if (autoSwitch) setTimeout(() => { checkAutoSwitch() }, 100);
+        if (payload.inLobby) {
+            if (autoReady) sendSystemMessage("Auto Ready: Enabled");
+            if (autoStart) sendSystemMessage("Auto Start: Enabled");
+            if (autoHost) sendSystemMessage("Auto Host: " + autoHost);
+            if (autoInvite) sendSystemMessage("Auto Invite: " + autoInvite);
+            if (autoAcceptInvite) sendSystemMessage("Auto Accept Invite: Enabled");
+            if (autoSwitch) setTimeout(() => { checkAutoSwitch() }, 100);
+            if (hidePlayers) setTimeout(() => { lobbyHidePlayers() }, 0);
+        }
+        else {
+            if (hidePlayers) setTimeout(() => { quizHidePlayers() }, 0);
+        }
     }).bindListener();
     new Listener("Spectate Game", (payload) => {
         if (payload.error) {
@@ -298,18 +307,28 @@ function setup() {
             saveSettings();
             return;
         }
-        if (autoReady) sendSystemMessage("Auto Ready: Enabled");
-        if (autoStart) sendSystemMessage("Auto Start: Enabled");
-        if (autoHost) sendSystemMessage("Auto Host: " + autoHost);
-        if (autoInvite) sendSystemMessage("Auto Invite: " + autoInvite);
-        if (autoAcceptInvite) sendSystemMessage("Auto Accept Invite: Enabled");
-        if (autoSwitch) setTimeout(() => { checkAutoSwitch() }, 100);
+        if (payload.inLobby) {
+            if (autoReady) sendSystemMessage("Auto Ready: Enabled");
+            if (autoStart) sendSystemMessage("Auto Start: Enabled");
+            if (autoHost) sendSystemMessage("Auto Host: " + autoHost);
+            if (autoInvite) sendSystemMessage("Auto Invite: " + autoInvite);
+            if (autoAcceptInvite) sendSystemMessage("Auto Accept Invite: Enabled");
+            if (autoSwitch) setTimeout(() => { checkAutoSwitch() }, 100);
+            if (hidePlayers) setTimeout(() => { lobbyHidePlayers() }, 0);
+        }
+        else {
+            if (hidePlayers) setTimeout(() => { quizHidePlayers() }, 0);
+        }
     }).bindListener();
     new Listener("New Player", (payload) => {
         setTimeout(() => { checkAutoHost() }, 1);
+        if (hidePlayers) setTimeout(() => { lobbyHidePlayers() }, 0);
     }).bindListener();
     new Listener("New Spectator", (payload) => {
         setTimeout(() => { checkAutoHost() }, 1);
+    }).bindListener();
+    new Listener("player late join", (payload) => {
+        if (hidePlayers) setTimeout(() => { quizHidePlayers() }, 0);
     }).bindListener();
     new Listener("Player Ready Change",  (payload) => {
         checkAutoStart();
@@ -326,10 +345,12 @@ function setup() {
         if (payload.name === selfName) {
             setTimeout(() => { checkAutoReady(); checkAutoStart(); checkAutoSwitch(); }, 1);
         }
+        if (hidePlayers) setTimeout(() => { lobbyHidePlayers() }, 0);
     }).bindListener();
     new Listener("Host Promotion", (payload) => {
         setTimeout(() => { checkAutoHost() }, 1);
         setTimeout(() => { checkAutoReady() }, 1);
+        if (hidePlayers) setTimeout(() => { lobbyHidePlayers() }, 0);
     }).bindListener();
     new Listener("game invite", (payload) => {
         if (autoAcceptInvite && !inRoom() && ((autoAcceptInvite === true && isFriend(payload.sender))
@@ -496,11 +517,11 @@ function parseCommand(content, type, target) {
         });
     }
     else if (/^\/roll .+,.+$/i.test(content)) {
-        let list = /^\S+ (.+)$/.exec(content)[1].split(",").map((x) => x.trim()).filter((x) => !!x);
+        let list = /^\S+ (.+)$/.exec(content)[1].split(",").map((x) => x.trim()).filter(Boolean);
         if (list.length > 1) sendMessage(list[Math.floor(Math.random() * list.length)], type, target);
     }
     else if (/^\/shuffle .+$/i.test(content)) {
-        let list = /^\S+ (.+)$/.exec(content)[1].split(",").map((x) => x.trim()).filter((x) => !!x);
+        let list = /^\S+ (.+)$/.exec(content)[1].split(",").map((x) => x.trim()).filter(Boolean);
         if (list.length > 1) sendMessage(shuffleArray(list).join(", "), type, target);
     }
     else if (/^\/(calc|math) .+$/i.test(content)) {
@@ -729,7 +750,7 @@ function parseCommand(content, type, target) {
         sendMessage("auto accept invite " + (autoAcceptInvite ? "enabled" : "disabled"), type, target, true);
     }
     else if (/^\/autoaccept .+$/i.test(content)) {
-        autoAcceptInvite = /^\S+ (.+)$/.exec(content)[1].split(",").map((x) => x.trim().toLowerCase()).filter((x) => !!x);
+        autoAcceptInvite = /^\S+ (.+)$/.exec(content)[1].split(",").map((x) => x.trim().toLowerCase()).filter(Boolean);
         saveSettings();
         sendMessage("auto accept invite only from " + autoAcceptInvite.join(", "), type, target, true);
     }
@@ -1128,7 +1149,7 @@ function parseCommand(content, type, target) {
     }
     else if (/^\/startvote .+,.+$/i.test(content)) {
         if (type !== "chat") return;
-        let list = /^\S+ (.+)$/.exec(content)[1].split(",").map((x) => x.trim()).filter((x) => !!x);
+        let list = /^\S+ (.+)$/.exec(content)[1].split(",").map((x) => x.trim()).filter(Boolean);
         if (list.length < 2) return;
         sendMessage("Voting started, to vote type /vote #", type, target);
         sendMessage("to stop vote type /stopvote", type, target, true);
@@ -1159,6 +1180,15 @@ function parseCommand(content, type, target) {
         printLoot = !printLoot;
         saveSettings();
         sendMessage("print loot " + (printLoot ? "enabled" : "disabled"), type, target, true);
+    }
+    else if (/^\/hideplayers$/i.test(content)) {
+        hidePlayers = !hidePlayers;
+        if (hidePlayers) {
+            if (lobby.inLobby) lobbyHidePlayers();
+            else if (quiz.inQuiz) quizHidePlayers();
+        }
+        applyStyles();
+        sendMessage("hide players " + (hidePlayers ? "enabled" : "disabled"), type, target, true);
     }
     else if (/^\/remove (popups?|popovers?)$/i.test(content)) {
         $(".popover").hide();
@@ -1239,15 +1269,21 @@ function parseIncomingDM(content, sender) {
         else if (/^\/whereis \w+$/i.test(content)) {
             if (Object.keys(roomBrowser.activeRooms).length === 0) return;
             let name = /^\S+ (\w+)$/.exec(content)[1];
-            let foundRoom = Object.values(roomBrowser.activeRooms).find((room) => room._players.localeIncludes(name));
-            sendMessage(Number.isInteger(foundRoom?.id) ? `in room ${foundRoom.id}` : "not found", "dm", sender);
+            let room = Object.values(roomBrowser.activeRooms).find((r) => r._players.localeIncludes(name));
+            if (Number.isInteger(room?.id)) {
+                setTimeout(() => sendMessage(`${room._private ? "private" : "public"} room ${room.id}: ${room.settings.roomName}`, "dm", sender), 100);
+                setTimeout(() => sendMessage(`host: ${room.host}, players: ${room._numberOfPlayers}, spectators: ${room._numberOfSpectators}`, "dm", sender), 300);
+            }
+            else {
+                setTimeout(() => sendMessage("not found", "dm", sender), 100);
+            }
         }
         else if (/^\/room [0-9]+$/i.test(content)) {
             if (Object.keys(roomBrowser.activeRooms).length === 0) return;
             let roomId = /^\S+ ([0-9]+)$/.exec(content)[1];
             if (roomId in roomBrowser.activeRooms) {
                 let room = roomBrowser.activeRooms[roomId];
-                setTimeout(() => sendMessage(`${room._private ? "private" : "public"} room: ${room.roomName}`, "dm", sender), 100);
+                setTimeout(() => sendMessage(`${room._private ? "private" : "public"} room: ${room.settings.roomName}`, "dm", sender), 100);
                 setTimeout(() => sendMessage(`host: ${room.host}, players: ${room._numberOfPlayers}, spectators: ${room._numberOfSpectators}`, "dm", sender), 300);
             }
             else {
@@ -1264,7 +1300,7 @@ function parseIncomingDM(content, sender) {
  */
 function parseForceAll(content, type) {
     if (/^\/forceall version$/i.test(content)) {
-        sendMessage("0.65", type);
+        sendMessage("0.66", type);
     }
     else if (/^\/forceall roll [0-9]+$/i.test(content)) {
         let number = parseInt(/^\S+ roll ([0-9]+)$/.exec(content)[1]);
@@ -1741,20 +1777,53 @@ AutoCompleteController.prototype.newList = function() {
     oldNewList.apply(this, arguments);
 }
 
+// hide player names and avatars in lobby
+function lobbyHidePlayers() {
+    $(".lobbyAvatarHostSubTextContainer").addClass("hide");
+    $(".lobbyAvatarNameContainerInner h2").css("color", "inherit").each(function() {
+        if ($(this).text() !== selfName) $(this).text("player");
+    });
+    $(".lobbyAvatarLevelContainer h3").text("");
+    $("img.lobbyAvatarImg").remove();
+    $(".lobbyAvatarPlayerOptions").remove();
+}
+
+// hide player names and avatars in quiz
+function quizHidePlayers() {
+    $("img.qpAvatarImage").remove();
+    $(".qpAvatarBackgroundContainer").attr("style", "background-image: none");
+    $(".qpAvatarHostIcon").addClass("hide");
+    $(".qpAvatarInfoBar").removeClass("clickAble").off("click");
+    $(".qpAvatarScore").css("color", "inherit");
+    $(".qpAvatarLevelBar").remove();
+    $(".qpAvatarName").css("color", "inherit").each(function() {
+        if ($(this).text() !== selfName) $(this).text("player");
+    });
+    $("#qpScoreBoardEntryContainer .qpsPlayerName").css({"color": "inherit", "text-shadow": "inherit"}).each(function() {
+        if ($(this).text() !== selfName) $(this).text("player");
+    });
+}
+
 // apply styles
 function applyStyles() {
     $("#megaCommandsStyle").remove();
     let style = document.createElement("style");
     style.type = "text/css";
     style.id = "megaCommandsStyle";
-    style.appendChild(document.createTextNode(`
+    let text = `
         #loadingScreen, #gameContainer {
             background-image: ${backgroundURL ? "url(" + backgroundURL + ")" : "-webkit-image-set(url(../img/backgrounds/normal/bg-x1.jpg) 1x, url(../img/backgrounds/normal/bg-x2.jpg) 2x)"};
         }
         #gameChatPage .col-xs-9 {
             background-image: ${backgroundURL ? "none" : "-webkit-image-set(url(../img/backgrounds/blur/bg-x1.jpg) 1x, url(../img/backgrounds/blur/bg-x2.jpg) 2x)"};
         }
-    `));
+    `;
+    if (hidePlayers) text += `
+        .gcUserName  {
+            display: none;
+        }
+    `;
+    style.appendChild(document.createTextNode(text));
     document.head.appendChild(style);
 }
 
@@ -1780,6 +1849,7 @@ function saveSettings() {
     //settings.commands = commands;
     //settings.dropdown = dropdown;
     settings.dropdownInSpec = dropdownInSpec;
+    //settings.hidePlayers = hidePlayers;
     settings.lastUsedVersion = version;
     //settings.playbackSpeed = playbackSpeed;
     settings.playerDetection = playerDetection;

@@ -285,12 +285,12 @@ function getAnisongdbData(mode, query) {
         method: "POST",
         headers: {"Accept": "application/json", "Content-Type": "application/json"},
         body: JSON.stringify(json)
-    }).then(res => (res.json())).then(json => {
+    }).then(res => res.json()).then(json => {
         console.log(json);
         anisongdbWindow.panels[0].clear();
         let $table = $(`
             <table id="anisongdbTable">
-                <tr>
+                <tr class="headerRow">
                     <th class="anime">Anime</th>
                     <th class="artist">Artist</th>
                     <th class="song">Song</th>
@@ -300,7 +300,7 @@ function getAnisongdbData(mode, query) {
             </table>
         `);
         for (let result of json) {
-            let $row = $(`
+            $table.append($(`
                 <tr>
                     <td>${options.useRomajiNames ? result.animeJPName : result.animeENName}</td>
                     <td>${result.songArtist}</td>
@@ -308,8 +308,7 @@ function getAnisongdbData(mode, query) {
                     <td>${shortenType(result.songType)}</td>
                     <td>${result.animeVintage}</td>
                 </tr>
-            `)
-            $table.append($row);
+            `));
         }
         anisongdbWindow.panels[0].panel.append($table);
     });
@@ -360,7 +359,14 @@ function applyStyles() {
         #anisongdbTable {
             width: 100%;
         }
-        #anisongdbTable th {
+        #anisongdbTable tr:nth-child(odd) {
+            background-color: #353535;
+        }
+        #anisongdbTable tr:nth-child(even) {
+            background-color: #424242;
+        }
+        #anisongdbTable tr.headerRow {
+            background-color: #282828;
             font-weight: bold;
         }
         #anisongdbTable tr:hover {
