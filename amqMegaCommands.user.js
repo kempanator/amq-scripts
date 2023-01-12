@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.66
+// @version      0.67
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -81,7 +81,7 @@ OTHER
 */
 
 "use strict";
-const version = "0.66";
+const version = "0.67";
 const saveData = JSON.parse(localStorage.getItem("megaCommands")) || {};
 let animeList;
 let autoAcceptInvite = saveData.autoAcceptInvite !== undefined ? saveData.autoAcceptInvite : false;
@@ -1181,11 +1181,15 @@ function parseCommand(content, type, target) {
         saveSettings();
         sendMessage("print loot " + (printLoot ? "enabled" : "disabled"), type, target, true);
     }
-    else if (/^\/hideplayers$/i.test(content)) {
+    else if (/^\/(hp|hideplayers)$/i.test(content)) {
         hidePlayers = !hidePlayers;
         if (hidePlayers) {
             if (lobby.inLobby) lobbyHidePlayers();
             else if (quiz.inQuiz) quizHidePlayers();
+        }
+        else {
+            if (lobby.inLobby) lobbyUnhidePlayers();
+            else if (quiz.inQuiz) quizUnhidePlayers();
         }
         applyStyles();
         sendMessage("hide players " + (hidePlayers ? "enabled" : "disabled"), type, target, true);
@@ -1300,13 +1304,13 @@ function parseIncomingDM(content, sender) {
  */
 function parseForceAll(content, type) {
     if (/^\/forceall version$/i.test(content)) {
-        sendMessage("0.66", type);
+        sendMessage("0.67", type);
     }
     else if (/^\/forceall roll [0-9]+$/i.test(content)) {
         let number = parseInt(/^\S+ roll ([0-9]+)$/.exec(content)[1]);
         sendMessage(Math.floor(Math.random() * number) + 1, type);
     }
-    else if (/^\/forceall mutestatus$/i.test(content)) {
+    else if (/^\/forceall mute ?status$/i.test(content)) {
         sendMessage(volumeController.muted ? "🔇" : "🔉 " + Math.round(volumeController.volume * 100) + "%", type);
     }
     else if (/^\/forceall speed$/i.test(content)) {
@@ -1316,6 +1320,9 @@ function parseForceAll(content, type) {
     else if (/^\/forceall skip$/i.test(content)) {
         quiz.skipClicked();
     }
+    else if (/^\/forceall share ?entries$/i.test(content)) {
+        sendMessage(options.$MAl_SHARE_CHECKBOX.prop("checked"), type);
+    }   
 }
 
 /**
@@ -1779,29 +1786,60 @@ AutoCompleteController.prototype.newList = function() {
 
 // hide player names and avatars in lobby
 function lobbyHidePlayers() {
-    $(".lobbyAvatarHostSubTextContainer").addClass("hide");
-    $(".lobbyAvatarNameContainerInner h2").css("color", "inherit").each(function() {
-        if ($(this).text() !== selfName) $(this).text("player");
-    });
-    $(".lobbyAvatarLevelContainer h3").text("");
-    $("img.lobbyAvatarImg").remove();
-    $(".lobbyAvatarPlayerOptions").remove();
+    $(".lobbyAvatarNameContainerInner h2").css("color", "inherit");
+    $(".lobbyAvatarPlayerOptions").addClass("hide");
+    for (let player of Object.values(lobby.players)) {
+        player.lobbySlot.$IS_HOST_CONTAINER.addClass("hide");
+        player.lobbySlot.$AVATAR_IMAGE.addClass("hide");
+        player.lobbySlot.$NAME_CONTAINER.text(player._name === selfName ? selfName : "player");
+        player.lobbySlot.$LEVEL_CONTAINER.text("");
+    }    
+}
+
+// unhide player names and avatars in lobby
+function lobbyUnhidePlayers() {
+    $("img.lobbyAvatarImg").removeClass("hide");
+    $(".lobbyAvatarPlayerOptions").removeClass("hide");
+    for (let player of Object.values(lobby.players)) {
+        if (player._host) player.lobbySlot.$IS_HOST_CONTAINER.removeClass("hide");
+        player.lobbySlot.$AVATAR_IMAGE.removeClass("hide");
+        player.lobbySlot.$NAME_CONTAINER.text(player._name);
+        player.lobbySlot.$LEVEL_CONTAINER.text(player.level);
+    }
 }
 
 // hide player names and avatars in quiz
 function quizHidePlayers() {
-    $("img.qpAvatarImage").remove();
-    $(".qpAvatarBackgroundContainer").attr("style", "background-image: none");
-    $(".qpAvatarHostIcon").addClass("hide");
-    $(".qpAvatarInfoBar").removeClass("clickAble").off("click");
+    $(".qpAvatarName").css("color", "inherit");
     $(".qpAvatarScore").css("color", "inherit");
-    $(".qpAvatarLevelBar").remove();
-    $(".qpAvatarName").css("color", "inherit").each(function() {
-        if ($(this).text() !== selfName) $(this).text("player");
-    });
-    $("#qpScoreBoardEntryContainer .qpsPlayerName").css({"color": "inherit", "text-shadow": "inherit"}).each(function() {
-        if ($(this).text() !== selfName) $(this).text("player");
-    });
+    $("#qpScoreBoardEntryContainer .qpsPlayerName").css({"color": "inherit", "text-shadow": "inherit"});
+    $(".qpAvatarLevelBar").addClass("hide");
+    $(".qpAvatarInfoBar").removeClass("clickAble").off("click");
+    for (let player of Object.values(quiz.players)) {
+        player.avatarSlot.$nameContainer.text(player._name === selfName ? selfName : "player");
+        player.avatarSlot.$avatarImage.addClass("hide");
+        player.avatarSlot.$backgroundContainer.addClass("hide");
+    }
+    for (let entry of Object.values(quiz.scoreboard.playerEntries)) {
+        entry.$scoreBoardEntryTextContainer.find(".qpsPlayerName").text(entry.isSelf ? selfName : "player");
+    }
+}
+
+// unhide player names and avatars in quiz
+function quizUnhidePlayers() {
+    //$(".qpAvatarName").removeAttr("style");
+    //$(".qpAvatarScore").removeAttr("style");
+    //$("#qpScoreBoardEntryContainer .qpsPlayerName").removeAttr("style");
+    $(".qpAvatarLevelBar").removeClass("hide");
+    $(".qpAvatarInfoBar").addClass("clickAble");
+    for (let player of Object.values(quiz.players)) {
+        player.avatarSlot.$nameContainer.text(player._name);
+        player.avatarSlot.$avatarImage.removeClass("hide");
+        player.avatarSlot.$backgroundContainer.removeClass("hide");
+    }
+    for (let entry of Object.values(quiz.scoreboard.playerEntries)) {
+        //entry.$scoreBoardEntryTextContainer.find(".qpsPlayerName").text(entry.isSelf() ? selfName : "player");
+    }
 }
 
 // apply styles
