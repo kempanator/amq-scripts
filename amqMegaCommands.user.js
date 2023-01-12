@@ -1819,7 +1819,10 @@ function applyStyles() {
         }
     `;
     if (hidePlayers) text += `
-        .gcUserName  {
+        .gcUserName {
+            display: none;
+        }
+        .gcPlayerMessageBadge {
             display: none;
         }
     `;
