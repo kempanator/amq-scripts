@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.68
+// @version      0.69
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -81,7 +81,7 @@ OTHER
 */
 
 "use strict";
-const version = "0.68";
+const version = "0.69";
 const saveData = JSON.parse(localStorage.getItem("megaCommands")) || {};
 let animeList;
 let autoAcceptInvite = saveData.autoAcceptInvite !== undefined ? saveData.autoAcceptInvite : false;
@@ -1304,7 +1304,7 @@ function parseIncomingDM(content, sender) {
  */
 function parseForceAll(content, type) {
     if (/^\/forceall version$/i.test(content)) {
-        sendMessage("0.68", type);
+        sendMessage("0.69", type);
     }
     else if (/^\/forceall roll [0-9]+$/i.test(content)) {
         let number = parseInt(/^\S+ roll ([0-9]+)$/.exec(content)[1]);
@@ -1788,7 +1788,8 @@ AutoCompleteController.prototype.newList = function() {
 function lobbyHidePlayers() {
     $(".lobbyAvatarPlayerOptions").addClass("hide");
     for (let player of Object.values(lobby.players)) {
-        if (player._name !== selfName) {
+        if (player._name !== selfName && !player.hidden) {
+            player.hidden = true;
             player.textColor = player.lobbySlot.$NAME_CONTAINER.css("color");
             player.lobbySlot.$IS_HOST_CONTAINER.addClass("hide");
             player.lobbySlot.$AVATAR_IMAGE.addClass("hide");
@@ -1803,6 +1804,7 @@ function lobbyUnhidePlayers() {
     $(".lobbyAvatarPlayerOptions").removeClass("hide");
     for (let player of Object.values(lobby.players)) {
         if (player._name !== selfName) {
+            player.hidden = false;
             if (player._host) player.lobbySlot.$IS_HOST_CONTAINER.removeClass("hide");
             player.lobbySlot.$AVATAR_IMAGE.removeClass("hide");
             player.lobbySlot.$NAME_CONTAINER.css("color", player.textColor).text(player._name);
@@ -1814,7 +1816,8 @@ function lobbyUnhidePlayers() {
 // hide player names and avatars in quiz
 function quizHidePlayers() {
     for (let player of Object.values(quiz.players)) {
-        if (!player.isSelf) {
+        if (!player.isSelf && !player.hidden) {
+            player.hidden = true;
             player.textColor = player.avatarSlot.$nameContainer.css("color");
             player.avatarSlot.$avatarImage.addClass("hide");
             player.avatarSlot.$backgroundContainer.addClass("hide");
@@ -1825,7 +1828,8 @@ function quizHidePlayers() {
         }
     }
     for (let entry of Object.values(quiz.scoreboard.playerEntries)) {
-        if (!entry.isSelf) {
+        if (!entry.isSelf && !entry.hidden) {
+            entry.hidden = true;
             entry.name = entry.$scoreBoardEntryTextContainer.find(".qpsPlayerName").text();
             entry.textColor = entry.$scoreBoardEntryTextContainer.find(".qpsPlayerName").css("color");
             entry.textShadow = entry.$scoreBoardEntryTextContainer.find(".qpsPlayerName").css("text-shadow");
@@ -1838,6 +1842,7 @@ function quizHidePlayers() {
 function quizUnhidePlayers() {
     for (let player of Object.values(quiz.players)) {
         if (!player.isSelf) {
+            player.hidden = false;
             player.avatarSlot.$avatarImage.removeClass("hide");
             player.avatarSlot.$backgroundContainer.removeClass("hide");
             player.avatarSlot.$nameContainer.css("color", player.textColor).text(player._name);
@@ -1847,6 +1852,7 @@ function quizUnhidePlayers() {
     }
     for (let entry of Object.values(quiz.scoreboard.playerEntries)) {
         if (!entry.isSelf) {
+            entry.hidden = false;
             entry.$scoreBoardEntryTextContainer.find(".qpsPlayerName").css({"color": entry.textColor, "text-shadow": entry.textShadow}).text(entry.name);
         }
     }
