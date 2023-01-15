@@ -160,7 +160,7 @@ function setup() {
                 answerStatsWindow.panels[0].panel.append(`
                     <div style="margin: 0 3px">
                         <span><b>Average:</b> ${averageTime}ms</span>
-                        <span style="margin-left: 20px"><b>Fastest:</b> ${fastestTime}ms (${fastestPlayers.join(", ")})</span>
+                        <span style="margin-left: 20px"><b>Fastest:</b> ${fastestTime}ms - ${fastestPlayers.join(", ")}</span>
                     </div>
                 `);
             }
