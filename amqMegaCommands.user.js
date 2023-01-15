@@ -797,8 +797,8 @@ function parseCommand(content, type, target) {
         sendMessage("auto switch disabled", type, target, true);
     }
     else if (/^\/autoswitch (p|s)/i.test(content)) {
-        if (/^\S+ p/i.test(content)[1]) autoSwitch = "player";
-        else if (/^\S+ s/i.test(content)[1]) autoSwitch = "spectator";
+        if (/^\S+ p/i.test(content)) autoSwitch = "player";
+        else if (/^\S+ s/i.test(content)) autoSwitch = "spectator";
         sendMessage("auto switching to " + autoSwitch, type, target, true);
         checkAutoSwitch();
     }
