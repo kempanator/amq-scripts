@@ -1,13 +1,14 @@
 // ==UserScript==
 // @name         AMQ Answer Stats
 // @namespace    https://github.com/kempanator
-// @version      0.1
+// @version      0.2
 // @description  Adds a window to display quiz answer stats
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
 // @grant        none
 // @require      https://raw.githubusercontent.com/TheJoseph98/AMQ-Scripts/master/common/amqScriptInfo.js
 // @require      https://raw.githubusercontent.com/TheJoseph98/AMQ-Scripts/master/common/amqWindows.js
+// @require      https://github.com/amq-script-project/AMQ-Scripts/raw/master/gameplay/amqAnswerTimesUtility.user.js
 // @downloadURL  https://raw.githubusercontent.com/kempanator/amq-scripts/main/amqAnswerStats.user.js
 // @updateURL    https://raw.githubusercontent.com/kempanator/amq-scripts/main/amqAnswerStats.user.js
 // ==/UserScript==
@@ -30,7 +31,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.1";
+const version = "0.2";
 let answerStatsWindow;
 let anisongdbWindow;
 let answers = {}; //{1: {name, answer, correct}, ...}
@@ -83,11 +84,12 @@ function setup() {
     }).bindListener();
     new Listener("answer results", (payload) => {
         //console.log(payload);
+        //console.log(amqAnswerTimesUtility);
         if (Object.keys(answers).length === 0) return;
         if (listLowerCase.length === 0) return;
-        let correctPlayers = [];
-        let correctAnswerCount = {};
-        let incorrectAnswerCount = {};
+        let correctPlayers = {}; //{name: answer speed, ...}
+        let correctAnswerCount = {}; //{title: # of people who answered, ...}
+        let incorrectAnswerCount = {}; //{title: # of people who answered, ...}
         let otherAnswerCount = 0;
         let invalidAnswerCount = 0;
         let noAnswerCount = 0;
@@ -96,7 +98,7 @@ function setup() {
             let quizPlayer = answers[player.gamePlayerId];
             if (quizPlayer) {
                 quizPlayer.correct = player.correct;
-                if (player.correct) correctPlayers.push(answers[player.gamePlayerId].name);
+                if (player.correct) correctPlayers[answers[player.gamePlayerId].name] = amqAnswerTimesUtility.playerTimes[player.gamePlayerId];
             }
             else {
                 console.log("player id not found: " + player.gamePlayerId);
@@ -125,35 +127,50 @@ function setup() {
                 }
             }
         }
+        let numCorrect = Object.keys(correctPlayers).length;
+        let averageTime = numCorrect ? Math.round(Object.values(correctPlayers).reduce((a, b) => a + b) / numCorrect) : null;
+        let fastestTime = numCorrect ? Math.min(...Object.values(correctPlayers)) : null;
+        let fastestPlayers = Object.keys(correctPlayers).filter((name) => correctPlayers[name] === fastestTime);
         Object.keys(incorrectAnswerCount).forEach((x) => { if (incorrectAnswerCount[x] === 1) otherAnswerCount++ });
         let correctSortedKeys = Object.keys(correctAnswerCount).sort((a, b) => correctAnswerCount[b] - correctAnswerCount[a]);
         let incorrectSortedKeys = Object.keys(incorrectAnswerCount).sort((a, b) => incorrectAnswerCount[b] - incorrectAnswerCount[a]);
         answers = {};
 
         setTimeout(() => {
-            let correctCount = $(".qpAvatarAnswerContainer .rightAnswer").length;
             let totalPlayers = $("#qpScoreBoardEntryContainer .qpStandingItem").length;
             let activePlayers = $("#qpScoreBoardEntryContainer .qpStandingItem:not(.disabled)").length;
-            //let totalCorrectAverage = correctCount / totalPlayers;
-            //let totalPercentage = Math.round(totalCorrectAverage * 100);
             answerStatsWindow.panels[0].clear();
-            answerStatsWindow.panels[0].panel.append($(`
-                <div>
-                    <span><b>Correct:</b> ${correctCount}/${activePlayers} ${(correctCount / activePlayers * 100).toFixed(2)}%</span>
+            if (quiz.gameMode === "Ranked") {
+                answerStatsWindow.panels[0].panel.append(`
+                    <div style="margin: 0 3px">
+                        <span><b>${rankedText()}</b></span>
+                        <span style="margin-left: 20px"><b>Song:</b> ${quiz.infoContainer.$currentSongCount.text()}/${quiz.infoContainer.$totalSongCount.text()}</span>
+                        <span style="margin-left: 20px"><b>Total Players:</b> ${totalPlayers}</span>
+                    </div>
+                `);
+            }
+            answerStatsWindow.panels[0].panel.append(`
+                <div style="margin: 0 3px">
+                    <span><b>Correct:</b> ${numCorrect}/${activePlayers} ${(numCorrect / activePlayers * 100).toFixed(2)}%</span>
                     <span style="margin-left: 20px"><b>Dif:</b> ${Math.round(payload.songInfo.animeDifficulty)}</span>
-                    <span style="margin-left: 20px"><b>Watched:</b> ${payload.watched}</span>
+                    <span style="margin-left: 20px"><b>Rig:</b> ${payload.watched}</span>
                 </div>
-                <div>
-                    <span><b>Total Players:</b> ${totalPlayers}</span>
-                </div>
-            `));
-            let $ulCorrect = $(`<ul><b>Correct Answers:</b></ul>`).css("margin-top", "10px");
+            `);
+            if (numCorrect && !quiz.soloMode && !quiz.teamMode) {
+                answerStatsWindow.panels[0].panel.append(`
+                    <div style="margin: 0 3px">
+                        <span><b>Average:</b> ${averageTime}ms</span>
+                        <span style="margin-left: 20px"><b>Fastest:</b> ${fastestTime}ms (${fastestPlayers.join(", ")})</span>
+                    </div>
+                `);
+            }
+            let $ulCorrect = $(`<ul><b>Correct Answers:</b></ul>`).css("margin", "10px 3px 0 3px");
             for (let anime of correctSortedKeys) {
                 if (correctAnswerCount[anime] > 0) {
                     $ulCorrect.append(`<li>${anime}<span class="answerStatsNumber">${correctAnswerCount[anime]}</span></li>`);
                 }
             }
-            let $ulWrong = $(`<ul><b>Wrong Answers:</b></ul>`);
+            let $ulWrong = $(`<ul><b>Wrong Answers:</b></ul>`).css("margin", "10px 3px 0 3px");
             for (let anime of incorrectSortedKeys) {
                 if (incorrectAnswerCount[anime] > 1) {
                     $ulWrong.append(`<li>${anime}<span class="answerStatsNumber">${incorrectAnswerCount[anime]}</span></li>`);
@@ -170,8 +187,8 @@ function setup() {
             }
             answerStatsWindow.panels[0].panel.append($ulCorrect);
             answerStatsWindow.panels[0].panel.append($ulWrong);
-            if (payload.players.length > 8 && correctPlayers.length <= 5) {
-                answerStatsWindow.panels[0].panel.append(`<p><b>Correct Players:</b> ${correctPlayers.join(", ")}</p>`);
+            if (payload.players.length > 8 && Object.keys(correctPlayers).length <= 5) {
+                answerStatsWindow.panels[0].panel.append(`<p><b>Correct Players:</b> ${Object.keys(correctPlayers).join(", ")}</p>`);
             }
 
             if (anisongdbSearchButtons) {
@@ -220,13 +237,13 @@ function setup() {
                     </b>
                 `);
             }
-        }, 10);
+        }, 1);
     }).bindListener();
 
     answerStatsWindow = new AMQWindow({
         id: "answerStatsWindow",
         title: "Answer Stats",
-        width: 400,
+        width: 450,
         height: 300,
         minWidth: 0,
         minHeight: 0,
@@ -316,6 +333,12 @@ function getAnisongdbData(mode, query) {
 
 function shortenType(type) {
     return type.replace("Opening ", "OP").replace("Ending ", "ED").replace("Insert Song", "IN");
+}
+
+function rankedText() {
+    let region = Object({E: "Eastern ", C: "Central ", W: "Western "})[$("#mpRankedTimer h3").text()] || "";
+    let type = hostModal.getSettings().roomName;
+    return region + type;
 }
 
 // apply styles
