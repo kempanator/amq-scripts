@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ New Game Mode UI
 // @namespace    https://github.com/kempanator
-// @version      0.10
+// @version      0.11
 // @description  Adds a user interface to new game mode to keep track of guesses
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -21,7 +21,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.10";
+const version = "0.11";
 let ngmWindow;
 let numGuesses = 5;
 let guessCounter = [];
@@ -234,7 +234,7 @@ function updateWindow(players) {
             <label for="ngmAutoThrowCountCheckbox"><i class="fa fa-check" aria-hidden="true"></i></label>
         </div>
     `));
-    $row6.find("#ngmAutoThrowCountCheckbox").click(() => { autothrowCount = !autothrowCount; });
+    $row6.find("#ngmAutoThrowCountCheckbox").prop("checked", autothrowCount).click(() => { autothrowCount = !autothrowCount });
     ngmWindow.panels[0].panel.append($row1);
     ngmWindow.panels[0].panel.append($row2);
     ngmWindow.panels[0].panel.append($row3);
