@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Answer Stats
 // @namespace    https://github.com/kempanator
-// @version      0.2
+// @version      0.3
 // @description  Adds a window to display quiz answer stats
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -31,13 +31,19 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.2";
+const version = "0.3";
 let answerStatsWindow;
 let anisongdbWindow;
 let answers = {}; //{1: {name, answer, correct}, ...}
 let listLowerCase = [];
 let anisongdbSearchButtons = true;
 let allSourceLinks = true;
+let animeSortAscending = false;
+let artistSortAscending = false;
+let songSortAscending = false;
+let typeSortAscending = false;
+let vintageSortAscending = false;
+
 $("#qpOptionContainer").width($("#qpOptionContainer").width() + 35);
 $("#qpOptionContainer > div").append($(`<div id="qpAnswerStats" class="clickAble qpOption"><i aria-hidden="true" class="fa fa-list-alt qpMenuItem"></i></div>`)
     .click(() => {
@@ -164,6 +170,13 @@ function setup() {
                     </div>
                 `);
             }
+            if (payload.players.length > 8 && Object.keys(correctPlayers).length <= 5) {
+                answerStatsWindow.panels[0].panel.append(`
+                    <div style="margin: 0 3px">
+                        <span><b>Correct Players:</b> ${Object.keys(correctPlayers).join(", ")}</span>
+                    </div>
+                `);
+            }
             let $ulCorrect = $(`<ul><b>Correct Answers:</b></ul>`).css("margin", "10px 3px 0 3px");
             for (let anime of correctSortedKeys) {
                 if (correctAnswerCount[anime] > 0) {
@@ -187,9 +200,6 @@ function setup() {
             }
             answerStatsWindow.panels[0].panel.append($ulCorrect);
             answerStatsWindow.panels[0].panel.append($ulWrong);
-            if (payload.players.length > 8 && Object.keys(correctPlayers).length <= 5) {
-                answerStatsWindow.panels[0].panel.append(`<p><b>Correct Players:</b> ${Object.keys(correctPlayers).join(", ")}</p>`);
-            }
 
             if (anisongdbSearchButtons) {
                 $("#answerStatsAnisongdbSearchRow").remove();
@@ -204,11 +214,15 @@ function setup() {
                 `);
                 $("#answerStatsAnisongdbSearchButtonAnime").click(() => {
                     anisongdbWindow.open();
-                    getAnisongdbData("anime", payload.songInfo.animeNames.romaji);
+                    $("#anisongdbSearchMode").val("Anime");
+                    $("#anisongdbSearchInput").val(payload.songInfo.animeNames.romaji);
+                    getAnisongdbData("anime", payload.songInfo.animeNames.romaji, false);
                 });
                 $("#answerStatsAnisongdbSearchButtonArtist").click(() => {
                     anisongdbWindow.open();
-                    getAnisongdbData("artist", payload.songInfo.artist);
+                    $("#anisongdbSearchMode").val("Artist");
+                    $("#anisongdbSearchInput").val(payload.songInfo.artist);
+                    getAnisongdbData("artist", payload.songInfo.artist, false);
                 });
             }
             if (allSourceLinks) {
@@ -275,6 +289,46 @@ function setup() {
         height: "100%",
         scrollable: {x: false, y: true}
     });
+    anisongdbWindow.panels[0].panel.append(`
+        <div id="anisongdbSearchRow">
+            <select id="anisongdbSearchMode">
+                <option value="Anime">Anime</option>
+                <option value="Artist">Artist</option>
+                <option value="Song">Song</option>
+                <option value="Composer">Composer</option>
+            </select>
+            <input id="anisongdbSearchInput" type="text">
+            <button id="anisongdbSearchButtonGo">Go</button>
+            <label for="anisongdbSearchPartialCheckbox" style="padding: 0 4px 0 0; margin: 0 0 0 10px; vertical-align: middle;">Partial</label><input id="anisongdbSearchPartialCheckbox" type="checkbox">
+        </div>
+    `);
+    $("#anisongdbSearchButtonGo").click(() => {
+        let mode = $("#anisongdbSearchMode").val().toLowerCase();
+        let query = $("#anisongdbSearchInput").val();
+        let partial = $("#anisongdbSearchPartialCheckbox").prop("checked");
+        if (query.trim() === "") {
+            $("#anisongdbLoading").remove();
+            $("#anisongdbTable").remove();
+        }
+        else {
+            getAnisongdbData(mode, query, partial);
+        }
+    });
+    $("#anisongdbSearchInput").keypress((event) => {
+        if (event.which === 13) {
+            let mode = $("#anisongdbSearchMode").val().toLowerCase();
+            let query = $("#anisongdbSearchInput").val();
+            let partial = $("#anisongdbSearchPartialCheckbox").prop("checked");
+            if (query.trim() === "") {
+                $("#anisongdbLoading").remove();
+                $("#anisongdbTable").remove();
+            }
+            else {
+                getAnisongdbData(mode, query, partial);
+            }
+        }
+    });
+    $("#anisongdbSearchPartialCheckbox").prop("checked", true);
 
     AMQ_addScriptData({
         name: "Answer Stats",
@@ -285,26 +339,31 @@ function setup() {
 }
 
 // send anisongdb request
-function getAnisongdbData(mode, query) {
-    anisongdbWindow.panels[0].clear();
-    anisongdbWindow.panels[0].panel.append(`<p>loading...</p>`);
+function getAnisongdbData(mode, query, partial) {
+    $("#anisongdbTable").remove();
+    anisongdbWindow.panels[0].panel.append(`<p id="anisongdbLoading">loading...</p>`);
     let json = {};
     json.and_logic = false;
     json.ignore_duplicate = false;
     json.opening_filter = true;
     json.ending_filter = true;
     json.insert_filter = true;
-    if (mode === "anime") json.anime_search_filter = {search: query, partial_match: false};
-    else if (mode === "artist") json.artist_search_filter = {search: query, partial_match: false, group_granularity: 0, max_other_artist: 99};
-    else if (mode === "song") json.song_search_filter = {search: query, partial_match: false};
-    else if (mode === "composer") json.composer_search_filter = {search: query, partial_match: false, arrangement: false};
-    return fetch("https://anisongdb.com/api/search_request", {
+    if (mode === "anime") json.anime_search_filter = {search: query, partial_match: partial};
+    else if (mode === "artist") json.artist_search_filter = {search: query, partial_match: partial, group_granularity: 0, max_other_artist: 99};
+    else if (mode === "song") json.song_name_search_filter = {search: query, partial_match: partial};
+    else if (mode === "composer") json.composer_search_filter = {search: query, partial_match: partial, arrangement: false};
+    fetch("https://anisongdb.com/api/search_request", {
         method: "POST",
         headers: {"Accept": "application/json", "Content-Type": "application/json"},
         body: JSON.stringify(json)
     }).then(res => res.json()).then(json => {
-        console.log(json);
-        anisongdbWindow.panels[0].clear();
+        //console.log(json);
+        animeSortAscending = false;
+        artistSortAscending = false;
+        songSortAscending = false;
+        typeSortAscending = false;
+        vintageSortAscending = false;
+        $("#anisongdbLoading").remove();
         let $table = $(`
             <table id="anisongdbTable">
                 <tr class="headerRow">
@@ -317,18 +376,77 @@ function getAnisongdbData(mode, query) {
             </table>
         `);
         for (let result of json) {
-            $table.append($(`
-                <tr>
-                    <td>${options.useRomajiNames ? result.animeJPName : result.animeENName}</td>
-                    <td>${result.songArtist}</td>
-                    <td>${result.songName}</td>
-                    <td>${shortenType(result.songType)}</td>
-                    <td>${result.animeVintage}</td>
+            $table.append(`
+                <tr class="bodyRow">
+                    <td class="anime">${options.useRomajiNames ? result.animeJPName : result.animeENName}</td>
+                    <td class="artist">${result.songArtist}</td>
+                    <td class="song">${result.songName}</td>
+                    <td class="type">${shortenType(result.songType)}</td>
+                    <td class="vintage">${result.animeVintage}</td>
                 </tr>
-            `));
+            `);
         }
+        $table.on("click", "td", (event) => {
+            if (event.target.classList.contains("anime")) {
+                getAnisongdbData("anime", event.target.innerText);
+            }
+            else if (event.target.classList.contains("artist")) {
+                getAnisongdbData("artist", event.target.innerText);
+            }
+            else if (event.target.classList.contains("song")) {
+                getAnisongdbData("song", event.target.innerText);
+            }
+        });
+        $table.find("th.anime").click(() => {
+            sortAnisongdbTableEntries($table, "anime", animeSortAscending);
+            animeSortAscending = !animeSortAscending;
+            artistSortAscending = false;
+            songSortAscending = false;
+            typeSortAscending = false;
+            vintageSortAscending = false;
+        });
+        $table.find("th.artist").click(() => {
+            sortAnisongdbTableEntries($table, "artist", artistSortAscending);
+            animeSortAscending = false;
+            artistSortAscending = !artistSortAscending;
+            songSortAscending = false;
+            typeSortAscending = false;
+            vintageSortAscending = false;
+        });
+        $table.find("th.song").click(() => {
+            sortAnisongdbTableEntries($table, "song", songSortAscending);
+            animeSortAscending = false;
+            artistSortAscending = false;
+            songSortAscending = !songSortAscending;
+            typeSortAscending = false;
+            vintageSortAscending = false;
+        });
+        $table.find("th.type").click(() => {
+            sortAnisongdbTableEntries($table, "type", typeSortAscending);
+            animeSortAscending = false;
+            artistSortAscending = false;
+            songSortAscending = false;
+            typeSortAscending = !typeSortAscending;
+            vintageSortAscending = false;
+        });
+        $table.find("th.vintage").click(() => {
+            sortAnisongdbTableEntries($table, "vintage", vintageSortAscending);
+            animeSortAscending = false;
+            artistSortAscending = false;
+            songSortAscending = false;
+            typeSortAscending = false;
+            vintageSortAscending = !vintageSortAscending;
+        });
         anisongdbWindow.panels[0].panel.append($table);
     });
+}
+
+// input table element, column name, and sort ascending boolean
+function sortAnisongdbTableEntries($table, column, sortAscending) {
+    let sortedElements = sortAscending
+        ? $table.find("tr.bodyRow").toArray().sort((a, b) => $(b).find("td." + column).text().localeCompare($(a).find("td." + column).text()))
+        : $table.find("tr.bodyRow").toArray().sort((a, b) => $(a).find("td." + column).text().localeCompare($(b).find("td." + column).text()));
+    sortedElements.forEach((element) => { $table.append(element) });
 }
 
 function shortenType(type) {
@@ -379,8 +497,33 @@ function applyStyles() {
         #qpExtraSongInfo {
             z-index: 1;
         }
+        #anisongdbWindow select {
+            color: black;
+            padding: 2px 0;
+        }
+        #anisongdbSearchInput {
+            color: black;
+            width: 300px;
+            padding: 0 2px;
+        }
+        #anisongdbWindow input[type="checkbox"] {
+            width: 17px;
+            height: 17px;
+            margin: 0;
+            vertical-align: middle;
+        }
+        #anisongdbWindow button {
+            color: black;
+            padding: 0 5px;
+        }
+        #anisongdbSearchRow {
+            margin: 2px;
+        }
         #anisongdbTable {
             width: 100%;
+        }
+        #anisongdbTable th, #anisongdbTable td {
+            padding: 0 2px;
         }
         #anisongdbTable tr:nth-child(odd) {
             background-color: #353535;
@@ -392,22 +535,26 @@ function applyStyles() {
             background-color: #282828;
             font-weight: bold;
         }
-        #anisongdbTable tr:hover {
+        #anisongdbTable tr.headerRow {
+            cursor: pointer;
+            user-select: none;
+        }
+        #anisongdbTable tr.bodyRow:hover {
             color: #70b7ff;
         }
-        #anisongdbTable th.anime {
+        #anisongdbTable .anime {
             width: 25%;
         }
-        #anisongdbTable th.artist {
+        #anisongdbTable .artist {
             width: 25%;
         }
-        #anisongdbTable th.song {
+        #anisongdbTable .song {
             width: 25%;
         }
-        #anisongdbTable th.type {
+        #anisongdbTable .type {
             width: 10%;
         }
-        #anisongdbTable th.vintage {
+        #anisongdbTable .vintage {
             width: 15%;
         }
     `));

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.69
+// @version      0.70
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -81,7 +81,7 @@ OTHER
 */
 
 "use strict";
-const version = "0.69";
+const version = "0.70";
 const saveData = JSON.parse(localStorage.getItem("megaCommands")) || {};
 let animeList;
 let autoAcceptInvite = saveData.autoAcceptInvite !== undefined ? saveData.autoAcceptInvite : false;
@@ -198,21 +198,22 @@ function setup() {
         }
         if (autoMute !== null) {
             let time = Array.isArray(autoMute) ? Math.floor(Math.random() * (autoMute[1] - autoMute[0] + 1)) + autoMute[0] : autoMute;
-            document.querySelector("#qpVolume").classList.add("disabled");
+            $("#qpVolume").removeClass("disabled");
             volumeController.setMuted(false);
             volumeController.adjustVolume();
             setTimeout(() => {
+                $("#qpVolume").addClass("disabled");
                 volumeController.setMuted(true);
                 volumeController.adjustVolume();
             }, time);
         }
         if (autoUnmute !== null) {
             let time = Array.isArray(autoUnmute) ? Math.floor(Math.random() * (autoUnmute[1] - autoUnmute[0] + 1)) + autoUnmute[0] : autoUnmute;
-            document.querySelector("#qpVolume").classList.add("disabled");
+            $("#qpVolume").addClass("disabled");
             volumeController.setMuted(true);
             volumeController.adjustVolume();
             setTimeout(() => {
-                document.querySelector("#qpVolume").classList.remove("disabled");
+                $("#qpVolume").removeClass("disabled");
                 volumeController.setMuted(false);
                 volumeController.adjustVolume();
             }, time);
@@ -243,7 +244,7 @@ function setup() {
     }).bindListener();
     new Listener("guess phase over", (payload) => {
         if (autoMute !== null || autoUnmute !== null) {
-            document.querySelector("#qpVolume").classList.remove("disabled");
+            $("#qpVolume").removeClass("disabled");
             volumeController.setMuted(false);
             volumeController.adjustVolume();
         }
@@ -256,7 +257,7 @@ function setup() {
     }).bindListener();
     new Listener("answer results", (payload) => {
         if (autoMute !== null || autoUnmute !== null) {
-            document.querySelector("#qpVolume").classList.remove("disabled");
+            $("#qpVolume").removeClass("disabled");
             volumeController.setMuted(false);
             volumeController.adjustVolume();
         }
@@ -277,7 +278,6 @@ function setup() {
         }
     }).bindListener();
     new Listener("quiz over", (payload) => {
-        document.querySelector("#qpVolume").classList.remove("disabled");
         setTimeout(() => { checkAutoHost() }, 10);
         if (autoSwitch) setTimeout(() => { checkAutoSwitch() }, 100);
         if (hidePlayers) setTimeout(() => { lobbyHidePlayers() }, 0);
@@ -671,7 +671,7 @@ function parseCommand(content, type, target) {
         sendMessage("auto copying " + autoCopy, type, target, true);
     }
     else if (/^\/(am|automute)$/i.test(content)) {
-        document.querySelector("#qpVolume").classList.remove("disabled");
+        $("#qpVolume").removeClass("disabled");
         volumeController.setMuted(false);
         volumeController.adjustVolume();
         autoMute = null;
@@ -694,7 +694,7 @@ function parseCommand(content, type, target) {
         sendMessage(`auto muting after random # of seconds between ${low} - ${high}`, type, target, true);
     }
     else if (/^\/(au|autounmute)$/i.test(content)) {
-        document.querySelector("#qpVolume").classList.remove("disabled");
+        $("#qpVolume").removeClass("disabled");
         volumeController.setMuted(false);
         volumeController.adjustVolume();
         autoUnmute = null;
@@ -1304,7 +1304,7 @@ function parseIncomingDM(content, sender) {
  */
 function parseForceAll(content, type) {
     if (/^\/forceall version$/i.test(content)) {
-        sendMessage("0.69", type);
+        sendMessage("0.70", type);
     }
     else if (/^\/forceall roll [0-9]+$/i.test(content)) {
         let number = parseInt(/^\S+ roll ([0-9]+)$/.exec(content)[1]);
