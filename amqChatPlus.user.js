@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Chat Plus
 // @namespace    https://github.com/kempanator
-// @version      0.21
+// @version      0.22
 // @description  Add new features to chat and messages
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -37,7 +37,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.21";
+const version = "0.22";
 const apiKey = "LIVDSRZULELA";
 const saveData = JSON.parse(localStorage.getItem("chatPlus")) || {};
 const saveData2 = JSON.parse(localStorage.getItem("highlightFriendsSettings"));
@@ -66,6 +66,7 @@ let fileUploadToLitterbox = saveData.fileUploadToLitterbox !== undefined ? saveD
 let tenorQuery;
 let tenorPosition;
 let imagesPerRequest = 20;
+let litterboxUploadTime = "12h";
 
 $("#settingsGraphicContainer").append(`
     <div class="row" style="padding-top: 10px">
@@ -415,11 +416,7 @@ $gcInput.on("drop", (event) => {
             event.stopPropagation();
             $gcInput.data("bs.popover").options.content = "Uploading to litterbox...";
             $gcInput.popover("show");
-            let formData = new FormData();
-            formData.append("fileToUpload", file);
-            formData.append("reqtype", "fileupload");
-            formData.append("time", "1h");
-            fetch("https://litterbox.catbox.moe/resources/internals/api.php", {method: "POST", body: formData})
+            fetch("https://litterbox.catbox.moe/resources/internals/api.php", {method: "POST", body: litterboxFormData(file)})
             .then((response) => response.text())
             .then((data) => {
                 $gcInput.popover("hide");
@@ -442,11 +439,7 @@ $gcInput.on("paste", (event) => {
             event.stopPropagation();
             $gcInput.data("bs.popover").options.content = "Uploading to litterbox...";
             $gcInput.popover("show");
-            let formData = new FormData();
-            formData.append("fileToUpload", file);
-            formData.append("reqtype", "fileupload");
-            formData.append("time", "1h");
-            fetch("https://litterbox.catbox.moe/resources/internals/api.php", {method: "POST", body: formData})
+            fetch("https://litterbox.catbox.moe/resources/internals/api.php", {method: "POST", body: litterboxFormData(file)})
             .then((response) => response.text())
             .then((data) => {
                 $gcInput.popover("hide");
@@ -504,49 +497,16 @@ function setup() {
                 if (gcLoadMediaButton) {
                     let urls = extractUrls($node.find(".gcMessage").text());
                     if (urls.length > 0) {
+                        let name = $node.find(".gcUserName").text();
+                        let canAutoLoad = gcAutoLoadMedia === "all" || (gcAutoLoadMedia === "friends" && (name === selfName || socialTab.isFriend(name)));
                         if (imageURLregex.test(urls[0])) {
-                            let name = $node.find(".gcUserName").text();
-                            if (gcAutoLoadMedia === "all" || (gcAutoLoadMedia === "friends" && (name === selfName || socialTab.isFriend(name)))) {
-                                $node.append($(`<img>`).attr("src", urls[0]).addClass("gcLoadedImage").on("load", () => mediaOnLoad(atBottom)).click(function() {
-                                    $(this).remove();
-                                }));
-                            }
-                            else {
-                                $node.append($(`<button>Load Image</button>`).addClass("btn gcLoadMedia").click(function() {
-                                    let atBottom2 = gameChat.$chatMessageContainer.scrollTop() + gameChat.$chatMessageContainer.innerHeight() >= gameChat.$chatMessageContainer[0].scrollHeight - 100;
-                                    $(this).remove();
-                                    $node.append($(`<img>`).attr("src", urls[0]).addClass("gcLoadedImage").on("load", () => mediaOnLoad(atBottom2)).click(function() {
-                                        $(this).remove();
-                                    }));
-                                }));
-                            }
+                            createMediaElement($node, "img", urls[0], canAutoLoad);
                         }
                         else if (audioURLregex.test(urls[0])) {
-                            let name = $node.find(".gcUserName").text();
-                            if (gcAutoLoadMedia === "all" || (gcAutoLoadMedia === "friends" && (name === selfName || socialTab.isFriend(name)))) {
-                                $node.append($(`<audio controls></audio>`).attr("src", urls[0]).addClass("gcLoadedAudio"));
-                            }
-                            else {
-                                $node.append($(`<button>Load Audio</button>`).addClass("btn gcLoadMedia").click(function() {
-                                    let atBottom2 = gameChat.$chatMessageContainer.scrollTop() + gameChat.$chatMessageContainer.innerHeight() >= gameChat.$chatMessageContainer[0].scrollHeight - 100;
-                                    $(this).remove();
-                                    $node.append($(`<audio controls></audio>`).attr("src", urls[0]).addClass("gcLoadedAudio"));
-                                    if (atBottom2) gameChat.$chatMessageContainer.scrollTop(gameChat.$chatMessageContainer.prop("scrollHeight"));
-                                }));
-                            }
+                            createMediaElement($node, "audio", urls[0], canAutoLoad);
                         }
                         else if (videoURLregex.test(urls[0])) {
-                            let name = $node.find(".gcUserName").text();
-                            if (gcAutoLoadMedia === "all" || (gcAutoLoadMedia === "friends" && (name === selfName || socialTab.isFriend(name)))) {
-                                $node.append($(`<video controls></video>`).attr("src", urls[0]).addClass("gcLoadedVideo").on("canplay", () => mediaOnLoad(atBottom)));
-                            }
-                            else {
-                                $node.append($(`<button>Load Video</button>`).addClass("btn gcLoadMedia").click(function() {
-                                    let atBottom2 = gameChat.$chatMessageContainer.scrollTop() + gameChat.$chatMessageContainer.innerHeight() >= gameChat.$chatMessageContainer[0].scrollHeight - 100;
-                                    $(this).remove();
-                                    $node.append($(`<video controls></video>`).attr("src", urls[0]).addClass("gcLoadedVideo").on("canplay", () => mediaOnLoad(atBottom2)));
-                                }));
-                            }
+                            createMediaElement($node, "video", urls[0], canAutoLoad);
                         }
                     }
                 }
@@ -591,11 +551,7 @@ function setup() {
                             if (file) {
                                 event.preventDefault();
                                 event.stopPropagation();
-                                let formData = new FormData();
-                                formData.append("fileToUpload", file);
-                                formData.append("reqtype", "fileupload");
-                                formData.append("time", "1h");
-                                fetch("https://litterbox.catbox.moe/resources/internals/api.php", {method: "POST", body: formData})
+                                fetch("https://litterbox.catbox.moe/resources/internals/api.php", {method: "POST", body: litterboxFormData(file)})
                                 .then((response) => response.text())
                                 .then((data) => {
                                     $node.find("textarea").val((index, value) => value + data);
@@ -611,11 +567,7 @@ function setup() {
                             if (file) {
                                 event.preventDefault();
                                 event.stopPropagation();
-                                let formData = new FormData();
-                                formData.append("fileToUpload", file);
-                                formData.append("reqtype", "fileupload");
-                                formData.append("time", "1h");
-                                fetch("https://litterbox.catbox.moe/resources/internals/api.php", {method: "POST", body: formData})
+                                fetch("https://litterbox.catbox.moe/resources/internals/api.php", {method: "POST", body: litterboxFormData(file)})
                                 .then((response) => response.text())
                                 .then((data) => {
                                     $node.find("textarea").val((index, value) => value + data);
@@ -719,32 +671,36 @@ function applyStyles() {
         .gcInputContainer .textAreaContainer {
             width: ${gifSearch ? "calc(100% - 145px)" : "calc(100% - 120px)"};
         }
-        button.gcLoadMedia {
+        .gcLoadMediaContainer {
+            margin: 5px 0 3px 0;
+        }
+        button.gcLoadMediaButton {
             background: #6D6D6D;
+            border: none;
             color: #d9d9d9;
             display: block;
-            margin: 5px auto 2px;
+            margin: auto;
             padding: 3px 6px;
         }
-        button.gcLoadMedia:hover {
+        button.gcLoadMediaButton:hover {
             color: #d9d9d9;
             opacity: .7;
         }
         img.gcLoadedImage {
             display: block;
-            margin: 5px auto 3px;
+            margin: auto;
             max-width: 70%;
             max-height: 200px;
         }
         audio.gcLoadedAudio {
             display: block;
-            margin: 5px auto 3px;
+            margin: auto;
             width: 80%;
-            height: 40px;
+            height: 35px;
         }
         video.gcLoadedVideo {
             display: block;
-            margin: 5px auto 3px;
+            margin: auto;
             max-width: 70%;
             max-height: 200px;
         }
@@ -786,6 +742,21 @@ function applyStyles() {
             border-radius: 5px;
             cursor: pointer;
         }
+        button.gcCloseMedia {
+            background: #6D6D6D;
+            border: none;
+            color: #d9d9d9;
+            width: 25px;
+            height: 25px;
+            padding: 0;
+            position: absolute;
+            top: 0;
+            right: 0;
+        }
+        button.gcCloseMedia:hover {
+            color: #d9d9d9;
+            opacity: .7;
+        }
     `));
     document.head.appendChild(style);
 }
@@ -798,10 +769,77 @@ function getFriendColor() {
     return saveData2 ? saveData2.smColorFriendColor : "#80ff80";
 }
 
-function mediaOnLoad(atBottom) {
+function createMediaElement($node, type, src, autoLoad) {
+    let atBottom = gameChat.$chatMessageContainer.scrollTop() + gameChat.$chatMessageContainer.innerHeight() >= gameChat.$chatMessageContainer[0].scrollHeight - 100;
+    $node.find(".gcLoadMediaContainer").remove();
+    let $container = $(`<div class="gcLoadMediaContainer"></div>`);
+    if (type === "img") {
+        if (autoLoad) {
+            let $img = $(`<img class="gcLoadedImage">`).attr("src", src).on("load", () => gcCheckAtBottom(atBottom));
+            let $button = $(`<button class="btn gcCloseMedia"><i class="fa fa-close"></i></button>`).hide().click(() => {
+                createMediaElement($node, type, src, false);
+            });
+            $container.append($img);
+            $container.append($button);
+            $container.hover(() => $button.show(), () => $button.hide());
+        }
+        else {
+            $container.append($(`<button class="btn gcLoadMediaButton">Load Image</button>`).click(() => {
+                createMediaElement($node, type, src, true);
+            }));
+            gcCheckAtBottom(atBottom);
+        }
+    }
+    else if (type === "audio") {
+        if (autoLoad) {
+            let $audio = $(`<audio class="gcLoadedAudio" controls></audio>`).attr("src", src);
+            let $button = $(`<button class="btn gcCloseMedia"><i class="fa fa-close"></i></button>`).hide().click(() => {
+                createMediaElement($node, type, src, false);
+            });
+            $container.append($audio);
+            $container.append($button);
+            $container.hover(() => $button.show(), () => $button.hide());
+            gcCheckAtBottom(atBottom);
+        }
+        else {
+            $container.append($(`<button class="btn gcLoadMediaButton">Load Audio</button>`).click(() => {
+                createMediaElement($node, type, src, true);
+            }));
+            gcCheckAtBottom(atBottom);
+        }
+    }
+    else if (type === "video") {
+        if (autoLoad) {
+            let $video = $(`<video class="gcLoadedVideo" controls></video>`).attr("src", src).on("canplay", () => gcCheckAtBottom(atBottom));
+            let $button = $(`<button class="btn gcCloseMedia"><i class="fa fa-close"></i></button>`).hide().click(() => {
+                createMediaElement($node, type, src, false);
+            });
+            $container.append($video);
+            $container.append($button);
+            $container.hover(() => $button.show(), () => $button.hide());
+        }
+        else {
+            $container.append($(`<button class="btn gcLoadMediaButton">Load Video</button>`).click(() => {
+                createMediaElement($node, type, src, true);
+            }));
+            gcCheckAtBottom(atBottom);
+        }
+    }
+    $node.append($container);
+}
+
+function gcCheckAtBottom(atBottom) {
     if (atBottom) {
         gameChat.$chatMessageContainer.scrollTop(gameChat.$chatMessageContainer.prop("scrollHeight"));
     }
+}
+
+function litterboxFormData(file) {
+    let formData = new FormData();
+    formData.append("fileToUpload", file);
+    formData.append("reqtype", "fileupload");
+    formData.append("time", litterboxUploadTime);
+    return formData;
 }
 
 function saveSettings() {
