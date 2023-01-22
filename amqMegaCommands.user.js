@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.70
+// @version      0.71
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -81,7 +81,7 @@ OTHER
 */
 
 "use strict";
-const version = "0.70";
+const version = "0.71";
 const saveData = JSON.parse(localStorage.getItem("megaCommands")) || {};
 let animeList;
 let autoAcceptInvite = saveData.autoAcceptInvite !== undefined ? saveData.autoAcceptInvite : false;
@@ -519,6 +519,18 @@ function parseCommand(content, type, target) {
     else if (/^\/roll .+,.+$/i.test(content)) {
         let list = /^\S+ (.+)$/.exec(content)[1].split(",").map((x) => x.trim()).filter(Boolean);
         if (list.length > 1) sendMessage(list[Math.floor(Math.random() * list.length)], type, target);
+    }
+    else if (/^\/shuffle (p|players?)$/i.test(content)) {
+        let list = getPlayerList();
+        if (list.length > 1) sendMessage(shuffleArray(list).join(", "), type, target);
+    }
+    else if (/^\/shuffle (s|spectators?)$/i.test(content)) {
+        let list = getSpectatorList();
+        if (list.length > 1) sendMessage(shuffleArray(list).join(", "), type, target);
+    }
+    else if (/^\/shuffle (t|teammates?)$/i.test(content)) {
+        let list = getTeamList(getTeamNumber(selfName));
+        if (list.length > 1) sendMessage(shuffleArray(list).join(", "), type, target);
     }
     else if (/^\/shuffle .+$/i.test(content)) {
         let list = /^\S+ (.+)$/.exec(content)[1].split(",").map((x) => x.trim()).filter(Boolean);
@@ -1304,7 +1316,7 @@ function parseIncomingDM(content, sender) {
  */
 function parseForceAll(content, type) {
     if (/^\/forceall version$/i.test(content)) {
-        sendMessage("0.70", type);
+        sendMessage("0.71", type);
     }
     else if (/^\/forceall roll [0-9]+$/i.test(content)) {
         let number = parseInt(/^\S+ roll ([0-9]+)$/.exec(content)[1]);
