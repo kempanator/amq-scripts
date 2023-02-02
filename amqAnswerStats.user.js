@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Answer Stats
 // @namespace    https://github.com/kempanator
-// @version      0.4
+// @version      0.5
 // @description  Adds a window to display quiz answer stats
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -32,12 +32,14 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.4";
+const version = "0.5";
 let answerStatsWindow;
 let answerTimeTrackWindow;
 let anisongdbWindow;
 let answers = {}; //{1: {name, answer, correct}, ...}
-let timeTrack = {}; //{1: {name, averageTime, totalTime, totalCorrect}, ...}
+//let timeTrack = {}; //{1: {name, averageTime, totalTime, totalCorrect, score, correctAnswers, wrongAnswers}, ...}
+let songHistory = []; //[{romaji, english, number, type, difficulty}, ...]
+let answerHistory = {}; //{1: {name, averageTime, totalTime, totalCorrect, score, correctAnswers, wrongAnswers}, ...}
 let listLowerCase = [];
 let timeTrackButton = true;
 let anisongdbSearchButtons = true;
@@ -86,13 +88,13 @@ function setup() {
         }, 1);
     }).bindListener();
     new Listener("Game Starting", () => {
-        timeTrack = {};
+        resetHistory();
     }).bindListener();
     new Listener("Join Game", () => {
-        timeTrack = {};
+        resetHistory();
     }).bindListener();
     new Listener("Spectate Game", () => {
-        timeTrack = {};
+        resetHistory();
     }).bindListener();
     new Listener("player answers", (payload) => {
         //console.log(payload);
@@ -119,27 +121,42 @@ function setup() {
             if (quizPlayer) {
                 quizPlayer.correct = player.correct;
                 if (player.correct) {
-                    let speed = amqAnswerTimesUtility.playerTimes[player.gamePlayerId]
+                    let speed = amqAnswerTimesUtility.playerTimes[player.gamePlayerId];
                     correctPlayers[answers[player.gamePlayerId].name] = speed;
                     if (speed && speed < 100000) {
-                        timeObject = timeTrack[player.gamePlayerId];
-                        if (timeObject) {
-                            timeTrack[player.gamePlayerId] = {
-                                name: quizPlayer.name,
-                                averageTime: (timeObject.totalTime + speed) / (timeObject.totalCorrect + 1),
-                                totalTime: timeObject.totalTime + speed,
-                                totalCorrect: timeObject.totalCorrect + 1
-                            };
+                        let item = answerHistory[player.gamePlayerId];
+                        if (item) {
+                            item.averageTime = (item.totalTime + speed) / (item.correctAnswers.length + 1);
+                            item.totalTime = item.totalTime + speed;
+                            item.correctAnswers.push(songHistory.length);
+                            item.score = getScore(player);
                         }
                         else {
-                            timeTrack[player.gamePlayerId] = {
+                            answerHistory[player.gamePlayerId] = {
                                 name: quizPlayer.name,
                                 averageTime: speed,
                                 totalTime: speed,
-                                totalCorrect: 1
+                                correctAnswers: [songHistory.length],
+                                wrongAnswers: [],
+                                score: getScore(player)
                             };
                         }
-                        //console.log(timeTrack[player.gamePlayerId])
+                    }
+                }
+                else {
+                    let item = answerHistory[player.gamePlayerId];
+                    if (item) {
+                        item.wrongAnswers.push(songHistory.length);
+                    }
+                    else {
+                        answerHistory[player.gamePlayerId] = {
+                            name: quizPlayer.name,
+                            averageTime: 0,
+                            totalTime: 0,
+                            correctAnswers: [],
+                            wrongAnswers: [songHistory.length],
+                            score: getScore(player)
+                        };
                     }
                 }
             }
@@ -177,6 +194,13 @@ function setup() {
         Object.keys(incorrectAnswerCount).forEach((x) => { if (incorrectAnswerCount[x] === 1) otherAnswerCount++ });
         let correctSortedKeys = Object.keys(correctAnswerCount).sort((a, b) => correctAnswerCount[b] - correctAnswerCount[a]);
         let incorrectSortedKeys = Object.keys(incorrectAnswerCount).sort((a, b) => incorrectAnswerCount[b] - incorrectAnswerCount[a]);
+        songHistory.push({
+            romaji: payload.songInfo.animeNames.romaji,
+            english: payload.songInfo.animeNames.english,
+            number: quiz.infoContainer.$currentSongCount.text(),
+            type: typeText(payload.songInfo.type, payload.songInfo.typeNumber),
+            difficulty: Math.round(payload.songInfo.animeDifficulty)
+        });
         answers = {};
 
         setTimeout(() => {
@@ -189,6 +213,7 @@ function setup() {
                         <span><b>${rankedText()}</b></span>
                         <span style="margin-left: 20px"><b>Song:</b> ${quiz.infoContainer.$currentSongCount.text()}/${quiz.infoContainer.$totalSongCount.text()}</span>
                         <span style="margin-left: 20px"><b>Total Players:</b> ${totalPlayers}</span>
+                    </div>
                 `);
             }
             answerStatsWindow.panels[0].panel.append(`
@@ -315,7 +340,7 @@ function setup() {
     answerTimeTrackWindow = new AMQWindow({
         id: "answerTimeTrackWindow",
         title: "Time Track",
-        width: 200,
+        width: 250,
         height: 300,
         minWidth: 0,
         minHeight: 0,
@@ -398,6 +423,8 @@ function setup() {
             trigger: "hover",
             content: "track average guess time of all players' correct answers"
         });
+        let $div1 = $(`<div>Time Track</div>`).css({"font-size": "23px", "line-height": "normal", "margin": "6px 0 2px 8px"});
+        let $div2 = $(`<div></div>`).css("margin", "0 0 0 8px");
         let $button1 = $(`<button id="timeTrackSortModeButton">${timeTrackSort}</button>`).click(function() {
             if (timeTrackSort === "time") timeTrackSort = "name";
             else if (timeTrackSort === "name") timeTrackSort = "score";
@@ -405,14 +432,20 @@ function setup() {
             $(this).text(timeTrackSort);
             displayTimeTrackResults();
         });
-        let $button2 = $(`<button id="timeTrackSortDirectionButton">${timeTrackSortAscending ? "ascend" : "descend"}</button>`).click(function() {
+        let $button2 = $(`<button id="timeTrackSortDirectionButton">${timeTrackSortAscending ? "🡅" : "🡇"}</button>`).click(function() {
             timeTrackSortAscending = !timeTrackSortAscending;
-            $(this).text(timeTrackSortAscending ? "ascend" : "descend");
+            $(this).text(timeTrackSortAscending ? "🡅" : "🡇");
             displayTimeTrackResults();
         });
+        $div2.append(`<span style="font-size: 16px">Sort:</span>`);
+        $div2.append($button1);
+        $div2.append($button2);
         answerTimeTrackWindow.window.find(".modal-header h2").remove();
-        answerTimeTrackWindow.window.find(".modal-header").append($button1);
-        answerTimeTrackWindow.window.find(".modal-header").append($button2);
+        answerTimeTrackWindow.window.find(".modal-header").append($div1);
+        answerTimeTrackWindow.window.find(".modal-header").append($div2);
+        answerTimeTrackWindow.window.popover({container: "#gameContainer", placement: "right", trigger: "manual", html: true});
+        answerTimeTrackWindow.window.data("bs.popover").tip().addClass("timeTrackAnswersPopover");
+        answerTimeTrackWindow.window.mousedown(() => { $(".timeTrackAnswersPopover").remove() });
     }
 
     AMQ_addScriptData({
@@ -528,32 +561,69 @@ function getAnisongdbData(mode, query, partial) {
 
 // display average time list in time track window
 function displayTimeTrackResults() {
-    answerTimeTrackWindow.panels[0].clear();
-    let sortedTimeTrackIds;
+    $(".timeTrackAnswersPopover").remove();
+    answerTimeTrackWindow.window.find("#timeTrackResults").remove();
+    let sortedIds;
     if (timeTrackSort === "time") {
-        sortedTimeTrackIds = timeTrackSortAscending
-            ? Object.keys(timeTrack).sort((a, b) => timeTrack[a].averageTime - timeTrack[b].averageTime)
-            : Object.keys(timeTrack).sort((a, b) => timeTrack[b].averageTime - timeTrack[a].averageTime);
+        sortedIds = timeTrackSortAscending
+            ? Object.keys(answerHistory).sort((a, b) => answerHistory[a].averageTime - answerHistory[b].averageTime)
+            : Object.keys(answerHistory).sort((a, b) => answerHistory[b].averageTime - answerHistory[a].averageTime);
     }
     else if (timeTrackSort === "name") {
-        sortedTimeTrackIds = timeTrackSortAscending
-            ? Object.keys(timeTrack).sort((a, b) => timeTrack[a].name.localeCompare(timeTrack[b].name))
-            : Object.keys(timeTrack).sort((a, b) => timeTrack[b].name.localeCompare(timeTrack[a].name));
+        sortedIds = timeTrackSortAscending
+            ? Object.keys(answerHistory).sort((a, b) => answerHistory[a].name.localeCompare(answerHistory[b].name))
+            : Object.keys(answerHistory).sort((a, b) => answerHistory[b].name.localeCompare(answerHistory[a].name));
     }
     else if (timeTrackSort === "score") {
-        sortedTimeTrackIds = timeTrackSortAscending
-            ? Object.keys(timeTrack).sort((a, b) => timeTrack[a].totalCorrect - timeTrack[b].totalCorrect)
-            : Object.keys(timeTrack).sort((a, b) => timeTrack[b].totalCorrect - timeTrack[a].totalCorrect);
+        sortedIds = timeTrackSortAscending
+            ? Object.keys(answerHistory).sort((a, b) => answerHistory[a].score - answerHistory[b].score)
+            : Object.keys(answerHistory).sort((a, b) => answerHistory[b].score - answerHistory[a].score);
     }
-    for (let id of sortedTimeTrackIds) {
-        answerTimeTrackWindow.panels[0].panel.append(`
-            <div>
-                <span class="trackTime">${Math.round(timeTrack[id].averageTime)}ms</span>
-                <span class="trackName">${timeTrack[id].name}</span>
-                <span class="trackScore">${timeTrack[id].totalCorrect}</span>
-            </div>
-        `);
+    let $results = $(`<div id="timeTrackResults"></div>`);
+    for (let id of sortedIds) {
+        let $row = $("<div></div>");
+        $row.append(`<span class="trackTime">${Math.round(answerHistory[id].averageTime)}</span>`);
+        $row.append($(`<i class="fa fa-id-card-o clickAble" aria-hidden="true"></i>`).click(() => {
+            playerProfileController.loadProfile(answerHistory[id].name, $("#answerTimeTrackWindow"), {}, () => {}, false, true);
+        }));
+        let $correctIcon = $(`<i class="fa fa-check-circle clickAble" aria-hidden="true"></i>`).click(() => {
+            answerTimeTrackWindow.window.data("bs.popover").options.title = answerHistory[id].name + " - Correct: " + answerHistory[id].correctAnswers.length;
+            answerTimeTrackWindow.window.data("bs.popover").options.content = answerListPopoverContent(answerHistory[id].correctAnswers);
+            answerTimeTrackWindow.window.popover("show");
+        });
+        $row.append($correctIcon);
+        let $wrongIcon = $(`<i class="fa fa-times-circle clickAble" aria-hidden="true"></i>`).click(() => {
+            answerTimeTrackWindow.window.data("bs.popover").options.title = answerHistory[id].name + " - Wrong: " + answerHistory[id].wrongAnswers.length;
+            answerTimeTrackWindow.window.data("bs.popover").options.content = answerListPopoverContent(answerHistory[id].wrongAnswers);
+            answerTimeTrackWindow.window.popover("show");
+        });
+        $row.append($wrongIcon);
+        /*let $correctIcon = $(`<i class="fa fa-check-circle" aria-hidden="true"></i>`).popover({
+            container: "#gameContainer",
+            placement: "bottom",
+            trigger: "hover",
+            html: true,
+            title: "Correct: " + answerHistory[id].correctAnswers.length,
+            content: answerListPopoverContent(answerHistory[id].correctAnswers)
+        });
+        $correctIcon.data("bs.popover").tip().addClass("timeTrackAnswersPopover");
+        $row.append($correctIcon);
+        let $wrongIcon = $(`<i class="fa fa-times-circle" aria-hidden="true"></i>`).popover({
+            container: "#gameContainer",
+            placement: "bottom",
+            trigger: "hover",
+            html: true,
+            title: "Wrong: " + answerHistory[id].wrongAnswers.length,
+            content: answerListPopoverContent(answerHistory[id].wrongAnswers)
+        });
+        $wrongIcon.data("bs.popover").tip().addClass("timeTrackAnswersPopover");
+        $row.append($wrongIcon);
+        */
+        $row.append(`<span class="trackName">${answerHistory[id].name}</span>`);
+        $row.append(`<span class="trackScore">${answerHistory[id].score}</span>`);
+        $results.append($row);
     }
+    answerTimeTrackWindow.panels[0].panel.append($results);
 }
 
 // input table element, column name, and sort ascending boolean
@@ -568,10 +638,41 @@ function shortenType(type) {
     return type.replace("Opening ", "OP").replace("Ending ", "ED").replace("Insert Song", "IN");
 }
 
+function typeText(type, typeNumber) {
+    if (type === 1) return "OP" + typeNumber;
+    if (type === 2) return "ED" + typeNumber;
+    if (type === 3) return "IN";
+};
+
 function rankedText() {
     let region = Object({E: "Eastern ", C: "Central ", W: "Western "})[$("#mpRankedTimer h3").text()] || "";
     let type = hostModal.getSettings().roomName;
     return region + type;
+}
+
+function getScore(player) {
+    if (quiz.scoreboard.scoreType === 1) return player.score;
+    if (quiz.scoreboard.scoreType === 2) return player.correctGuesses;
+    if (quiz.scoreboard.scoreType === 3) return player.correctGuesses;
+}
+
+function resetHistory() {
+    songHistory = [];
+    answerHistory = {};
+}
+
+function answerListPopoverContent(list) {
+    let language = options.useRomajiNames ? "romaji" : "english";
+    $ul = $("<ul></ul>");
+    for (let x of list) {
+        let $li = $("<li></li>");
+        $li.append($("<span></span>").addClass("number").text(songHistory[x].number + "."));
+        $li.append($("<span></span>").text(songHistory[x][language]));
+        $li.append($("<span></span>").addClass("type").text(songHistory[x].type));
+        $li.append($("<span></span>").addClass("difficulty").text(songHistory[x].difficulty));
+        $ul.append($li);
+    }
+    return $ul;
 }
 
 // apply styles
@@ -677,9 +778,9 @@ function applyStyles() {
             border: 1px solid #D9D9D9;
             border-radius: 4px;
             color: #D9D9D9;
-            line-height: 1;
+            line-height: normal;
             font-weight: bold;
-            padding: 5px 5px;
+            padding: 4px 5px;
             position: absolute;
             float: left;
             user-select: none;
@@ -689,6 +790,12 @@ function applyStyles() {
         }
         #answerTimeTrackWindow .modal-header {
             padding: 0;
+            height: 74px;
+        }
+        #answerTimeTrackWindow .close {
+            top: 15px;
+            right: 15px;
+            position: absolute;
         }
         #answerTimeTrackWindow .modal-header button {
             background: none;
@@ -703,8 +810,15 @@ function applyStyles() {
         #answerTimeTrackWindow .modal-header button:hover {
             opacity: .8;
         }
+        #timeTrackResults {
+            cursor: auto;
+        }
         #answerTimeTrackWindow span.trackTime {
-            width: 70px;
+            width: 48px;
+            display: inline-block;
+        }
+        #answerTimeTrackWindow i.fa {
+            margin-right: 3px;
             display: inline-block;
         }
         #answerTimeTrackWindow span.trackName {
@@ -714,6 +828,22 @@ function applyStyles() {
             opacity: .7;
             margin-left: 8px;
             display: inline-block;
+        }
+        .timeTrackAnswersPopover {
+            max-width: 600px;
+            text-align: left;
+        }
+        .timeTrackAnswersPopover span.number {
+            opacity: .7;
+            margin-right: 5px;
+        }
+        .timeTrackAnswersPopover span.type {
+            opacity: .7;
+            margin-left: 10px;
+        }
+        .timeTrackAnswersPopover span.difficulty {
+            opacity: .7;
+            margin-left: 10px;
         }
     `));
     document.head.appendChild(style);

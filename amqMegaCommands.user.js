@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.71
+// @version      0.72
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -59,6 +59,7 @@ IN GAME/LOBBY
 /dropdown             enable/disable anime dropdown
 /dropdownspec         enable drop down while spectating
 /speed [number]       change client-side song playback speed (0.0625 - 16)
+/mutereplay           auto mute during the replay phase
 
 OTHER
 /roll                 roll number, player, teammate, playerteam, spectator
@@ -81,7 +82,7 @@ OTHER
 */
 
 "use strict";
-const version = "0.71";
+const version = "0.72";
 const saveData = JSON.parse(localStorage.getItem("megaCommands")) || {};
 let animeList;
 let autoAcceptInvite = saveData.autoAcceptInvite !== undefined ? saveData.autoAcceptInvite : false;
@@ -107,6 +108,7 @@ let dropdown = saveData.dropdown !== undefined ? saveData.dropdown : true;
 let dropdownInSpec = saveData.dropdownInSpec !== undefined ? saveData.dropdownInSpec : false;
 let hidePlayers = saveData.hidePlayers !== undefined ? saveData.hidePlayers : false;
 let lastUsedVersion = saveData.lastUsedVersion !== undefined ? saveData.lastUsedVersion : null;
+let muteReplay = saveData.muteReplay !== undefined ? saveData.muteReplay : false;
 let playbackSpeed = saveData.playbackSpeed !== undefined ? saveData.playbackSpeed : null;
 let playerDetection = saveData.playerDetection !== undefined ? saveData.playerDetection : {invisible: false, players: []};
 let printLoot = saveData.printLoot !== undefined ? saveData.printLoot : false;
@@ -189,8 +191,11 @@ function setup() {
     new Listener("play next song", (payload) => {
         if (playbackSpeed !== null) {
             let speed = Array.isArray(playbackSpeed) ? Math.random() * (playbackSpeed[1] - playbackSpeed[0]) + playbackSpeed[0] : playbackSpeed;
-            quizVideoController.moePlayers[0].playbackRate = speed;
-            quizVideoController.moePlayers[1].playbackRate = speed;
+            quizVideoController.moePlayers.forEach((moePlayer) => { moePlayer.playbackRate = speed });
+        }
+        if (muteReplay) {
+            volumeController.setMuted(false);
+            volumeController.adjustVolume();
         }
         if (!quiz.isSpectator && quiz.gameMode !== "Ranked") {
             if (autoThrow) quiz.answerInput.setNewAnswer(autoThrow);
@@ -233,6 +238,7 @@ function setup() {
         if (autoMute !== null) sendSystemMessage("Auto Mute: " + (Array.isArray(autoMute) ? `random ${autoMute[0] / 1000}s - ${autoMute[1] / 1000}s` : `${autoMute / 1000}s`));
         if (autoUnmute !== null) sendSystemMessage("Auto Unmute: " + (Array.isArray(autoUnmute) ? `random ${autoUnmute[0] / 1000}s - ${autoUnmute[1] / 1000}s` : `${autoUnmute / 1000}s`));
         if (playbackSpeed !== null) sendSystemMessage("Song Playback Speed: " + (Array.isArray(playbackSpeed) ? `random ${playbackSpeed[0]}x - ${playbackSpeed[1]}x` : `${playbackSpeed}x`));
+        if (muteReplay) sendSystemMessage("Mute Replay: Enabled");
         if (hidePlayers) setTimeout(() => { quizHidePlayers() }, 0);
     }).bindListener();
     new Listener("team member answer", (payload) => {
@@ -259,6 +265,10 @@ function setup() {
         if (autoMute !== null || autoUnmute !== null) {
             $("#qpVolume").removeClass("disabled");
             volumeController.setMuted(false);
+            volumeController.adjustVolume();
+        }
+        if (muteReplay) {
+            volumeController.setMuted(true);
             volumeController.adjustVolume();
         }
     }).bindListener();
@@ -412,16 +422,37 @@ function setup() {
             hostModal.soloMode = true;
             setTimeout(() => { roomBrowser.host() }, 10);
         }
-        else if (autoJoinRoom.type === "ranked") {
-            document.querySelector("#mpRankedButton").click();
+        else if (autoJoinRoom.type === "ranked novice") {
+            if (ranked.currentState !== ranked.RANKED_STATE_IDS.RUNNING && ranked.currentState !== ranked.RANKED_STATE_IDS.CHAMP_RUNNING) {
+				ranked.joinRankedLobby(ranked.RANKED_TYPE_IDS.NOVICE);
+			}
+            else {
+				ranked.joinRankedGame(ranked.RANKED_TYPE_IDS.NOVICE);
+			}
+        }
+        else if (autoJoinRoom.type === "ranked expert") {
+            if (ranked.currentState !== ranked.RANKED_STATE_IDS.RUNNING && ranked.currentState !== ranked.RANKED_STATE_IDS.CHAMP_RUNNING) {
+				ranked.joinRankedLobby(ranked.RANKED_TYPE_IDS.EXPERT);
+			}
+            else {
+				ranked.joinRankedGame(ranked.RANKED_TYPE_IDS.EXPERT);
+			}
         }
         else if (autoJoinRoom.type === "multiplayer") {
-            if (autoJoinRoom.joinAsPlayer) roomBrowser.fireJoinLobby(autoJoinRoom.id, autoJoinRoom.password);
-            else roomBrowser.fireSpectateGame(autoJoinRoom.id, autoJoinRoom.password);
+            if (autoJoinRoom.joinAsPlayer) {
+                roomBrowser.fireJoinLobby(autoJoinRoom.id, autoJoinRoom.password);
+            }
+            else {
+                roomBrowser.fireSpectateGame(autoJoinRoom.id, autoJoinRoom.password);
+            }
         }
         else if (autoJoinRoom.type === "nexus coop") {
-            if (autoJoinRoom.id) socket.sendCommand({type: "nexus", command: "join dungeon lobby", data: {lobbyId: autoJoinRoom.id}});
-            else socket.sendCommand({type: "nexus", command: "setup dungeon lobby", data: {typeId: 1, coop: true}});
+            if (autoJoinRoom.id) {
+                socket.sendCommand({type: "nexus", command: "join dungeon lobby", data: {lobbyId: autoJoinRoom.id}});
+            }
+            else {
+                socket.sendCommand({type: "nexus", command: "setup dungeon lobby", data: {typeId: 1, coop: true}});
+            }
         }
         else if (autoJoinRoom.type === "nexus solo") {
             socket.sendCommand({type: "nexus", command: "setup dungeon lobby", data: {typeId: 1, coop: false}});
@@ -649,6 +680,10 @@ function parseCommand(content, type, target) {
         if (isNaN(low) || isNaN(high) || low >= high) return;
         playbackSpeed = [low, high];
         sendMessage(`song playback speed set to random # between ${low} - ${high}`, type, target, true);
+    }
+    else if (/^\/(mr|mutereplay)$/i.test(content)) {
+        muteReplay = !muteReplay;
+        sendMessage("mute during replay phase " + (muteReplay ? "enabled" : "disabled"), type, target, true);
     }
     else if (/^\/(avs|autoskip|autovoteskip)$/i.test(content)) {
         if (autoVoteSkip === null) autoVoteSkip = 100;
@@ -1046,7 +1081,7 @@ function parseCommand(content, type, target) {
             setTimeout(() => { window.location = "/" }, 10);
         }
         else if (isRankedMode()) {
-            autoJoinRoom = {type: "ranked", temp: true, autoLogIn: true};
+            autoJoinRoom = {type: hostModal.getSettings().roomName.toLowerCase(), temp: true, autoLogIn: true};
             saveSettings();
             setTimeout(() => { viewChanger.changeView("main") }, 1);
             setTimeout(() => { window.location = "/" }, 10);
@@ -1316,7 +1351,7 @@ function parseIncomingDM(content, sender) {
  */
 function parseForceAll(content, type) {
     if (/^\/forceall version$/i.test(content)) {
-        sendMessage("0.71", type);
+        sendMessage("0.72", type);
     }
     else if (/^\/forceall roll [0-9]+$/i.test(content)) {
         let number = parseInt(/^\S+ roll ([0-9]+)$/.exec(content)[1]);
@@ -1920,6 +1955,7 @@ function saveSettings() {
     settings.dropdownInSpec = dropdownInSpec;
     //settings.hidePlayers = hidePlayers;
     settings.lastUsedVersion = version;
+    //settings.muteReplay = muteReplay;
     //settings.playbackSpeed = playbackSpeed;
     settings.playerDetection = playerDetection;
     settings.printLoot = printLoot;
