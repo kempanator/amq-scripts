@@ -37,9 +37,8 @@ let answerStatsWindow;
 let answerTimeTrackWindow;
 let anisongdbWindow;
 let answers = {}; //{1: {name, answer, correct}, ...}
-//let timeTrack = {}; //{1: {name, averageTime, totalTime, totalCorrect, score, correctAnswers, wrongAnswers}, ...}
 let songHistory = []; //[{romaji, english, number, type, difficulty}, ...]
-let answerHistory = {}; //{1: {name, averageTime, totalTime, totalCorrect, score, correctAnswers, wrongAnswers}, ...}
+let answerHistory = {}; //{1: {name, averageTime, totalTime, score, correctAnswers, wrongAnswers}, ...}
 let listLowerCase = [];
 let timeTrackButton = true;
 let anisongdbSearchButtons = true;
