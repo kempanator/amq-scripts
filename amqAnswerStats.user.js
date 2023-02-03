@@ -597,27 +597,6 @@ function displayTimeTrackResults() {
             answerTimeTrackWindow.window.popover("show");
         });
         $row.append($wrongIcon);
-        /*let $correctIcon = $(`<i class="fa fa-check-circle" aria-hidden="true"></i>`).popover({
-            container: "#gameContainer",
-            placement: "bottom",
-            trigger: "hover",
-            html: true,
-            title: "Correct: " + answerHistory[id].correctAnswers.length,
-            content: answerListPopoverContent(answerHistory[id].correctAnswers)
-        });
-        $correctIcon.data("bs.popover").tip().addClass("timeTrackAnswersPopover");
-        $row.append($correctIcon);
-        let $wrongIcon = $(`<i class="fa fa-times-circle" aria-hidden="true"></i>`).popover({
-            container: "#gameContainer",
-            placement: "bottom",
-            trigger: "hover",
-            html: true,
-            title: "Wrong: " + answerHistory[id].wrongAnswers.length,
-            content: answerListPopoverContent(answerHistory[id].wrongAnswers)
-        });
-        $wrongIcon.data("bs.popover").tip().addClass("timeTrackAnswersPopover");
-        $row.append($wrongIcon);
-        */
         $row.append(`<span class="trackName">${answerHistory[id].name}</span>`);
         $row.append(`<span class="trackScore">${answerHistory[id].score}</span>`);
         $results.append($row);
