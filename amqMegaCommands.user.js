@@ -703,7 +703,7 @@ function parseCommand(content, type, target) {
     }
     else if (/^\/(at|autothrow)$/i.test(content)) {
         autoThrow = "";
-        sendMessage("auto throw disabled " + autoCopy, type, target, true);
+        sendMessage("auto throw disabled", type, target, true);
     }
     else if (/^\/(at|autothrow) .+$/i.test(content)) {
         autoThrow = translateShortcodeToUnicode(/^\S+ (.+)$/.exec(content)[1]).text;
