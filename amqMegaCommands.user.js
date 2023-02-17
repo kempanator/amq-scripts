@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.73
+// @version      0.74
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -82,7 +82,7 @@ OTHER
 */
 
 "use strict";
-const version = "0.73";
+const version = "0.74";
 const saveData = JSON.parse(localStorage.getItem("megaCommands")) || {};
 let animeList;
 let autoAcceptInvite = saveData.autoAcceptInvite !== undefined ? saveData.autoAcceptInvite : false;
@@ -225,7 +225,7 @@ function setup() {
         }
         if (dropdownInSpec && quiz.isSpectator) {
             setTimeout(() => {
-                if (!quiz.answerInput.autoCompleteController.list.length) quiz.answerInput.autoCompleteController.updateList();
+                if (!quiz.answerInput.typingInput.autoCompleteController.list.length) quiz.answerInput.typingInput.autoCompleteController.updateList();
                 $("#qpAnswerInput").removeAttr("disabled").val("");
             }, 1);
         }
@@ -256,7 +256,7 @@ function setup() {
         }
         if (dropdownInSpec && quiz.isSpectator) {
             setTimeout(() => {
-                if (!quiz.answerInput.autoCompleteController.list.length) quiz.answerInput.autoCompleteController.updateList();
+                if (!quiz.answerInput.typingInput.autoCompleteController.list.length) quiz.answerInput.typingInput.autoCompleteController.updateList();
                 $("#qpAnswerInput").removeAttr("disabled");
             }, 1);
         }
@@ -981,7 +981,7 @@ function parseCommand(content, type, target) {
     else if (/^\/(dd|dropdown)$/i.test(content)) {
         dropdown = !dropdown;
         sendMessage("dropdown " + (dropdown ? "enabled" : "disabled"), type, target, true);
-        quiz.answerInput.autoCompleteController.newList();
+        quiz.answerInput.typingInput.autoCompleteController.newList();
     }
     else if (/^\/(dds|dropdownspec|dropdownspectate)$/i.test(content)) {
         dropdownInSpec = !dropdownInSpec;
@@ -1355,7 +1355,7 @@ function parseIncomingDM(content, sender) {
  */
 function parseForceAll(content, type) {
     if (/^\/forceall version$/i.test(content)) {
-        sendMessage("0.73", type);
+        sendMessage("0.74", type);
     }
     else if (/^\/forceall roll [0-9]+$/i.test(content)) {
         let number = parseInt(/^\S+ roll ([0-9]+)$/.exec(content)[1]);

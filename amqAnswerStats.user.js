@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Answer Stats
 // @namespace    https://github.com/kempanator
-// @version      0.5
+// @version      0.6
 // @description  Adds a window to display quiz answer stats
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -32,7 +32,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.5";
+const version = "0.6";
 let answerStatsWindow;
 let answerTimeTrackWindow;
 let anisongdbWindow;
@@ -78,12 +78,12 @@ function setup() {
     }).bindListener();
     new Listener("get all song names", () => {
         setTimeout(() => {
-            listLowerCase = quiz.answerInput.autoCompleteController.list.map(x => x.toLowerCase());
+            listLowerCase = quiz.answerInput.typingInput.autoCompleteController.list.map(x => x.toLowerCase());
         }, 1);
     }).bindListener();
     new Listener("update all song names", () => {
         setTimeout(() => {
-            listLowerCase = quiz.answerInput.autoCompleteController.list.map(x => x.toLowerCase());
+            listLowerCase = quiz.answerInput.typingInput.autoCompleteController.list.map(x => x.toLowerCase());
         }, 1);
     }).bindListener();
     new Listener("Game Starting", () => {
@@ -97,7 +97,7 @@ function setup() {
     }).bindListener();
     new Listener("player answers", (payload) => {
         //console.log(payload);
-        if (!quiz.answerInput.autoCompleteController.list.length) quiz.answerInput.autoCompleteController.updateList();
+        if (!quiz.answerInput.typingInput.autoCompleteController.list.length) quiz.answerInput.typingInput.autoCompleteController.updateList();
         answers = {};
         for (let item of payload.answers) {
             answers[item.gamePlayerId] = {name: quiz.players[item.gamePlayerId]._name, answer: item.answer};
@@ -177,7 +177,7 @@ function setup() {
                 else {
                     index = listLowerCase.findIndex((value) => answerLowerCase === value);
                     if (index > -1) {
-                        let wrongAnime = quiz.answerInput.autoCompleteController.list[index];
+                        let wrongAnime = quiz.answerInput.typingInput.autoCompleteController.list[index];
                         incorrectAnswerCount[wrongAnime] ? incorrectAnswerCount[wrongAnime]++ : incorrectAnswerCount[wrongAnime] = 1;
                     }
                     else {
