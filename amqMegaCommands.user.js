@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.74
+// @version      0.75
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -82,7 +82,7 @@ OTHER
 */
 
 "use strict";
-const version = "0.74";
+const version = "0.75";
 const saveData = JSON.parse(localStorage.getItem("megaCommands")) || {};
 let animeList;
 let autoAcceptInvite = saveData.autoAcceptInvite !== undefined ? saveData.autoAcceptInvite : false;
@@ -1355,7 +1355,7 @@ function parseIncomingDM(content, sender) {
  */
 function parseForceAll(content, type) {
     if (/^\/forceall version$/i.test(content)) {
-        sendMessage("0.74", type);
+        sendMessage("0.75", type);
     }
     else if (/^\/forceall roll [0-9]+$/i.test(content)) {
         let number = parseInt(/^\S+ roll ([0-9]+)$/.exec(content)[1]);
@@ -1363,6 +1363,9 @@ function parseForceAll(content, type) {
     }
     else if (/^\/forceall mute ?status$/i.test(content)) {
         sendMessage(volumeController.muted ? "🔇" : "🔉 " + Math.round(volumeController.volume * 100) + "%", type);
+    }
+    else if (/^\/forceall (hide|hidden) ?status$/i.test(content)) {
+        sendMessage(hidePlayers, type);
     }
     else if (/^\/forceall speed$/i.test(content)) {
         if (playbackSpeed === null) sendMessage("speed: default", type);
@@ -1373,7 +1376,7 @@ function parseForceAll(content, type) {
     }
     else if (/^\/forceall share ?entries$/i.test(content)) {
         sendMessage(options.$MAl_SHARE_CHECKBOX.prop("checked"), type);
-    }   
+    }
 }
 
 /**
@@ -1874,8 +1877,8 @@ function quizHidePlayers() {
             player.avatarSlot.$backgroundContainer.addClass("hide");
             player.avatarSlot.$nameContainer.css("color", "inherit").text("player");
             player.avatarSlot.$pointContainer.css("color", "inherit");
-            player.avatarSlot.$levelContainer.parent().addClass("hide");
             player.avatarSlot.$bottomContainer.removeClass("clickAble").off("click");
+            player.avatarSlot.$bottomContainer.find(".qpAvatarLevelBar").addClass("hide");
         }
     }
     for (let entry of Object.values(quiz.scoreboard.playerEntries)) {
@@ -1898,7 +1901,7 @@ function quizUnhidePlayers() {
             player.avatarSlot.$backgroundContainer.removeClass("hide");
             player.avatarSlot.$nameContainer.css("color", player.textColor).text(player._name);
             player.avatarSlot.$pointContainer.css("color", player.textColor);
-            player.avatarSlot.$levelContainer.parent().removeClass("hide");
+            player.avatarSlot.$bottomContainer.find(".qpAvatarLevelBar").removeClass("hide");
         }
     }
     for (let entry of Object.values(quiz.scoreboard.playerEntries)) {
