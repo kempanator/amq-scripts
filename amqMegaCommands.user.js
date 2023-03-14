@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.76
+// @version      0.77
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -82,7 +82,7 @@ OTHER
 */
 
 "use strict";
-const version = "0.76";
+const version = "0.77";
 const saveData = JSON.parse(localStorage.getItem("megaCommands")) || {};
 let animeList;
 let autoAcceptInvite = saveData.autoAcceptInvite !== undefined ? saveData.autoAcceptInvite : false;
@@ -96,7 +96,7 @@ let autoReady = saveData.autoReady !== undefined ? saveData.autoReady : false;
 let autoStart = saveData.autoStart !== undefined ? saveData.autoStart : false;
 let autoStatus = saveData.autoStatus !== undefined ? saveData.autoStatus : "";
 let autoSwitch = saveData.autoSwitch !== undefined ? saveData.autoSwitch : "";
-let autoThrow = saveData.autoThrow !== undefined ? saveData.autoThrow : {time1: null, time2: null, text: null};
+let autoThrow = saveData.autoThrow !== undefined ? saveData.autoThrow : {time1: null, time2: null, text: null, multichoice: null};
 let autoUnmute = saveData.autoUnmute !== undefined ? saveData.autoUnmute : null;
 let autoVoteLobby = saveData.autoVoteLobby !== undefined ? saveData.autoVoteLobby : false;
 let autoVoteSkip = saveData.autoVoteSkip !== undefined ? saveData.autoVoteSkip : null;
@@ -198,7 +198,11 @@ function setup() {
             volumeController.adjustVolume();
         }
         if (!quiz.isSpectator && quiz.gameMode !== "Ranked") {
-            if (autoThrow.text) {
+            if (quiz.answerInput.multipleChoice.displayed && autoThrow.multichoice) {
+                let index = autoThrow.multichoice === "random" ? number = Math.floor(Math.random() * 4) : autoThrow.multichoice - 1;
+                setTimeout(() => { quiz.answerInput.multipleChoice.handleClick(quiz.answerInput.multipleChoice.answerOptions[index]) }, autoThrow.time1);
+            }
+            else if (autoThrow.text) {
                 if (autoThrow.time2) {
                     setTimeout(() => { quiz.answerInput.setNewAnswer(autoThrow.text) }, Math.floor(Math.random() * (autoThrow.time2 - autoThrow.time1 + 1)) + autoThrow.time1);
                 }
@@ -206,7 +210,9 @@ function setup() {
                     setTimeout(() => { quiz.answerInput.setNewAnswer(autoThrow.text) }, autoThrow.time1);
                 }
             }
-            if (autoVoteSkip !== null) setTimeout(() => { quiz.skipClicked() }, autoVoteSkip);
+            if (autoVoteSkip !== null) {
+                setTimeout(() => { if (!quiz.skipController._toggled) quiz.skipClicked() }, autoVoteSkip);
+            }
         }
         if (autoMute !== null) {
             let time = Array.isArray(autoMute) ? Math.floor(Math.random() * (autoMute[1] - autoMute[0] + 1)) + autoMute[0] : autoMute;
@@ -242,6 +248,7 @@ function setup() {
         if (autoKey) sendSystemMessage("Auto Key: Enabled");
         if (autoCopy) sendSystemMessage("Auto Copy: " + autoCopy);
         if (autoThrow.text) sendSystemMessage("Auto Throw: " + autoThrow.text);
+        if (autoThrow.multichoice) sendSystemMessage("Auto Throwing Multi Choice Option: " + autoThrow.multichoice);
         if (autoMute !== null) sendSystemMessage("Auto Mute: " + (Array.isArray(autoMute) ? `random ${autoMute[0] / 1000}s - ${autoMute[1] / 1000}s` : `${autoMute / 1000}s`));
         if (autoUnmute !== null) sendSystemMessage("Auto Unmute: " + (Array.isArray(autoUnmute) ? `random ${autoUnmute[0] / 1000}s - ${autoUnmute[1] / 1000}s` : `${autoUnmute / 1000}s`));
         if (playbackSpeed !== null) sendSystemMessage("Song Playback Speed: " + (Array.isArray(playbackSpeed) ? `random ${playbackSpeed[0]}x - ${playbackSpeed[1]}x` : `${playbackSpeed}x`));
@@ -428,7 +435,12 @@ function setup() {
         }
     });
     if (autoJoinRoom) {
-        if (autoJoinRoom.type === "solo") {
+        if (autoJoinRoom.rejoin) {
+            if (document.querySelector(".swal2-container")) {
+                document.querySelectorAll(".swal2-container button")[1].click();
+            }
+        }
+        else if (autoJoinRoom.type === "solo") {
             hostModal.changeSettings(autoJoinRoom.settings);
             hostModal.soloMode = true;
             setTimeout(() => { roomBrowser.host() }, 10);
@@ -704,7 +716,7 @@ function parseCommand(content, type, target) {
     else if (/^\/(avs|autoskip|autovoteskip) [0-9.]+$/i.test(content)) {
         let seconds = parseFloat(/^\S+ ([0-9.]+)$/.exec(content)[1]);
         if (isNaN(seconds)) return;
-        autoVoteSkip = seconds * 1000;
+        autoVoteSkip = Math.floor(seconds * 1000);
         sendMessage(`auto vote skip after ${seconds} seconds`, type, target, true);
     }
     else if (/^\/(ak|autokey|autosubmit)$/i.test(content)) {
@@ -712,32 +724,52 @@ function parseCommand(content, type, target) {
         saveSettings();
         sendMessage("auto key " + (autoKey ? "enabled" : "disabled"), type, target, true);
     }
-    else if (/^\/(at|att|autothrow|autothrowtime)$/i.test(content)) {
-        autoThrow = {time1: null, time2: null, text: null};
+    else if (/^\/(at|att|atmc|autothrow|autothrowtime|autothrowmc|autothrowmultichoice|autothrowmultiplechoice)$/i.test(content)) {
+        autoThrow = {time1: null, time2: null, text: null, multichoice: null};
         sendMessage("auto throw disabled", type, target, true);
     }
     else if (/^\/(at|autothrow) .+$/i.test(content)) {
         autoThrow.time1 = 1;
         autoThrow.time2 = null;
         autoThrow.text = translateShortcodeToUnicode(/^\S+ (.+)$/.exec(content)[1]).text;
+        autoThrow.multichoice = null;
         sendMessage("auto throwing: " + autoThrow.text, type, target, true);
     }
     else if (/^\/(att|autothrowtime) [0-9.]+ .+$/i.test(content)) {
         let time1 = parseFloat(/^\S+ ([0-9.]+) .+$/.exec(content)[1]);
         if (isNaN(time1)) return;
-        autoThrow.time1 = time1 * 1000;
+        autoThrow.time1 = Math.floor(time1 * 1000);
         autoThrow.time2 = null;
         autoThrow.text = translateShortcodeToUnicode(/^\S+ [0-9.]+ (.+)$/.exec(content)[1]).text;
+        autoThrow.multichoice = null;
         sendMessage(`auto throwing: ${autoThrow.text} after ${time1} seconds`, type, target, true);
     }
     else if (/^\/(att|autothrowtime) [0-9.]+[ -][0-9.]+ .+$/i.test(content)) {
         let time1 = parseFloat(/^\S+ ([0-9.]+)[ -][0-9.]+ .+$/.exec(content)[1]);
         let time2 = parseFloat(/^\S+ [0-9.]+[ -]([0-9.]+) .+$/.exec(content)[1]);
         if (isNaN(time1) || isNaN(time2)) return;
-        autoThrow.time1 = time1 * 1000;
-        autoThrow.time2 = time2 * 1000;
+        autoThrow.time1 = Math.floor(time1 * 1000);
+        autoThrow.time2 = Math.floor(time2 * 1000);
         autoThrow.text = translateShortcodeToUnicode(/^\S+ [0-9.]+[ -][0-9.]+ (.+)$/.exec(content)[1]).text;
+        autoThrow.multichoice = null;
         sendMessage(`auto throwing: ${autoThrow.text} after ${time1}-${time2} seconds`, type, target, true);
+    }
+    else if (/^\/(atmc|autothrowmc|autothrowmultichoice|autothrowmultiplechoice) \S+$/i.test(content)) {
+        let option = /^\S+ (\S+)$/.exec(content)[1];
+        if (option === "r" || option === "random") {
+            autoThrow.time1 = 100;
+            autoThrow.time2 = null;
+            autoThrow.text = null;
+            autoThrow.multichoice = "random";
+            sendMessage(`auto throwing multi choice item: ${autoThrow.multichoice}`, type, target, true);
+        }
+        else if (option === "1" || option === "2" || option === "3" || option === "4") {
+            autoThrow.time1 = 100;
+            autoThrow.time2 = null;
+            autoThrow.text = null;
+            autoThrow.multichoice = parseInt(option);
+            sendMessage(`auto throwing multi choice item: ${autoThrow.multichoice}`, type, target, true);
+        }
     }
     else if (/^\/(ac|autocopy)$/i.test(content)) {
         autoCopy = "";
@@ -758,7 +790,7 @@ function parseCommand(content, type, target) {
     else if (/^\/(am|automute) [0-9.]+$/i.test(content)) {
         let seconds = parseFloat(/^\S+ ([0-9.]+)$/.exec(content)[1]);
         if (isNaN(seconds)) return;
-        autoMute = seconds * 1000;
+        autoMute = Math.floor(seconds * 1000);
         autoUnmute = null;
         sendMessage(`auto muting after ${seconds} second${seconds === 1 ? "" : "s"}`, type, target, true);
     }
@@ -766,7 +798,7 @@ function parseCommand(content, type, target) {
         let low = parseFloat(/^\S+ ([0-9.]+)[ -][0-9.]+$/.exec(content)[1]);
         let high = parseFloat(/^\S+ [0-9.]+[ -]([0-9.]+)$/.exec(content)[1]);
         if (isNaN(low) || isNaN(high) || low >= high) return;
-        autoMute = [low * 1000, high * 1000];
+        autoMute = [Math.floor(low * 1000), Math.floor(high * 1000)];
         autoUnmute = null;
         sendMessage(`auto muting after random # of seconds between ${low} - ${high}`, type, target, true);
     }
@@ -781,7 +813,7 @@ function parseCommand(content, type, target) {
     else if (/^\/(au|autounmute) [0-9.]+$/i.test(content)) {
         let seconds = parseFloat(/^\S+ ([0-9.]+)$/.exec(content)[1]);
         if (isNaN(seconds)) return;
-        autoUnmute = seconds * 1000;
+        autoUnmute = Math.floor(seconds * 1000);
         autoMute = null;
         sendMessage(`auto unmuting after ${seconds} second${seconds === 1 ? "" : "s"}`, type, target, true);
     }
@@ -789,7 +821,7 @@ function parseCommand(content, type, target) {
         let low = parseFloat(/^\S+ ([0-9.]+)[ -][0-9.]+$/.exec(content)[1]);
         let high = parseFloat(/^\S+ [0-9.]+[ -]([0-9.]+)$/.exec(content)[1]);
         if (isNaN(low) || isNaN(high) || low >= high) return;
-        autoUnmute = [low * 1000, high * 1000];
+        autoUnmute = [Math.floor(low * 1000), Math.floor(high * 1000)];
         autoMute = null;
         sendMessage(`auto unmuting after random # of seconds between ${low} - ${high}`, type, target, true);
     }
@@ -1105,33 +1137,33 @@ function parseCommand(content, type, target) {
     }
     else if (/^\/(relog|logout rejoin|loggoff rejoin)$/i.test(content)) {
         if (isSoloMode()) {
-            autoJoinRoom = {type: "solo", temp: true, settings: hostModal.getSettings(), autoLogIn: true};
+            autoJoinRoom = {type: "solo", rejoin: quiz.inQuiz, temp: true, settings: hostModal.getSettings(), autoLogIn: true};
             saveSettings();
-            setTimeout(() => { viewChanger.changeView("main") }, 1);
-            setTimeout(() => { window.location = "/" }, 10);
+            window.onbeforeunload = null;
+            setTimeout(() => { window.location = "/?forceLogin=True" }, 1);
         }
         else if (isRankedMode()) {
-            autoJoinRoom = {type: hostModal.getSettings().roomName.toLowerCase(), temp: true, autoLogIn: true};
+            autoJoinRoom = {type: hostModal.getSettings().roomName.toLowerCase(), rejoin: quiz.inQuiz && !quiz.isSpectator, temp: true, autoLogIn: true};
             saveSettings();
-            setTimeout(() => { viewChanger.changeView("main") }, 1);
-            setTimeout(() => { window.location = "/" }, 10);
+            window.onbeforeunload = null;
+            setTimeout(() => { window.location = "/?forceLogin=True" }, 1);
         }
         else if (lobby.inLobby) {
             let password = hostModal.getSettings().password;
             autoJoinRoom = {type: "multiplayer", id: lobby.gameId, password: password, joinAsPlayer: !lobby.isSpectator, temp: true, autoLogIn: true};
             saveSettings();
-            setTimeout(() => { viewChanger.changeView("main") }, 1);
-            setTimeout(() => { window.location = "/" }, 10);
+            window.onbeforeunload = null;
+            setTimeout(() => { window.location = "/?forceLogin=True" }, 1);
         }
         else if (quiz.inQuiz || battleRoyal.inView) {
             let gameInviteListener = new Listener("game invite", (payload) => {
                 if (payload.sender === selfName) {
                     gameInviteListener.unbindListener();
                     let password = hostModal.getSettings().password;
-                    autoJoinRoom = {type: "multiplayer", id: payload.gameId, password: password, temp: true, autoLogIn: true};
+                    autoJoinRoom = {type: "multiplayer", id: payload.gameId, password: password, rejoin: !quiz.isSpectator, temp: true, autoLogIn: true};
                     saveSettings();
-                    setTimeout(() => { viewChanger.changeView("main") }, 1);
-                    setTimeout(() => { window.location = "/" }, 10);
+                    window.onbeforeunload = null;
+                    setTimeout(() => { window.location = "/?forceLogin=True" }, 1);
                 }
             });
             gameInviteListener.bindListener();
@@ -1142,28 +1174,34 @@ function parseCommand(content, type, target) {
                 if (Object.keys(nexusCoopChat.playerMap).length > 1) {
                     autoJoinRoom = {type: "nexus coop", id: $("#ncdwPartySetupLobbyIdText").text(), temp: true, autoLogIn: true};
                     saveSettings();
-                    setTimeout(() => { viewChanger.changeView("main") }, 1);
-                    setTimeout(() => { window.location = "/" }, 10);
+                    window.onbeforeunload = null;
+                    setTimeout(() => { window.location = "/?forceLogin=True" }, 1);
                 }
                 else {
                     autoJoinRoom = {type: "nexus coop", temp: true, autoLogIn: true};
                     saveSettings();
-                    setTimeout(() => { viewChanger.changeView("main") }, 1);
-                    setTimeout(() => { window.location = "/" }, 10);
+                    window.onbeforeunload = null;
+                    setTimeout(() => { window.location = "/?forceLogin=True" }, 1);
                 }
             }
             else {
                 autoJoinRoom = {type: "nexus solo", temp: true, autoLogIn: true};
                 saveSettings();
-                setTimeout(() => { viewChanger.changeView("main") }, 1);
-                setTimeout(() => { window.location = "/" }, 10);
+                window.onbeforeunload = null;
+                setTimeout(() => { window.location = "/?forceLogin=True" }, 1);
             }
+        }
+        else if (nexus.inNexusGame) {
+            autoJoinRoom = {type: "nexus coop", rejoin: true, temp: true, autoLogIn: true};
+            saveSettings();
+            window.onbeforeunload = null;
+            setTimeout(() => { window.location = "/?forceLogin=True" }, 1);
         }
         else {
             autoJoinRoom = {temp: true, autoLogIn: true};
             saveSettings();
-            setTimeout(() => { viewChanger.changeView("main") }, 1);
-            setTimeout(() => { window.location = "/" }, 10);
+            window.onbeforeunload = null;
+            setTimeout(() => { window.location = "/?forceLogin=True" }, 1);
         }
     }
     else if (/^\/alien$/i.test(content)) {
@@ -1320,7 +1358,7 @@ function parseIncomingDM(content, sender) {
             else if (/^\/(fi|forceinvite)$/i.test(content) && inRoom()) {
                 socket.sendCommand({type: "social", command: "invite to game", data: {target: sender}});
             }
-            else if (/^\/(fp|forcepassword)$/i.test(content) && inRoom()) {
+            else if (/^\/(fp|fpw|forcepassword)$/i.test(content) && inRoom()) {
                 sendMessage("password: " + hostModal.getSettings().password, "dm", sender);
             }
             else if (/^\/(fh|forcehost)$/i.test(content)) {
@@ -1381,7 +1419,7 @@ function parseIncomingDM(content, sender) {
  */
 function parseForceAll(content, type) {
     if (/^\/forceall version$/i.test(content)) {
-        sendMessage("0.76", type);
+        sendMessage("0.77", type);
     }
     else if (/^\/forceall roll [0-9]+$/i.test(content)) {
         let number = parseInt(/^\S+ roll ([0-9]+)$/.exec(content)[1]);
@@ -1398,7 +1436,7 @@ function parseForceAll(content, type) {
         else sendMessage("speed: " + (Array.isArray(playbackSpeed) ? `random ${playbackSpeed[0]}x - ${playbackSpeed[1]}x` : `${playbackSpeed}x`), type);
     }
     else if (/^\/forceall skip$/i.test(content)) {
-        quiz.skipClicked();
+        if (!quiz.skipController._toggled) quiz.skipClicked();
     }
     else if (/^\/forceall share ?entries$/i.test(content)) {
         sendMessage(options.$MAl_SHARE_CHECKBOX.prop("checked"), type);
@@ -1810,6 +1848,7 @@ function autoList() {
     if (autoKey) list.push("Auto Key: Enabled");
     if (autoCopy) list.push("Auto Copy: " + autoCopy);
     if (autoThrow.text) list.push("Auto Throw: " + autoThrow.text);
+    if (autoThrow.multichoice) list.push("Auto Throwing Multi Choice Option: " + autoThrow.multichoice);
     if (autoMute !== null) list.push("Auto Mute: " + (Array.isArray(autoMute) ? `random ${autoMute[0] / 1000}s - ${autoMute[1] / 1000}s` : `${autoMute / 1000}s`));
     if (autoUnmute !== null) list.push("Auto Unmute: " + (Array.isArray(autoUnmute) ? `random ${autoUnmute[0] / 1000}s - ${autoUnmute[1] / 1000}s` : `${autoUnmute / 1000}s`));
     if (autoReady) list.push("Auto Ready: Enabled");
@@ -1944,12 +1983,13 @@ function applyStyles() {
     let style = document.createElement("style");
     style.type = "text/css";
     style.id = "megaCommandsStyle";
-    let text = `
+    let text = "";
+    if (backgroundURL) text += `
         #loadingScreen, #gameContainer {
-            background-image: ${backgroundURL ? "url(" + backgroundURL + ")" : "-webkit-image-set(url(../img/backgrounds/normal/bg-x1.jpg) 1x, url(../img/backgrounds/normal/bg-x2.jpg) 2x)"};
+            background-image: url("${backgroundURL}");
         }
         #gameChatPage .col-xs-9 {
-            background-image: ${backgroundURL ? "none" : "-webkit-image-set(url(../img/backgrounds/blur/bg-x1.jpg) 1x, url(../img/backgrounds/blur/bg-x2.jpg) 2x)"};
+            background-image: none;
         }
     `;
     if (hidePlayers) text += `

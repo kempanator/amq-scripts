@@ -382,7 +382,7 @@ function setup() {
                 let annUrl = payload.songInfo.siteIds.annId ? "https://www.animenewsnetwork.com/encyclopedia/anime.php?id=" + payload.songInfo.siteIds.annId : "";
                 let url720 = payload.songInfo.urlMap.catbox?.[720] ?? payload.songInfo.urlMap.openingsmoe?.[720] ?? "";
                 let url480 = payload.songInfo.urlMap.catbox?.[480] ?? payload.songInfo.urlMap.openingsmoe?.[480] ?? "";
-                let urlmp3 = payload.songInfo.urlMap.catbox?.[0] ?? payload.songInfo.urlMap.openingsmoe?.[0] ?? "";              
+                let urlmp3 = payload.songInfo.urlMap.catbox?.[0] ?? payload.songInfo.urlMap.openingsmoe?.[0] ?? "";
                 $("#qpSongInfoLinkRow").prepend(`
                     <b id="answerStatsUrls">
                         <a href="${anilistUrl}" target="_blank" ${anilistUrl ? "" : 'class="disabled"'}>ANI</a>
