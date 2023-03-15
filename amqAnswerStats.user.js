@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Answer Stats
 // @namespace    https://github.com/kempanator
-// @version      0.7
+// @version      0.8
 // @description  Adds a window to display quiz answer stats
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -34,7 +34,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.7";
+const version = "0.8";
 const regionDictionary = {E: "Eastern", C: "Central", W: "Western"};
 let answerStatsWindow;
 let answerSpeedWindow;
@@ -42,8 +42,8 @@ let answerHistoryWindow;
 let answerCompareWindow;
 let anisongdbWindow;
 let answers = {}; //{1: {name, id, answer, correct}, ...}
-let songHistory = {}; //{1: {romaji, english, number, artist, song, type, vintage, difficulty}, ...}
-let answerHistory = {}; //{1: {name, id, level, score, rank, box, averageTime, answers: {1: {number, text, speed, correct, invalidAnswer, uniqueAnswer, noAnswer}, ...}, ...}
+let songHistory = {}; //{1: {romaji, english, number, artist, song, type, vintage, difficulty, answers: {1: {number, text, speed, correct, invalidAnswer, uniqueAnswer, noAnswer}, ...}, ...}
+let playerInfo = {}; //{1: {name, id, level, score, rank, box, averageTime, correctTimeList}, ...}
 let listLowerCase = [];
 let answerHistoryButton = true;
 let answerSpeedButton = true;
@@ -119,69 +119,61 @@ function setup() {
         let otherAnswerIdList = []; //unique incorrect answers
         let invalidAnswerIdList = [];
         let noAnswerIdList = [];
+        songHistory[songNumber] = {
+            romaji: payload.songInfo.animeNames.romaji,
+            english: payload.songInfo.animeNames.english,
+            number: songNumber,
+            artist: payload.songInfo.artist,
+            song: payload.songInfo.songName,
+            type: typeText(payload.songInfo.type, payload.songInfo.typeNumber),
+            vintage: payload.songInfo.vintage,
+            difficulty: Math.round(payload.songInfo.animeDifficulty),
+            groupSlotMap: {...payload.groupMap},
+            answers: {}
+        };
         payload.songInfo.altAnimeNames.concat(payload.songInfo.altAnimeNamesAnswers).forEach((anime) => { correctAnswerIdList[anime] = [] });
         for (let player of payload.players) {
             let quizPlayer = answers[player.gamePlayerId];
             if (quizPlayer) {
                 quizPlayer.correct = player.correct;
-                if (player.correct) {
-                    let speed = validateSpeed(amqAnswerTimesUtility.playerTimes[player.gamePlayerId]);
-                    if (speed) correctPlayers[answers[player.gamePlayerId].name] = speed;
-                    let item = answerHistory[player.gamePlayerId];
-                    if (item) {
-                        item.level = player.level;
-                        item.score = getScore(player);
-                        item.rank = player.position;
-                        item.answers[songNumber] = {number: songNumber, text: answers[player.gamePlayerId].answer, speed: speed, correct: true, rank: item.rank, score: item.score};
-                        if (speed) {
-                            item.correctTimeList.push(speed);
-                            item.averageTime = item.correctTimeList.reduce((a, b) => a + b) / item.correctTimeList.length;
-                            //item.standardDeviation = Math.sqrt(item.correctTimeList.map((x) => (x - item.averageTime) ** 2).reduce((a, b) => a + b) / item.correctTimeList.length);
-                        }
-                    }
-                    else {
-                        answerHistory[player.gamePlayerId] = {
-                            name: quizPlayer.name,
-                            id: player.gamePlayerId,
-                            level: player.level,
-                            score: getScore(player),
-                            rank: player.position,
-                            answers: {[songNumber]: {number: songNumber, text: answers[player.gamePlayerId].answer, speed: speed, correct: true, rank: player.position, score: getScore(player)}},
-                            correctTimeList: speed ? [speed] : [],
-                            averageTime: speed ? speed : 0,
-                            standardDeviation: 0
-                        };
+                let speed = validateSpeed(amqAnswerTimesUtility.playerTimes[player.gamePlayerId]);
+                if (player.correct && speed) correctPlayers[answers[player.gamePlayerId].name] = speed;
+                let item = playerInfo[player.gamePlayerId];
+                if (item) {
+                    item.level = player.level;
+                    item.score = getScore(player);
+                    item.rank = player.position;
+                    if (player.correct && speed) {
+                        item.correctTimeList.push(speed);
+                        item.averageTime = item.correctTimeList.reduce((a, b) => a + b) / item.correctTimeList.length;
+                        //item.standardDeviation = Math.sqrt(item.correctTimeList.map((x) => (x - item.averageTime) ** 2).reduce((a, b) => a + b) / item.correctTimeList.length);
                     }
                 }
                 else {
-                    let speed = validateSpeed(amqAnswerTimesUtility.playerTimes[player.gamePlayerId]);
-                    let item = answerHistory[player.gamePlayerId];
-                    if (item) {
-                        item.level = player.level;
-                        item.score = getScore(player);
-                        item.rank = player.position;
-                        item.answers[songNumber] = {number: songNumber, text: answers[player.gamePlayerId].answer, speed: speed, correct: false, rank: item.rank, score: item.score};
-                    }
-                    else {
-                        answerHistory[player.gamePlayerId] = {
-                            name: quizPlayer.name,
-                            id: player.gamePlayerId,
-                            level: player.level,
-                            score: getScore(player),
-                            rank: player.position,
-                            answers: {[songNumber]: {number: songNumber, text: answers[player.gamePlayerId].answer, speed: speed, correct: false, rank: player.position, score: getScore(player)}},
-                            correctTimeList: [],
-                            averageTime: 0,
-                            standardDeviation: 0
-                        };
-                    }
+                    playerInfo[player.gamePlayerId] = {
+                        name: quizPlayer.name,
+                        id: player.gamePlayerId,
+                        level: player.level,
+                        score: getScore(player),
+                        rank: player.position,
+                        correctTimeList: (player.correct && speed) ? [speed] : [],
+                        averageTime: (player.correct && speed) ? speed : 0,
+                        standardDeviation: 0
+                    };
                 }
+                songHistory[songNumber].answers[player.gamePlayerId] = {
+                    text: answers[player.gamePlayerId].answer,
+                    speed: speed,
+                    correct: player.correct,
+                    rank: player.position,
+                    score: getScore(player)
+                };
             }
         }
         for (let player of Object.values(answers)) {
             if (player.answer.trim() === "") {
                 noAnswerIdList.push(player.id);
-                answerHistory[player.id].answers[songNumber].noAnswer = true;
+                songHistory[songNumber].answers[player.id].noAnswer = true;
             }
             else {
                 let answerLowerCase = player.answer.toLowerCase();
@@ -197,7 +189,7 @@ function setup() {
                     }
                     else {
                         invalidAnswerIdList.push(player.id);
-                        answerHistory[player.id].answers[songNumber].invalidAnswer = true;
+                        songHistory[songNumber].answers[player.id].invalidAnswer = true;
                     }
                 }
             }
@@ -210,22 +202,11 @@ function setup() {
             if (incorrectAnswerIdList[anime].length === 1) {
                 let id = incorrectAnswerIdList[anime][0];
                 otherAnswerIdList.push(id);
-                answerHistory[id].answers[songNumber].uniqueAnswer = true;
+                songHistory[songNumber].answers[id].uniqueAnswer = true;
             }
         }
         let correctSortedKeys = Object.keys(correctAnswerIdList).sort((a, b) => correctAnswerIdList[b].length - correctAnswerIdList[a].length);
         let incorrectSortedKeys = Object.keys(incorrectAnswerIdList).sort((a, b) => incorrectAnswerIdList[b].length - incorrectAnswerIdList[a].length);
-        songHistory[songNumber] = {
-            romaji: payload.songInfo.animeNames.romaji,
-            english: payload.songInfo.animeNames.english,
-            number: songNumber,
-            artist: payload.songInfo.artist,
-            song: payload.songInfo.songName,
-            type: typeText(payload.songInfo.type, payload.songInfo.typeNumber),
-            vintage: payload.songInfo.vintage,
-            difficulty: Math.round(payload.songInfo.animeDifficulty),
-            groupSlotMap: {...payload.groupMap}
-        };
         answers = {};
 
         setTimeout(() => {
@@ -533,7 +514,22 @@ function setup() {
         answerStatsWindow.window.find(".modal-header").append($(`<button class="answerStatsHeaderButton">answer<br>history</button>`).click(() => {
             answerHistoryWindow.isVisible() ? answerHistoryWindow.close() : answerHistoryWindow.open();
         }));
-        let $div1 = $(`<div>Answer History</div>`).css({"font-size": "23px", "line-height": "normal", "margin": "6px 0 2px 8px"});
+        let $div1 = $("<div></div>");
+        $div1.append("<span>Answer History</span>").css({"font-size": "23px", "line-height": "normal", "margin": "6px 0 2px 8px"});
+        $div1.append($(`<button class="filterButton" style="font-size: 16px; margin: 0 0 0 8px; padding: 3px 7px; vertical-align: top;"><i class="fa fa-refresh" aria-hidden="true"></i></button>`)
+            .popover({
+                container: "#gameContainer",
+                placement: "top",
+                trigger: "hover",
+                content: "reset answer filter"
+            })
+            .click(function() {
+                $(this).hide();
+                songHistoryFilter = {type: "all"};
+                displaySongHistoryResults(answerHistorySettings.songNumber);
+            })
+            .hide()
+        );
         let $div2 = $("<div></div>").css("float", "left");
         let $button1 = $(`<button class="arrowButton">⯇</button>`).click(function() {
             if (Object.keys(songHistory).length) {
@@ -555,7 +551,8 @@ function setup() {
         });
         let $button3 = $(`<button class="backButton">back</button>`).hide().click(function() {
             if (Object.keys(songHistory).length) {
-                displaySongHistoryResults(answerHistorySettings.songNumber);
+                if (songHistory[answerHistorySettings.songNumber]) displaySongHistoryResults(answerHistorySettings.songNumber);
+                else displaySongHistoryResults();
             }
         });
         $div2.append(`<span id="answerHistoryCurrentSong" style="font-size: 16px; margin: 0 8px 0 8px;">Song: </span>`);
@@ -723,17 +720,17 @@ function getAnisongdbData(mode, query, partial) {
 
 // display average time list in time track window
 function displayAnswerSpeedResults() {
-    answerSpeedWindow.window.find("#averageSpeedResults").remove();
+    answerSpeedWindow.panels[0].clear();
     let sortedIds;
     if (averageSpeedSort === "time") {
         sortedIds = averageSpeedSortAscending
-            ? Object.keys(answerHistory).sort((a, b) => answerHistory[a].averageTime - answerHistory[b].averageTime)
-            : Object.keys(answerHistory).sort((a, b) => answerHistory[b].averageTime - answerHistory[a].averageTime);
+            ? Object.keys(playerInfo).sort((a, b) => playerInfo[a].averageTime - playerInfo[b].averageTime)
+            : Object.keys(playerInfo).sort((a, b) => playerInfo[b].averageTime - playerInfo[a].averageTime);
     }
     else if (averageSpeedSort === "name") {
         sortedIds = averageSpeedSortAscending
-            ? Object.keys(answerHistory).sort((a, b) => answerHistory[a].name.localeCompare(answerHistory[b].name))
-            : Object.keys(answerHistory).sort((a, b) => answerHistory[b].name.localeCompare(answerHistory[a].name));
+            ? Object.keys(playerInfo).sort((a, b) => playerInfo[a].name.localeCompare(playerInfo[b].name))
+            : Object.keys(playerInfo).sort((a, b) => playerInfo[b].name.localeCompare(playerInfo[a].name));
     }
     else if (averageSpeedSort === "score") {
         sortedIds = averageSpeedSortAscending
@@ -742,7 +739,7 @@ function displayAnswerSpeedResults() {
     }
     let $results = $(`<div id="averageSpeedResults"></div>`);
     for (let id of sortedIds) {
-        let player = answerHistory[id];
+        let player = playerInfo[id];
         if (player) {
             let $row = $("<div></div>");
             $row.append(`<span class="trackTime">${Math.round(player.averageTime)}</span>`);
@@ -767,7 +764,8 @@ function displaySongHistoryResults(songNumber) {
     answerHistoryWindow.window.find("#answerHistoryCurrentSong").text("Song: " + songNumber);
     answerHistoryWindow.window.find("#answerHistoryCurrentPlayer, .backButton").hide();
     answerHistoryWindow.window.find(".arrowButton").show();
-    answerHistoryWindow.window.find("#answerHistoryTable").remove();
+    songHistoryFilter.type === "all" ? answerHistoryWindow.window.find(".filterButton").hide() : answerHistoryWindow.window.find(".filterButton").show();
+    answerHistoryWindow.panels[0].clear();
     let $table = $(`
         <table id="answerHistoryTable" class="songMode">
             <tr class="headerRow">
@@ -781,55 +779,53 @@ function displaySongHistoryResults(songNumber) {
             </tr>
         </table>
     `);
-    let sortedKeys; 
+    let sortedKeys = Object.keys(songHistory[songNumber].answers);
     if (songHistorySort.rankSortAscending !== null) {
-        if (songHistorySort.rankSortAscending) sortedKeys = Object.keys(answerHistory).sort((a, b) => answerHistory[a].answers[songNumber].rank - answerHistory[b].answers[songNumber].rank);
-        else sortedKeys = Object.keys(answerHistory).sort((a, b) => answerHistory[b].answers[songNumber].rank - answerHistory[a].answers[songNumber].rank);
+        if (songHistorySort.rankSortAscending) sortedKeys.sort((a, b) => songHistory[songNumber].answers[a].rank - songHistory[songNumber].answers[b].rank);
+        else sortedKeys.sort((a, b) => songHistory[songNumber].answers[b].rank - songHistory[songNumber].answers[a].rank);
     }
     else if (songHistorySort.boxSortAscending !== null) {
         if (songHistorySort.boxSortAscending) sortedKeys = Object.values(songHistory[songNumber].groupSlotMap).flat();
         else sortedKeys = Object.values(songHistory[songNumber].groupSlotMap).flat().reverse();
     }
     else if (songHistorySort.scoreSortAscending !== null) {
-        if (songHistorySort.scoreSortAscending) sortedKeys = Object.keys(answerHistory).sort((a, b) => answerHistory[a].answers[songNumber].score - answerHistory[b].answers[songNumber].score);
-        else sortedKeys = Object.keys(answerHistory).sort((a, b) => answerHistory[b].answers[songNumber].score - answerHistory[a].answers[songNumber].score);
+        if (songHistorySort.scoreSortAscending) sortedKeys.sort((a, b) => songHistory[songNumber].answers[a].score - songHistory[songNumber].answers[b].score);
+        else sortedKeys.sort((a, b) => songHistory[songNumber].answers[b].score - songHistory[songNumber].answers[a].score);
     }
     else if (songHistorySort.levelSortAscending !== null) {
-        if (songHistorySort.levelSortAscending) sortedKeys = Object.keys(answerHistory).sort((a, b) => answerHistory[a].level - answerHistory[b].level);
-        else sortedKeys = Object.keys(answerHistory).sort((a, b) => answerHistory[b].level - answerHistory[a].level);
+        if (songHistorySort.levelSortAscending) sortedKeys.sort((a, b) => playerInfo[a].level - playerInfo[b].level);
+        else sortedKeys.sort((a, b) => playerInfo[b].level - playerInfo[a].level);
     }
     else if (songHistorySort.nameSortAscending !== null) {
-        if (songHistorySort.nameSortAscending) sortedKeys = Object.keys(answerHistory).sort((a, b) => answerHistory[a].name.localeCompare(answerHistory[b].name));
-        else sortedKeys = Object.keys(answerHistory).sort((a, b) => answerHistory[b].name.localeCompare(answerHistory[a].name));
+        if (songHistorySort.nameSortAscending) sortedKeys.sort((a, b) => playerInfo[a].name.localeCompare(playerInfo[b].name));
+        else sortedKeys.sort((a, b) => playerInfo[b].name.localeCompare(playerInfo[a].name));
     }
     else if (songHistorySort.speedSortAscending !== null) {
-        if (songHistorySort.speedSortAscending) sortedKeys = Object.keys(answerHistory).sort((a, b) => answerHistory[a].answers[songNumber].speed - answerHistory[b].answers[songNumber].speed);
-        else sortedKeys = Object.keys(answerHistory).sort((a, b) => answerHistory[b].answers[songNumber].speed - answerHistory[a].answers[songNumber].speed);
+        if (songHistorySort.speedSortAscending) sortedKeys.sort((a, b) => songHistory[songNumber].answers[a].speed - songHistory[songNumber].answers[b].speed);
+        else sortedKeys.sort((a, b) => songHistory[songNumber].answers[b].speed - songHistory[songNumber].answers[a].speed);
     }
     else if (songHistorySort.answerSortAscending !== null) {
-        if (songHistorySort.answerSortAscending) sortedKeys = Object.keys(answerHistory).sort((a, b) => answerHistory[a].answers[songNumber].text.localeCompare(answerHistory[b].answers[songNumber].text));
-        else sortedKeys = Object.keys(answerHistory).sort((a, b) => answerHistory[b].answers[songNumber].text.localeCompare(answerHistory[a].answers[songNumber].text));
+        if (songHistorySort.answerSortAscending) sortedKeys.sort((a, b) => songHistory[songNumber].answers[a].text.localeCompare(songHistory[songNumber].answers[b].text));
+        else sortedKeys.sort((a, b) => songHistory[songNumber].answers[b].text.localeCompare(songHistory[songNumber].answers[a].text));
     }
     for (let id of sortedKeys) {
-        let player = answerHistory[id];
-        if (player) {
-            let answer = player.answers[songNumber];
-            if (answer) {
-                if (songHistoryFilter.type === "all" || (songHistoryFilter.type === "allCorrectAnswers" && answer.correct) || (songHistoryFilter.type === "allWrongAnswers" && !answer.correct) ||
-                (songHistoryFilter.type === "answer" && songHistoryFilter.answer.toLowerCase() === answer.text.toLowerCase()) || (songHistoryFilter.type === "noAnswers" && answer.noAnswer) ||
-                (songHistoryFilter.type === "uniqueValidWrongAnswers" && answer.uniqueAnswer) || (songHistoryFilter.type === "invalidAnswers" && answer.invalidAnswer)) {
-                    $table.append(`
-                        <tr class="bodyRow">
-                            <td class="rank">${answer.rank}</td>
-                            <td class="box clickAble">${findBoxById(player.id, songHistory[songNumber].groupSlotMap)}</td>
-                            <td class="score">${answer.score}</td>
-                            <td class="level">${player.level}</td>
-                            <td class="name clickAble"><i class="fa fa-id-card-o clickAble" aria-hidden="true" onclick="playerProfileController.loadProfile('${player.name}', $('#answerHistoryWindow'), {}, () => {}, false, true)"></i>${player.name}</td>
-                            <td class="speed">${answer.speed ? answer.speed : ""}</td>
-                            <td class="answer clickAble"><i class="fa ${answer.correct ? "fa-check" : "fa-times"}"></i>${answer.text}</td>
-                        </tr>
-                    `);
-                }
+        let player = playerInfo[id];
+        let answer = songHistory[songNumber].answers[id];
+        if (player && answer) {
+            if (songHistoryFilter.type === "all" || (songHistoryFilter.type === "allCorrectAnswers" && answer.correct) || (songHistoryFilter.type === "allWrongAnswers" && !answer.correct) ||
+            (songHistoryFilter.type === "answer" && songHistoryFilter.answer.toLowerCase() === answer.text.toLowerCase()) || (songHistoryFilter.type === "noAnswers" && answer.noAnswer) ||
+            (songHistoryFilter.type === "uniqueValidWrongAnswers" && answer.uniqueAnswer) || (songHistoryFilter.type === "invalidAnswers" && answer.invalidAnswer)) {
+                $table.append(`
+                    <tr class="bodyRow">
+                        <td class="rank">${answer.rank}</td>
+                        <td class="box clickAble">${findBoxById(player.id, songHistory[songNumber].groupSlotMap)}</td>
+                        <td class="score">${answer.score}</td>
+                        <td class="level">${player.level}</td>
+                        <td class="name clickAble"><i class="fa fa-id-card-o clickAble" aria-hidden="true" onclick="playerProfileController.loadProfile('${player.name}', $('#answerHistoryWindow'), {}, () => {}, false, true)"></i>${player.name}</td>
+                        <td class="speed">${answer.speed ? answer.speed : ""}</td>
+                        <td class="answer clickAble"><i class="fa ${answer.correct ? "fa-check" : "fa-times"}"></i>${answer.text}</td>
+                    </tr>
+                `);
             }
         }
     }
@@ -901,7 +897,7 @@ function displaySongHistoryResults(songNumber) {
     });
     $table.on("click", "td", (event) => {
         if (event.target.classList.contains("name")) {
-            displayPlayerHistoryResults(Object.values(answerHistory).find((player) => player.name === event.target.innerText).id);
+            displayPlayerHistoryResults(Object.values(playerInfo).find((player) => player.name === event.target.innerText).id);
         }
         else if (event.target.classList.contains("box")) {
             selectAvatarGroup(parseInt(event.target.innerText));
@@ -918,12 +914,12 @@ function displaySongHistoryResults(songNumber) {
 
 // create a table with each row being 1 answer
 function displayPlayerHistoryResults(id) {
-    let player = answerHistory[id];
+    let player = playerInfo[id];
     if (!player) return;
     answerHistoryWindow.window.find("#answerHistoryCurrentPlayer").text("Player: " + player.name);
-    answerHistoryWindow.window.find(".arrowButton").hide();
+    answerHistoryWindow.window.find(".arrowButton, .filterButton").hide();
     answerHistoryWindow.window.find("#answerHistoryCurrentPlayer, .backButton").show();
-    answerHistoryWindow.window.find("#answerHistoryTable").remove();
+    answerHistoryWindow.panels[0].clear();
     let $table = $(`
         <table id="answerHistoryTable" class="playerMode">
             <tr class="headerRow">
@@ -934,26 +930,25 @@ function displayPlayerHistoryResults(id) {
             </tr>
         </table>
     `);
-    let sortedKeys;
-    let answers = player.answers;
+    let sortedKeys = Object.keys(songHistory).filter((songNumber) => songHistory[songNumber].answers[id]);
     if (playerHistorySort.numberSortAscending !== null) {
-        if (playerHistorySort.numberSortAscending) sortedKeys = Object.keys(answers).sort((a, b) => answers[a].number - answers[b].number);
-        else sortedKeys = Object.keys(answers).sort((a, b) => answers[b].number - answers[a].number);
+        if (playerHistorySort.numberSortAscending) sortedKeys.sort((a, b) => parseInt(a) - parseInt(b));
+        else sortedKeys.sort((a, b) => parseInt(b) - parseInt(a));
     }
     else if (playerHistorySort.difSortAscending !== null) {
-        if (playerHistorySort.difSortAscending) sortedKeys = Object.keys(answers).sort((a, b) => songHistory[a].difficulty - songHistory[b].difficulty);
-        else sortedKeys = sortedKeys = Object.keys(answers).sort((a, b) => songHistory[b].difficulty - songHistory[a].difficulty);
+        if (playerHistorySort.difSortAscending) sortedKeys.sort((a, b) => songHistory[a].difficulty - songHistory[b].difficulty);
+        else sortedKeys.sort((a, b) => songHistory[b].difficulty - songHistory[a].difficulty);
     }
     else if (playerHistorySort.speedSortAscending !== null) {
-        if (playerHistorySort.speedSortAscending) sortedKeys = Object.keys(answers).sort((a, b) => answers[a].speed - answers[b].speed);
-        else sortedKeys = Object.keys(answers).sort((a, b) => answers[b].speed - answers[a].speed);
+        if (playerHistorySort.speedSortAscending) sortedKeys.sort((a, b) => songHistory[a].answers[id].speed - songHistory[b].answers[id].speed);
+        else sortedKeys.sort((a, b) => songHistory[b].answers[id].speed - songHistory[a].answers[id].speed);
     }
     else if (playerHistorySort.answerSortAscending !== null) {
-        if (playerHistorySort.answerSortAscending) sortedKeys = Object.keys(answers).sort((a, b) => answers[a].text.localeCompare(answers[b].text));
-        else sortedKeys = Object.keys(answers).sort((a, b) => answers[b].text.localeCompare(answers[a].text));
+        if (playerHistorySort.answerSortAscending) sortedKeys.sort((a, b) => songHistory[a].answers[id].text.localeCompare(songHistory[b].answers[id].text));
+        else sortedKeys.sort((a, b) => songHistory[b].answers[id].text.localeCompare(songHistory[a].answers[id].text));
     }
     for (let songNumber of sortedKeys) {
-        let answer = player.answers[songNumber];
+        let answer = songHistory[songNumber].answers[id];
         $table.append(`
             <tr class="bodyRow">
                 <td class="songNumber clickAble">${songNumber}</td>
@@ -1002,15 +997,15 @@ function displayPlayerHistoryResults(id) {
 }
 
 function displayAnswerCompareResults(text) {
-    let players = text.split(/[\s,]+/).filter(Boolean).map((x) => x.toLowerCase());
     answerCompareWindow.panels[0].clear();
+    let players = text.split(/[\s,]+/).filter(Boolean).map((x) => x.toLowerCase());
     if (players.length < 2) {
         answerCompareWindow.panels[0].panel.append(`<p>Please add 2 or more players</p>`);
         return;
     }
     let idList = [];
     for (let name of players) {
-        let item = Object.values(answerHistory).find((x) => x.name.toLowerCase() === name);
+        let item = Object.values(playerInfo).find((x) => x.name.toLowerCase() === name);
         if (item) {
             idList.push(item.id);
         }
@@ -1028,7 +1023,7 @@ function displayAnswerCompareResults(text) {
     for (let songNumber of Object.keys(songHistory)) {
         let answers = [];
         for (let id of idList) {
-            let answer = answerHistory[id].answers[songNumber];
+            let answer = songHistory[songNumber].answers[id];
             answer ? answers.push(answer) : answers.push(null);
         }
         if (answers.filter(Boolean).length > 0) {
@@ -1080,7 +1075,15 @@ function getScore(player) {
 
 function resetHistory() {
     songHistory = {};
-    answerHistory = {};
+    playerInfo = {};
+    answerHistorySettings = {mode: "song", songNumber: null, playerId: null, roomName: ""};
+    answerHistoryWindow.window.find("#answerHistoryCurrentSong").text("Song: ");
+    answerHistoryWindow.window.find("#answerHistoryCurrentPlayer, .backButton, .filterButton").hide();
+    answerHistoryWindow.window.find(".arrowButton").show();
+    answerStatsWindow.panels[0].clear();
+    answerHistoryWindow.panels[0].clear();
+    answerSpeedWindow.panels[0].clear();
+    answerCompareWindow.panels[0].clear();
 }
 
 function findBoxById(id, groupSlotMap) {
@@ -1099,7 +1102,7 @@ function downloadAverageAnswerTimes() {
     let date = new Date();
     let fileName = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, 0)}-${String(date.getDate()).padStart(2, 0)} ${String(date.getHours()).padStart(2, 0)}:${String(date.getMinutes()).padStart(2, 0)}:${String(date.getSeconds()).padStart(2, 0)} average answer times`;
     let text = "";
-    Object.values(answerHistory).forEach((player) => { text += `${player.averageTime} ${player.name} ${player.score}\n` });
+    Object.values(playerInfo).forEach((player) => { text += `${player.averageTime} ${player.name} ${player.score}\n` });
     let data = "data:text/json;charset=utf-8," + encodeURIComponent(text);
     let element = document.createElement("a");
     element.setAttribute("href", data);
