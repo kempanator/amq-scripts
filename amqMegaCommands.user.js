@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.77
+// @version      0.78
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -82,7 +82,7 @@ OTHER
 */
 
 "use strict";
-const version = "0.77";
+const version = "0.78";
 const saveData = JSON.parse(localStorage.getItem("megaCommands")) || {};
 let animeList;
 let autoAcceptInvite = saveData.autoAcceptInvite !== undefined ? saveData.autoAcceptInvite : false;
@@ -168,25 +168,24 @@ function setup() {
     if (autoStatus === "invisible") socialTab.socialStatus.changeSocialStatus(4);
     new Listener("game chat update", (payload) => {
         for (let message of payload.messages) {
-            if (isRankedMode() || !message.message.startsWith("/")) return;
-            else if (message.message.startsWith("/forceall")) parseForceAll(message.message, message.teamMessage ? "teamchat" : "chat");
-            else if (message.message.startsWith("/vote")) parseVote(message.message, message.sender);
-            else if (message.sender !== selfName) return;
-            else parseCommand(message.message, message.teamMessage ? "teamchat" : "chat");
+            if (!isRankedMode() && message.message.startsWith("/")) {
+                if (message.message.startsWith("/forceall")) parseForceAll(message.message, message.teamMessage ? "teamchat" : "chat");
+                else if (message.message.startsWith("/vote")) parseVote(message.message, message.sender);
+                else if (message.sender === selfName) parseCommand(message.message, message.teamMessage ? "teamchat" : "chat");
+            }
         }
     }).bindListener();
     new Listener("Game Chat Message", (payload) => {
-        if (isRankedMode() || !payload.message.startsWith("/")) return;
-        else if (payload.message.startsWith("/forceall")) parseForceAll(payload.message, payload.teamMessage ? "teamchat" : "chat");
-        else if (payload.sender !== selfName) return;
-        else parseCommand(payload.message, payload.teamMessage ? "teamchat" : "chat");
+        if (!isRankedMode() && payload.message.startsWith("/")) {
+            if (payload.message.startsWith("/forceall")) parseForceAll(payload.message, payload.teamMessage ? "teamchat" : "chat");
+            else if (payload.sender === selfName) parseCommand(payload.message, payload.teamMessage ? "teamchat" : "chat");
+        }
     }).bindListener();
     new Listener("chat message", (payload) => {
         parseIncomingDM(payload.message, payload.sender);
     }).bindListener();
     new Listener("chat message response", (payload) => {
-        if (!payload.msg.startsWith("/")) return;
-        parseCommand(payload.msg, "dm", payload.target);
+        if (payload.msg.startsWith("/")) parseCommand(payload.msg, "dm", payload.target);
     }).bindListener();
     new Listener("play next song", (payload) => {
         if (playbackSpeed !== null) {
@@ -310,38 +309,40 @@ function setup() {
         if (payload.error) {
             autoJoinRoom = false;
             saveSettings();
-            return;
-        }
-        if (payload.inLobby) {
-            if (autoReady) sendSystemMessage("Auto Ready: Enabled");
-            if (autoStart) sendSystemMessage("Auto Start: Enabled");
-            if (autoHost) sendSystemMessage("Auto Host: " + autoHost);
-            if (autoInvite) sendSystemMessage("Auto Invite: " + autoInvite);
-            if (autoAcceptInvite) sendSystemMessage("Auto Accept Invite: Enabled");
-            if (autoSwitch) setTimeout(() => { checkAutoSwitch() }, 100);
-            if (hidePlayers) setTimeout(() => { lobbyHidePlayers() }, 0);
         }
         else {
-            if (hidePlayers) setTimeout(() => { quizHidePlayers() }, 0);
+            if (payload.inLobby) {
+                if (autoReady) sendSystemMessage("Auto Ready: Enabled");
+                if (autoStart) sendSystemMessage("Auto Start: Enabled");
+                if (autoHost) sendSystemMessage("Auto Host: " + autoHost);
+                if (autoInvite) sendSystemMessage("Auto Invite: " + autoInvite);
+                if (autoAcceptInvite) sendSystemMessage("Auto Accept Invite: Enabled");
+                if (autoSwitch) setTimeout(() => { checkAutoSwitch() }, 100);
+                if (hidePlayers) setTimeout(() => { lobbyHidePlayers() }, 0);
+            }
+            else {
+                if (hidePlayers) setTimeout(() => { quizHidePlayers() }, 0);
+            }
         }
     }).bindListener();
     new Listener("Spectate Game", (payload) => {
         if (payload.error) {
             autoJoinRoom = false;
             saveSettings();
-            return;
-        }
-        if (payload.inLobby) {
-            if (autoReady) sendSystemMessage("Auto Ready: Enabled");
-            if (autoStart) sendSystemMessage("Auto Start: Enabled");
-            if (autoHost) sendSystemMessage("Auto Host: " + autoHost);
-            if (autoInvite) sendSystemMessage("Auto Invite: " + autoInvite);
-            if (autoAcceptInvite) sendSystemMessage("Auto Accept Invite: Enabled");
-            if (autoSwitch) setTimeout(() => { checkAutoSwitch() }, 100);
-            if (hidePlayers) setTimeout(() => { lobbyHidePlayers() }, 0);
         }
         else {
-            if (hidePlayers) setTimeout(() => { quizHidePlayers() }, 0);
+            if (payload.inLobby) {
+                if (autoReady) sendSystemMessage("Auto Ready: Enabled");
+                if (autoStart) sendSystemMessage("Auto Start: Enabled");
+                if (autoHost) sendSystemMessage("Auto Host: " + autoHost);
+                if (autoInvite) sendSystemMessage("Auto Invite: " + autoInvite);
+                if (autoAcceptInvite) sendSystemMessage("Auto Accept Invite: Enabled");
+                if (autoSwitch) setTimeout(() => { checkAutoSwitch() }, 100);
+                if (hidePlayers) setTimeout(() => { lobbyHidePlayers() }, 0);
+            }
+            else {
+                if (hidePlayers) setTimeout(() => { quizHidePlayers() }, 0);
+            }
         }
     }).bindListener();
     new Listener("New Player", (payload) => {
@@ -407,11 +408,11 @@ function setup() {
         }
     }).bindListener();
     new Listener("nexus coop chat message", (payload) => {
-        if (!payload.message.startsWith("/")) return;
-        else if (payload.message.startsWith("/forceall")) parseForceAll(payload.message, "nexus");
-        else if (payload.message.startsWith("/vote")) parseVote(payload.message, payload.sender);
-        else if (payload.sender !== selfName) return;
-        else parseCommand(payload.message, "nexus");
+        if (payload.message.startsWith("/")) {
+            if (payload.message.startsWith("/forceall")) parseForceAll(payload.message, "nexus");
+            else if (payload.message.startsWith("/vote")) parseVote(payload.message, payload.sender);
+            else if (payload.sender === selfName) parseCommand(payload.message, "nexus");
+        }
     }).bindListener();
     new Listener("nexus game invite", (payload) => {
         if (autoAcceptInvite && !inRoom() && ((autoAcceptInvite === true && isFriend(payload.sender))
@@ -1419,7 +1420,7 @@ function parseIncomingDM(content, sender) {
  */
 function parseForceAll(content, type) {
     if (/^\/forceall version$/i.test(content)) {
-        sendMessage("0.77", type);
+        sendMessage("0.78", type);
     }
     else if (/^\/forceall roll [0-9]+$/i.test(content)) {
         let number = parseInt(/^\S+ roll ([0-9]+)$/.exec(content)[1]);
@@ -1996,7 +1997,7 @@ function applyStyles() {
         .gcUserName:not(.self) {
             display: none;
         }
-        .gcUserName:not(.self) + .gcPlayerMessageBadge {
+        .chatBadges:has(+ .gcUserName:not(.self)) {
             display: none;
         }
     `;
