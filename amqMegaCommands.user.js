@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.78
+// @version      0.79
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -60,6 +60,7 @@ IN GAME/LOBBY
 /dropdownspec         enable drop down while spectating
 /speed [number]       change client-side song playback speed (0.0625 - 16)
 /mutereplay           auto mute during the replay phase
+/mutesubmit           auto mute after answer submit
 
 OTHER
 /roll                 roll number, player, teammate, playerteam, spectator
@@ -82,36 +83,37 @@ OTHER
 */
 
 "use strict";
-const version = "0.78";
+const version = "0.79";
 const saveData = JSON.parse(localStorage.getItem("megaCommands")) || {};
 let animeList;
-let autoAcceptInvite = saveData.autoAcceptInvite !== undefined ? saveData.autoAcceptInvite : false;
-let autoCopy = saveData.autoCopy !== undefined ? saveData.autoCopy : "";
-let autoHost = saveData.autoHost !== undefined ? saveData.autoHost : "";
-let autoInvite = saveData.autoInvite !== undefined ? saveData.autoInvite : "";
-let autoJoinRoom = saveData.autoJoinRoom !== undefined ? saveData.autoJoinRoom : false;
-let autoKey = saveData.autoKey !== undefined ? saveData.autoKey : false;
-let autoMute = saveData.autoMute !== undefined ? saveData.autoMute : null;
-let autoReady = saveData.autoReady !== undefined ? saveData.autoReady : false;
-let autoStart = saveData.autoStart !== undefined ? saveData.autoStart : false;
-let autoStatus = saveData.autoStatus !== undefined ? saveData.autoStatus : "";
-let autoSwitch = saveData.autoSwitch !== undefined ? saveData.autoSwitch : "";
-let autoThrow = saveData.autoThrow !== undefined ? saveData.autoThrow : {time1: null, time2: null, text: null, multichoice: null};
-let autoUnmute = saveData.autoUnmute !== undefined ? saveData.autoUnmute : null;
-let autoVoteLobby = saveData.autoVoteLobby !== undefined ? saveData.autoVoteLobby : false;
-let autoVoteSkip = saveData.autoVoteSkip !== undefined ? saveData.autoVoteSkip : null;
-let backgroundURL = saveData.backgroundURL !== undefined ? saveData.backgroundURL : "";
-let commands = saveData.commands !== undefined ? saveData.commands : true;
+let autoAcceptInvite = saveData.autoAcceptInvite ?? false;
+let autoCopy = saveData.autoCopy ?? "";
+let autoHost = saveData.autoHost ?? "";
+let autoInvite = saveData.autoInvite ?? "";
+let autoJoinRoom = saveData.autoJoinRoom ?? false;
+let autoKey = saveData.autoKey ?? false;
+let autoMute = saveData.autoMute ?? null;
+let autoReady = saveData.autoReady ?? false;
+let autoStart = saveData.autoStart ?? false;
+let autoStatus = saveData.autoStatus ?? "";
+let autoSwitch = saveData.autoSwitch ?? "";
+let autoThrow = saveData.autoThrow ?? {time1: null, time2: null, text: null, multichoice: null};
+let autoUnmute = saveData.autoUnmute ?? null;
+let autoVoteLobby = saveData.autoVoteLobby ?? false;
+let autoVoteSkip = saveData.autoVoteSkip ?? null;
+let backgroundURL = saveData.backgroundURL ?? "";
+let commands = saveData.commands ?? true;
 let countdown = null;
 let countdownInterval;
-let dropdown = saveData.dropdown !== undefined ? saveData.dropdown : true;
-let dropdownInSpec = saveData.dropdownInSpec !== undefined ? saveData.dropdownInSpec : false;
-let hidePlayers = saveData.hidePlayers !== undefined ? saveData.hidePlayers : false;
-let lastUsedVersion = saveData.lastUsedVersion !== undefined ? saveData.lastUsedVersion : null;
-let muteReplay = saveData.muteReplay !== undefined ? saveData.muteReplay : false;
-let playbackSpeed = saveData.playbackSpeed !== undefined ? saveData.playbackSpeed : null;
-let playerDetection = saveData.playerDetection !== undefined ? saveData.playerDetection : {invisible: false, players: []};
-let printLoot = saveData.printLoot !== undefined ? saveData.printLoot : false;
+let dropdown = saveData.dropdown ?? true;
+let dropdownInSpec = saveData.dropdownInSpec ?? false;
+let hidePlayers = saveData.hidePlayers ?? false;
+let lastUsedVersion = saveData.lastUsedVersion ?? null;
+let muteReplay = saveData.muteReplay ?? false;
+let muteSubmit = saveData.muteSubmit ?? false;
+let playbackSpeed = saveData.playbackSpeed ?? null;
+let playerDetection = saveData.playerDetection ?? {invisible: false, players: []};
+let printLoot = saveData.printLoot ?? false;
 let voteOptions = {};
 let votes = {};
 const rules = {
@@ -192,7 +194,7 @@ function setup() {
             let speed = Array.isArray(playbackSpeed) ? Math.random() * (playbackSpeed[1] - playbackSpeed[0]) + playbackSpeed[0] : playbackSpeed;
             quizVideoController.moePlayers.forEach((moePlayer) => { moePlayer.playbackRate = speed });
         }
-        if (muteReplay) {
+        if (muteReplay || muteSubmit) {
             volumeController.setMuted(false);
             volumeController.adjustVolume();
         }
@@ -250,8 +252,9 @@ function setup() {
         if (autoThrow.multichoice) sendSystemMessage("Auto Throwing Multi Choice Option: " + autoThrow.multichoice);
         if (autoMute !== null) sendSystemMessage("Auto Mute: " + (Array.isArray(autoMute) ? `random ${autoMute[0] / 1000}s - ${autoMute[1] / 1000}s` : `${autoMute / 1000}s`));
         if (autoUnmute !== null) sendSystemMessage("Auto Unmute: " + (Array.isArray(autoUnmute) ? `random ${autoUnmute[0] / 1000}s - ${autoUnmute[1] / 1000}s` : `${autoUnmute / 1000}s`));
+        if (muteReplay) sendSystemMessage("Mute During Replay Phase: Enabled");
+        if (muteSubmit) sendSystemMessage("Mute After Submit: Enabled");
         if (playbackSpeed !== null) sendSystemMessage("Song Playback Speed: " + (Array.isArray(playbackSpeed) ? `random ${playbackSpeed[0]}x - ${playbackSpeed[1]}x` : `${playbackSpeed}x`));
-        if (muteReplay) sendSystemMessage("Mute Replay: Enabled");
         if (hidePlayers) setTimeout(() => { quizHidePlayers() }, 0);
     }).bindListener();
     new Listener("team member answer", (payload) => {
@@ -429,10 +432,15 @@ function setup() {
     new Listener("nexus player leave", (payload) => {
         setTimeout(() => { checkAutoHost() }, 1);
     }).bindListener();
-    document.querySelector("#qpAnswerInput").addEventListener("input", (event) => {
-        let answer = event.target.value || " ";
+    $("#qpAnswerInput").on("input", (event) => {
         if (autoKey) {
-            socket.sendCommand({type: "quiz", command: "quiz answer", data: {answer: answer, isPlaying: true, volumeAtMax: false}});
+            socket.sendCommand({type: "quiz", command: "quiz answer", data: {answer: event.target.value || " ", isPlaying: true, volumeAtMax: false}});
+            quiz.answerInput.typingInput.autoSubmitEligible = false;
+        }
+    }).on("keypress", (event) => {
+        if (event.which === 13 && muteSubmit && !volumeController.muted) {
+            volumeController.setMuted(true);
+            volumeController.adjustVolume();
         }
     });
     if (autoJoinRoom) {
@@ -708,6 +716,10 @@ function parseCommand(content, type, target) {
     else if (/^\/(mr|mutereplay)$/i.test(content)) {
         muteReplay = !muteReplay;
         sendMessage("mute during replay phase " + (muteReplay ? "enabled" : "disabled"), type, target, true);
+    }
+    else if (/^\/(ms|mutesubmit)$/i.test(content)) {
+        muteSubmit = !muteSubmit;
+        sendMessage("mute after answer submit " + (muteSubmit ? "enabled" : "disabled"), type, target, true);
     }
     else if (/^\/(avs|autoskip|autovoteskip)$/i.test(content)) {
         if (autoVoteSkip === null) autoVoteSkip = 100;
@@ -1420,7 +1432,7 @@ function parseIncomingDM(content, sender) {
  */
 function parseForceAll(content, type) {
     if (/^\/forceall version$/i.test(content)) {
-        sendMessage("0.78", type);
+        sendMessage("0.79", type);
     }
     else if (/^\/forceall roll [0-9]+$/i.test(content)) {
         let number = parseInt(/^\S+ roll ([0-9]+)$/.exec(content)[1]);
@@ -2030,6 +2042,7 @@ function saveSettings() {
     //settings.hidePlayers = hidePlayers;
     settings.lastUsedVersion = version;
     //settings.muteReplay = muteReplay;
+    //settings.muteSubmit = muteSubmit;
     //settings.playbackSpeed = playbackSpeed;
     settings.playerDetection = playerDetection;
     settings.printLoot = printLoot;
