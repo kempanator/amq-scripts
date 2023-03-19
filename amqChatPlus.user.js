@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Chat Plus
 // @namespace    https://github.com/kempanator
-// @version      0.22
+// @version      0.23
 // @description  Add new features to chat and messages
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -37,32 +37,34 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.22";
+const version = "0.23";
 const apiKey = "LIVDSRZULELA";
 const saveData = JSON.parse(localStorage.getItem("chatPlus")) || {};
-const saveData2 = JSON.parse(localStorage.getItem("highlightFriendsSettings"));
+const saveData2 = JSON.parse(localStorage.getItem("highlightFriendsSettings")) || {};
 const imageURLregex = /https?:\/\/\S+\.(?:png|jpe?g|gif|webp|bmp|tiff)/i;
 const audioURLregex = /https?:\/\/\S+\.(?:mp3|ogg|m4a|flac|wav)/i;
 const videoURLregex = /https?:\/\/\S+\.(?:webm|mp4|mkv|avi|mov)/i;
-let gcTimestamps = saveData.gcTimestamps !== undefined ? saveData.gcTimestamps : true;
-let ncTimestamps = saveData.ncTimestamps !== undefined ? saveData.ncTimestamps : true;
-let dmTimestamps = saveData.dmTimestamps !== undefined ? saveData.dmTimestamps : true;
-let ncColor = saveData.ncColor !== undefined ? saveData.ncColor : false;
-let dmColor = saveData.dmColor !== undefined ? saveData.dmColor : true;
-let reformatBottomBar = saveData.reformatBottomBar !== undefined ? saveData.reformatBottomBar : true;
-let xpBarWidth = saveData.xpBarWidth !== undefined ? saveData.xpBarWidth : 110;
-let xpBarFromRight = saveData.xpBarFromRight !== undefined ? saveData.xpBarFromRight : 496;
-let dmWidthExtension = saveData.dmWidthExtension !== undefined ? saveData.dmWidthExtension : 60;
-let dmHeightExtension = saveData.dmHeightExtension !== undefined ? saveData.dmHeightExtension : 40;
-let resizeNexusChat = saveData.resizeNexusChat !== undefined ? saveData.resizeNexusChat : false;
-let gcLoadMediaButton = saveData.gcLoadMediaButton !== undefined ? saveData.gcLoadMediaButton : true;
-let gcAutoLoadMedia = saveData.gcAutoLoadMedia !== undefined ? saveData.gcAutoLoadMedia : "never";
-let gifSearch = saveData.gifSearch !== undefined ? saveData.gifSearch : true;
-let gifSearchHeight = saveData.gifSearchHeight !== undefined ? saveData.gifSearchHeight : 200;
-let gifSendOnClick = saveData.gifSendOnClick !== undefined ? saveData.gifSendOnClick : true;
-let gcMaxMessages = saveData.gcMaxMessages !== undefined ? saveData.gcMaxMessages : 200;
-let ncMaxMessages = saveData.ncMaxMessages !== undefined ? saveData.ncMaxMessages : 100;
-let fileUploadToLitterbox = saveData.fileUploadToLitterbox !== undefined ? saveData.fileUploadToLitterbox : true;
+let selfColor = saveData2.smColorSelfColor ?? "#80c7ff";
+let friendColor = saveData2.smColorFriendColor ?? "#80ff80";
+let gcTimestamps = saveData.gcTimestamps ?? true;
+let ncTimestamps = saveData.ncTimestamps ?? true;
+let dmTimestamps = saveData.dmTimestamps ?? true;
+let ncColor = saveData.ncColor ?? false;
+let dmColor = saveData.dmColor ?? true;
+let reformatBottomBar = saveData.reformatBottomBar ?? true;
+let xpBarWidth = saveData.xpBarWidth ?? 110;
+let xpBarFromRight = saveData.xpBarFromRight ?? 496;
+let dmWidthExtension = saveData.dmWidthExtension ?? 60;
+let dmHeightExtension = saveData.dmHeightExtension ?? 40;
+let resizeNexusChat = saveData.resizeNexusChat ?? false;
+let gcLoadMediaButton = saveData.gcLoadMediaButton ?? true;
+let gcAutoLoadMedia = saveData.gcAutoLoadMedia ?? "never";
+let gifSearch = saveData.gifSearch ?? true;
+let gifSearchHeight = saveData.gifSearchHeight ?? 250;
+let gifSendOnClick = saveData.gifSendOnClick ?? true;
+let gcMaxMessages = saveData.gcMaxMessages ?? 200;
+let ncMaxMessages = saveData.ncMaxMessages ?? 100;
+let fileUploadToLitterbox = saveData.fileUploadToLitterbox ?? true;
 let tenorQuery;
 let tenorPosition;
 let imagesPerRequest = 20;
@@ -657,16 +659,16 @@ function applyStyles() {
             width: ${76 + dmWidthExtension}px;
         }
         .dmUsername.self {
-            color: ${dmColor ? getSelfColor() : "inherit"};
+            color: ${dmColor ? selfColor : "inherit"};
         }
         .dmUsername.friend {
-            color: ${dmColor ? getFriendColor() : "inherit"};
+            color: ${dmColor ? friendColor : "inherit"};
         }
         .nexusCoopChatName.self {
-            color: ${ncColor ? getSelfColor() : "inherit"};
+            color: ${ncColor ? selfColor : "inherit"};
         }
         .nexusCoopChatName.friend {
-            color: ${ncColor ? getFriendColor() : "inherit"};
+            color: ${ncColor ? friendColor : "inherit"};
         }
         .gcInputContainer .textAreaContainer {
             width: ${gifSearch ? "calc(100% - 145px)" : "calc(100% - 120px)"};
@@ -759,14 +761,6 @@ function applyStyles() {
         }
     `));
     document.head.appendChild(style);
-}
-
-function getSelfColor() {
-    return saveData2 ? saveData2.smColorSelfColor : "#80c7ff";
-}
-
-function getFriendColor() {
-    return saveData2 ? saveData2.smColorFriendColor : "#80ff80";
 }
 
 function createMediaElement($node, type, src, autoLoad) {
