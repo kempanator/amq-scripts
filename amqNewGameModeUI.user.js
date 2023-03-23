@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ New Game Mode UI
 // @namespace    https://github.com/kempanator
-// @version      0.11
+// @version      0.12
 // @description  Adds a user interface to new game mode to keep track of guesses
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -21,7 +21,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.11";
+const version = "0.12";
 let ngmWindow;
 let numGuesses = 5;
 let guessCounter = [];
@@ -33,7 +33,7 @@ let correctGuesses = 0; // total correct guesses from your team
 let remainingGuesses = 0; // total remaining guesses from your team
 let autothrowCount = false;
 $("#qpOptionContainer").width($("#qpOptionContainer").width() + 35);
-$("#qpOptionContainer > div").append($(`<div id="qpNGM" class="clickAble qpOption"><img src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB4AAAAeCAMAAAAM7l6QAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAGUExURdnZ2QAAAE/vHxMAAAACdFJOU/8A5bcwSgAAAAlwSFlzAAAOwwAADsMBx2+oZAAAAFdJREFUOE/VjsENwCAMA8n+S4NN09qI9lOBxL0cXxSlxCen69JgGFmsoRIUymoNGGds0K+41iuMqiFZ5mCajuSgmoWBsrt73W+4flIOqq8km/rajD86ogIU2QKttGjahwAAAABJRU5ErkJggg=='/></div>`)
+$("#qpOptionContainer > div").append($(`<div id="qpNGM" class="clickAble qpOption"><img class="qpMenuItem" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB4AAAAUCAMAAACtdX32AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAGUExURdnZ2QAAAE/vHxMAAAACdFJOU/8A5bcwSgAAAAlwSFlzAAAOwgAADsIBFShKgAAAAEpJREFUKFO9jEESABAMA/X/nyahJIYje0qynZYApcGw81hDJRiU1xownvigr7jWL4yqITlmMU1HsqjmYGDsbp77D9crZVE90rqMqNWrAYH0hYPXAAAAAElFTkSuQmCC"></div>`)
     .click(() => {
         ngmWindow.isVisible() ? ngmWindow.close() : ngmWindow.open();
     })
@@ -59,8 +59,7 @@ function setup() {
     }).bindListener();
     new Listener("Game Starting", (payload) => {
         let selfPlayer = payload.players.find((player) => player.name === selfName);
-        let settings = hostModal.getSettings();
-        if (selfPlayer?.inGame && settings.teamSize > 1 && settings.scoreType === 3) {
+        if (selfPlayer?.inGame && hostModal.$teamSize.slider("getValue") > 1 && hostModal.$scoring.slider("getValue") === 3) {
             updateWindow(payload.players);
         }
         else {
@@ -82,7 +81,7 @@ function setup() {
         clearWindow();
     }).bindListener();
     new Listener("play next song", (payload) => {
-        if (autothrowCount && guessCounter.length && hostModal.getSettings().scoreType === 3) {
+        if (autothrowCount && guessCounter.length && hostModal.$scoring.slider("getValue") === 3) {
             setTimeout(() => {
                 socket.sendCommand({
                     type: "quiz",
@@ -93,7 +92,7 @@ function setup() {
         }
     }).bindListener();
     new Listener("answer results", (payload) => {
-        if (quiz.teamMode && !quiz.isSpectator && hostModal.getSettings().scoreType === 3) {
+        if (quiz.teamMode && !quiz.isSpectator && hostModal.$scoring.slider("getValue") === 3) {
             correctGuesses = payload.players.find((player) => player.gamePlayerId === quiz.ownGamePlayerId).correctGuesses;
             remainingGuesses = (teamList.length * numGuesses) - (correctGuesses % (teamList.length * numGuesses));
             $("#ngmCorrectAnswers").text(`Correct Answers: ${correctGuesses}`);
@@ -234,12 +233,7 @@ function updateWindow(players) {
         </div>
     `));
     $row6.find("#ngmAutoThrowCountCheckbox").prop("checked", autothrowCount).click(() => { autothrowCount = !autothrowCount });
-    ngmWindow.panels[0].panel.append($row1);
-    ngmWindow.panels[0].panel.append($row2);
-    ngmWindow.panels[0].panel.append($row3);
-    ngmWindow.panels[0].panel.append($row4);
-    ngmWindow.panels[0].panel.append($row5);
-    ngmWindow.panels[0].panel.append($row6);
+    ngmWindow.panels[0].panel.append($row1).append($row2).append($row3).append($row4).append($row5).append($row6);
 }
 
 // send your remaining guess count and status to answer box
