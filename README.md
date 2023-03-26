@@ -1,7 +1,7 @@
 # amq-scripts
 
 ### AMQ Answer Stats
-EXPERIMENTAL DO NOT DOWNLOAD
+EXPERIMENTAL DO NOT DOWNLOAD https://i.imgur.com/QIcwtXE.png
 
 ### AMQ Chat Plus
 Customizable chat/dms https://i.imgur.com/FAT78Ep.png
