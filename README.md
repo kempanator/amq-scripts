@@ -1,13 +1,16 @@
 # amq-scripts
 
 ### AMQ Answer Stats
-EXPERIMENTAL DO NOT DOWNLOAD https://i.imgur.com/QIcwtXE.png
+Tools for analyzing ranked answers in real time https://i.imgur.com/QIcwtXE.png
 
 ### AMQ Chat Plus
 Customizable chat/dms https://i.imgur.com/FAT78Ep.png
 
-### AMQ Mega Commands
+### AMQ Custom Song List Game
 EXPERIMENTAL DO NOT DOWNLOAD
+
+### AMQ Mega Commands
+Lots of commands (replacement for several other scripts)
 
 ### AMQ New Game Mode UI
 Adds a user interface to new game mode to keep track of guesses https://i.imgur.com/q9GTFQr.png

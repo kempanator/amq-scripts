@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.1
+// @version      0.2
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -16,7 +16,14 @@ How to start a custom song list game:
   1. create a solo lobby
   2. click CSL button in the top right
   3. use the tools and settings to create a list
-  4. click start to play the quiz
+  4. fetch the autocomplete if the button is red
+  5. click start to play the quiz
+
+Some considerations:
+  1. anisongdb is unavailable during ranked, please prepare some json files in advance
+  2. anime titles that were changed recently in amq will be incorrect if anisongdb never updated it
+  3. no volume normalizing
+  4. keep duplicates in the song list if you want to use any acceptable title for each
 */
 
 "use strict";
@@ -28,7 +35,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.1";
+const version = "0.2";
 let active = false;
 let fastSkip = false;
 let nextVideoReady = false;
@@ -166,7 +173,6 @@ function setup() {
 
 function startQuiz() {
     if (!lobby.inLobby || !lobby.soloMode || !songList.length) return;
-    //if (quiz.answerInput.typingInput.autoCompleteController.list.length === 0) quiz.answerInput.updateAutocomplete();
     let song = songList[songOrder[1]];
     active = true;
     let date = new Date().toISOString();
@@ -552,9 +558,15 @@ function applyStyles() {
         #cslgSongListTable .number {
             width: 30px;
         }
+        #cslgSongListTable .trash {
+            width: 20px;
+        }
         #cslgSongListTable thead tr {
             background-color: #282828;
             font-weight: bold;
+        }
+        #cslgSongListTable tbody i.fa-trash:hover {
+            opacity: .8;
         }
         #cslgSongListTable tbody tr:nth-child(odd) {
             background-color: #424242;
@@ -588,6 +600,9 @@ function applyStyles() {
 
 function openSettingsModal() {
     if (lobby.inLobby && lobby.soloMode) {
+        if ((quiz.answerInput.typingInput.autoCompleteController.list.length)) {
+            $("#cslgAutocompleteButton").removeClass("btn-danger").addClass("btn-success disabled");
+        }
         $("#cslgSettingsModal").modal("show");
     }
     else {
@@ -619,7 +634,7 @@ function getAnisongdbData(mode, query, partial, ignoreDuplicates) {
         body: JSON.stringify(json)
     }).then(res => res.json()).then(json => {
         //console.log(json);
-        songList = json;
+        songList = json.filter((song) => song.audio || song.MQ || song.HQ);
         buildTable();
     });
 }
@@ -633,6 +648,7 @@ function buildTable() {
         $row.append($("<td></td>").addClass("number").text(i + 1));
         $row.append($("<td></td>").addClass("song").text(result.songName));
         $row.append($("<td></td>").addClass("artist").text(result.songArtist));
+        $row.append($("<td></td>").addClass("trash clickAble").append(`<i class="fa fa-trash" aria-hidden="true"></i>`));
         $tbody.append($row);
     });
 }
@@ -715,6 +731,7 @@ $("#gameContainer").append($(`
                                         <th class="number">#</th>
                                         <th class="song">Song</th>
                                         <th class="artist">Artist</th>
+                                        <th class="trash"></th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -724,7 +741,7 @@ $("#gameContainer").append($(`
                     </div>
                     <div id="cslgQuizSettingsContainer" style="margin-top: 10px">
                         <div>
-                            <span style="font-size: 18px; font-weight: bold;"># Songs:</span><input id="cslgSettingsSongs" type="text" style="width: 40px">
+                            <span style="font-size: 18px; font-weight: bold;">Songs:</span><input id="cslgSettingsSongs" type="text" style="width: 40px">
                             <span style="font-size: 18px; font-weight: bold; margin-left: 15px;">Guess Time:</span><input id="cslgSettingsGuessTime" type="text" style="width: 40px">
                             <span style="font-size: 18px; font-weight: bold; margin-left: 15px;">Extra Time:</span><input id="cslgSettingsExtraGuessTime" type="text" style="width: 40px">
                         </div>
@@ -741,7 +758,7 @@ $("#gameContainer").append($(`
                             <label class="clickAble" style="margin-left: 10px">Descending<input id="cslgSettingsSongOrderDescendingRadio" type="radio" name="cslgSongOrderMode"></label>
                         </div>
                         <div>
-                            <span style="font-size: 18px; font-weight: bold; margin-right: 15px;">Start Point:</span>
+                            <span style="font-size: 18px; font-weight: bold; margin-right: 15px;">Sample:</span>
                             <label class="clickAble">Random<input id="cslgSettingsStartPointRandomRadio" type="radio" name="cslgStartPointMode"></label>
                             <label class="clickAble" style="margin-left: 10px">Start<input id="cslgSettingsStartPointStartRadio" type="radio" name="cslgStartPointMode"></label>
                             <label class="clickAble" style="margin-left: 10px">Middle<input id="cslgSettingsStartPointMiddleRadio" type="radio" name="cslgStartPointMode"></label>
@@ -761,6 +778,7 @@ $("#gameContainer").append($(`
                     </div>
                 </div>
                 <div class="modal-footer">
+                    <button id="cslgAutocompleteButton" class="btn btn-danger" style="float: left">Autocomplete</button>
                     <button id="cslgExitButton" class="btn btn-default" data-dismiss="modal">Exit</button>
                     <button id="cslgStartButton" class="btn btn-primary">Start</button>
                 </div>
@@ -782,7 +800,7 @@ $("#cslgFileUpload").on("change", function() {
             let json = JSON.parse(data);
             //console.log(json);
             if (json && Array.isArray(json) && json.length && json[0].animeJPName) {
-                songList = json;
+                songList = json.filter((song) => song.audio || song.MQ || song.HQ);
                 buildTable();
             }
             else {
@@ -799,6 +817,24 @@ $("#cslgFileUpload").on("change", function() {
             displayMessage("Upload Error");
         }
     });
+});
+$("#cslgAutocompleteButton").click(() => {
+    $("#cslgSettingsModal").modal("hide");
+    socket.sendCommand({type: "lobby", command: "start game"});
+    setTimeout(() => {
+        viewChanger.changeView("main");
+    }, 200);
+    setTimeout(() => {
+        hostModal.displayHostSolo();
+    }, 400);
+    setTimeout(() => {
+        let returnListener = new Listener("Host Game", (payload) => {
+            returnListener.unbindListener();
+            setTimeout(() => { openSettingsModal() }, 10);
+        });
+        returnListener.bindListener();
+        roomBrowser.host();
+    }, 600);
 });
 $("#cslgStartButton").click(() => {
     songOrder = {};
@@ -839,6 +875,12 @@ $("#cslgStartButton").click(() => {
     $("#cslgSettingsModal").modal("hide");
     //console.log(songOrder);
     startQuiz();
+});
+$("#cslgSongListTable").on("click", "i.fa-trash", (event) => {
+    let index = parseInt(event.target.parentElement.parentElement.querySelector("td.number").innerText) - 1;
+    songList.splice(index, 1);
+    $("#cslgSongListCount").text("Total Songs: " + songList.length);
+    buildTable();
 });
 showSongListInterface();
 $("#cslgModeAnisongdbRadio").prop("checked", true);
