@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.5
+// @version      0.6
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -35,7 +35,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.5";
+const version = "0.6";
 let active = false;
 let fastSkip = false;
 let nextVideoReady = false;
@@ -716,9 +716,9 @@ function handleData(data) {
                 altAnimeNamesAnswers: song.songInfo.altAnimeNamesAnswers || [],
                 songArtist: song.songInfo.artist,
                 songName: song.songInfo.songName,
-                songType: song.songInfo.songType,
-                songTypeNumber: song.songInfo.songTypeNumber,
-                songDifficulty: song.animeDifficulty,
+                songType: song.songInfo.type,
+                songTypeNumber: song.songInfo.typeNumber,
+                songDifficulty: song.songInfo.animeDifficulty,
                 animeType: song.songInfo.animeType,
                 animeVintage: song.songInfo.vintage,
                 annId: song.songInfo.siteIds.annId,
