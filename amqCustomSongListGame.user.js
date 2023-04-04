@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.2
+// @version      0.3
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -35,7 +35,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.2";
+const version = "0.3";
 let active = false;
 let fastSkip = false;
 let nextVideoReady = false;
@@ -353,35 +353,35 @@ function endGuessPhase(songNumber) {
                     }],
                     "songInfo": {
                         "animeNames": {
-                            "english": song.animeENName,
-                            "romaji": song.animeJPName
+                            "english": song.animeEnglishName,
+                            "romaji": song.animeRomajiName
                         },
                         "artist": song.songArtist,
                         "songName": song.songName,
                         "urlMap": {
                             "catbox": {
                                 "0": song.audio,
-                                "480": song.MQ,
-                                "720": song.HQ
+                                "480": song.video480,
+                                "720": song.video720
                             }
                         },
-                        "type": Object({O: 1, E: 2, I: 3})[song.songType[0]],
-                        "typeNumber": song.songType[0] === "I" ? null : parseInt(song.songType.split(" ")[1]),
+                        "type": song.songType,
+                        "typeNumber": song.songTypeNumber,
                         "annId": song.annId,
                         "highRisk": 0,
                         "animeScore": null,
                         "animeType": song.animeType,
                         "vintage": song.animeVintage,
                         "animeDifficulty": song.songDifficulty,
-                        "animeTags": [],
-                        "animeGenre": [],
-                        "altAnimeNames": song.animeAltName ?? [],
-                        "altAnimeNamesAnswers": [],
+                        "animeTags": song.animeTags,
+                        "animeGenre": song.animeGenre,
+                        "altAnimeNames": song.altAnimeNames,
+                        "altAnimeNamesAnswers": song.altAnimeNamesAnswers,
                         "siteIds": {
                             "annId": song.annId,
-                            "malId": null,
-                            "kitsuId": null,
-                            "aniListId": null
+                            "malId": song.malId,
+                            "kitsuId": song.kitsuId,
+                            "aniListId": song.aniListId
                         }
                     },
                     "progressBarState": {
@@ -451,9 +451,8 @@ function isCorrectAnswer(songNumber, answer) {
     let song = songList[songOrder[songNumber]];
     let correctAnswers = new Set();
     for (let s of songList) {
-        if (s.songName === song.songName && s.artist === song.artist) {
-            let answers = [s.animeENName, s.animeJPName];
-            if (s.animeAltName) answers = answers.concat(s.animeAltName);
+        if (s.songName === song.songName && s.songArtist === song.songArtist) {
+            let answers = [s.animeEnglishName, s.animeRomajiName].concat(s.altAnimeNames, s.altAnimeNamesAnswers);
             answers.forEach((x) => correctAnswers.add(x));
         }
     }
@@ -539,7 +538,7 @@ function applyStyles() {
         }
         #cslgAnisongdbSearchInput {
             color: black;
-            width: 200px;
+            width: 185px;
         }
         #cslgAnisongdbSearchButtonGo {
             color: black;
@@ -633,10 +632,106 @@ function getAnisongdbData(mode, query, partial, ignoreDuplicates) {
         headers: {"Accept": "application/json", "Content-Type": "application/json"},
         body: JSON.stringify(json)
     }).then(res => res.json()).then(json => {
-        //console.log(json);
-        songList = json.filter((song) => song.audio || song.MQ || song.HQ);
+        handleData(json);
         buildTable();
     });
+}
+
+function handleData(data) {
+    songList = [];
+    if (data) {
+        // anisongdb structure
+        if (Array.isArray(data) && data.length && data[0].animeJPName) {
+            data = data.filter((song) => song.audio || song.MQ || song.HQ);
+            for (let song of data) {
+                songList.push({
+                    animeRomajiName: song.animeJPName,
+                    animeEnglishName: song.animeENName,
+                    altAnimeNames: song.animeAltName || [],
+                    altAnimeNamesAnswers: [],
+                    songArtist: song.songArtist,
+                    songName: song.songName,
+                    songType: Object({O: 1, E: 2, I: 3})[song.songType[0]],
+                    songTypeNumber: song.songType[0] === "I" ? null : parseInt(song.songType.split(" ")[1]),
+                    songDifficulty: song.songDifficulty,
+                    animeType: song.animeType,
+                    animeVintage: song.vintage,
+                    annId: song.annId,
+                    malId: null,
+                    kitsuId: null,
+                    aniListId: null,
+                    animeTags: [],
+                    animeGenre: [],
+                    startPoint: null,
+                    audio: song.audio,
+                    video480: song.MQ,
+                    video720: song.HQ,
+                    correctGuess: null,
+                    incorrectGuess: null
+                });
+            }
+        }
+        // joseph song export script structure
+        else if (Array.isArray(data) && data.length && data[0].gameMode) {
+            for (let song of data) {
+                songList.push({
+                    animeRomajiName: song.anime.romaji,
+                    animeEnglishName: song.anime.english,
+                    altAnimeNames: song.altAnswers || [],
+                    altAnimeNamesAnswers: [],
+                    songArtist: song.artist,
+                    songName: song.name,
+                    songType: Object({O: 1, E: 2, I: 3})[song.type[0]],
+                    songTypeNumber: song.type[0] === "I" ? null : parseInt(song.type.split(" ")[1]),
+                    songDifficulty: parseFloat(song.difficulty),
+                    animeType: song.animeType,
+                    animeVintage: song.vintage,
+                    annId: song.siteIds.annId,
+                    malId: song.siteIds.malId,
+                    kitsuId: song.siteIds.kitsuId,
+                    aniListId: song.siteIds.aniListId,
+                    animeTags: song.tags,
+                    animeGenre: song.genre,
+                    startPoint: song.startSample,
+                    audio: song.urls.catbox?.[0] ?? song.urls.openingsmoe?.[0] ?? null,
+                    video480: song.urls.catbox?.[480] ?? song.urls.openingsmoe?.[480] ?? null,
+                    video720: song.urls.catbox?.[720] ?? song.urls.openingsmoe?.[720] ?? null,
+                    correctGuess: song.correct,
+                    incorrectGuess: song.correct
+                });
+            }
+        }
+        // official amq song export structure
+        else if (typeof data === "object" && data.roomName && data.startTime && data.songs) {
+            for (let song of data.songs) {
+                songList.push({
+                    animeRomajiName: song.songInfo.animeNames.romaji,
+                    animeEnglishName: song.songInfo.animeNames.english,
+                    altAnimeNames: song.songInfo.altAnimeNames || [],
+                    altAnimeNamesAnswers: song.songInfo.altAnimeNamesAnswers || [],
+                    songArtist: song.songInfo.artist,
+                    songName: song.songInfo.songName,
+                    songType: song.songInfo.songType,
+                    songTypeNumber: song.songInfo.songTypeNumber,
+                    songDifficulty: song.animeDifficulty,
+                    animeType: song.songInfo.animeType,
+                    animeVintage: song.songInfo.vintage,
+                    annId: song.songInfo.siteIds.annId,
+                    malId: song.songInfo.siteIds.malId,
+                    kitsuId: song.songInfo.siteIds.kitsuId,
+                    aniListId: song.songInfo.siteIds.aniListId,
+                    animeTags: song.songInfo.animeTags,
+                    animeGenre: song.songInfo.animeGenre,
+                    startPoint: song.startPoint,
+                    audio: song.videoUrl.endsWith(".mp3") ? song.videoUrl : null,
+                    video480: null,
+                    video720: song.videoUrl.endsWith(".webm") ? song.videoUrl : null,
+                    correctGuess: song.correctGuess,
+                    incorrectGuess: song.wrongGuess
+                });
+            }
+        }
+    }
 }
 
 function buildTable() {
@@ -710,7 +805,7 @@ $("#gameContainer").append($(`
                             <span id="cslgSongListCount" style="font-size: 20px; font-weight: bold; margin-left: 120px;">Total Songs: 0</span>
                         </div>
                         <div id="cslgFileUploadRow" style="height: 30px">
-                            <label style="vertical-align: -4px"><input id="cslgFileUpload" type="file"></label>
+                            <label style="vertical-align: -4px"><input id="cslgFileUpload" type="file" style="width: 500px"></label>
                         </div>
                         <div id="cslgAnisongdbSearchRow" style="height: 30px">
                             <select id="cslgAnisongdbSearchMode">
@@ -750,6 +845,9 @@ $("#gameContainer").append($(`
                             <label class="clickAble">OP<input id="cslgSettingsOPCheckbox" type="checkbox"></label>
                             <label class="clickAble" style="margin-left: 10px">ED<input id="cslgSettingsEDCheckbox" type="checkbox"></label>
                             <label class="clickAble" style="margin-left: 10px">IN<input id="cslgSettingsINCheckbox" type="checkbox"></label>
+                            <span style="font-size: 18px; font-weight: bold; margin: 0 15px 0 35px;">Guess:</span>
+                            <label class="clickAble">Correct<input id="cslgSettingsCorrectGuessCheckbox" type="checkbox"></label>
+                            <label class="clickAble" style="margin-left: 10px">Wrong<input id="cslgSettingsIncorrectGuessCheckbox" type="checkbox"></label>
                         </div>
                         <div>
                             <span style="font-size: 18px; font-weight: bold; margin-right: 15px;">Song Order:</span>
@@ -797,44 +895,35 @@ $("#cslgAnisongdbSearchInput").keypress((event) => { if (event.which === 13) ani
 $("#cslgFileUpload").on("change", function() {
     this.files[0].text().then((data) => {
         try {
-            let json = JSON.parse(data);
-            //console.log(json);
-            if (json && Array.isArray(json) && json.length && json[0].animeJPName) {
-                songList = json.filter((song) => song.audio || song.MQ || song.HQ);
-                buildTable();
-            }
-            else {
-                songList = [];
-                $("#cslgSongListCount").text("Total Songs: 0");
-                $("#cslgSongListTable tbody").empty();
-                displayMessage("Upload Error");
-            }
+            handleData(JSON.parse(data));
         }
         catch {
             songList = [];
-            $("#cslgSongListCount").text("Total Songs: 0");
-            $("#cslgSongListTable tbody").empty();
             displayMessage("Upload Error");
         }
+        buildTable();
     });
 });
 $("#cslgAutocompleteButton").click(() => {
     $("#cslgSettingsModal").modal("hide");
     socket.sendCommand({type: "lobby", command: "start game"});
-    setTimeout(() => {
+    let autocompleteListener = new Listener("get all song names", () => {
+        autocompleteListener.unbindListener();
         viewChanger.changeView("main");
-    }, 200);
-    setTimeout(() => {
-        hostModal.displayHostSolo();
-    }, 400);
-    setTimeout(() => {
-        let returnListener = new Listener("Host Game", (payload) => {
-            returnListener.unbindListener();
-            setTimeout(() => { openSettingsModal() }, 10);
-        });
-        returnListener.bindListener();
-        roomBrowser.host();
-    }, 600);
+        setTimeout(() => {
+            hostModal.displayHostSolo();
+        }, 200);
+        setTimeout(() => {
+            let returnListener = new Listener("Host Game", (payload) => {
+                returnListener.unbindListener();
+                setTimeout(() => { openSettingsModal() }, 10);
+            });
+            returnListener.bindListener();
+            roomBrowser.host();
+        }, 400);
+    });
+    autocompleteListener.bindListener();
+    
 });
 $("#cslgStartButton").click(() => {
     songOrder = {};
@@ -859,7 +948,13 @@ $("#cslgStartButton").click(() => {
     let ops = $("#cslgSettingsOPCheckbox").prop("checked");
     let eds = $("#cslgSettingsEDCheckbox").prop("checked");
     let ins = $("#cslgSettingsINCheckbox").prop("checked");
-    let songKeys = Object.keys(songList).filter((key) => (ops && songList[key].songType[0] === "O") || (eds && songList[key].songType[0] === "E") || (ins && songList[key].songType[0] === "I"));
+    let correctGuesses = $("#cslgSettingsCorrectGuessCheckbox").prop("checked");
+    let incorrectGuesses = $("#cslgSettingsIncorrectGuessCheckbox").prop("checked");
+    let songKeys = Object.keys(songList).filter((key) =>
+        (ops && songList[key].songType === 1) || (eds && songList[key].songType === 2) || (ins && songList[key].songType === 3) ||
+        (songList[key].correctGuess === null || correctGuesses && songList[key].correctGuess === true) ||
+        (songList[key].incorrectGuess === null || incorrectGuesses && songList[key].incorrectGuess === true)
+    );
     if ($("#cslgSettingsSongOrderRandomRadio").prop("checked")) shuffleArray(songKeys);
     else if ($("#cslgSettingsSongOrderDescendingRadio").prop("checked")) songKeys.reverse();
     songKeys.slice(0, numSongs).forEach((key, i) => { songOrder[i + 1] = parseInt(key) });
@@ -892,6 +987,8 @@ $("#cslgSettingsExtraGuessTime").val("0");
 $("#cslgSettingsOPCheckbox").prop("checked", true);
 $("#cslgSettingsEDCheckbox").prop("checked", true);
 $("#cslgSettingsINCheckbox").prop("checked", true);
+$("#cslgSettingsCorrectGuessCheckbox").prop("checked", true);
+$("#cslgSettingsIncorrectGuessCheckbox").prop("checked", true);
 $("#cslgSettingsSongOrderRandomRadio").prop("checked", true);
 $("#cslgSettingsStartPointRandomRadio").prop("checked", true);
 $("#cslgSettingsSkipNormalRadio").prop("checked", true);
