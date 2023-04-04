@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.3
+// @version      0.4
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -35,7 +35,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.3";
+const version = "0.4";
 let active = false;
 let fastSkip = false;
 let nextVideoReady = false;
@@ -666,8 +666,8 @@ function handleData(data) {
                     audio: song.audio,
                     video480: song.MQ,
                     video720: song.HQ,
-                    correctGuess: null,
-                    incorrectGuess: null
+                    correctGuess: true,
+                    incorrectGuess: true
                 });
             }
         }
@@ -697,7 +697,7 @@ function handleData(data) {
                     video480: song.urls.catbox?.[480] ?? song.urls.openingsmoe?.[480] ?? null,
                     video720: song.urls.catbox?.[720] ?? song.urls.openingsmoe?.[720] ?? null,
                     correctGuess: song.correct,
-                    incorrectGuess: song.correct
+                    incorrectGuess: !song.correct
                 });
             }
         }
@@ -951,9 +951,13 @@ $("#cslgStartButton").click(() => {
     let correctGuesses = $("#cslgSettingsCorrectGuessCheckbox").prop("checked");
     let incorrectGuesses = $("#cslgSettingsIncorrectGuessCheckbox").prop("checked");
     let songKeys = Object.keys(songList).filter((key) =>
-        (ops && songList[key].songType === 1) || (eds && songList[key].songType === 2) || (ins && songList[key].songType === 3) ||
-        (songList[key].correctGuess === null || correctGuesses && songList[key].correctGuess === true) ||
-        (songList[key].incorrectGuess === null || incorrectGuesses && songList[key].incorrectGuess === true)
+        (ops && songList[key].songType === 1) ||
+        (eds && songList[key].songType === 2) ||
+        (ins && songList[key].songType === 3)
+    );
+    songKeys = songKeys.filter((key) =>
+        (correctGuesses && songList[key].correctGuess === true) ||
+        (incorrectGuesses && songList[key].incorrectGuess === true)
     );
     if ($("#cslgSettingsSongOrderRandomRadio").prop("checked")) shuffleArray(songKeys);
     else if ($("#cslgSettingsSongOrderDescendingRadio").prop("checked")) songKeys.reverse();
