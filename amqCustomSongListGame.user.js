@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.6
+// @version      0.7
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -35,7 +35,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.6";
+const version = "0.7";
 let active = false;
 let fastSkip = false;
 let nextVideoReady = false;
@@ -528,7 +528,7 @@ function quizOver() {
     reset();
     //console.log(data);
     lobby.setupLobby(data, quiz.isSpectator);
-	viewChanger.changeView("lobby", {supressServerMsg: true, keepChatOpen: true});
+    viewChanger.changeView("lobby", {supressServerMsg: true, keepChatOpen: true});
 }
 
 function applyStyles() {
@@ -639,6 +639,7 @@ function getAnisongdbData(mode, query, partial, ignoreDuplicates) {
     }).then(res => res.json()).then(json => {
         handleData(json);
         buildTable();
+        findInvalidTitles();
     });
 }
 
@@ -676,6 +677,36 @@ function handleData(data) {
             });
         }
     }
+    // official amq song export structure
+    else if (typeof data === "object" && data.roomName && data.startTime && data.songs) {
+        for (let song of data.songs) {
+            songList.push({
+                animeRomajiName: song.songInfo.animeNames.romaji,
+                animeEnglishName: song.songInfo.animeNames.english,
+                altAnimeNames: song.songInfo.altAnimeNames || [],
+                altAnimeNamesAnswers: song.songInfo.altAnimeNamesAnswers || [],
+                songArtist: song.songInfo.artist,
+                songName: song.songInfo.songName,
+                songType: song.songInfo.type,
+                songTypeNumber: song.songInfo.typeNumber,
+                songDifficulty: song.songInfo.animeDifficulty,
+                animeType: song.songInfo.animeType,
+                animeVintage: song.songInfo.vintage,
+                annId: song.songInfo.siteIds.annId,
+                malId: song.songInfo.siteIds.malId,
+                kitsuId: song.songInfo.siteIds.kitsuId,
+                aniListId: song.songInfo.siteIds.aniListId,
+                animeTags: song.songInfo.animeTags,
+                animeGenre: song.songInfo.animeGenre,
+                startPoint: song.startPoint,
+                audio: song.videoUrl.endsWith(".mp3") ? song.videoUrl : null,
+                video480: null,
+                video720: song.videoUrl.endsWith(".webm") ? song.videoUrl : null,
+                correctGuess: song.correctGuess,
+                incorrectGuess: song.wrongGuess
+            });
+        }
+    }
     // joseph song export script structure
     else if (Array.isArray(data) && data.length && data[0].gameMode) {
         for (let song of data) {
@@ -706,33 +737,33 @@ function handleData(data) {
             });
         }
     }
-    // official amq song export structure
-    else if (typeof data === "object" && data.roomName && data.startTime && data.songs) {
-        for (let song of data.songs) {
+    // blissfulyoshi ranked data export structure
+    else if (Array.isArray(data) && data.length && data[0].animeRomaji) {
+        for (let song of data) {
             songList.push({
-                animeRomajiName: song.songInfo.animeNames.romaji,
-                animeEnglishName: song.songInfo.animeNames.english,
-                altAnimeNames: song.songInfo.altAnimeNames || [],
-                altAnimeNamesAnswers: song.songInfo.altAnimeNamesAnswers || [],
-                songArtist: song.songInfo.artist,
-                songName: song.songInfo.songName,
-                songType: song.songInfo.type,
-                songTypeNumber: song.songInfo.typeNumber,
-                songDifficulty: song.songInfo.animeDifficulty,
-                animeType: song.songInfo.animeType,
-                animeVintage: song.songInfo.vintage,
-                annId: song.songInfo.siteIds.annId,
-                malId: song.songInfo.siteIds.malId,
-                kitsuId: song.songInfo.siteIds.kitsuId,
-                aniListId: song.songInfo.siteIds.aniListId,
-                animeTags: song.songInfo.animeTags,
-                animeGenre: song.songInfo.animeGenre,
-                startPoint: song.startPoint,
-                audio: song.videoUrl.endsWith(".mp3") ? song.videoUrl : null,
+                animeRomajiName: song.animeRomaji,
+                animeEnglishName: song.animeEng,
+                altAnimeNames: [],
+                altAnimeNamesAnswers: [],
+                songArtist: song.artist,
+                songName: song.songName,
+                songType: Object({O: 1, E: 2, I: 3})[song.type[0]],
+                songTypeNumber: song.songType[0] === "I" ? null : parseInt(song.type.split(" ")[1]),
+                songDifficulty: song.songDifficulty,
+                animeType: null,
+                animeVintage: song.vintage,
+                annId: song.annId,
+                malId: song.malId,
+                kitsuId: song.kitsuId,
+                aniListId: song.aniListId,
+                animeTags: [],
+                animeGenre: [],
+                startPoint: null,
+                audio: song.LinkMp3,
                 video480: null,
-                video720: song.videoUrl.endsWith(".webm") ? song.videoUrl : null,
-                correctGuess: song.correctGuess,
-                incorrectGuess: song.wrongGuess
+                video720: song.LinkVideo,
+                correctGuess: true,
+                incorrectGuess: true
             });
         }
     }
