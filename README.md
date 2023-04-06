@@ -2,6 +2,7 @@
 
 ### AMQ Answer Stats
 Tools for analyzing ranked answers in real time https://i.imgur.com/QIcwtXE.png
+AnisongDB search in game + show all links https://i.imgur.com/uH6Dj63.png
 
 ### AMQ Chat Plus
 Customizable chat/dms https://i.imgur.com/FAT78Ep.png
