@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.8
+// @version      0.9
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -22,7 +22,7 @@ How to start a custom song list game:
 Some considerations:
   1. anisongdb is unavailable during ranked, please prepare some json files in advance
   2. anime titles that were changed recently in amq will be incorrect if anisongdb never updated it
-  3. no volume normalizing
+  3. no automatic volume equalizing
   4. keep duplicates in the song list if you want to use any acceptable title for each
 */
 
@@ -35,7 +35,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.8";
+const version = "0.9";
 const saveData = JSON.parse(localStorage.getItem("customSongListGame")) || {};
 let replacedAnswers = saveData.replacedAnswers || {};
 let active = false;
@@ -43,6 +43,7 @@ let fastSkip = false;
 let nextVideoReady = false;
 let guessTime = 20;
 let extraGuessTime = 0;
+let currentSong = 0;
 let currentAnswer = "";
 let score = 0;
 let songList = [];
@@ -62,6 +63,9 @@ function setup() {
         for (let message of payload.messages) {
             if (message.sender === selfName && message.message === "/version") {
                 setTimeout(() => { gameChat.systemMessage("Custom Song List Game - " + version) }, 1);
+            }
+            else if (message.sender === selfName && message.message === "/forceready") {
+                nextVideoReady = true;
             }
         }
     }).bindListener();
@@ -89,27 +93,31 @@ function setup() {
             autocompleteInput = new AmqAwesomeplete(document.querySelector("#cslgNewAnswerInput"), {
                 list: quiz.answerInput.typingInput.autoCompleteController.list
             }, true);
-        }, 1);
+        }, 10);
     }).bindListener();
     new Listener("update all song names", () => {
         setTimeout(() => {
             autocomplete = quiz.answerInput.typingInput.autoCompleteController.list.map(x => x.toLowerCase());
             autocompleteInput.list = quiz.answerInput.typingInput.autoCompleteController.list;
-        }, 1);
+        }, 10);
     }).bindListener();
 
     quiz.pauseButton.$button.off("click").click(() => {
         if (active) {
             if (quiz.pauseButton.pauseOn) {
-                for (let listener of socket.listners["quiz unpause triggered"]) {
-                    listener.fire({playerName: selfName});
-                    //listener.fire({playerName: selfName, doCountDown: true, countDownLength: 3000});
-                }
+                fireListener("quiz unpause triggered", {
+                    "playerName": selfName
+                });
+                /*fireListener("quiz unpause triggered", {
+                    "playerName": selfName,
+                    "doCountDown": true,
+                    "countDownLength": 3000
+                });*/
             }
             else {
-                for (let listener of socket.listners["quiz pause triggered"]) {
-                    listener.fire({playerName: selfName});
-                }
+                fireListener("quiz pause triggered", {
+                    "playerName": selfName
+                });
             }
         }
         else {
@@ -147,18 +155,15 @@ function setup() {
     QuizTypeAnswerInputController.prototype.submitAnswer = function(answer) {
         if (active) {
             currentAnswer = answer;
-            for (let listener of socket.listners["quiz answer"]) {
-                listener.fire({answer: answer, success: true});
-            }
-            for (let listener of socket.listners["player answered"]) {
-                listener.fire([0]);
-            }
+            fireListener("quiz answer", {
+                "answer": answer,
+                "success": true
+            });
+            fireListener("player answered", [0]);
             this.skipController.highlight = true;
             if (options.autoVoteSkipGuess) {
                 this.skipController.voteSkip();
-                for (let listener of socket.listners["quiz overlay message"]) {
-                    listener.fire("Skipping to Answers");
-                }
+                fireListener("quiz overlay message", "Skipping to Answers");
             }
         }
         else {
@@ -166,18 +171,26 @@ function setup() {
         }
     }
 
+    const oldVideoReady = quiz.videoReady;
     quiz.videoReady = function(songId) {
         if (active && this.inQuiz) {
             nextVideoReady = true;
         }
-        else if (!this.isSpectator && this.inQuiz) {
-            socket.sendCommand({
-                type: "quiz",
-                command: "video ready",
-                data: {songId: songId}
-            });
+        else {
+            oldVideoReady.apply(this, arguments);
         }
     }
+
+    const oldHandleError = MoeVideoPlayer.prototype.handleError;
+    MoeVideoPlayer.prototype.handleError = function() {
+        if (active) {
+            gameChat.systemMessage(`CSL Error: couldn't load song ${currentSong + 1}`);
+            nextVideoReady = true;
+        }
+        else {
+            oldHandleError.apply(this, arguments);
+        }
+	}
 
     AMQ_addScriptData({
         name: "Custom Song List Game",
@@ -194,55 +207,52 @@ function startQuiz() {
     let song = songList[songOrder[1]];
     active = true;
     let date = new Date().toISOString();
-    for (let listener of socket.listners["Game Starting"]) {
-        listener.fire({
-            gameMode: "Solo",
-            showSelection: 1,
-            groupSlotMap: {1: [0]},
-            players: Object.values(lobby.players),
-            multipleChoice: false,
-            quizDescription: {
-                quizId: "",
-                startTime: date,
-                roomName: "Solo"
-            }
-        });
-    }
+    fireListener("Game Starting", {
+        "gameMode": "Solo",
+        "showSelection": 1,
+        "groupSlotMap": {1: [0]},
+        "players": Object.values(lobby.players),
+        "multipleChoice": false,
+        "quizDescription": {
+            "quizId": "",
+            "startTime": date,
+            "roomName": "Solo"
+        }
+    });
     setTimeout(() => {
-        for (let listener of socket.listners["quiz next video info"]) {
-            listener.fire({
-                playLength: guessTime,
-                playbackSpeed: 1,
-                startPont: getStartPoint(), //thanks egerod
-                videoInfo: {
-                    id: null,
-                    videoMap: {
-                        catbox: {
-                            "0": song.audio,
-                            "480": song.MQ,
-                            "720": song.HQ
-                        }
-                    },
-                    videoVolumeMap: {
-                        catbox: {
-                            "0": -20,
-                            "480": -20,
-                            "720": -20
-                        }
+        let sample = getStartPoint();
+        fireListener("quiz next video info", {
+            "playLength": guessTime,
+            "playbackSpeed": 1,
+            "startPont": sample, //thanks egerod
+            "videoInfo": {
+                "id": null,
+                "videoMap": {
+                    "catbox": {
+                        "0": song.audio,
+                        "480": song.MQ,
+                        "720": song.HQ
+                    }
+                },
+                "videoVolumeMap": {
+                    "catbox": {
+                        "0": -20,
+                        "480": -20,
+                        "720": -20
                     }
                 }
-            });
-        }
+            }
+        });
     }, 100);
     setTimeout(() => {
-        for (let listener of socket.listners["quiz ready"]) {
-            listener.fire({"numberOfSongs": Object.keys(songOrder).length});
-        }
+        fireListener("quiz ready", {
+            "numberOfSongs": Object.keys(songOrder).length
+        });
     }, 200);
     setTimeout(() => {
-        for (let listener of socket.listners["quiz waiting buffering"]) {
-            listener.fire({"firstSong": true});
-        }
+        fireListener("quiz waiting buffering", {
+            "firstSong": true
+        });
     }, 300);
     setTimeout(() => {
         previousSongFinished = true;
@@ -266,22 +276,18 @@ function readySong(songNumber) {
 function playSong(songNumber) {
     if (!active || !quiz.inQuiz) return reset();
     //console.log("playing song " + songNumber);
-    playingSong = true;
-    for (let listener of socket.listners["play next song"]) {
-        listener.fire({
-            "time": guessTime,
-            "extraGuessTime": extraGuessTime,
-            "songNumber": songNumber,
-            "progressBarState": {"length": guessTime, "played": 0},
-            "onLastSong": songNumber === Object.keys(songOrder).length,
-            "multipleChoiceNames": null
-        });
-    }
+    currentSong = songNumber;
+    fireListener("play next song", {
+        "time": guessTime,
+        "extraGuessTime": extraGuessTime,
+        "songNumber": songNumber,
+        "progressBarState": {"length": guessTime, "played": 0},
+        "onLastSong": songNumber === Object.keys(songOrder).length,
+        "multipleChoiceNames": null
+    });
     if (extraGuessTime) {
         extraGuessTimer = setTimeout(() => {
-            for (let listener of socket.listners["extra guess time"]) {
-                listener.fire();
-            }
+            fireListener("extra guess time");
         }, extraGuessTime * 1000);
     }
     endGuessTimer = setTimeout(() => {
@@ -292,9 +298,7 @@ function playSong(songNumber) {
     }, (guessTime + extraGuessTime) * 1000);
     skipInterval = setInterval(() => {
         if (quiz.skipController._toggled) {
-            for (let listener of socket.listners["quiz overlay message"]) {
-                listener.fire("Skipping to Answers");
-            }
+            fireListener("quiz overlay message", "Skipping to Answers");
             clearInterval(skipInterval);
             clearTimeout(endGuessTimer);
             clearTimeout(extraGuessTimer);
@@ -307,30 +311,29 @@ function playSong(songNumber) {
         if (songNumber < Object.keys(songOrder).length) {
             readySong(songNumber + 1);
             let nextSong = songList[songOrder[songNumber + 1]];
-            for (let listener of socket.listners["quiz next video info"]) {
-                listener.fire({
-                    playLength: guessTime,
-                    playbackSpeed: 1,
-                    startPont: getStartPoint(), //thanks egerod
-                    videoInfo: {
-                        id: null,
-                        videoMap: {
-                            catbox: {
-                                "0": nextSong.audio,
-                                "480": nextSong.MQ,
-                                "720": nextSong.HQ
-                            }
-                        },
-                        videoVolumeMap: {
-                            catbox: {
-                                "0": -20,
-                                "480": -20,
-                                "720": -20
-                            }
+            let sample = getStartPoint();
+            fireListener("quiz next video info", {
+                "playLength": guessTime,
+                "playbackSpeed": 1,
+                "startPont": sample, //thanks egerod
+                "videoInfo": {
+                    "id": null,
+                    "videoMap": {
+                        "catbox": {
+                            "0": nextSong.audio,
+                            "480": nextSong.MQ,
+                            "720": nextSong.HQ
+                        }
+                    },
+                    "videoVolumeMap": {
+                        "catbox": {
+                            "0": -20,
+                            "480": -20,
+                            "720": -20
                         }
                     }
-                });
-            }
+                }
+            });
         }
     }, 100);
 }
@@ -339,79 +342,73 @@ function endGuessPhase(songNumber) {
     if (!active || !quiz.inQuiz) return reset();
     //console.log("end guess phase for song " + songNumber);
     let song = songList[songOrder[songNumber]];
-    for (let listener of socket.listners["guess phase over"]) {
-        listener.fire();
-    }
+    fireListener("guess phase over");
     answerTimer = setTimeout(() => {
         if (!active || !quiz.inQuiz) return reset();
-        for (let listener of socket.listners["player answers"]) {
-            listener.fire({
-                "answers": [{"gamePlayerId": 0, "pose": 3, "answer": currentAnswer}],
-                "progressBarState": null
-            });
-        }
+        fireListener("player answers", {
+            "answers": [{"gamePlayerId": 0, "pose": 3, "answer": currentAnswer}],
+            "progressBarState": null
+        });
         answerTimer = setTimeout(() => {
             if (!active || !quiz.inQuiz) return reset();
             let correct = isCorrectAnswer(songNumber, currentAnswer);
             let pose = currentAnswer ? (correct ? 5 : 4) : 6;
             if (correct) score++;
             currentAnswer = "";
-            for (let listener of socket.listners["answer results"]) {
-                listener.fire({
-                    "players": [{
-                        "gamePlayerId": 0,
-                        "pose": pose,
-                        "level": quiz.players[0].level,
-                        "correct": correct,
-                        "score": score,
-                        "listStatus": null,
-                        "showScore": null,
-                        "position": 1,
-                        "positionSlot": 0
-                    }],
-                    "songInfo": {
-                        "animeNames": {
-                            "english": song.animeEnglishName,
-                            "romaji": song.animeRomajiName
-                        },
-                        "artist": song.songArtist,
-                        "songName": song.songName,
-                        "urlMap": {
-                            "catbox": {
-                                "0": song.audio,
-                                "480": song.video480,
-                                "720": song.video720
-                            }
-                        },
-                        "type": song.songType,
-                        "typeNumber": song.songTypeNumber,
-                        "annId": song.annId,
-                        "highRisk": 0,
-                        "animeScore": null,
-                        "animeType": song.animeType,
-                        "vintage": song.animeVintage,
-                        "animeDifficulty": song.songDifficulty,
-                        "animeTags": song.animeTags,
-                        "animeGenre": song.animeGenre,
-                        "altAnimeNames": song.altAnimeNames,
-                        "altAnimeNamesAnswers": song.altAnimeNamesAnswers,
-                        "siteIds": {
-                            "annId": song.annId,
-                            "malId": song.malId,
-                            "kitsuId": song.kitsuId,
-                            "aniListId": song.aniListId
+            fireListener("answer results", {
+                "players": [{
+                    "gamePlayerId": 0,
+                    "pose": pose,
+                    "level": quiz.players[0].level,
+                    "correct": correct,
+                    "score": score,
+                    "listStatus": null,
+                    "showScore": null,
+                    "position": 1,
+                    "positionSlot": 0
+                }],
+                "songInfo": {
+                    "animeNames": {
+                        "english": song.animeEnglishName,
+                        "romaji": song.animeRomajiName
+                    },
+                    "artist": song.songArtist,
+                    "songName": song.songName,
+                    "urlMap": {
+                        "catbox": {
+                            "0": song.audio,
+                            "480": song.video480,
+                            "720": song.video720
                         }
                     },
-                    "progressBarState": {
-                        "length": 25,
-                        "played": 0
-                    },
-                    "groupMap": {
-                        "1": [0]
-                    },
-                    "watched": false
-                });
-            }
+                    "type": song.songType,
+                    "typeNumber": song.songTypeNumber,
+                    "annId": song.annId,
+                    "highRisk": 0,
+                    "animeScore": null,
+                    "animeType": song.animeType,
+                    "vintage": song.animeVintage,
+                    "animeDifficulty": song.songDifficulty,
+                    "animeTags": song.animeTags,
+                    "animeGenre": song.animeGenre,
+                    "altAnimeNames": song.altAnimeNames,
+                    "altAnimeNamesAnswers": song.altAnimeNamesAnswers,
+                    "siteIds": {
+                        "annId": song.annId,
+                        "malId": song.malId,
+                        "kitsuId": song.kitsuId,
+                        "aniListId": song.aniListId
+                    }
+                },
+                "progressBarState": {
+                    "length": 25,
+                    "played": 0
+                },
+                "groupMap": {
+                    "1": [0]
+                },
+                "watched": false
+            });
             setTimeout(() => {
                 if (!active || !quiz.inQuiz) return reset();
                 skipInterval = setInterval(() => {
@@ -428,38 +425,43 @@ function endGuessPhase(songNumber) {
 function endReplayPhase(songNumber) {
     if (!active || !quiz.inQuiz) return reset();
     if (songNumber < Object.keys(songOrder).length) {
-        for (let listener of socket.listners["quiz overlay message"]) {
-            listener.fire("Skipping to Next Song");
-        }
+        fireListener("quiz overlay message", "Skipping to Next Song");
         setTimeout(() => {
             previousSongFinished = true;
         }, fastSkip ? 1000 : 3000);
     }
     else {
-        for (let listener of socket.listners["quiz overlay message"]) {
-            listener.fire("Skipping to Final Standings");
-        }
+        fireListener("quiz overlay message", "Skipping to Final Standings");
         setTimeout(() => {
-            for (let listener of socket.listners["quiz end result"]) {
-                listener.fire({
-                    "resultStates": [{
-                        "gamePlayerId": 0,
-                        "pose": 1,
-                        "endPosition": 1
-                    }]
-                });
-                /*"progressBarState": {
-                        "length": 26.484,
-                        "played": 6.484
-                    }*/
-            }
+            fireListener("quiz end result", {
+                "resultStates": [{
+                    "gamePlayerId": 0,
+                    "pose": 1,
+                    "endPosition": 1
+                }]
+            });
+            /*"progressBarState": {
+                "length": 26.484,
+                "played": 6.484
+            }*/
         }, fastSkip ? 2000 : 5000);
         setTimeout(() => {
             quizOver();
         }, fastSkip ? 5000 : 12000);
     }
 }
-    
+
+// fire all event listeners (including scripts)
+function fireListener(type, data) {
+    try {
+        for (let listener of socket.listners[type]) {
+            listener.fire(data);
+        }
+    }
+    catch {
+        gameChat.systemMessage(`CSL Error: "${type}" listener failed`);
+    }
+}
 
 // check if the player's answer is correct
 // also include anime names of items with the same song and artist
@@ -494,13 +496,14 @@ function clearTimeEvents() {
     clearInterval(nextVideoReadyInterval);
     clearInterval(skipInterval);
     clearTimeout(endGuessTimer);
-    clearTimeout(extraGuessTimer);    
+    clearTimeout(extraGuessTimer);
     clearTimeout(answerTimer);
 }
 
 function reset() {
     clearTimeEvents();
     active = false;
+    currentSong = 0;
     currentAnswer = "";
     score = 0;
     previousSongFinished = false;
