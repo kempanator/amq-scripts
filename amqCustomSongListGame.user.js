@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.7
+// @version      0.8
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -35,7 +35,9 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.7";
+const version = "0.8";
+const saveData = JSON.parse(localStorage.getItem("customSongListGame")) || {};
+let replacedAnswers = saveData.replacedAnswers || {};
 let active = false;
 let fastSkip = false;
 let nextVideoReady = false;
@@ -84,7 +86,7 @@ function setup() {
     new Listener("get all song names", () => {
         setTimeout(() => {
             autocomplete = quiz.answerInput.typingInput.autoCompleteController.list.map(x => x.toLowerCase());
-            autocompleteInput = new AmqAwesomeplete(document.querySelector("#cslgAutocompleteInput"), {
+            autocompleteInput = new AmqAwesomeplete(document.querySelector("#cslgNewAnswerInput"), {
                 list: quiz.answerInput.typingInput.autoCompleteController.list
             }, true);
         }, 1);
@@ -473,8 +475,10 @@ function isCorrectAnswer(songNumber, answer) {
         }
     }
     //console.log(Array.from(correctAnswers));
-    for (let x of correctAnswers) {
-        if (x.toLowerCase() === answer) return true;
+    for (let a1 of correctAnswers) {
+        let a2 = replacedAnswers[a1];
+        if (a2 && a2.toLowerCase() === answer) return true;
+        if (a1.toLowerCase() === answer) return true;
     }
     return false;
 }
@@ -559,15 +563,15 @@ function applyStyles() {
             width: 100%;
             table-layout: fixed;
         }
+        #cslgSongListTable thead tr {
+            background-color: #282828;
+            font-weight: bold;
+        }
         #cslgSongListTable .number {
             width: 30px;
         }
         #cslgSongListTable .trash {
             width: 20px;
-        }
-        #cslgSongListTable thead tr {
-            background-color: #282828;
-            font-weight: bold;
         }
         #cslgSongListTable tbody i.fa-trash:hover {
             opacity: .8;
@@ -596,6 +600,29 @@ function applyStyles() {
             margin-left: 3px;
             vertical-align: -5px;
             cursor: pointer;
+        }
+        #cslgAnswerTable {
+            width: 100%;
+            table-layout: fixed;
+        }
+        #cslgAnswerTable thead tr {
+            background-color: #282828;
+            font-weight: bold;
+        }
+        #cslgAnswerTable .edit {
+            width: 20px;
+        }
+        #cslgAnswerTable tbody i.fa-pencil:hover {
+            opacity: .8;
+        }
+        #cslgAnswerTable th, #cslgAnswerTable td {
+            padding: 0 4px;
+        }
+        #cslgAnswerTable tbody tr:nth-child(odd) {
+            background-color: #424242;
+        }
+        #cslgAnswerTable tbody tr:nth-child(even) {
+            background-color: #353535;
         }
     `;
     style.appendChild(document.createTextNode(text));
@@ -638,8 +665,8 @@ function getAnisongdbData(mode, query, partial, ignoreDuplicates) {
         body: JSON.stringify(json)
     }).then(res => res.json()).then(json => {
         handleData(json);
-        buildTable();
-        findInvalidTitles();
+        buildSongListTable();
+        buildAnswerTable();
     });
 }
 
@@ -773,8 +800,7 @@ function handleData(data) {
     }
 }
 
-function buildTable() {
-    if (songList.length === 0) return;
+function buildSongListTable() {
     $("#cslgSongListCount").text("Total Songs: " + songList.length);
     $tbody = $("#cslgSongListTable tbody");
     $tbody.empty();
@@ -788,9 +814,9 @@ function buildTable() {
     });
 }
 
-function findInvalidTitles() {
-    $invalidAnswerList = $("#cslgInvalidAnswerList");
-    $invalidAnswerList.empty();
+function buildAnswerTable() {
+    $tbody = $("#cslgAnswerTable tbody");
+    $tbody.empty();
     if (songList.length === 0) {
         $("#cslgAnswerText").text("No list loaded");
     }
@@ -812,7 +838,11 @@ function findInvalidTitles() {
         missingAnimeList.sort((a, b) => a.localeCompare(b));
         $("#cslgAnswerText").text(`Found ${missingAnimeList.length} anime title${missingAnimeList.length === 1 ? "" : "s"} missing from AMQ's autocomplete`);
         for (let anime of missingAnimeList) {
-            $invalidAnswerList.append(`<div>${anime}</div>`);
+            let $row = $("<tr></tr>");
+            $row.append($("<td></td>").addClass("oldName").text(anime));
+            $row.append($("<td></td>").addClass("newName").text(replacedAnswers[anime] || ""));
+            $row.append($("<td></td>").addClass("edit").append(`<i class="fa fa-pencil clickAble" aria-hidden="true"></i>`));
+            $tbody.append($row);
         }
     }
 }
@@ -959,10 +989,26 @@ $("#gameContainer").append($(`
                         <p style="margin-top: 20px">*Normal room settings are ignored. Only these settings will apply.</p>
                     </div>
                     <div id="cslgAnswerContainer">
-                        <span style="font-size: 16px; font-weight: bold; margin-right: 10px;">Autocomplete:</span>
-                        <input id="cslgAutocompleteInput" type="text" style="width: 324px; color: black; margin: 10px 0;">
+                        <span style="font-size: 16px; font-weight: bold;">Old:</span>
+                        <input id="cslgOldAnswerInput" type="text" style="width: 200px; color: black; margin: 10px 0;">
+                        <span style="font-size: 16px; font-weight: bold; margin-left: 10px;">New:</span>
+                        <input id="cslgNewAnswerInput" type="text" style="width: 200px; color: black; margin: 10px 0;">
+                        <button id="cslgAnswerButtonAdd" style="color: black; margin-left: 10px;">Add</button>
                         <div id="cslgAnswerText" style="font-size: 16px; font-weight: bold;">No list loaded</div>
-                        <div id="cslgInvalidAnswerList" style="height: 300px; margin: 5px 0; overflow-y: scroll;"></div>
+                        <div style="height: 300px; margin: 5px 0; overflow-y: scroll;">
+                            <table id="cslgAnswerTable">
+                                <thead>
+                                    <tr>
+                                        <th class="oldName">Old</th>
+                                        <th class="newName">New</th>
+                                        <th class="edit"></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                </tbody>
+                            </table>
+                        </div>
+                        <p style="margin-top: 5px">*Use this window to replace invalid answers from your imported song list with valid answers from AMQ's autocomplete</p>
                     </div>
                     <div id="cslgInfoContainer" style="text-align: center; margin: 40px 0;">
                         <p>Created by: kempanator</p>
@@ -997,8 +1043,8 @@ $("#cslgFileUpload").on("change", function() {
             songList = [];
             displayMessage("Upload Error");
         }
-        buildTable();
-        findInvalidTitles();
+        buildSongListTable();
+        buildAnswerTable();
     });
 });
 $("#cslgAutocompleteButton").click(() => {
@@ -1013,7 +1059,7 @@ $("#cslgAutocompleteButton").click(() => {
         setTimeout(() => {
             let returnListener = new Listener("Host Game", (payload) => {
                 returnListener.unbindListener();
-                if (songList.length) findInvalidTitles();
+                if (songList.length) buildAnswerTable();
                 setTimeout(() => { openSettingsModal() }, 10);
             });
             returnListener.bindListener();
@@ -1076,9 +1122,24 @@ $("#cslgStartButton").click(() => {
 $("#cslgSongListTable").on("click", "i.fa-trash", (event) => {
     let index = parseInt(event.target.parentElement.parentElement.querySelector("td.number").innerText) - 1;
     songList.splice(index, 1);
-    $("#cslgSongListCount").text("Total Songs: " + songList.length);
-    buildTable();
-    findInvalidTitles();
+    buildSongListTable();
+    buildAnswerTable();
+});
+$("#cslgAnswerButtonAdd").click(() => {
+    let oldName = $("#cslgOldAnswerInput").val().trim();
+    let newName = $("#cslgNewAnswerInput").val().trim();
+    if (oldName) {
+        newName ? replacedAnswers[oldName] = newName : delete replacedAnswers[oldName];
+        localStorage.setItem("customSongListGame", JSON.stringify({replacedAnswers: replacedAnswers}));
+        buildAnswerTable();
+    }
+    console.log(replacedAnswers);
+});
+$("#cslgAnswerTable").on("click", "i.fa-pencil", (event) => {
+    let oldName = event.target.parentElement.parentElement.querySelector("td.oldName").innerText;
+    let newName = event.target.parentElement.parentElement.querySelector("td.newName").innerText;
+    $("#cslgOldAnswerInput").val(oldName);
+    $("#cslgNewAnswerInput").val(newName);
 });
 showSongListInterface();
 $("#cslgModeAnisongdbRadio").prop("checked", true);
