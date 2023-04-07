@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.9
+// @version      0.10
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -15,9 +15,17 @@
 How to start a custom song list game:
   1. create a solo lobby
   2. click CSL button in the top right
-  3. use the tools and settings to create a list
-  4. fetch the autocomplete if the button is red
-  5. click start to play the quiz
+  3. click the autocomplete button if it is red
+  4. create or upload a list in the song list tab
+  5. change settings in the settings tab
+  6. fix any invalid answers in the answer tab
+  7. click start to play the quiz
+
+Supported upload files:
+  1. anisongdb json
+  2. official AMQ song history export
+  3. joseph song list script export
+  4. blissfulyoshi ranked song list
 
 Some considerations:
   1. anisongdb is unavailable during ranked, please prepare some json files in advance
@@ -35,7 +43,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.9";
+const version = "0.10";
 const saveData = JSON.parse(localStorage.getItem("customSongListGame")) || {};
 let replacedAnswers = saveData.replacedAnswers || {};
 let active = false;
@@ -58,14 +66,296 @@ let endGuessTimer;
 let autocomplete = []; //store lowercase version for faster compare speed
 let autocompleteInput;
 
+$("#gameContainer").append($(`
+    <div class="modal fade tab-modal" id="cslgSettingsModal" tabindex="-1" role="dialog">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header" style="padding: 3px 0 0 0">
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">×</span>
+                    </button>
+                    <h4 class="modal-title">Custom Song List Game</h4>
+                    <div class="tabContainer">
+                        <div id="cslgSongListTab" class="tab clickAble selected">
+                            <h5>Song List</h5>
+                        </div>
+                        <div id="cslgQuizSettingsTab" class="tab clickAble">
+                            <h5>Settings</h5>
+                        </div>
+                        <div id="cslgAnswerTab" class="tab clickAble">
+                            <h5>Answers</h5>
+                        </div>
+                        <div id="cslgInfoTab" class="tab clickAble" style="width: 40px; float: right;">
+                            <h5><i class="fa fa-info-circle" aria-hidden="true"></i></h5>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-body" style="overflow-y: auto; max-height: calc(100vh - 150px);">
+                    <div id="cslgSongListContainer">
+                        <div>
+                            <span style="font-size: 20px; font-weight: bold;">Mode</span>
+                            <label class="clickAble" style="margin-left: 10px">Anisongdb<input id="cslgModeAnisongdbRadio" type="radio" name="cslgSongListMode"></label>
+                            <label class="clickAble" style="margin-left: 10px">Load File<input id="cslgModeFileUploadRadio" type="radio" name="cslgSongListMode"></label>
+                            <span id="cslgSongListCount" style="font-size: 20px; font-weight: bold; margin-left: 120px;">Total Songs: 0</span>
+                        </div>
+                        <div id="cslgFileUploadRow" style="height: 30px">
+                            <label style="vertical-align: -4px"><input id="cslgFileUpload" type="file" style="width: 500px"></label>
+                        </div>
+                        <div id="cslgAnisongdbSearchRow" style="height: 30px">
+                            <select id="cslgAnisongdbSearchMode" style="color: black; padding: 3px 0;">
+                                <option value="Anime">Anime</option>
+                                <option value="Artist">Artist</option>
+                                <option value="Song">Song</option>
+                                <option value="Composer">Composer</option>
+                            </select>
+                            <input id="cslgAnisongdbSearchInput" type="text" style="color: black; width: 185px;">
+                            <button id="cslgAnisongdbSearchButtonGo" style="color: black">Go</button>
+                            <label class="clickAble" style="margin-left: 10px">Partial<input id="cslgAnisongdbSearchPartialCheckbox" type="checkbox"></label>
+                            <label class="clickAble" style="margin-left: 10px">Ignore Duplicates<input id="cslgAnisongdbSearchIgnoreDuplicatesCheckbox" type="checkbox"></label>
+                        </div>
+                        <div style="height: 400px; margin: 5px 0; overflow-y: scroll;">
+                            <table id="cslgSongListTable">
+                                <thead>
+                                    <tr>
+                                        <th class="number">#</th>
+                                        <th class="song">Song</th>
+                                        <th class="artist">Artist</th>
+                                        <th class="trash"></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div id="cslgQuizSettingsContainer" style="margin-top: 10px">
+                        <div>
+                            <span style="font-size: 18px; font-weight: bold;">Songs:</span><input id="cslgSettingsSongs" type="text" style="width: 40px">
+                            <span style="font-size: 18px; font-weight: bold; margin-left: 15px;">Guess Time:</span><input id="cslgSettingsGuessTime" type="text" style="width: 40px">
+                            <span style="font-size: 18px; font-weight: bold; margin-left: 15px;">Extra Time:</span><input id="cslgSettingsExtraGuessTime" type="text" style="width: 40px">
+                        </div>
+                        <div>
+                            <span style="font-size: 18px; font-weight: bold; margin-right: 15px;">Song Types:</span>
+                            <label class="clickAble">OP<input id="cslgSettingsOPCheckbox" type="checkbox"></label>
+                            <label class="clickAble" style="margin-left: 10px">ED<input id="cslgSettingsEDCheckbox" type="checkbox"></label>
+                            <label class="clickAble" style="margin-left: 10px">IN<input id="cslgSettingsINCheckbox" type="checkbox"></label>
+                            <span style="font-size: 18px; font-weight: bold; margin: 0 15px 0 35px;">Guess:</span>
+                            <label class="clickAble">Correct<input id="cslgSettingsCorrectGuessCheckbox" type="checkbox"></label>
+                            <label class="clickAble" style="margin-left: 10px">Wrong<input id="cslgSettingsIncorrectGuessCheckbox" type="checkbox"></label>
+                        </div>
+                        <div>
+                            <span style="font-size: 18px; font-weight: bold; margin-right: 15px;">Song Order:</span>
+                            <label class="clickAble">Random<input id="cslgSettingsSongOrderRandomRadio" type="radio" name="cslgSongOrderMode"></label>
+                            <label class="clickAble" style="margin-left: 10px">Ascending<input id="cslgSettingsSongOrderAscendingRadio" type="radio" name="cslgSongOrderMode"></label>
+                            <label class="clickAble" style="margin-left: 10px">Descending<input id="cslgSettingsSongOrderDescendingRadio" type="radio" name="cslgSongOrderMode"></label>
+                        </div>
+                        <div>
+                            <span style="font-size: 18px; font-weight: bold; margin-right: 15px;">Sample:</span>
+                            <label class="clickAble">Random<input id="cslgSettingsStartPointRandomRadio" type="radio" name="cslgStartPointMode"></label>
+                            <label class="clickAble" style="margin-left: 10px">Start<input id="cslgSettingsStartPointStartRadio" type="radio" name="cslgStartPointMode"></label>
+                            <label class="clickAble" style="margin-left: 10px">Middle<input id="cslgSettingsStartPointMiddleRadio" type="radio" name="cslgStartPointMode"></label>
+                            <label class="clickAble" style="margin-left: 10px">End<input id="cslgSettingsStartPointEndRadio" type="radio" name="cslgStartPointMode"></label>
+                        </div>
+                        <div>
+                            <span style="font-size: 18px; font-weight: bold; margin-right: 15px;">Skip Speed:</span>
+                            <label class="clickAble">Normal<input id="cslgSettingsSkipNormalRadio" type="radio" name="cslgSkipMode"></label>
+                            <label class="clickAble" style="margin-left: 10px">Fast<input id="cslgSettingsSkipFastRadio" type="radio" name="cslgSkipMode"></label>
+                        </div>
+                        <p style="margin-top: 20px">*Normal room settings are ignored. Only these settings will apply.</p>
+                    </div>
+                    <div id="cslgAnswerContainer">
+                        <span style="font-size: 16px; font-weight: bold;">Old:</span>
+                        <input id="cslgOldAnswerInput" type="text" style="width: 200px; color: black; margin: 10px 0;">
+                        <span style="font-size: 16px; font-weight: bold; margin-left: 10px;">New:</span>
+                        <input id="cslgNewAnswerInput" type="text" style="width: 200px; color: black; margin: 10px 0;">
+                        <button id="cslgAnswerButtonAdd" style="color: black; margin-left: 10px;">Add</button>
+                        <div id="cslgAnswerText" style="font-size: 16px; font-weight: bold;">No list loaded</div>
+                        <div style="height: 300px; margin: 5px 0; overflow-y: scroll;">
+                            <table id="cslgAnswerTable">
+                                <thead>
+                                    <tr>
+                                        <th class="oldName">Old</th>
+                                        <th class="newName">New</th>
+                                        <th class="edit"></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                </tbody>
+                            </table>
+                        </div>
+                        <p style="margin-top: 5px">*Use this window to replace invalid answers from your imported song list with valid answers from AMQ's autocomplete</p>
+                    </div>
+                    <div id="cslgInfoContainer" style="text-align: center; margin: 40px 0;">
+                        <p>Created by: kempanator</p>
+                        <p>Version: ${version}</p>
+                        <p><a href="https://github.com/kempanator/amq-scripts/raw/main/amqCustomSongListGame.user.js" target="blank">Link</a></p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button id="cslgAutocompleteButton" class="btn btn-danger" style="float: left">Autocomplete</button>
+                    <button id="cslgExitButton" class="btn btn-default" data-dismiss="modal">Exit</button>
+                    <button id="cslgStartButton" class="btn btn-primary">Start</button>
+                </div>
+            </div>
+        </div>
+    </div>
+`));
+
+$("#lobbyPage .topMenuBar").append(`<div id="lnCustomSongListButton" class="clickAble topMenuButton topMenuMediumButton"><h3>CSL</h3></div>`);
+$("#lnCustomSongListButton").click(() => { openSettingsModal() });
+$("#cslgSongListTab").click(() => { showSongListInterface() });
+$("#cslgQuizSettingsTab").click(() => { showSettingsInterface() });
+$("#cslgAnswerTab").click(() => { showAnswerInterface() });
+$("#cslgInfoTab").click(() => { showInfoInterface() });
+$("#cslgAnisongdbSearchButtonGo").click(() => { anisongdbDataSearch() });
+$("#cslgAnisongdbSearchInput").keypress((event) => { if (event.which === 13) anisongdbDataSearch() });
+$("#cslgFileUpload").on("change", function() {
+    if (this.files.length) {
+        this.files[0].text().then((data) => {
+            try {
+                handleData(JSON.parse(data));
+            }
+            catch {
+                songList = [];
+                displayMessage("Upload Error");
+            }
+            buildSongListTable();
+            buildAnswerTable();
+        });
+    }
+});
+$("#cslgAutocompleteButton").click(() => {
+    $("#cslgSettingsModal").modal("hide");
+    socket.sendCommand({type: "lobby", command: "start game"});
+    let autocompleteListener = new Listener("get all song names", () => {
+        autocompleteListener.unbindListener();
+        viewChanger.changeView("main");
+        setTimeout(() => {
+            hostModal.displayHostSolo();
+        }, 200);
+        setTimeout(() => {
+            let returnListener = new Listener("Host Game", (payload) => {
+                returnListener.unbindListener();
+                if (songList.length) buildAnswerTable();
+                setTimeout(() => { openSettingsModal() }, 10);
+            });
+            returnListener.bindListener();
+            roomBrowser.host();
+        }, 400);
+    });
+    autocompleteListener.bindListener();
+    
+});
+$("#cslgStartButton").click(() => {
+    songOrder = {};
+    if (!songList || !songList.length) {
+        return displayMessage("Unable to start", "no songs");
+    }
+    if (quiz.answerInput.typingInput.autoCompleteController.list.length === 0) {
+        return displayMessage("Unable to start", "autocomplete list empty");
+    }
+    let numSongs = parseInt($("#cslgSettingsSongs").val());
+    if (isNaN(numSongs) || numSongs < 1) {
+        return displayMessage("Unable to start", "invalid number of songs");
+    }
+    guessTime = parseInt($("#cslgSettingsGuessTime").val());
+    if (isNaN(guessTime) || guessTime < 1 || guessTime > 60) {
+        return displayMessage("Unable to start", "invalid guess time");
+    }
+    extraGuessTime = parseInt($("#cslgSettingsExtraGuessTime").val());
+    if (isNaN(extraGuessTime) || extraGuessTime < 0 || extraGuessTime > 15) {
+        return displayMessage("Unable to start", "invalid extra guess time");
+    }
+    let ops = $("#cslgSettingsOPCheckbox").prop("checked");
+    let eds = $("#cslgSettingsEDCheckbox").prop("checked");
+    let ins = $("#cslgSettingsINCheckbox").prop("checked");
+    let correctGuesses = $("#cslgSettingsCorrectGuessCheckbox").prop("checked");
+    let incorrectGuesses = $("#cslgSettingsIncorrectGuessCheckbox").prop("checked");
+    let songKeys = Object.keys(songList).filter((key) =>
+        (ops && songList[key].songType === 1) ||
+        (eds && songList[key].songType === 2) ||
+        (ins && songList[key].songType === 3)
+    );
+    songKeys = songKeys.filter((key) =>
+        (correctGuesses && songList[key].correctGuess) ||
+        (incorrectGuesses && songList[key].incorrectGuess)
+    );
+    if ($("#cslgSettingsSongOrderRandomRadio").prop("checked")) shuffleArray(songKeys);
+    else if ($("#cslgSettingsSongOrderDescendingRadio").prop("checked")) songKeys.reverse();
+    songKeys.slice(0, numSongs).forEach((key, i) => { songOrder[i + 1] = parseInt(key) });
+    if (Object.keys(songOrder).length === 0) {
+        return displayMessage("Unable to start", "no songs");
+    }
+    if ($("#cslgSettingsStartPointRandomRadio").prop("checked")) startPoint = "random";
+    else if ($("cslgSettingsStartPointStartRadio").prop("checked")) startPoint = "start";
+    else if ($("cslgSettingsStartPointMiddleRadio").prop("checked")) startPoint = "middle";
+    else if ($("cslgSettingsStartPointEndRadio").prop("checked")) startPoint = "end";
+    if ($("#cslgSettingsSkipNormalRadio").prop("checked")) fastSkip = false;
+    else if ($("#cslgSettingsSkipFastRadio").prop("checked")) fastSkip = true;
+    $("#cslgSettingsModal").modal("hide");
+    //console.log(songOrder);
+    startQuiz();
+});
+$("#cslgSongListTable").on("click", "i.fa-trash", (event) => {
+    let index = parseInt(event.target.parentElement.parentElement.querySelector("td.number").innerText) - 1;
+    songList.splice(index, 1);
+    buildSongListTable();
+    buildAnswerTable();
+});
+$("#cslgAnswerButtonAdd").click(() => {
+    let oldName = $("#cslgOldAnswerInput").val().trim();
+    let newName = $("#cslgNewAnswerInput").val().trim();
+    if (oldName) {
+        newName ? replacedAnswers[oldName] = newName : delete replacedAnswers[oldName];
+        localStorage.setItem("customSongListGame", JSON.stringify({replacedAnswers: replacedAnswers}));
+        buildAnswerTable();
+    }
+    console.log(replacedAnswers);
+});
+$("#cslgAnswerTable").on("click", "i.fa-pencil", (event) => {
+    let oldName = event.target.parentElement.parentElement.querySelector("td.oldName").innerText;
+    let newName = event.target.parentElement.parentElement.querySelector("td.newName").innerText;
+    $("#cslgOldAnswerInput").val(oldName);
+    $("#cslgNewAnswerInput").val(newName);
+});
+showSongListInterface();
+$("#cslgModeAnisongdbRadio").prop("checked", true);
+$("#cslgAnisongdbSearchPartialCheckbox").prop("checked", true);
+$("#cslgAnisongdbSearchMode").val("Artist");
+$("#cslgSettingsSongs").val("20");
+$("#cslgSettingsGuessTime").val("20");
+$("#cslgSettingsExtraGuessTime").val("0");
+$("#cslgSettingsOPCheckbox").prop("checked", true);
+$("#cslgSettingsEDCheckbox").prop("checked", true);
+$("#cslgSettingsINCheckbox").prop("checked", true);
+$("#cslgSettingsCorrectGuessCheckbox").prop("checked", true);
+$("#cslgSettingsIncorrectGuessCheckbox").prop("checked", true);
+$("#cslgSettingsSongOrderRandomRadio").prop("checked", true);
+$("#cslgSettingsStartPointRandomRadio").prop("checked", true);
+$("#cslgSettingsSkipNormalRadio").prop("checked", true);
+$("#cslgFileUploadRow").hide();
+$("#cslgModeAnisongdbRadio").click(() => {
+    songList = [];
+    $("#cslgFileUploadRow").hide();
+    $("#cslgAnisongdbSearchRow").show();
+    $("#cslgSongListCount").text("Total Songs: 0");
+    $("#cslgFileUploadRow input").val("");
+    $("#cslgSongListTable tbody").empty();
+});
+$("#cslgModeFileUploadRadio").click(() => {
+    songList = [];
+    $("#cslgAnisongdbSearchRow").hide();
+    $("#cslgFileUploadRow").show();
+    $("#cslgSongListCount").text("Total Songs: 0");
+    $("#cslgAnisongdbSearchInput").val("");
+    $("#cslgSongListTable tbody").empty();
+});
+
 function setup() {
     new Listener("game chat update", (payload) => {
         for (let message of payload.messages) {
             if (message.sender === selfName && message.message === "/version") {
                 setTimeout(() => { gameChat.systemMessage("Custom Song List Game - " + version) }, 1);
-            }
-            else if (message.sender === selfName && message.message === "/forceready") {
-                nextVideoReady = true;
             }
         }
     }).bindListener();
@@ -196,7 +486,16 @@ function setup() {
         name: "Custom Song List Game",
         author: "kempanator",
         description: `
-            <p>Description</p>
+            <p>Version: ${version}</p>
+            </ul><b>How to start a custom song list game:</b>
+                <li>create a solo lobby</li>
+                <li>click CSL button in the top right</li>
+                <li>click the autocomplete button if it is red</li>
+                <li>create or upload a list in the song list tab</li>
+                <li>change settings in the settings tab</li>
+                <li>fix any invalid answers in the answer tab</li>
+                <li>click start to play the quiz</li>
+            </ul>
         `
     });
     applyStyles();
@@ -220,11 +519,10 @@ function startQuiz() {
         }
     });
     setTimeout(() => {
-        let sample = getStartPoint();
         fireListener("quiz next video info", {
             "playLength": guessTime,
             "playbackSpeed": 1,
-            "startPont": sample, //thanks egerod
+            "startPont": getStartPoint(), //thanks egerod
             "videoInfo": {
                 "id": null,
                 "videoMap": {
@@ -311,11 +609,10 @@ function playSong(songNumber) {
         if (songNumber < Object.keys(songOrder).length) {
             readySong(songNumber + 1);
             let nextSong = songList[songOrder[songNumber + 1]];
-            let sample = getStartPoint();
             fireListener("quiz next video info", {
                 "playLength": guessTime,
                 "playbackSpeed": 1,
-                "startPont": sample, //thanks egerod
+                "startPont": getStartPoint(), //thanks egerod
                 "videoInfo": {
                     "id": null,
                     "videoMap": {
@@ -469,14 +766,7 @@ function isCorrectAnswer(songNumber, answer) {
     if (!answer) return false;
     answer = answer.toLowerCase();
     let song = songList[songOrder[songNumber]];
-    let correctAnswers = new Set();
-    for (let s of songList) {
-        if (s.songName === song.songName && s.songArtist === song.songArtist) {
-            let answers = [s.animeEnglishName, s.animeRomajiName].concat(s.altAnimeNames, s.altAnimeNamesAnswers);
-            answers.forEach((x) => correctAnswers.add(x));
-        }
-    }
-    //console.log(Array.from(correctAnswers));
+    let correctAnswers = [].concat(song.altAnimeNames, song.altAnimeNamesAnswers);
     for (let a1 of correctAnswers) {
         let a2 = replacedAnswers[a1];
         if (a2 && a2.toLowerCase() === answer) return true;
@@ -538,100 +828,6 @@ function quizOver() {
     viewChanger.changeView("lobby", {supressServerMsg: true, keepChatOpen: true});
 }
 
-function applyStyles() {
-    //$("#customSongListStyle").remove();
-    let style = document.createElement("style");
-    style.type = "text/css";
-    style.id = "customSongListStyle";
-    let text = `
-        #lnCustomSongListButton {
-            right: calc(25% - 250px);
-            width: 80px;
-        }
-        #cslgSongListContainer input[type="radio"] {
-            width: 20px;
-            height: 20px;
-            margin-left: 3px;
-            vertical-align: -5px;
-            cursor: pointer;
-        }
-        #cslgAnisongdbSearchRow input[type="checkbox"] {
-            width: 20px;
-            height: 20px;
-            margin-left: 3px;
-            vertical-align: -5px;
-            cursor: pointer;
-        }
-        #cslgSongListTable {
-            width: 100%;
-            table-layout: fixed;
-        }
-        #cslgSongListTable thead tr {
-            background-color: #282828;
-            font-weight: bold;
-        }
-        #cslgSongListTable .number {
-            width: 30px;
-        }
-        #cslgSongListTable .trash {
-            width: 20px;
-        }
-        #cslgSongListTable tbody i.fa-trash:hover {
-            opacity: .8;
-        }
-        #cslgSongListTable tbody tr:nth-child(odd) {
-            background-color: #424242;
-        }
-        #cslgSongListTable tbody tr:nth-child(even) {
-            background-color: #353535;
-        }
-        #cslgQuizSettingsContainer input[type="text"] {
-            color: black;
-            font-weight: normal;
-            margin-left: 3px;
-        }
-        #cslgQuizSettingsContainer input[type="checkbox"] {
-            width: 20px;
-            height: 20px;
-            margin-left: 3px;
-            vertical-align: -5px;
-            cursor: pointer;
-        }
-        #cslgQuizSettingsContainer input[type="radio"] {
-            width: 20px;
-            height: 20px;
-            margin-left: 3px;
-            vertical-align: -5px;
-            cursor: pointer;
-        }
-        #cslgAnswerTable {
-            width: 100%;
-            table-layout: fixed;
-        }
-        #cslgAnswerTable thead tr {
-            background-color: #282828;
-            font-weight: bold;
-        }
-        #cslgAnswerTable .edit {
-            width: 20px;
-        }
-        #cslgAnswerTable tbody i.fa-pencil:hover {
-            opacity: .8;
-        }
-        #cslgAnswerTable th, #cslgAnswerTable td {
-            padding: 0 4px;
-        }
-        #cslgAnswerTable tbody tr:nth-child(odd) {
-            background-color: #424242;
-        }
-        #cslgAnswerTable tbody tr:nth-child(even) {
-            background-color: #353535;
-        }
-    `;
-    style.appendChild(document.createTextNode(text));
-    document.head.appendChild(style);
-}
-
 function openSettingsModal() {
     if (lobby.inLobby && lobby.soloMode) {
         if ((quiz.answerInput.typingInput.autoCompleteController.list.length)) {
@@ -683,7 +879,7 @@ function handleData(data) {
             songList.push({
                 animeRomajiName: song.animeJPName,
                 animeEnglishName: song.animeENName,
-                altAnimeNames: song.animeAltName || [],
+                altAnimeNames: [].concat(song.animeJPName, song.animeENName, song.animeAltName || []),
                 altAnimeNamesAnswers: [],
                 songArtist: song.songArtist,
                 songName: song.songName,
@@ -706,6 +902,15 @@ function handleData(data) {
                 incorrectGuess: true
             });
         }
+        for (let song of songList) {
+            let otherAnswers = new Set();
+            for (let s of songList) {
+                if (s.songName === song.songName && s.songArtist === song.songArtist) {
+                    s.altAnimeNames.forEach((x) => otherAnswers.add(x));
+                }
+            }
+            song.altAnimeNamesAnswers = Array.from(otherAnswers).filter((x) => !song.altAnimeNames.includes(x));
+        }
     }
     // official amq song export structure
     else if (typeof data === "object" && data.roomName && data.startTime && data.songs) {
@@ -713,7 +918,7 @@ function handleData(data) {
             songList.push({
                 animeRomajiName: song.songInfo.animeNames.romaji,
                 animeEnglishName: song.songInfo.animeNames.english,
-                altAnimeNames: song.songInfo.altAnimeNames || [],
+                altAnimeNames: song.songInfo.altAnimeNames || [song.songInfo.animeNames.romaji, song.songInfo.animeNames.english],
                 altAnimeNamesAnswers: song.songInfo.altAnimeNamesAnswers || [],
                 songArtist: song.songInfo.artist,
                 songName: song.songInfo.songName,
@@ -743,7 +948,7 @@ function handleData(data) {
             songList.push({
                 animeRomajiName: song.anime.romaji,
                 animeEnglishName: song.anime.english,
-                altAnimeNames: song.altAnswers || [],
+                altAnimeNames: song.altAnswers || [song.anime.romaji, song.anime.english],
                 altAnimeNamesAnswers: [],
                 songArtist: song.artist,
                 songName: song.name,
@@ -773,7 +978,7 @@ function handleData(data) {
             songList.push({
                 animeRomajiName: song.animeRomaji,
                 animeEnglishName: song.animeEng,
-                altAnimeNames: [],
+                altAnimeNames: [song.animeRomaji, song.animeEng],
                 altAnimeNamesAnswers: [],
                 songArtist: song.artist,
                 songName: song.songName,
@@ -894,285 +1099,96 @@ function showInfoInterface() {
     $("#cslgInfoContainer").show();
 }
 
-$("#gameContainer").append($(`
-    <div class="modal fade tab-modal" id="cslgSettingsModal" tabindex="-1" role="dialog">
-        <div class="modal-dialog" role="document">
-            <div class="modal-content">
-                <div class="modal-header" style="padding: 3px 0 0 0">
-                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                        <span aria-hidden="true">×</span>
-                    </button>
-                    <h4 class="modal-title">Custom Song List Game</h4>
-                    <div class="tabContainer">
-                        <div id="cslgSongListTab" class="tab clickAble selected">
-                            <h5>Song List</h5>
-                        </div>
-                        <div id="cslgQuizSettingsTab" class="tab clickAble">
-                            <h5>Settings</h5>
-                        </div>
-                        <div id="cslgAnswerTab" class="tab clickAble">
-                            <h5>Answers</h5>
-                        </div>
-                        <div id="cslgInfoTab" class="tab clickAble" style="width: 40px; float: right;">
-                            <h5><i class="fa fa-info-circle" aria-hidden="true"></i></h5>
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-body" style="overflow-y: auto; max-height: calc(100vh - 150px);">
-                    <div id="cslgSongListContainer">
-                        <div>
-                            <span style="font-size: 20px; font-weight: bold;">Mode</span>
-                            <label class="clickAble" style="margin-left: 10px">Anisongdb<input id="cslgModeAnisongdbRadio" type="radio" name="cslgSongListMode"></label>
-                            <label class="clickAble" style="margin-left: 10px">Load File<input id="cslgModeFileUploadRadio" type="radio" name="cslgSongListMode"></label>
-                            <span id="cslgSongListCount" style="font-size: 20px; font-weight: bold; margin-left: 120px;">Total Songs: 0</span>
-                        </div>
-                        <div id="cslgFileUploadRow" style="height: 30px">
-                            <label style="vertical-align: -4px"><input id="cslgFileUpload" type="file" style="width: 500px"></label>
-                        </div>
-                        <div id="cslgAnisongdbSearchRow" style="height: 30px">
-                            <select id="cslgAnisongdbSearchMode" style="color: black; padding: 3px 0;">
-                                <option value="Anime">Anime</option>
-                                <option value="Artist">Artist</option>
-                                <option value="Song">Song</option>
-                                <option value="Composer">Composer</option>
-                            </select>
-                            <input id="cslgAnisongdbSearchInput" type="text" style="color: black; width: 185px;">
-                            <button id="cslgAnisongdbSearchButtonGo" style="color: black">Go</button>
-                            <label class="clickAble" style="margin-left: 10px">Partial<input id="cslgAnisongdbSearchPartialCheckbox" type="checkbox"></label>
-                            <label class="clickAble" style="margin-left: 10px">Ignore Duplicates<input id="cslgAnisongdbSearchIgnoreDuplicatesCheckbox" type="checkbox"></label>
-                        </div>
-                        <div style="height: 400px; margin: 5px 0; overflow-y: scroll;">
-                            <table id="cslgSongListTable">
-                                <thead>
-                                    <tr>
-                                        <th class="number">#</th>
-                                        <th class="song">Song</th>
-                                        <th class="artist">Artist</th>
-                                        <th class="trash"></th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                    <div id="cslgQuizSettingsContainer" style="margin-top: 10px">
-                        <div>
-                            <span style="font-size: 18px; font-weight: bold;">Songs:</span><input id="cslgSettingsSongs" type="text" style="width: 40px">
-                            <span style="font-size: 18px; font-weight: bold; margin-left: 15px;">Guess Time:</span><input id="cslgSettingsGuessTime" type="text" style="width: 40px">
-                            <span style="font-size: 18px; font-weight: bold; margin-left: 15px;">Extra Time:</span><input id="cslgSettingsExtraGuessTime" type="text" style="width: 40px">
-                        </div>
-                        <div>
-                            <span style="font-size: 18px; font-weight: bold; margin-right: 15px;">Song Types:</span>
-                            <label class="clickAble">OP<input id="cslgSettingsOPCheckbox" type="checkbox"></label>
-                            <label class="clickAble" style="margin-left: 10px">ED<input id="cslgSettingsEDCheckbox" type="checkbox"></label>
-                            <label class="clickAble" style="margin-left: 10px">IN<input id="cslgSettingsINCheckbox" type="checkbox"></label>
-                            <span style="font-size: 18px; font-weight: bold; margin: 0 15px 0 35px;">Guess:</span>
-                            <label class="clickAble">Correct<input id="cslgSettingsCorrectGuessCheckbox" type="checkbox"></label>
-                            <label class="clickAble" style="margin-left: 10px">Wrong<input id="cslgSettingsIncorrectGuessCheckbox" type="checkbox"></label>
-                        </div>
-                        <div>
-                            <span style="font-size: 18px; font-weight: bold; margin-right: 15px;">Song Order:</span>
-                            <label class="clickAble">Random<input id="cslgSettingsSongOrderRandomRadio" type="radio" name="cslgSongOrderMode"></label>
-                            <label class="clickAble" style="margin-left: 10px">Ascending<input id="cslgSettingsSongOrderAscendingRadio" type="radio" name="cslgSongOrderMode"></label>
-                            <label class="clickAble" style="margin-left: 10px">Descending<input id="cslgSettingsSongOrderDescendingRadio" type="radio" name="cslgSongOrderMode"></label>
-                        </div>
-                        <div>
-                            <span style="font-size: 18px; font-weight: bold; margin-right: 15px;">Sample:</span>
-                            <label class="clickAble">Random<input id="cslgSettingsStartPointRandomRadio" type="radio" name="cslgStartPointMode"></label>
-                            <label class="clickAble" style="margin-left: 10px">Start<input id="cslgSettingsStartPointStartRadio" type="radio" name="cslgStartPointMode"></label>
-                            <label class="clickAble" style="margin-left: 10px">Middle<input id="cslgSettingsStartPointMiddleRadio" type="radio" name="cslgStartPointMode"></label>
-                            <label class="clickAble" style="margin-left: 10px">End<input id="cslgSettingsStartPointEndRadio" type="radio" name="cslgStartPointMode"></label>
-                        </div>
-                        <div>
-                            <span style="font-size: 18px; font-weight: bold; margin-right: 15px;">Skip Speed:</span>
-                            <label class="clickAble">Normal<input id="cslgSettingsSkipNormalRadio" type="radio" name="cslgSkipMode"></label>
-                            <label class="clickAble" style="margin-left: 10px">Fast<input id="cslgSettingsSkipFastRadio" type="radio" name="cslgSkipMode"></label>
-                        </div>
-                        <p style="margin-top: 20px">*Normal room settings are ignored. Only these settings will apply.</p>
-                    </div>
-                    <div id="cslgAnswerContainer">
-                        <span style="font-size: 16px; font-weight: bold;">Old:</span>
-                        <input id="cslgOldAnswerInput" type="text" style="width: 200px; color: black; margin: 10px 0;">
-                        <span style="font-size: 16px; font-weight: bold; margin-left: 10px;">New:</span>
-                        <input id="cslgNewAnswerInput" type="text" style="width: 200px; color: black; margin: 10px 0;">
-                        <button id="cslgAnswerButtonAdd" style="color: black; margin-left: 10px;">Add</button>
-                        <div id="cslgAnswerText" style="font-size: 16px; font-weight: bold;">No list loaded</div>
-                        <div style="height: 300px; margin: 5px 0; overflow-y: scroll;">
-                            <table id="cslgAnswerTable">
-                                <thead>
-                                    <tr>
-                                        <th class="oldName">Old</th>
-                                        <th class="newName">New</th>
-                                        <th class="edit"></th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                </tbody>
-                            </table>
-                        </div>
-                        <p style="margin-top: 5px">*Use this window to replace invalid answers from your imported song list with valid answers from AMQ's autocomplete</p>
-                    </div>
-                    <div id="cslgInfoContainer" style="text-align: center; margin: 40px 0;">
-                        <p>Created by: kempanator</p>
-                        <p>Version: ${version}</p>
-                        <p><a href="https://github.com/kempanator/amq-scripts/raw/main/amqCustomSongListGame.user.js" target="blank">Link</a></p>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button id="cslgAutocompleteButton" class="btn btn-danger" style="float: left">Autocomplete</button>
-                    <button id="cslgExitButton" class="btn btn-default" data-dismiss="modal">Exit</button>
-                    <button id="cslgStartButton" class="btn btn-primary">Start</button>
-                </div>
-            </div>
-        </div>
-    </div>
-`));
-
-$("#lobbyPage .topMenuBar").append(`<div id="lnCustomSongListButton" class="clickAble topMenuButton topMenuMediumButton"><h3>CSL</h3></div>`);
-$("#lnCustomSongListButton").click(() => { openSettingsModal() });
-$("#cslgSongListTab").click(() => { showSongListInterface() });
-$("#cslgQuizSettingsTab").click(() => { showSettingsInterface() });
-$("#cslgAnswerTab").click(() => { showAnswerInterface() });
-$("#cslgInfoTab").click(() => { showInfoInterface() });
-$("#cslgAnisongdbSearchButtonGo").click(() => { anisongdbDataSearch() });
-$("#cslgAnisongdbSearchInput").keypress((event) => { if (event.which === 13) anisongdbDataSearch() });
-$("#cslgFileUpload").on("change", function() {
-    this.files[0].text().then((data) => {
-        try {
-            handleData(JSON.parse(data));
+function applyStyles() {
+    //$("#customSongListStyle").remove();
+    let style = document.createElement("style");
+    style.type = "text/css";
+    style.id = "customSongListStyle";
+    let text = `
+        #lnCustomSongListButton {
+            right: calc(25% - 250px);
+            width: 80px;
         }
-        catch {
-            songList = [];
-            displayMessage("Upload Error");
+        #cslgSongListContainer input[type="radio"] {
+            width: 20px;
+            height: 20px;
+            margin-left: 3px;
+            vertical-align: -5px;
+            cursor: pointer;
         }
-        buildSongListTable();
-        buildAnswerTable();
-    });
-});
-$("#cslgAutocompleteButton").click(() => {
-    $("#cslgSettingsModal").modal("hide");
-    socket.sendCommand({type: "lobby", command: "start game"});
-    let autocompleteListener = new Listener("get all song names", () => {
-        autocompleteListener.unbindListener();
-        viewChanger.changeView("main");
-        setTimeout(() => {
-            hostModal.displayHostSolo();
-        }, 200);
-        setTimeout(() => {
-            let returnListener = new Listener("Host Game", (payload) => {
-                returnListener.unbindListener();
-                if (songList.length) buildAnswerTable();
-                setTimeout(() => { openSettingsModal() }, 10);
-            });
-            returnListener.bindListener();
-            roomBrowser.host();
-        }, 400);
-    });
-    autocompleteListener.bindListener();
-    
-});
-$("#cslgStartButton").click(() => {
-    songOrder = {};
-    if (!songList || !songList.length) {
-        return displayMessage("Unable to start", "no songs");
-    }
-    if (quiz.answerInput.typingInput.autoCompleteController.list.length === 0) {
-        return displayMessage("Unable to start", "autocomplete list empty");
-    }
-    let numSongs = parseInt($("#cslgSettingsSongs").val());
-    if (isNaN(numSongs) || numSongs < 1) {
-        return displayMessage("Unable to start", "invalid number of songs");
-    }
-    guessTime = parseInt($("#cslgSettingsGuessTime").val());
-    if (isNaN(guessTime) || guessTime < 1 || guessTime > 60) {
-        return displayMessage("Unable to start", "invalid guess time");
-    }
-    extraGuessTime = parseInt($("#cslgSettingsExtraGuessTime").val());
-    if (isNaN(extraGuessTime) || extraGuessTime < 0 || extraGuessTime > 15) {
-        return displayMessage("Unable to start", "invalid extra guess time");
-    }
-    let ops = $("#cslgSettingsOPCheckbox").prop("checked");
-    let eds = $("#cslgSettingsEDCheckbox").prop("checked");
-    let ins = $("#cslgSettingsINCheckbox").prop("checked");
-    let correctGuesses = $("#cslgSettingsCorrectGuessCheckbox").prop("checked");
-    let incorrectGuesses = $("#cslgSettingsIncorrectGuessCheckbox").prop("checked");
-    let songKeys = Object.keys(songList).filter((key) =>
-        (ops && songList[key].songType === 1) ||
-        (eds && songList[key].songType === 2) ||
-        (ins && songList[key].songType === 3)
-    );
-    songKeys = songKeys.filter((key) =>
-        (correctGuesses && songList[key].correctGuess === true) ||
-        (incorrectGuesses && songList[key].incorrectGuess === true)
-    );
-    if ($("#cslgSettingsSongOrderRandomRadio").prop("checked")) shuffleArray(songKeys);
-    else if ($("#cslgSettingsSongOrderDescendingRadio").prop("checked")) songKeys.reverse();
-    songKeys.slice(0, numSongs).forEach((key, i) => { songOrder[i + 1] = parseInt(key) });
-    if (Object.keys(songOrder).length === 0) {
-        return displayMessage("Unable to start", "no songs");
-    }
-    if ($("#cslgSettingsStartPointRandomRadio").prop("checked")) startPoint = "random";
-    else if ($("cslgSettingsStartPointStartRadio").prop("checked")) startPoint = "start";
-    else if ($("cslgSettingsStartPointMiddleRadio").prop("checked")) startPoint = "middle";
-    else if ($("cslgSettingsStartPointEndRadio").prop("checked")) startPoint = "end";
-    if ($("#cslgSettingsSkipNormalRadio").prop("checked")) fastSkip = false;
-    else if ($("#cslgSettingsSkipFastRadio").prop("checked")) fastSkip = true;
-    $("#cslgSettingsModal").modal("hide");
-    //console.log(songOrder);
-    startQuiz();
-});
-$("#cslgSongListTable").on("click", "i.fa-trash", (event) => {
-    let index = parseInt(event.target.parentElement.parentElement.querySelector("td.number").innerText) - 1;
-    songList.splice(index, 1);
-    buildSongListTable();
-    buildAnswerTable();
-});
-$("#cslgAnswerButtonAdd").click(() => {
-    let oldName = $("#cslgOldAnswerInput").val().trim();
-    let newName = $("#cslgNewAnswerInput").val().trim();
-    if (oldName) {
-        newName ? replacedAnswers[oldName] = newName : delete replacedAnswers[oldName];
-        localStorage.setItem("customSongListGame", JSON.stringify({replacedAnswers: replacedAnswers}));
-        buildAnswerTable();
-    }
-    console.log(replacedAnswers);
-});
-$("#cslgAnswerTable").on("click", "i.fa-pencil", (event) => {
-    let oldName = event.target.parentElement.parentElement.querySelector("td.oldName").innerText;
-    let newName = event.target.parentElement.parentElement.querySelector("td.newName").innerText;
-    $("#cslgOldAnswerInput").val(oldName);
-    $("#cslgNewAnswerInput").val(newName);
-});
-showSongListInterface();
-$("#cslgModeAnisongdbRadio").prop("checked", true);
-$("#cslgAnisongdbSearchPartialCheckbox").prop("checked", true);
-$("#cslgAnisongdbSearchMode").val("Artist");
-$("#cslgSettingsSongs").val("20");
-$("#cslgSettingsGuessTime").val("20");
-$("#cslgSettingsExtraGuessTime").val("0");
-$("#cslgSettingsOPCheckbox").prop("checked", true);
-$("#cslgSettingsEDCheckbox").prop("checked", true);
-$("#cslgSettingsINCheckbox").prop("checked", true);
-$("#cslgSettingsCorrectGuessCheckbox").prop("checked", true);
-$("#cslgSettingsIncorrectGuessCheckbox").prop("checked", true);
-$("#cslgSettingsSongOrderRandomRadio").prop("checked", true);
-$("#cslgSettingsStartPointRandomRadio").prop("checked", true);
-$("#cslgSettingsSkipNormalRadio").prop("checked", true);
-$("#cslgFileUploadRow").hide();
-$("#cslgModeAnisongdbRadio").click(() => {
-    songList = [];
-    $("#cslgFileUploadRow").hide();
-    $("#cslgAnisongdbSearchRow").show();
-    $("#cslgSongListCount").text("Total Songs: 0");
-    $("#cslgFileUploadRow input").val("");
-    $("#cslgSongListTable tbody").empty();
-});
-$("#cslgModeFileUploadRadio").click(() => {
-    songList = [];
-    $("#cslgAnisongdbSearchRow").hide();
-    $("#cslgFileUploadRow").show();
-    $("#cslgSongListCount").text("Total Songs: 0");
-    $("#cslgAnisongdbSearchInput").val("");
-    $("#cslgSongListTable tbody").empty();
-});
+        #cslgAnisongdbSearchRow input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            margin-left: 3px;
+            vertical-align: -5px;
+            cursor: pointer;
+        }
+        #cslgSongListTable {
+            width: 100%;
+            table-layout: fixed;
+        }
+        #cslgSongListTable thead tr {
+            background-color: #282828;
+            font-weight: bold;
+        }
+        #cslgSongListTable .number {
+            width: 30px;
+        }
+        #cslgSongListTable .trash {
+            width: 20px;
+        }
+        #cslgSongListTable tbody i.fa-trash:hover {
+            opacity: .8;
+        }
+        #cslgSongListTable tbody tr:nth-child(odd) {
+            background-color: #424242;
+        }
+        #cslgSongListTable tbody tr:nth-child(even) {
+            background-color: #353535;
+        }
+        #cslgQuizSettingsContainer input[type="text"] {
+            color: black;
+            font-weight: normal;
+            margin-left: 3px;
+        }
+        #cslgQuizSettingsContainer input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            margin-left: 3px;
+            vertical-align: -5px;
+            cursor: pointer;
+        }
+        #cslgQuizSettingsContainer input[type="radio"] {
+            width: 20px;
+            height: 20px;
+            margin-left: 3px;
+            vertical-align: -5px;
+            cursor: pointer;
+        }
+        #cslgAnswerTable {
+            width: 100%;
+            table-layout: fixed;
+        }
+        #cslgAnswerTable thead tr {
+            background-color: #282828;
+            font-weight: bold;
+        }
+        #cslgAnswerTable .edit {
+            width: 20px;
+        }
+        #cslgAnswerTable tbody i.fa-pencil:hover {
+            opacity: .8;
+        }
+        #cslgAnswerTable th, #cslgAnswerTable td {
+            padding: 0 4px;
+        }
+        #cslgAnswerTable tbody tr:nth-child(odd) {
+            background-color: #424242;
+        }
+        #cslgAnswerTable tbody tr:nth-child(even) {
+            background-color: #353535;
+        }
+    `;
+    style.appendChild(document.createTextNode(text));
+    document.head.appendChild(style);
+}
