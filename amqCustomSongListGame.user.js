@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.10
+// @version      0.11
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -43,7 +43,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.10";
+const version = "0.11";
 const saveData = JSON.parse(localStorage.getItem("customSongListGame")) || {};
 let replacedAnswers = saveData.replacedAnswers || {};
 let active = false;
@@ -85,7 +85,7 @@ $("#gameContainer").append($(`
                         <div id="cslgAnswerTab" class="tab clickAble">
                             <h5>Answers</h5>
                         </div>
-                        <div id="cslgInfoTab" class="tab clickAble" style="width: 40px; float: right;">
+                        <div id="cslgInfoTab" class="tab clickAble" style="width: 45px; margin-right: -10px; padding-right: 8px; float: right;">
                             <h5><i class="fa fa-info-circle" aria-hidden="true"></i></h5>
                         </div>
                     </div>
@@ -98,20 +98,29 @@ $("#gameContainer").append($(`
                             <label class="clickAble" style="margin-left: 10px">Load File<input id="cslgModeFileUploadRadio" type="radio" name="cslgSongListMode"></label>
                             <span id="cslgSongListCount" style="font-size: 20px; font-weight: bold; margin-left: 120px;">Total Songs: 0</span>
                         </div>
-                        <div id="cslgFileUploadRow" style="height: 30px">
+                        <div id="cslgFileUploadRow">
                             <label style="vertical-align: -4px"><input id="cslgFileUpload" type="file" style="width: 500px"></label>
                         </div>
-                        <div id="cslgAnisongdbSearchRow" style="height: 30px">
-                            <select id="cslgAnisongdbSearchMode" style="color: black; padding: 3px 0;">
-                                <option value="Anime">Anime</option>
-                                <option value="Artist">Artist</option>
-                                <option value="Song">Song</option>
-                                <option value="Composer">Composer</option>
-                            </select>
-                            <input id="cslgAnisongdbSearchInput" type="text" style="color: black; width: 185px;">
-                            <button id="cslgAnisongdbSearchButtonGo" style="color: black">Go</button>
-                            <label class="clickAble" style="margin-left: 10px">Partial<input id="cslgAnisongdbSearchPartialCheckbox" type="checkbox"></label>
-                            <label class="clickAble" style="margin-left: 10px">Ignore Duplicates<input id="cslgAnisongdbSearchIgnoreDuplicatesCheckbox" type="checkbox"></label>
+                        <div id="cslgAnisongdbSearchRow">
+                            <div>
+                                <select id="cslgAnisongdbModeSelect" style="color: black; padding: 3px 0;">
+                                    <option value="Anime">Anime</option>
+                                    <option value="Artist">Artist</option>
+                                    <option value="Song">Song</option>
+                                    <option value="Composer">Composer</option>
+                                </select>
+                                <input id="cslgAnisongdbQueryInput" type="text" style="color: black; width: 185px;">
+                                <button id="cslgAnisongdbSearchButtonGo" style="color: black">Go</button>
+                                <label class="clickAble" style="margin-left: 7px">Partial<input id="cslgAnisongdbPartialCheckbox" type="checkbox"></label>
+                                <label class="clickAble" style="margin-left: 7px">OP<input id="cslgAnisongdbOPCheckbox" type="checkbox"></label>
+                                <label class="clickAble" style="margin-left: 7px">ED<input id="cslgAnisongdbEDCheckbox" type="checkbox"></label>
+                                <label class="clickAble" style="margin-left: 7px">IN<input id="cslgAnisongdbINCheckbox" type="checkbox"></label>
+                            </div>
+                            <div>
+                                <label class="clickAble">Max Other People<input id="cslgAnisongdbMaxOtherPeopleInput" type="text" style="color: black; font-weight: normal; width: 40px; margin-left: 3px;"></label>
+                                <label class="clickAble" style="margin-left: 10px">Min Group Members<input id="cslgAnisongdbMinGroupMembersInput" type="text" style="color: black; font-weight: normal; width: 40px; margin-left: 3px;"></label>
+                                <label class="clickAble" style="margin-left: 20px">Ignore Duplicates<input id="cslgAnisongdbIgnoreDuplicatesCheckbox" type="checkbox"></label>
+                            </div>
                         </div>
                         <div style="height: 400px; margin: 5px 0; overflow-y: scroll;">
                             <table id="cslgSongListTable">
@@ -208,7 +217,7 @@ $("#cslgQuizSettingsTab").click(() => { showSettingsInterface() });
 $("#cslgAnswerTab").click(() => { showAnswerInterface() });
 $("#cslgInfoTab").click(() => { showInfoInterface() });
 $("#cslgAnisongdbSearchButtonGo").click(() => { anisongdbDataSearch() });
-$("#cslgAnisongdbSearchInput").keypress((event) => { if (event.which === 13) anisongdbDataSearch() });
+$("#cslgAnisongdbQueryInput").keypress((event) => { if (event.which === 13) anisongdbDataSearch() });
 $("#cslgFileUpload").on("change", function() {
     if (this.files.length) {
         this.files[0].text().then((data) => {
@@ -271,15 +280,9 @@ $("#cslgStartButton").click(() => {
     let ins = $("#cslgSettingsINCheckbox").prop("checked");
     let correctGuesses = $("#cslgSettingsCorrectGuessCheckbox").prop("checked");
     let incorrectGuesses = $("#cslgSettingsIncorrectGuessCheckbox").prop("checked");
-    let songKeys = Object.keys(songList).filter((key) =>
-        (ops && songList[key].songType === 1) ||
-        (eds && songList[key].songType === 2) ||
-        (ins && songList[key].songType === 3)
-    );
-    songKeys = songKeys.filter((key) =>
-        (correctGuesses && songList[key].correctGuess) ||
-        (incorrectGuesses && songList[key].incorrectGuess)
-    );
+    let songKeys = Object.keys(songList)
+        .filter((key) => (ops && songList[key].songType === 1) || (eds && songList[key].songType === 2) || (ins && songList[key].songType === 3))
+        .filter((key) => (correctGuesses && songList[key].correctGuess) || (incorrectGuesses && songList[key].incorrectGuess));
     if ($("#cslgSettingsSongOrderRandomRadio").prop("checked")) shuffleArray(songKeys);
     else if ($("#cslgSettingsSongOrderDescendingRadio").prop("checked")) songKeys.reverse();
     songKeys.slice(0, numSongs).forEach((key, i) => { songOrder[i + 1] = parseInt(key) });
@@ -320,8 +323,13 @@ $("#cslgAnswerTable").on("click", "i.fa-pencil", (event) => {
 });
 showSongListInterface();
 $("#cslgModeAnisongdbRadio").prop("checked", true);
-$("#cslgAnisongdbSearchPartialCheckbox").prop("checked", true);
-$("#cslgAnisongdbSearchMode").val("Artist");
+$("#cslgAnisongdbModeSelect").val("Artist");
+$("#cslgAnisongdbPartialCheckbox").prop("checked", true);
+$("#cslgAnisongdbOPCheckbox").prop("checked", true);
+$("#cslgAnisongdbEDCheckbox").prop("checked", true);
+$("#cslgAnisongdbINCheckbox").prop("checked", true);
+$("#cslgAnisongdbMaxOtherPeopleInput").val("99");
+$("#cslgAnisongdbMinGroupMembersInput").val("0");
 $("#cslgSettingsSongs").val("20");
 $("#cslgSettingsGuessTime").val("20");
 $("#cslgSettingsExtraGuessTime").val("0");
@@ -347,7 +355,7 @@ $("#cslgModeFileUploadRadio").click(() => {
     $("#cslgAnisongdbSearchRow").hide();
     $("#cslgFileUploadRow").show();
     $("#cslgSongListCount").text("Total Songs: 0");
-    $("#cslgAnisongdbSearchInput").val("");
+    $("#cslgAnisongdbQueryInput").val("");
     $("#cslgSongListTable tbody").empty();
 });
 
@@ -841,23 +849,59 @@ function openSettingsModal() {
 }
 
 function anisongdbDataSearch() {
-    let mode = $("#cslgAnisongdbSearchMode").val().toLowerCase();
-    let query = $("#cslgAnisongdbSearchInput").val();
-    let partial = $("#cslgAnisongdbSearchPartialCheckbox").prop("checked");
-    let ignoreDuplicates = $("#cslgAnisongdbSearchIgnoreDuplicatesCheckbox").prop("checked");
-    //console.log({mode: mode, query: query, partial: partial, ignoreDuplicates: ignoreDuplicates});
-    if (query) getAnisongdbData(mode, query, partial, ignoreDuplicates);
+    let mode = $("#cslgAnisongdbModeSelect").val().toLowerCase();
+    let query = $("#cslgAnisongdbQueryInput").val();
+    let ops = $("#cslgAnisongdbOPCheckbox").prop("checked");
+    let eds = $("#cslgAnisongdbEDCheckbox").prop("checked");
+    let ins = $("#cslgAnisongdbINCheckbox").prop("checked");
+    let partial = $("#cslgAnisongdbPartialCheckbox").prop("checked");
+    let ignoreDuplicates = $("#cslgAnisongdbIgnoreDuplicatesCheckbox").prop("checked");
+    let maxOtherPeople = parseInt($("#cslgAnisongdbMaxOtherPeopleInput").val());
+    let minGroupMembers = parseInt($("#cslgAnisongdbMinGroupMembersInput").val());
+    //console.log({mode: mode, query: query, ops: ops, eds: eds, ins: ins, partial: partial, ignoreDuplicates: ignoreDuplicates, maxOtherPeople: maxOtherPeople, minGroupMembers: minGroupMembers});
+    if (query && !isNaN(maxOtherPeople) && !isNaN(minGroupMembers)) {
+        getAnisongdbData(mode, query, ops, eds, ins, partial, ignoreDuplicates, maxOtherPeople, minGroupMembers);
+    }
 }
 
 // send anisongdb request
-function getAnisongdbData(mode, query, partial, ignoreDuplicates) {
+function getAnisongdbData(mode, query, ops, eds, ins, partial, ignoreDuplicates, maxOtherPeople, minGroupMembers) {
     $("#cslgSongListCount").text("Loading");
     $("#cslgSongListTable tbody").empty();
-    let json = {and_logic: false, ignore_duplicate: ignoreDuplicates, opening_filter: true, ending_filter: true, insert_filter: true};
-    if (mode === "anime") json.anime_search_filter = {search: query, partial_match: partial};
-    else if (mode === "artist") json.artist_search_filter = {search: query, partial_match: partial, group_granularity: 0, max_other_artist: 99};
-    else if (mode === "song") json.song_name_search_filter = {search: query, partial_match: partial};
-    else if (mode === "composer") json.composer_search_filter = {search: query, partial_match: partial, arrangement: false};
+    let json = {
+        and_logic: false,
+        ignore_duplicate: ignoreDuplicates,
+        opening_filter: ops,
+        ending_filter: eds,
+        insert_filter: ins
+    };
+    if (mode === "anime") {
+        json.anime_search_filter = {
+            search: query,
+            partial_match: partial
+        };
+    }
+    else if (mode === "artist") {
+        json.artist_search_filter = {
+            search: query,
+            partial_match: partial,
+            group_granularity: minGroupMembers,
+            max_other_artist: maxOtherPeople
+        };
+    }
+    else if (mode === "song") {
+        json.song_name_search_filter = {
+            search: query,
+            partial_match: partial
+        };
+    }
+    else if (mode === "composer") {
+        json.composer_search_filter = {
+            search: query,
+            partial_match: partial,
+            arrangement: false
+        };
+    }
     fetch("https://anisongdb.com/api/search_request", {
         method: "POST",
         headers: {"Accept": "application/json", "Content-Type": "application/json"},
@@ -1044,7 +1088,7 @@ function buildAnswerTable() {
             }
         }
         missingAnimeList.sort((a, b) => a.localeCompare(b));
-        $("#cslgAnswerText").text(`Found ${missingAnimeList.length} anime title${missingAnimeList.length === 1 ? "" : "s"} missing from AMQ's autocomplete`);
+        $("#cslgAnswerText").text(`Found ${missingAnimeList.length} anime missing from AMQ's autocomplete`);
         for (let anime of missingAnimeList) {
             let $row = $("<tr></tr>");
             $row.append($("<td></td>").addClass("oldName").text(anime));
@@ -1139,6 +1183,9 @@ function applyStyles() {
         }
         #cslgSongListTable tbody i.fa-trash:hover {
             opacity: .8;
+        }
+        #cslgSongListTable th, #cslgAnswerTable td {
+            padding: 0 4px;
         }
         #cslgSongListTable tbody tr:nth-child(odd) {
             background-color: #424242;
