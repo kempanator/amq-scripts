@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Answer Stats
 // @namespace    https://github.com/kempanator
-// @version      0.9
+// @version      0.10
 // @description  Adds a window to display quiz answer stats
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -34,7 +34,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.9";
+const version = "0.10";
 const regionDictionary = {E: "Eastern", C: "Central", W: "Western"};
 const saveData = JSON.parse(localStorage.getItem("answerStats")) || {};
 const saveData2 = JSON.parse(localStorage.getItem("highlightFriendsSettings")) || {};
@@ -47,7 +47,7 @@ let answerHistoryWindow;
 let answerCompareWindow;
 let anisongdbWindow;
 let answers = {}; //{1: {name, id, answer, correct}, ...}
-let songHistory = {}; //{1: {romaji, english, number, artist, song, type, vintage, difficulty, answers: {1: {number, text, speed, correct, invalidAnswer, uniqueAnswer, noAnswer}, ...}, ...}
+let songHistory = {}; //{1: {romaji, english, number, artist, song, type, vintage, difficulty, fastestSpeed, fastestPlayers, answers: {1: {id, text, speed, correct, rank, score, invalidAnswer, uniqueAnswer, noAnswer}, ...}, ...}
 let playerInfo = {}; //{1: {name, id, level, score, rank, box, averageSpeed, correctSpeedList}, ...}
 let listLowerCase = [];
 let answerHistoryButton = true;
@@ -103,7 +103,6 @@ function setup() {
         answerHistorySettings.roomType = payload.gameMode;
         if (answerHistorySettings.roomType === "Ranked") answerHistorySettings.roomName = regionDictionary[$("#mpRankedTimer h3").text()] + " " + payload.quizDescription.roomName;
         else answerHistorySettings.roomName = payload.quizDescription.roomName;
-        console.log(`${answerHistorySettings.roomType} ${answerHistorySettings.roomName}`);
     }).bindListener();
     new Listener("Join Game", (payload) => {
         if (payload.quizState) {
@@ -111,7 +110,6 @@ function setup() {
             answerHistorySettings.roomType = payload.settings.gameMode;
             if (answerHistorySettings.roomType === "Ranked") answerHistorySettings.roomName = regionDictionary[$("#mpRankedTimer h3").text()] + " " + payload.settings.roomName;
             else answerHistorySettings.roomName = payload.settings.roomName;
-            console.log(`${answerHistorySettings.roomType} ${answerHistorySettings.roomName}`);
         }
     }).bindListener();
     new Listener("Spectate Game", (payload) => {
@@ -120,7 +118,6 @@ function setup() {
             answerHistorySettings.roomType = payload.settings.gameMode;
             if (answerHistorySettings.roomType === "Ranked") answerHistorySettings.roomName = regionDictionary[$("#mpRankedTimer h3").text()] + " " + payload.settings.roomName;
             else answerHistorySettings.roomName = payload.settings.roomName;
-            console.log(`${answerHistorySettings.roomType} ${answerHistorySettings.roomName}`);
         }
     }).bindListener();
     new Listener("player answers", (payload) => {
@@ -134,7 +131,7 @@ function setup() {
         if (Object.keys(answers).length === 0) return;
         if (listLowerCase.length === 0) return;
         let songNumber = parseInt(quiz.infoContainer.$currentSongCount.text());
-        let correctPlayers = {}; //{name: answer speed, ...}
+        let correctPlayers = {}; //{id: answer speed, ...}
         let correctAnswerIdList = {}; //{title: [], ...}
         let incorrectAnswerIdList = {}; //{title: [], ...}
         let otherAnswerIdList = []; //unique incorrect answers
@@ -158,7 +155,7 @@ function setup() {
             if (quizPlayer) {
                 quizPlayer.correct = player.correct;
                 let speed = validateSpeed(amqAnswerTimesUtility.playerTimes[player.gamePlayerId]);
-                if (player.correct && speed) correctPlayers[answers[player.gamePlayerId].name] = speed;
+                if (player.correct && speed) correctPlayers[answers[player.gamePlayerId].id] = speed;
                 let item = playerInfo[player.gamePlayerId];
                 if (item) {
                     item.level = player.level;
@@ -167,7 +164,7 @@ function setup() {
                     if (player.correct && speed) {
                         item.correctSpeedList.push(speed);
                         item.averageSpeed = item.correctSpeedList.reduce((a, b) => a + b) / item.correctSpeedList.length;
-                        //item.standardDeviation = Math.sqrt(item.correctSpeedList.map((x) => (x - item.averageSpeed) ** 2).reduce((a, b) => a + b) / item.correctSpeedList.length);
+                        item.standardDeviation = Math.sqrt(item.correctSpeedList.map((x) => (x - item.averageSpeed) ** 2).reduce((a, b) => a + b) / item.correctSpeedList.length);
                     }
                 }
                 else {
@@ -178,11 +175,12 @@ function setup() {
                         score: getScore(player),
                         rank: player.position,
                         correctSpeedList: (player.correct && speed) ? [speed] : [],
-                        averageSpeed: (player.correct && speed) ? speed : 0
+                        averageSpeed: (player.correct && speed) ? speed : 0,
+                        standardDeviation: 0
                     };
-                    //standardDeviation: 0
                 }
                 songHistory[songNumber].answers[player.gamePlayerId] = {
+                    id: player.gamePlayerId,
                     text: answers[player.gamePlayerId].answer,
                     speed: speed,
                     correct: player.correct,
@@ -216,9 +214,11 @@ function setup() {
             }
         }
         let numCorrect = Object.keys(correctPlayers).length;
-        let averageTime = numCorrect ? Math.round(Object.values(correctPlayers).reduce((a, b) => a + b) / numCorrect) : null;
-        let fastestTime = numCorrect ? Math.min(...Object.values(correctPlayers)) : null;
-        let fastestPlayers = Object.keys(correctPlayers).filter((name) => correctPlayers[name] === fastestTime);
+        let averageSpeed = numCorrect ? Math.round(Object.values(correctPlayers).reduce((a, b) => a + b) / numCorrect) : null;
+        let fastestSpeed = numCorrect ? Math.min(...Object.values(correctPlayers)) : null;
+        let fastestPlayers = Object.keys(correctPlayers).filter((id) => correctPlayers[id] === fastestSpeed);
+        songHistory[songNumber].fastestSpeed = fastestSpeed;
+        songHistory[songNumber].fastestPlayers = fastestPlayers;
         for (let anime of Object.keys(incorrectAnswerIdList)) {
             if (incorrectAnswerIdList[anime].length === 1) {
                 let id = incorrectAnswerIdList[anime][0];
@@ -253,15 +253,15 @@ function setup() {
             if (numCorrect && !quiz.soloMode && !quiz.teamMode) {
                 answerStatsWindow.panels[0].panel.append(`
                     <div style="margin: 0 3px">
-                        <span><b>Average:</b> ${averageTime}ms</span>
-                        <span style="margin-left: 20px"><b>Fastest:</b> ${fastestTime}ms - ${fastestPlayers.join(", ")}</span>
+                        <span><b>Average:</b> ${averageSpeed}ms</span>
+                        <span style="margin-left: 20px"><b>Fastest:</b> ${fastestSpeed}ms - ${fastestPlayers.map((id) => playerInfo[id].name).join(", ")}</span>
                     </div>
                 `);
             }
             if (payload.players.length > 8 && Object.keys(correctPlayers).length <= 5) {
                 answerStatsWindow.panels[0].panel.append(`
                     <div style="margin: 0 3px">
-                        <span><b>Correct Players:</b> ${Object.keys(correctPlayers).join(", ")}</span>
+                        <span><b>Correct Players:</b> ${Object.keys(correctPlayers).map((id) => playerInfo[id].name).join(", ")}</span>
                     </div>
                 `);
             }
@@ -344,6 +344,9 @@ function setup() {
                 }
                 else if (answerHistorySettings.mode === "player") {
                     displayPlayerHistoryResults(answerHistorySettings.playerId);
+                }
+                else if (answerHistorySettings.mode === "speed") {
+                    displayFastestSpeedResults();
                 }
             }
 
@@ -550,28 +553,41 @@ function setup() {
                 saveResults();
             })
         );
+        $div1.append($(`<div class="speedButton"><i class="fa fa-clock-o" aria-hidden="true"></i></div>`)
+            .popover({
+                container: "#gameContainer",
+                placement: "top",
+                trigger: "hover",
+                content: "show fastest speed for each song"
+            })
+            .click(() => {
+                displayFastestSpeedResults();
+            })
+        );
         $div1.find("input").on("change", function() {
             if (quiz.inQuiz) {
                 displayMessage("Don't do this in quiz");
             }
             else {
-                this.files[0].text().then((data) => {
-                    try {
-                        let json = JSON.parse(data);
-                        console.log(json);
-                        if (json.playerInfo && json.songHistory) {
-                            answerHistorySettings = {mode: "song", songNumber: null, playerId: null, roomType: json.roomType, roomName: json.roomName};
-                            playerInfo = json.playerInfo;
-                            songHistory = json.songHistory;
-                            songHistoryFilter = {type: "all"};
-                            displaySongHistoryResults(Object.values(songHistory)[0].number);
-                            displayAverageSpeedResults();
+                if (this.files.length) {
+                    this.files[0].text().then((data) => {
+                        try {
+                            let json = JSON.parse(data);
+                            //console.log(json);
+                            if (json.playerInfo && json.songHistory) {
+                                answerHistorySettings = {mode: "song", songNumber: null, playerId: null, roomType: json.roomType, roomName: json.roomName};
+                                playerInfo = json.playerInfo;
+                                songHistory = json.songHistory;
+                                songHistoryFilter = {type: "all"};
+                                displaySongHistoryResults(Object.values(songHistory)[0].number);
+                                displayAverageSpeedResults();
+                            }
                         }
-                    }
-                    catch {
-                        displayMessage("Upload Error");
-                    }
-                });
+                        catch {
+                            displayMessage("Upload Error");
+                        }
+                    });
+                }
             }
         });
         $div1.append($(`<div class="filterButton"><i class="fa fa-refresh" aria-hidden="true"></i></div>`)
@@ -852,7 +868,7 @@ function displaySongHistoryResults(songNumber) {
     if (!song) return;
     answerHistoryWindow.window.find("#answerHistoryCurrentSong").text("Song: " + songNumber);
     answerHistoryWindow.window.find("#answerHistoryCurrentPlayer, .backButton").hide();
-    answerHistoryWindow.window.find(".infoButton, .arrowButton").show();
+    answerHistoryWindow.window.find(".infoButton, .arrowButton, .speedButton").show();
     songHistoryFilter.type === "all" ? answerHistoryWindow.window.find(".filterButton").hide() : answerHistoryWindow.window.find(".filterButton").show();
     //answerHistoryWindow.window.find(".infoButton").data("bs.popover").options.title = "Song " + songNumber;
     answerHistoryWindow.window.find(".infoButton").data("bs.popover").options.content = `
@@ -1096,6 +1112,43 @@ function displayPlayerHistoryResults(id) {
     answerHistorySettings.playerId = id;
 }
 
+// create a table with each row showing the song #, fastest speed, and fastest player(s)
+function displayFastestSpeedResults() {
+    answerHistoryWindow.window.find(".infoButton, .arrowButton, .filterButton, #answerHistoryCurrentPlayer").hide();
+    answerHistoryWindow.window.find(".backButton").show();
+    answerHistoryWindow.panels[0].clear();
+    let $table = $(`<table id="answerHistoryTable" class="speedMode"></table>`);
+    let $thead = $("<thead></thead>");
+    let $tbody = $("<tbody></tbody>");
+    let $row = $(`<tr></tr>`);
+    $row.append($("<th></th>").addClass("songNumber").text("#"));
+    $row.append($("<th></th>").addClass("anime").text("Anime"));
+    $row.append($("<th></th>").addClass("speed").text("Speed"));
+    $row.append($("<th></th>").addClass("name").text("Name"));
+    $thead.append($row);
+    for (let song of Object.values(songHistory)) {
+        let $row = $(`<tr></tr>`);
+        $row.append($("<td></td>").addClass("songNumber clickAble").text(song.number));
+        $row.append($("<td></td>").addClass("anime").text(options.useRomajiNames ? song.romaji : song.english));
+        $row.append($("<td></td>").addClass("speed").text(song.fastestSpeed ?? ""));
+        let $tdName = $("<td></td>").addClass("name");
+        for (let id of song.fastestPlayers) {
+            let name = playerInfo[id].name;
+            $tdName.append($("<span></span>").addClass(colorClass(name)).text(name));
+        }
+        $row.append($tdName);
+        $tbody.append($row);
+    }
+    $tbody.on("click", "td", (event) => {
+        if (event.target.classList.contains("songNumber")) {
+            displaySongHistoryResults(parseInt(event.target.innerText));
+        }
+    });
+    $table.append($thead).append($tbody);
+    answerHistoryWindow.panels[0].panel.append($table);
+    answerHistorySettings.mode = "speed";
+}
+
 function displayAnswerCompareResults(text) {
     answerCompareWindow.panels[0].clear();
     let players = text.split(/[\s,]+/).filter(Boolean).map((x) => x.toLowerCase());
@@ -1173,7 +1226,6 @@ function colorClass(name) {
     if (socialTab.isFriend(name)) return "friend";
     return "";
 }
-    
 
 function getScore(player) {
     if (quiz.scoreboard.scoreType === 1) return player.score;
@@ -1186,7 +1238,7 @@ function resetHistory() {
     playerInfo = {};
     answerHistorySettings = {mode: "song", songNumber: null, playerId: null, roomType: "", roomName: ""};
     answerHistoryWindow.window.find("#answerHistoryCurrentSong").text("Song: ");
-    answerHistoryWindow.window.find("#answerHistoryCurrentPlayer, .infoButton, .arrowButton, .backButton, .filterButton").hide();
+    answerHistoryWindow.window.find("#answerHistoryCurrentPlayer, .infoButton, .arrowButton, .backButton, .speedButton, .filterButton").hide();
     answerStatsWindow.panels[0].clear();
     answerHistoryWindow.panels[0].clear();
     answerSpeedWindow.panels[0].clear();
@@ -1198,16 +1250,14 @@ function findBoxById(id, groupSlotMap) {
 }
 
 function selectAvatarGroup(number) {
-	quiz.avatarContainer.currentGroup = number;
-	quiz.scoreboard.setActiveGroup(number);
-	if (Object.keys(quiz.scoreboard.groups).length > 1) {
-		quiz.scoreboard.$quizScoreboardItemContainer.stop().scrollTop(quiz.scoreboard.groups[number].topOffset - 3);
-	}
+    quiz.avatarContainer.currentGroup = number;
+    quiz.scoreboard.setActiveGroup(number);
+    if (Object.keys(quiz.scoreboard.groups).length > 1) {
+        quiz.scoreboard.$quizScoreboardItemContainer.stop().scrollTop(quiz.scoreboard.groups[number].topOffset - 3);
+    }
 }
 
 function saveResults() {
-    console.log(playerInfo);
-    console.log(songHistory);
     if (Object.keys(songHistory).length === 0 || Object.keys(playerInfo).length === 0) return;
     let date = new Date();
     let dateFormatted = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, 0)}-${String(date.getDate()).padStart(2, 0)}`;
@@ -1215,8 +1265,13 @@ function saveResults() {
     let fileName = answerHistorySettings.roomType = "Ranked"
         ? `${dateFormatted} ${answerHistorySettings.roomName} Answer History.json`
         : `${dateFormatted} ${timeFormatted} ${answerHistorySettings.roomType} Answer History.json`;
-    let text = JSON.stringify({date: dateFormatted, roomType: answerHistorySettings.roomType, roomName: answerHistorySettings.roomName, playerInfo: playerInfo, songHistory: songHistory});
-    let data = "data:text/json;charset=utf-8," + encodeURIComponent(text);
+    let data = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({
+        date: dateFormatted,
+        roomType: answerHistorySettings.roomType,
+        roomName: answerHistorySettings.roomName,
+        playerInfo: playerInfo,
+        songHistory: songHistory
+    }));
     let element = document.createElement("a");
     element.setAttribute("href", data);
     element.setAttribute("download", fileName);
@@ -1457,7 +1512,8 @@ function applyStyles() {
             cursor: pointer;
             user-select: none;
         }
-        #answerHistoryWindow .saveButton, #answerHistoryWindow .openButton, #answerHistoryWindow .filterButton {
+        #answerHistoryWindow .saveButton, #answerHistoryWindow .openButton,
+        #answerHistoryWindow .speedButton, #answerHistoryWindow .filterButton {
             color: #D9D9D9;
             font-size: 22px;
             font-weight: bold;
@@ -1468,7 +1524,8 @@ function applyStyles() {
             cursor: pointer;
         }
         #answerHistoryWindow .arrowButton:hover, #answerHistoryWindow .backButton:hover, #answerHistoryWindow .infoButton:hover,
-        #answerHistoryWindow .saveButton:hover, #answerHistoryWindow .openButton:hover, #answerHistoryWindow .filterButton:hover {
+        #answerHistoryWindow .saveButton:hover, #answerHistoryWindow .openButton:hover, #answerHistoryWindow .speedButton:hover,
+        #answerHistoryWindow .filterButton:hover {
             opacity: .8;
         }
         #answerHistoryWindow .close {
@@ -1478,6 +1535,7 @@ function applyStyles() {
         }
         #answerHistoryTable {
             width: 100%;
+            table-layout: fixed;
         }
         #answerHistoryTable tbody tr:nth-child(odd) {
             background-color: #424242;
@@ -1523,6 +1581,21 @@ function applyStyles() {
         }
         #answerHistoryTable.playerMode .answer {
             width: 80%;
+        }
+        #answerHistoryTable.speedMode .songNumber {
+            width: 30px;
+        }
+        #answerHistoryTable.speedMode .anime {
+            width: 300px;
+        }
+        #answerHistoryTable.speedMode .speed {
+            width: 55px;
+        }
+        #answerHistoryTable.speedMode .name {
+            width: auto;
+        }
+        #answerHistoryTable.speedMode .name span {
+            margin-right: 10px;
         }
         #answerHistoryTable i.fa-id-card-o {
             margin-right: 3px;
@@ -1594,10 +1667,16 @@ function applyStyles() {
         }
     `;
     if (showPlayerColor) text += `
-        #answerSpeedWindow .self span.name, #answerSpeedWindow .self i.fa-id-card-o, #answerHistoryWindow tr.self td.name {
+        #answerSpeedWindow .self span.name,
+        #answerSpeedWindow .self i.fa-id-card-o,
+        #answerHistoryWindow tr.self td.name,
+        #answerHistoryTable.speedMode .name span.self {
             color: ${selfColor};
         }
-        #answerSpeedWindow .friend span.name, #answerSpeedWindow .friend i.fa-id-card-o, #answerHistoryWindow tr.friend td.name {
+        #answerSpeedWindow .friend span.name,
+        #answerSpeedWindow .friend i.fa-id-card-o,
+        #answerHistoryWindow tr.friend td.name,
+        #answerHistoryTable.speedMode .name span.friend {
             color: ${friendColor};
         }
     `;
