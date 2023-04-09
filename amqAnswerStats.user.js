@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Answer Stats
 // @namespace    https://github.com/kempanator
-// @version      0.10
+// @version      0.11
 // @description  Adds a window to display quiz answer stats
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -34,7 +34,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.10";
+const version = "0.11";
 const regionDictionary = {E: "Eastern", C: "Central", W: "Western"};
 const saveData = JSON.parse(localStorage.getItem("answerStats")) || {};
 const saveData2 = JSON.parse(localStorage.getItem("highlightFriendsSettings")) || {};
@@ -1131,7 +1131,7 @@ function displayFastestSpeedResults() {
         $row.append($("<td></td>").addClass("songNumber clickAble").text(song.number));
         $row.append($("<td></td>").addClass("anime").text(options.useRomajiNames ? song.romaji : song.english));
         $row.append($("<td></td>").addClass("speed").text(song.fastestSpeed ?? ""));
-        let $tdName = $("<td></td>").addClass("name");
+        let $tdName = $("<td></td>").addClass("name clickAble");
         for (let id of song.fastestPlayers) {
             let name = playerInfo[id].name;
             $tdName.append($("<span></span>").addClass(colorClass(name)).text(name));
@@ -1143,6 +1143,9 @@ function displayFastestSpeedResults() {
         if (event.target.classList.contains("songNumber")) {
             displaySongHistoryResults(parseInt(event.target.innerText));
         }
+    });
+    $tbody.on("click", "span", (event) => {
+        displayPlayerHistoryResults(Object.values(playerInfo).find((player) => player.name === event.target.innerText).id);
     });
     $table.append($thead).append($tbody);
     answerHistoryWindow.panels[0].panel.append($table);
