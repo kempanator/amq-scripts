@@ -14,7 +14,7 @@
 /*
 How to start a custom song list game:
   1. create a solo lobby
-  2. click CSL button in the top right
+  2. click the CSL button in the top right
   3. click the autocomplete button if it is red
   4. create or upload a list in the song list tab
   5. change settings in the settings tab
@@ -769,7 +769,6 @@ function fireListener(type, data) {
 }
 
 // check if the player's answer is correct
-// also include anime names of items with the same song and artist
 function isCorrectAnswer(songNumber, answer) {
     if (!answer) return false;
     answer = answer.toLowerCase();
