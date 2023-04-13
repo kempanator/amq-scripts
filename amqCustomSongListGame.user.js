@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.11
+// @version      0.12
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -29,7 +29,7 @@ Supported upload files:
 
 Some considerations:
   1. anisongdb is unavailable during ranked, please prepare some json files in advance
-  2. anime titles that were changed recently in amq will be incorrect if anisongdb never updated it
+  2. anime titles that were changed recently in AMQ will be incorrect if anisongdb never updated it
   3. no automatic volume equalizing
   4. keep duplicates in the song list if you want to use any acceptable title for each
 */
@@ -43,7 +43,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.11";
+const version = "0.12";
 const saveData = JSON.parse(localStorage.getItem("customSongListGame")) || {};
 let replacedAnswers = saveData.replacedAnswers || {};
 let active = false;
@@ -56,7 +56,7 @@ let currentAnswer = "";
 let score = 0;
 let songList = [];
 let songOrder = {}; //{song#: index#, ...}
-let startPoint; //"random" "start" "middle" "end"
+let startPointType; //"random" "start" "middle" "end"
 let previousSongFinished = false;
 let skipInterval;
 let nextVideoReadyInterval;
@@ -170,7 +170,7 @@ $("#gameContainer").append($(`
                             <label class="clickAble">Normal<input id="cslgSettingsSkipNormalRadio" type="radio" name="cslgSkipMode"></label>
                             <label class="clickAble" style="margin-left: 10px">Fast<input id="cslgSettingsSkipFastRadio" type="radio" name="cslgSkipMode"></label>
                         </div>
-                        <p style="margin-top: 20px">*Normal room settings are ignored. Only these settings will apply.</p>
+                        <p style="margin-top: 20px">Normal room settings are ignored. Only these settings will apply.</p>
                     </div>
                     <div id="cslgAnswerContainer">
                         <span style="font-size: 16px; font-weight: bold;">Old:</span>
@@ -192,7 +192,7 @@ $("#gameContainer").append($(`
                                 </tbody>
                             </table>
                         </div>
-                        <p style="margin-top: 5px">*Use this window to replace invalid answers from your imported song list with valid answers from AMQ's autocomplete</p>
+                        <p style="margin-top: 5px">Use this window to replace invalid answers from your imported song list with valid answers from AMQ's autocomplete</p>
                     </div>
                     <div id="cslgInfoContainer" style="text-align: center; margin: 40px 0;">
                         <p>Created by: kempanator</p>
@@ -228,8 +228,8 @@ $("#cslgFileUpload").on("change", function() {
                 songList = [];
                 displayMessage("Upload Error");
             }
-            buildSongListTable();
-            buildAnswerTable();
+            createSongListTable();
+            createAnswerTable();
         });
     }
 });
@@ -245,7 +245,7 @@ $("#cslgAutocompleteButton").click(() => {
         setTimeout(() => {
             let returnListener = new Listener("Host Game", (payload) => {
                 returnListener.unbindListener();
-                if (songList.length) buildAnswerTable();
+                if (songList.length) createAnswerTable();
                 setTimeout(() => { openSettingsModal() }, 10);
             });
             returnListener.bindListener();
@@ -253,7 +253,6 @@ $("#cslgAutocompleteButton").click(() => {
         }, 400);
     });
     autocompleteListener.bindListener();
-    
 });
 $("#cslgStartButton").click(() => {
     songOrder = {};
@@ -289,10 +288,10 @@ $("#cslgStartButton").click(() => {
     if (Object.keys(songOrder).length === 0) {
         return displayMessage("Unable to start", "no songs");
     }
-    if ($("#cslgSettingsStartPointRandomRadio").prop("checked")) startPoint = "random";
-    else if ($("cslgSettingsStartPointStartRadio").prop("checked")) startPoint = "start";
-    else if ($("cslgSettingsStartPointMiddleRadio").prop("checked")) startPoint = "middle";
-    else if ($("cslgSettingsStartPointEndRadio").prop("checked")) startPoint = "end";
+    if ($("#cslgSettingsStartPointRandomRadio").prop("checked")) startPointType = "random";
+    else if ($("cslgSettingsStartPointStartRadio").prop("checked")) startPointType = "start";
+    else if ($("cslgSettingsStartPointMiddleRadio").prop("checked")) startPointType = "middle";
+    else if ($("cslgSettingsStartPointEndRadio").prop("checked")) startPointType = "end";
     if ($("#cslgSettingsSkipNormalRadio").prop("checked")) fastSkip = false;
     else if ($("#cslgSettingsSkipFastRadio").prop("checked")) fastSkip = true;
     $("#cslgSettingsModal").modal("hide");
@@ -302,8 +301,8 @@ $("#cslgStartButton").click(() => {
 $("#cslgSongListTable").on("click", "i.fa-trash", (event) => {
     let index = parseInt(event.target.parentElement.parentElement.querySelector("td.number").innerText) - 1;
     songList.splice(index, 1);
-    buildSongListTable();
-    buildAnswerTable();
+    createSongListTable();
+    createAnswerTable();
 });
 $("#cslgAnswerButtonAdd").click(() => {
     let oldName = $("#cslgOldAnswerInput").val().trim();
@@ -311,7 +310,7 @@ $("#cslgAnswerButtonAdd").click(() => {
     if (oldName) {
         newName ? replacedAnswers[oldName] = newName : delete replacedAnswers[oldName];
         localStorage.setItem("customSongListGame", JSON.stringify({replacedAnswers: replacedAnswers}));
-        buildAnswerTable();
+        createAnswerTable();
     }
     console.log(replacedAnswers);
 });
@@ -321,7 +320,6 @@ $("#cslgAnswerTable").on("click", "i.fa-pencil", (event) => {
     $("#cslgOldAnswerInput").val(oldName);
     $("#cslgNewAnswerInput").val(newName);
 });
-showSongListInterface();
 $("#cslgModeAnisongdbRadio").prop("checked", true);
 $("#cslgAnisongdbModeSelect").val("Artist");
 $("#cslgAnisongdbPartialCheckbox").prop("checked", true);
@@ -358,7 +356,9 @@ $("#cslgModeFileUploadRadio").click(() => {
     $("#cslgAnisongdbQueryInput").val("");
     $("#cslgSongListTable tbody").empty();
 });
+showSongListInterface();
 
+// setup
 function setup() {
     new Listener("game chat update", (payload) => {
         for (let message of payload.messages) {
@@ -497,7 +497,7 @@ function setup() {
             <p>Version: ${version}</p>
             </ul><b>How to start a custom song list game:</b>
                 <li>create a solo lobby</li>
-                <li>click CSL button in the top right</li>
+                <li>click the CSL button in the top right</li>
                 <li>click the autocomplete button if it is red</li>
                 <li>create or upload a list in the song list tab</li>
                 <li>change settings in the settings tab</li>
@@ -509,6 +509,7 @@ function setup() {
     applyStyles();
 }
 
+// start quiz and load first song
 function startQuiz() {
     if (!lobby.inLobby || !lobby.soloMode || !songList.length) return;
     let song = songList[songOrder[1]];
@@ -530,7 +531,7 @@ function startQuiz() {
         fireListener("quiz next video info", {
             "playLength": guessTime,
             "playbackSpeed": 1,
-            "startPont": getStartPoint(), //thanks egerod
+            "startPont": getStartPoint(startPointType), //thanks egerod
             "videoInfo": {
                 "id": null,
                 "videoMap": {
@@ -566,10 +567,9 @@ function startQuiz() {
     }, 400);
 }
 
+// check if all conditions are met to go to next song
 function readySong(songNumber) {
-    //console.log("readying song " + songNumber);
     nextVideoReadyInterval = setInterval(() => {
-        //console.log({song: songNumber nextVideoReady: nextVideoReady, paused: quiz.pauseButton.pauseOn, previousSongFinished: previousSongFinished});
         if (nextVideoReady && !quiz.pauseButton.pauseOn && previousSongFinished) {
             clearInterval(nextVideoReadyInterval);
             nextVideoReady = false;
@@ -579,9 +579,9 @@ function readySong(songNumber) {
     }, 100);
 }
 
+// play a song
 function playSong(songNumber) {
     if (!active || !quiz.inQuiz) return reset();
-    //console.log("playing song " + songNumber);
     currentSong = songNumber;
     fireListener("play next song", {
         "time": guessTime,
@@ -620,7 +620,7 @@ function playSong(songNumber) {
             fireListener("quiz next video info", {
                 "playLength": guessTime,
                 "playbackSpeed": 1,
-                "startPont": getStartPoint(), //thanks egerod
+                "startPont": getStartPoint(startPointType), //thanks egerod
                 "videoInfo": {
                     "id": null,
                     "videoMap": {
@@ -643,9 +643,9 @@ function playSong(songNumber) {
     }, 100);
 }
 
+// end guess phase and display answer
 function endGuessPhase(songNumber) {
     if (!active || !quiz.inQuiz) return reset();
-    //console.log("end guess phase for song " + songNumber);
     let song = songList[songOrder[songNumber]];
     fireListener("guess phase over");
     answerTimer = setTimeout(() => {
@@ -727,6 +727,7 @@ function endGuessPhase(songNumber) {
     }, fastSkip ? 100: 400);
 }
 
+// end replay phase
 function endReplayPhase(songNumber) {
     if (!active || !quiz.inQuiz) return reset();
     if (songNumber < Object.keys(songOrder).length) {
@@ -782,13 +783,15 @@ function isCorrectAnswer(songNumber, answer) {
     return false;
 }
 
-function getStartPoint() {
-    if (startPoint === "random") return Math.floor(Math.random() * 101);
-    if (startPoint === "start") return 0;
-    if (startPoint === "middle") return 50;
-    if (startPoint === "end") return 100;
+// get start point value
+function getStartPoint(type) {
+    if (type === "random") return Math.floor(Math.random() * 101);
+    if (type === "start") return 0;
+    if (type === "middle") return 50;
+    if (type === "end") return 100;
 }
 
+// clear all intervals and timeouts
 function clearTimeEvents() {
     clearInterval(nextVideoReadyInterval);
     clearInterval(skipInterval);
@@ -797,6 +800,7 @@ function clearTimeEvents() {
     clearTimeout(answerTimer);
 }
 
+// reset variables from this script
 function reset() {
     clearTimeEvents();
     active = false;
@@ -807,6 +811,7 @@ function reset() {
     fastSkip = false;
 }
 
+// end quiz and set up lobby
 function quizOver() {
     let data = {
         "spectators": [],
@@ -830,11 +835,11 @@ function quizOver() {
         "teamFullMap": {}
     };
     reset();
-    //console.log(data);
     lobby.setupLobby(data, quiz.isSpectator);
     viewChanger.changeView("lobby", {supressServerMsg: true, keepChatOpen: true});
 }
 
+// open custom song list settings modal
 function openSettingsModal() {
     if (lobby.inLobby && lobby.soloMode) {
         if ((quiz.answerInput.typingInput.autoCompleteController.list.length)) {
@@ -847,6 +852,7 @@ function openSettingsModal() {
     }
 }
 
+// when you click the go button
 function anisongdbDataSearch() {
     let mode = $("#cslgAnisongdbModeSelect").val().toLowerCase();
     let query = $("#cslgAnisongdbQueryInput").val();
@@ -857,7 +863,6 @@ function anisongdbDataSearch() {
     let ignoreDuplicates = $("#cslgAnisongdbIgnoreDuplicatesCheckbox").prop("checked");
     let maxOtherPeople = parseInt($("#cslgAnisongdbMaxOtherPeopleInput").val());
     let minGroupMembers = parseInt($("#cslgAnisongdbMinGroupMembersInput").val());
-    //console.log({mode: mode, query: query, ops: ops, eds: eds, ins: ins, partial: partial, ignoreDuplicates: ignoreDuplicates, maxOtherPeople: maxOtherPeople, minGroupMembers: minGroupMembers});
     if (query && !isNaN(maxOtherPeople) && !isNaN(minGroupMembers)) {
         getAnisongdbData(mode, query, ops, eds, ins, partial, ignoreDuplicates, maxOtherPeople, minGroupMembers);
     }
@@ -907,8 +912,8 @@ function getAnisongdbData(mode, query, ops, eds, ins, partial, ignoreDuplicates,
         body: JSON.stringify(json)
     }).then(res => res.json()).then(json => {
         handleData(json);
-        buildSongListTable();
-        buildAnswerTable();
+        createSongListTable();
+        createAnswerTable();
     });
 }
 
@@ -1051,7 +1056,8 @@ function handleData(data) {
     }
 }
 
-function buildSongListTable() {
+// create song list table
+function createSongListTable() {
     $("#cslgSongListCount").text("Total Songs: " + songList.length);
     $tbody = $("#cslgSongListTable tbody");
     $tbody.empty();
@@ -1065,7 +1071,8 @@ function buildSongListTable() {
     });
 }
 
-function buildAnswerTable() {
+// create answer table
+function createAnswerTable() {
     $tbody = $("#cslgAnswerTable tbody");
     $tbody.empty();
     if (songList.length === 0) {
@@ -1098,6 +1105,7 @@ function buildAnswerTable() {
     }
 }
 
+// click song list tab
 function showSongListInterface() {
     $("#cslgQuizSettingsTab").removeClass("selected");
     $("#cslgAnswerTab").removeClass("selected");
@@ -1109,6 +1117,7 @@ function showSongListInterface() {
     $("#cslgSongListContainer").show();
 }
 
+// click settings tab
 function showSettingsInterface() {
     $("#cslgSongListTab").removeClass("selected");
     $("#cslgAnswerTab").removeClass("selected");
@@ -1120,6 +1129,7 @@ function showSettingsInterface() {
     $("#cslgQuizSettingsContainer").show();
 }
 
+// click answer tab
 function showAnswerInterface() {
     $("#cslgSongListTab").removeClass("selected");
     $("#cslgQuizSettingsTab").removeClass("selected");
@@ -1131,6 +1141,7 @@ function showAnswerInterface() {
     $("#cslgAnswerContainer").show();
 }
 
+// click info tab
 function showInfoInterface() {
     $("#cslgSongListTab").removeClass("selected");
     $("#cslgQuizSettingsTab").removeClass("selected");
