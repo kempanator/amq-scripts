@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.12
+// @version      0.13
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -43,10 +43,9 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.12";
+const version = "0.13";
 const saveData = JSON.parse(localStorage.getItem("customSongListGame")) || {};
 let replacedAnswers = saveData.replacedAnswers || {};
-let active = false;
 let fastSkip = false;
 let nextVideoReady = false;
 let guessTime = 20;
@@ -401,7 +400,7 @@ function setup() {
     }).bindListener();
 
     quiz.pauseButton.$button.off("click").click(() => {
-        if (active) {
+        if (quiz.cslActive) {
             if (quiz.pauseButton.pauseOn) {
                 fireListener("quiz unpause triggered", {
                     "playerName": selfName
@@ -425,7 +424,7 @@ function setup() {
 
     const oldSendSkipVote = quiz.skipController.sendSkipVote;
     quiz.skipController.sendSkipVote = function() {
-        if (active) {
+        if (quiz.cslActive) {
             clearTimeout(this.autoVoteTimeout);
         }
         else {
@@ -441,7 +440,7 @@ function setup() {
 
     const oldStartReturnLobbyVote = quiz.startReturnLobbyVote;
     quiz.startReturnLobbyVote = function() {
-        if (active) {
+        if (quiz.cslActive) {
             quizOver();
         }
         else {
@@ -451,7 +450,7 @@ function setup() {
 
     const oldSubmitAnswer = QuizTypeAnswerInputController.prototype.submitAnswer;
     QuizTypeAnswerInputController.prototype.submitAnswer = function(answer) {
-        if (active) {
+        if (quiz.cslActive) {
             currentAnswer = answer;
             fireListener("quiz answer", {
                 "answer": answer,
@@ -471,7 +470,7 @@ function setup() {
 
     const oldVideoReady = quiz.videoReady;
     quiz.videoReady = function(songId) {
-        if (active && this.inQuiz) {
+        if (quiz.cslActive && this.inQuiz) {
             nextVideoReady = true;
         }
         else {
@@ -481,7 +480,7 @@ function setup() {
 
     const oldHandleError = MoeVideoPlayer.prototype.handleError;
     MoeVideoPlayer.prototype.handleError = function() {
-        if (active) {
+        if (quiz.cslActive) {
             gameChat.systemMessage(`CSL Error: couldn't load song ${currentSong + 1}`);
             nextVideoReady = true;
         }
@@ -512,8 +511,8 @@ function setup() {
 // start quiz and load first song
 function startQuiz() {
     if (!lobby.inLobby || !lobby.soloMode || !songList.length) return;
+    quiz.cslActive = true;
     let song = songList[songOrder[1]];
-    active = true;
     let date = new Date().toISOString();
     fireListener("Game Starting", {
         "gameMode": "Solo",
@@ -581,7 +580,7 @@ function readySong(songNumber) {
 
 // play a song
 function playSong(songNumber) {
-    if (!active || !quiz.inQuiz) return reset();
+    if (!quiz.cslActive || !quiz.inQuiz) return reset();
     currentSong = songNumber;
     fireListener("play next song", {
         "time": guessTime,
@@ -645,17 +644,17 @@ function playSong(songNumber) {
 
 // end guess phase and display answer
 function endGuessPhase(songNumber) {
-    if (!active || !quiz.inQuiz) return reset();
+    if (!quiz.cslActive || !quiz.inQuiz) return reset();
     let song = songList[songOrder[songNumber]];
     fireListener("guess phase over");
     answerTimer = setTimeout(() => {
-        if (!active || !quiz.inQuiz) return reset();
+        if (!quiz.cslActive || !quiz.inQuiz) return reset();
         fireListener("player answers", {
             "answers": [{"gamePlayerId": 0, "pose": 3, "answer": currentAnswer}],
             "progressBarState": null
         });
         answerTimer = setTimeout(() => {
-            if (!active || !quiz.inQuiz) return reset();
+            if (!quiz.cslActive || !quiz.inQuiz) return reset();
             let correct = isCorrectAnswer(songNumber, currentAnswer);
             let pose = currentAnswer ? (correct ? 5 : 4) : 6;
             if (correct) score++;
@@ -715,7 +714,7 @@ function endGuessPhase(songNumber) {
                 "watched": false
             });
             setTimeout(() => {
-                if (!active || !quiz.inQuiz) return reset();
+                if (!quiz.cslActive || !quiz.inQuiz) return reset();
                 skipInterval = setInterval(() => {
                     if (quiz.skipController._toggled) {
                         clearInterval(skipInterval);
@@ -729,7 +728,7 @@ function endGuessPhase(songNumber) {
 
 // end replay phase
 function endReplayPhase(songNumber) {
-    if (!active || !quiz.inQuiz) return reset();
+    if (!quiz.cslActive || !quiz.inQuiz) return reset();
     if (songNumber < Object.keys(songOrder).length) {
         fireListener("quiz overlay message", "Skipping to Next Song");
         setTimeout(() => {
@@ -803,7 +802,7 @@ function clearTimeEvents() {
 // reset variables from this script
 function reset() {
     clearTimeEvents();
-    active = false;
+    quiz.cslActive = false;
     currentSong = 0;
     currentAnswer = "";
     score = 0;
@@ -1153,6 +1152,7 @@ function showInfoInterface() {
     $("#cslgInfoContainer").show();
 }
 
+// apply styles
 function applyStyles() {
     //$("#customSongListStyle").remove();
     let style = document.createElement("style");
