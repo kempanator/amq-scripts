@@ -224,7 +224,6 @@ function applyStyles() {
         }
         li.srpPlayer.self {
             color: ${selfColor};
-            cursor: pointer;
         }
         li.srpPlayer.friend {
             color: ${friendColor};
