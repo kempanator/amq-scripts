@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Show Room Players
 // @namespace    https://github.com/kempanator
-// @version      0.14
+// @version      0.15
 // @description  Adds extra functionality to room tiles
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -28,8 +28,11 @@ let loadInterval = setInterval(() => {
         clearInterval(loadInterval);
     }
 }, 500);
-const version = "0.14";
-const friendColor = "#4497EA";
+const version = "0.15";
+//const saveData = JSON.parse(localStorage.getItem("showRoomPlayers")) || {};
+const saveData2 = JSON.parse(localStorage.getItem("highlightFriendsSettings")) || {};
+let selfColor = saveData2.smColorSelfColor ?? "#80c7ff";
+let friendColor = saveData2.smColorFriendColor ?? "#80ff80";
 
 function setup() {
     new Listener("game chat update", (payload) => {
@@ -74,8 +77,9 @@ function setup() {
         name: "Show Room Players",
         author: "kempanator",
         description: `
+            <p>Version: ${version}</p>
             <ul><b>New room tile features:</b>
-                <li>1. Mouse over players bar to show full player list (friends are highlighted blue)</li>
+                <li>1. Mouse over players bar to show full player list (friends have color)</li>
                 <li>2. Click name in player list to open profile</li>
                 <li>3. Click host name to open profile</li>
                 <li>4. Invisible friends are no longer hidden</li>
@@ -94,12 +98,10 @@ RoomTile.prototype.updateFriends = function() {
 };
 
 // override removeRoomTile function to also remove room players popover
+const oldRemoveRoomTile = RoomBrowser.prototype.removeRoomTile;
 RoomBrowser.prototype.removeRoomTile = function(tileId) {
     $(`#rbRoom-${tileId} .rbrProgressContainer`).popover("destroy");
-    $(`#rbRoom-${tileId}`).remove();
-    delete this.activeRooms[tileId];
-    this.numberOfRooms--;
-    this.updateNumberOfRoomsText();
+    oldRemoveRoomTile.apply(this, arguments);
 };
 
 // add click event to host name to open player profile
@@ -115,9 +117,9 @@ RoomTile.prototype.createRoomPlayers = function() {
     let $playerList = $("<ul></ul>");
     let players = this._players.sort((a, b) => a.localeCompare(b));
     for (let player of players) {
-        let li = $("<li></li>").text(player);
-        if (this._friendsInGameMap[player]) li.addClass("roomPlayersFriend");
-        else li.addClass("roomPlayersNonFriend");
+        let li = $("<li></li>").addClass("srpPlayer").text(player);
+        if (player === selfName) li.addClass("self");
+        else if (this._friendsInGameMap[player]) li.addClass("friend");
         $playerList.append(li);
     }
     this.$tile.find(".rbrFriendPopover").data("bs.popover").options.placement = "bottom";
@@ -158,9 +160,9 @@ RoomTile.prototype.updateRoomPlayers = function() {
     let $playerList = $("<ul></ul>");
     let players = this._players.sort((a, b) => a.localeCompare(b));
     for (let player of players) {
-        let li = $("<li></li>").text(player);
-        if (this._friendsInGameMap[player]) li.addClass("roomPlayersFriend");
-        else li.addClass("roomPlayersNonFriend");
+        let li = $("<li></li>").addClass("srpPlayer").text(player);
+        if (player === selfName) li.addClass("self");
+        else if (this._friendsInGameMap[player]) li.addClass("friend");
         $playerList.append(li);
     }
     this.$tile.find(".rbrProgressContainer").data("bs.popover").options.content = $playerList[0].outerHTML;
@@ -209,20 +211,23 @@ RoomTile.prototype.updateAvatar = function(avatarInfo) {
 
 // apply styles
 function applyStyles() {
+    //$("#showRoomPlayersStyle").remove();
     let style = document.createElement("style");
     style.type = "text/css";
     style.id = "showRoomPlayersStyle";
     style.appendChild(document.createTextNode(`
-        li.roomPlayersFriend {
-            color: ${friendColor};
+        li.srpPlayer {
             cursor: pointer;
         }
-        li.roomPlayersNonFriend {
-            color: unset;
-            cursor: pointer;
-        }
-        li.roomPlayersFriend:hover, li.roomPlayersNonFriend:hover {
+        li.srpPlayer:hover {
             text-shadow: 0 0 6px white;
+        }
+        li.srpPlayer.self {
+            color: ${selfColor};
+            cursor: pointer;
+        }
+        li.srpPlayer.friend {
+            color: ${friendColor};
         }
     `));
     document.head.appendChild(style);
