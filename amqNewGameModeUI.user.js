@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ New Game Mode UI
 // @namespace    https://github.com/kempanator
-// @version      0.12
+// @version      0.13
 // @description  Adds a user interface to new game mode to keep track of guesses
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -21,7 +21,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.12";
+const version = "0.13";
 let ngmWindow;
 let numGuesses = 5;
 let guessCounter = [];
@@ -121,7 +121,10 @@ function setup() {
     AMQ_addScriptData({
         name: "New Game Mode UI",
         author: "kempanator",
-        description: `<p>Click the button in the options bar during quiz to open the new game mode user interface</p>`
+        description: `
+            <p>Version: ${version}</p>
+            <p>Click the button in the options bar during quiz to open the new game mode user interface</p>
+        `
     });
     applyStyles();
 }
