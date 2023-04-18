@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Answer Stats
 // @namespace    https://github.com/kempanator
-// @version      0.11
+// @version      0.12
 // @description  Adds a window to display quiz answer stats
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -34,7 +34,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.11";
+const version = "0.12";
 const regionDictionary = {E: "Eastern", C: "Central", W: "Western"};
 const saveData = JSON.parse(localStorage.getItem("answerStats")) || {};
 const saveData2 = JSON.parse(localStorage.getItem("highlightFriendsSettings")) || {};
@@ -529,9 +529,17 @@ function setup() {
     $("#anisongdbSearchPartialCheckbox").prop("checked", true);
 
     if (answerHistoryButton) {
-        answerStatsWindow.window.find(".modal-header").append($(`<button class="answerStatsHeaderButton">answer<br>history</button>`).click(() => {
-            answerHistoryWindow.isVisible() ? answerHistoryWindow.close() : answerHistoryWindow.open();
-        }));
+        answerStatsWindow.window.find(".modal-header").append($(`<button class="answerStatsHeaderButton">answer<br>history</button>`)
+            .popover({
+                container: "#gameContainer",
+                placement: "top",
+                trigger: "hover",
+                content: "complete answer history for all players and all songs in current quiz"
+            })
+            .click(() => {
+                answerHistoryWindow.isVisible() ? answerHistoryWindow.close() : answerHistoryWindow.open();
+            })
+        );
         let $div1 = $("<div></div>");
         $div1.append("<span>Answer History</span>").css({"font-size": "23px", "line-height": "normal", "margin": "6px 0 2px 8px"});
         $div1.append($(`<label class="openButton"><input type="file" style="display: none"><i class="fa fa-folder-open-o" aria-hidden="true"></i></label>`)
@@ -650,12 +658,7 @@ function setup() {
             }
         });
         $div2.append(`<span id="answerHistoryCurrentSong" style="font-size: 16px; margin: 0 8px 0 8px;">Song: </span>`);
-        $div2.append($button1);
-        $div2.append($button2);
-        $div2.append($button3);
-        $div2.append($button4);
-        $div2.append($button5);
-        $div2.append($button6);
+        $div2.append($button1).append($button2).append($button3).append($button4).append($button5).append($button6);
         $div2.append($(`<span id="answerHistoryCurrentPlayer" style="font-size: 16px; margin: 0 8px 0 8px;">Player: </span>`).hide().popover({
             container: "#gameContainer",
             placement: "top",
@@ -669,9 +672,17 @@ function setup() {
     }
 
     if (answerSpeedButton) {
-        answerStatsWindow.window.find(".modal-header").append($(`<button class="answerStatsHeaderButton">average<br>speed</button>`).click(() => {
-            answerSpeedWindow.isVisible() ? answerSpeedWindow.close() : answerSpeedWindow.open();
-        }));
+        answerStatsWindow.window.find(".modal-header").append($(`<button class="answerStatsHeaderButton">average<br>speed</button>`)
+            .popover({
+                container: "#gameContainer",
+                placement: "top",
+                trigger: "hover",
+                content: "list everyone's average speed for correct answers"
+            })
+            .click(() => {
+                answerSpeedWindow.isVisible() ? answerSpeedWindow.close() : answerSpeedWindow.open();
+            })
+        );
         let $div1 = $(`<div>Average Speed</div>`).css({"font-size": "23px", "line-height": "normal", "margin": "6px 0 2px 8px"});
         let $div2 = $(`<div></div>`).css("margin", "0 0 0 8px");
         let $button1 = $(`<button id="averageSpeedSortModeButton">${averageSpeedSort}</button>`).click(function() {
@@ -694,21 +705,37 @@ function setup() {
     }
 
     if (answerCompareButton) {
-        answerStatsWindow.window.find(".modal-header").append($(`<button class="answerStatsHeaderButton">answer<br>compare</button>`).click(() => {
-            answerCompareWindow.isVisible() ? answerCompareWindow.close() : answerCompareWindow.open();
-        }));
+        answerStatsWindow.window.find(".modal-header").append($(`<button class="answerStatsHeaderButton">answer<br>compare</button>`)
+            .popover({
+                container: "#gameContainer",
+                placement: "top",
+                trigger: "hover",
+                content: "compare answers between players to detect teaming"
+            })
+            .click(() => {
+                answerCompareWindow.isVisible() ? answerCompareWindow.close() : answerCompareWindow.open();
+            })
+        );
         let $div1 = $(`<div>Answer Compare</div>`).css({"font-size": "23px", "line-height": "normal", "margin": "6px 0 2px 8px"});
         let $div2 = $("<div></div>").css({"float": "left", "margin": "3px 0 0 8px"});
-        let $input = $(`<input id="answerCompareSearchInput" type="text">`).keypress(function(event) {
+        let $input = $(`<input id="answerCompareSearchInput" type="text">`).keypress((event) => {
             if (event.which === 13) {
                 displayAnswerCompareResults($("#answerCompareSearchInput").val());
             }
         });
-        let $button = $(`<button id="answerCompareButtonGo">Go</button>"`).click(function() {
+        let $button = $(`<button id="answerCompareButtonGo">Go</button>"`).click(() => {
             displayAnswerCompareResults($("#answerCompareSearchInput").val());
+        });
+        let $correctCheckbox = $(`<input id="answerCompareHighlightCorrectCheckbox" type="checkbox"></input>`).click(() => {
+            setTimeout(() => { displayAnswerCompareResults($("#answerCompareSearchInput").val()) }, 1);
+        });
+        let $wrongCheckbox = $(`<input id="answerCompareHighlightWrongCheckbox" type="checkbox">`).click(() => {
+            setTimeout(() => { displayAnswerCompareResults($("#answerCompareSearchInput").val()) }, 1);
         });
         $div2.append($input);
         $div2.append($button);
+        $div2.append($(`<label class="clickAble" style="margin-left: 10px">Correct</label>`).append($correctCheckbox));
+        $div2.append($(`<label class="clickAble" style="margin-left: 10px">Wrong</label>`).append($wrongCheckbox));
         answerCompareWindow.window.find(".modal-header h2").remove();
         answerCompareWindow.window.find(".modal-header").append($div1).append($div2);
     }
@@ -717,7 +744,10 @@ function setup() {
     AMQ_addScriptData({
         name: "Answer Stats",
         author: "kempanator",
-        description: `<p>Click the button in the options bar during quiz to open the answer stats window</p>`
+        description: `
+            <p>Version: ${version}</p>
+            <p>Click the button in the options bar during quiz to open the answer stats window</p>
+        `
     });
     applyStyles();
 }
@@ -1131,10 +1161,10 @@ function displayFastestSpeedResults() {
         $row.append($("<td></td>").addClass("songNumber clickAble").text(song.number));
         $row.append($("<td></td>").addClass("anime").text(options.useRomajiNames ? song.romaji : song.english));
         $row.append($("<td></td>").addClass("speed").text(song.fastestSpeed ?? ""));
-        let $tdName = $("<td></td>").addClass("name clickAble");
+        let $tdName = $("<td></td>").addClass("name");
         for (let id of song.fastestPlayers) {
             let name = playerInfo[id].name;
-            $tdName.append($("<span></span>").addClass(colorClass(name)).text(name));
+            $tdName.append($("<span></span>").addClass("clickAble").addClass(colorClass(name)).text(name));
         }
         $row.append($tdName);
         $tbody.append($row);
@@ -1170,6 +1200,8 @@ function displayAnswerCompareResults(text) {
             return;
         }
     }
+    let highlightCorrect = $("#answerCompareHighlightCorrectCheckbox").prop("checked");
+    let highlightWrong = $("#answerCompareHighlightWrongCheckbox").prop("checked");
     let $table = $(`<table id="answerCompareTable"></table>`);
     let $thead = $("<thead></thead>");
     let $tbody = $("<tbody></tbody>");
@@ -1179,15 +1211,24 @@ function displayAnswerCompareResults(text) {
     }
     $thead.append($row);
     for (let songNumber of Object.keys(songHistory)) {
-        let answers = [];
+        let numCorrect = 0;
+        let numWrong = 0;
+        let $row = $(`<tr><td class="number">${songNumber}</td></tr>`);
         for (let id of idList) {
             let answer = songHistory[songNumber].answers[id];
-            answers.push(answer ?? null);
+            if (answer) {
+                answer.correct ? numCorrect++ : numWrong++;
+                $row.append($("<td></td>").text(answer.text).prepend(`<i class="fa ${answer.correct ? "fa-check" : "fa-times"}"></i>`));
+            }
+            else {
+                $row.append("<td></td>");
+            }
         }
-        let $row = $(`<tr><td class="number">${songNumber}</td></tr>`);
-        for (let answer of answers) {
-            if (answer) $row.append($("<td></td>").text(answer.text).prepend(`<i class="fa ${answer.correct ? "fa-check" : "fa-times"}"></i>`));
-            else $row.append("<td></td>");
+        if (highlightCorrect && numCorrect === idList.length) {
+            $row.addClass("highlightCorrect");
+        }
+        else if (highlightWrong && numWrong === idList.length) {
+            $row.addClass("highlightWrong");
         }
         $tbody.append($row);
     }
@@ -1540,6 +1581,9 @@ function applyStyles() {
             width: 100%;
             table-layout: fixed;
         }
+        #answerHistoryTable th, #answerHistoryTable td {
+            padding: 0 4px;
+        }
         #answerHistoryTable tbody tr:nth-child(odd) {
             background-color: #424242;
         }
@@ -1574,28 +1618,28 @@ function applyStyles() {
             width: 48%;
         }
         #answerHistoryTable.playerMode .songNumber {
-            width: 6%;
+            width: 30px;
         }
         #answerHistoryTable.playerMode .songDifficulty {
-            width: 6%;
+            width: 30px;
         }
         #answerHistoryTable.playerMode .speed {
-            width: 8%;
+            width: 60px;
         }
         #answerHistoryTable.playerMode .answer {
-            width: 80%;
+            width: auto;
         }
         #answerHistoryTable.speedMode .songNumber {
             width: 30px;
         }
         #answerHistoryTable.speedMode .anime {
-            width: 300px;
+            width: 50%;
         }
         #answerHistoryTable.speedMode .speed {
             width: 55px;
         }
         #answerHistoryTable.speedMode .name {
-            width: auto;
+            width: 50%;
         }
         #answerHistoryTable.speedMode .name span {
             margin-right: 10px;
@@ -1633,6 +1677,13 @@ function applyStyles() {
         #answerCompareWindow .modal-header button:hover {
             opacity: .8;
         }
+        #answerCompareWindow .modal-header input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            margin-left: 3px;
+            vertical-align: -5px;
+            cursor: pointer;
+        }
         #answerCompareWindow .close {
             top: 15px;
             right: 15px;
@@ -1667,6 +1718,18 @@ function applyStyles() {
         }
         #answerCompareTable th.number, #answerCompareTable td.number {
             width: 30px;
+        }
+        #answerCompareTable tbody tr.highlightCorrect:nth-child(odd) {
+            background-color: #00570f;
+        }
+        #answerCompareTable tbody tr.highlightCorrect:nth-child(even) {
+            background-color: #00570f;
+        }
+        #answerCompareTable tbody tr.highlightWrong:nth-child(odd) {
+            background-color: #6B0000;
+        }
+        #answerCompareTable tbody tr.highlightWrong:nth-child(even) {
+            background-color: #6B0000;
         }
     `;
     if (showPlayerColor) text += `
