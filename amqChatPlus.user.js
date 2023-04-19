@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Chat Plus
 // @namespace    https://github.com/kempanator
-// @version      0.23
+// @version      0.24
 // @description  Add new features to chat and messages
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -37,7 +37,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.23";
+const version = "0.24";
 const apiKey = "LIVDSRZULELA";
 const saveData = JSON.parse(localStorage.getItem("chatPlus")) || {};
 const saveData2 = JSON.parse(localStorage.getItem("highlightFriendsSettings")) || {};
@@ -589,6 +589,7 @@ function setup() {
         name: "Chat Plus",
         author: "kempanator",
         description: `
+            <p>Version: ${version}</p>
             <ul><b>New chat/message features:</b>
                 <li>1. Add timestamps to chat, dms, and nexus</li>
                 <li>2. Add color to usernames in dms and nexus</li>
@@ -603,166 +604,7 @@ function setup() {
     });
 }
 
-function applyStyles() {
-    $("#chatPlusStyle").remove();
-    let style = document.createElement("style");
-    style.type = "text/css";
-    style.id = "chatPlusStyle";
-    style.appendChild(document.createTextNode(`
-        #smChatPlusSettings input.form-control {
-            height: initial;
-            color: black;
-            display: inline-block;
-            padding: 2px 4px;
-        }
-        .gcTimestamp {
-            opacity: 0.5;
-        }
-        .dmTimestamp {
-            opacity: 0.5;
-        }
-        .ncTimestamp {
-            opacity: 0.5;
-        }
-        .dmUsername {
-            font-weight: bold;
-        }
-        #chatContainer {
-            width: ${reformatBottomBar ? "calc(100% - 85px - " + xpBarFromRight + "px - " + xpBarWidth + "px)" : "calc(50% - 205px)"};
-            height: ${300 + dmHeightExtension}px;
-        }
-        #activeChatScrollContainer {
-            margin-top: ${255 + dmHeightExtension}px;
-        }
-        #xpOuterContainer {
-            width: ${reformatBottomBar ? xpBarWidth + "px" : "240px"};
-            margin: ${reformatBottomBar ? 0 : "auto"};
-            left: ${reformatBottomBar ? "auto" : 0};
-            right: ${reformatBottomBar ? xpBarFromRight + "px" : 0};
-        }
-        #xpBarOuter {
-            width: ${reformatBottomBar ? xpBarWidth + "px" : "240px"};
-        }
-        #currencyContainer {
-            left: ${reformatBottomBar ? xpBarWidth + "px" : "240px"};
-        }
-        .chatBoxContainer {
-            height: ${200 + dmHeightExtension}px;
-        }
-        .chatContent {
-            height: ${132 + dmHeightExtension}px;
-        }
-        .chatBox {
-            width: ${155 + dmWidthExtension}px;
-        }
-        .chatTopBar p {
-            width: ${76 + dmWidthExtension}px;
-        }
-        .dmUsername.self {
-            color: ${dmColor ? selfColor : "inherit"};
-        }
-        .dmUsername.friend {
-            color: ${dmColor ? friendColor : "inherit"};
-        }
-        .nexusCoopChatName.self {
-            color: ${ncColor ? selfColor : "inherit"};
-        }
-        .nexusCoopChatName.friend {
-            color: ${ncColor ? friendColor : "inherit"};
-        }
-        .gcInputContainer .textAreaContainer {
-            width: ${gifSearch ? "calc(100% - 145px)" : "calc(100% - 120px)"};
-        }
-        .gcLoadMediaContainer {
-            margin: 5px 0 3px 0;
-        }
-        button.gcLoadMediaButton {
-            background: #6D6D6D;
-            border: none;
-            color: #d9d9d9;
-            display: block;
-            margin: auto;
-            padding: 3px 6px;
-        }
-        button.gcLoadMediaButton:hover {
-            color: #d9d9d9;
-            opacity: .7;
-        }
-        img.gcLoadedImage {
-            display: block;
-            margin: auto;
-            max-width: 70%;
-            max-height: 200px;
-        }
-        audio.gcLoadedAudio {
-            display: block;
-            margin: auto;
-            width: 80%;
-            height: 35px;
-        }
-        video.gcLoadedVideo {
-            display: block;
-            margin: auto;
-            max-width: 70%;
-            max-height: 200px;
-        }
-        #gcEmojiPickerOuterContainer {
-            right: ${gifSearch ? "111px" : "86px"};
-        }
-        #gcGifSearchOuterContainer {
-            position: absolute;
-            top: 35px;
-            right: ${gifSearch ? "111px" : "86px"};
-            width: 24px;
-            height: 29px;
-        }
-        #gcGifSearchButton > i {
-            font-size: 25px;
-            color: #1b1b1b;
-        }
-        #gcGifContainer {
-            width: 100%;
-            height: ${gifSearchHeight}px;
-            display: none;
-            position: absolute;
-            bottom: 75px;
-            background-color: rgba(0, 0, 0, 0.5);
-            z-index: 20;
-        }
-        #tenorSearchInput {
-            color: black;
-            width: 100%;
-        }
-        #tenorGifContainer {
-            height: ${gifSearchHeight - 27}px;
-            padding: 2px 0;
-            position: absolute;
-        }
-        img.tenorGif {
-            height: 70px;
-            margin: 2px;
-            border-radius: 5px;
-            cursor: pointer;
-        }
-        button.gcCloseMedia {
-            background: #6D6D6D;
-            border: none;
-            color: #d9d9d9;
-            width: 25px;
-            height: 25px;
-            padding: 0;
-            position: absolute;
-            top: 0;
-            right: 0;
-        }
-        button.gcCloseMedia:hover {
-            color: #d9d9d9;
-            opacity: .7;
-        }
-    `));
-    document.head.appendChild(style);
-}
-
+// create load button or img/audio/video element in chat
 function createMediaElement($node, type, src, autoLoad) {
     let atBottom = gameChat.$chatMessageContainer.scrollTop() + gameChat.$chatMessageContainer.innerHeight() >= gameChat.$chatMessageContainer[0].scrollHeight - 100;
     $node.find(".gcLoadMediaContainer").remove();
@@ -828,6 +670,7 @@ function gcCheckAtBottom(atBottom) {
     }
 }
 
+// return form data for litterbox
 function litterboxFormData(file) {
     let formData = new FormData();
     formData.append("fileToUpload", file);
@@ -836,6 +679,7 @@ function litterboxFormData(file) {
     return formData;
 }
 
+// save settings
 function saveSettings() {
     let settings = {};
     settings.gcTimestamps = gcTimestamps;
@@ -939,3 +783,169 @@ nexusCoopChat.resetDrag = function() {
     oldResetDrag.apply(this, arguments);
     if (resizeNexusChat) $("#nexusCoopMainContainer").removeAttr("style").css({"resize": "both", "overflow": "hidden", "min-width": "0", "max-width": "none"});
 };
+
+// apply styles
+function applyStyles() {
+    $("#chatPlusStyle").remove();
+    let style = document.createElement("style");
+    style.type = "text/css";
+    style.id = "chatPlusStyle";
+    let text = `
+        #smChatPlusSettings input.form-control {
+            height: initial;
+            color: black;
+            display: inline-block;
+            padding: 2px 4px;
+        }
+        .gcTimestamp {
+            opacity: 0.5;
+        }
+        .dmTimestamp {
+            opacity: 0.5;
+        }
+        .ncTimestamp {
+            opacity: 0.5;
+        }
+        .dmUsername {
+            font-weight: bold;
+        }
+        #chatContainer {
+            width: ${reformatBottomBar ? "calc(100% - 85px - " + xpBarFromRight + "px - " + xpBarWidth + "px)" : "calc(50% - 205px)"};
+            height: ${300 + dmHeightExtension}px;
+        }
+        #activeChatScrollContainer {
+            margin-top: ${255 + dmHeightExtension}px;
+        }
+        #xpOuterContainer {
+            width: ${reformatBottomBar ? xpBarWidth + "px" : "240px"};
+            margin: ${reformatBottomBar ? 0 : "auto"};
+            left: ${reformatBottomBar ? "auto" : 0};
+            right: ${reformatBottomBar ? xpBarFromRight + "px" : 0};
+        }
+        #xpBarOuter {
+            width: ${reformatBottomBar ? xpBarWidth + "px" : "240px"};
+        }
+        #currencyContainer {
+            left: ${reformatBottomBar ? xpBarWidth + "px" : "240px"};
+        }
+        .chatBoxContainer {
+            height: ${200 + dmHeightExtension}px;
+        }
+        .chatContent {
+            height: ${132 + dmHeightExtension}px;
+        }
+        .chatBox {
+            width: ${155 + dmWidthExtension}px;
+        }
+        .chatTopBar p {
+            width: ${76 + dmWidthExtension}px;
+        }
+        .gcInputContainer .textAreaContainer {
+            width: ${gifSearch ? "calc(100% - 145px)" : "calc(100% - 120px)"};
+        }
+        .gcLoadMediaContainer {
+            margin: 5px 0 3px 0;
+        }
+        button.gcLoadMediaButton {
+            background: #6D6D6D;
+            border: none;
+            color: #d9d9d9;
+            display: block;
+            margin: auto;
+            padding: 3px 6px;
+        }
+        button.gcLoadMediaButton:hover {
+            color: #d9d9d9;
+            opacity: .7;
+        }
+        img.gcLoadedImage {
+            display: block;
+            margin: auto;
+            max-width: 70%;
+            max-height: 200px;
+        }
+        audio.gcLoadedAudio {
+            display: block;
+            margin: auto;
+            width: 80%;
+            height: 35px;
+        }
+        video.gcLoadedVideo {
+            display: block;
+            margin: auto;
+            max-width: 70%;
+            max-height: 200px;
+        }
+        #gcEmojiPickerOuterContainer {
+            right: ${gifSearch ? "111px" : "86px"};
+        }
+        #gcGifSearchOuterContainer {
+            position: absolute;
+            top: 35px;
+            right: ${gifSearch ? "111px" : "86px"};
+            width: 24px;
+            height: 29px;
+        }
+        #gcGifSearchButton > i {
+            font-size: 25px;
+            color: #1b1b1b;
+        }
+        #gcGifContainer {
+            width: 100%;
+            height: ${gifSearchHeight}px;
+            display: none;
+            position: absolute;
+            bottom: 75px;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 20;
+        }
+        #tenorSearchInput {
+            color: black;
+            width: 100%;
+        }
+        #tenorGifContainer {
+            height: ${gifSearchHeight - 27}px;
+            padding: 2px 0;
+            position: absolute;
+        }
+        img.tenorGif {
+            height: 70px;
+            margin: 2px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button.gcCloseMedia {
+            background: #6D6D6D;
+            border: none;
+            color: #d9d9d9;
+            width: 25px;
+            height: 25px;
+            padding: 0;
+            position: absolute;
+            top: 0;
+            right: 0;
+        }
+        button.gcCloseMedia:hover {
+            color: #d9d9d9;
+            opacity: .7;
+        }
+    `;
+    if (dmColor) text += `
+        .dmUsername.self {
+            color: ${selfColor};
+        }
+        .dmUsername.friend {
+            color: ${friendColor};
+        }
+    `;
+    if (ncColor) text += `
+        .nexusCoopChatName.self {
+            color: ${selfColor};
+        }
+        .nexusCoopChatName.friend {
+            color: ${friendColor};
+        }
+    `;
+    style.appendChild(document.createTextNode(text));
+    document.head.appendChild(style);
+}
