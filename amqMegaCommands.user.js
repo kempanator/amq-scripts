@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.80
+// @version      0.81
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -83,7 +83,7 @@ OTHER
 */
 
 "use strict";
-const version = "0.80";
+const version = "0.81";
 const saveData = JSON.parse(localStorage.getItem("megaCommands")) || {};
 let animeList;
 let autoAcceptInvite = saveData.autoAcceptInvite ?? false;
@@ -166,8 +166,8 @@ function setup() {
         popoutMessages.displayStandardMessage("Mega Commands", "updated to version " + version);
     }
     if (autoStatus === "do not disturb") socialTab.socialStatus.changeSocialStatus(2);
-    if (autoStatus === "away") socialTab.socialStatus.changeSocialStatus(3);
-    if (autoStatus === "invisible") socialTab.socialStatus.changeSocialStatus(4);
+    else if (autoStatus === "away") socialTab.socialStatus.changeSocialStatus(3);
+    else if (autoStatus === "invisible") socialTab.socialStatus.changeSocialStatus(4);
     new Listener("game chat update", (payload) => {
         for (let message of payload.messages) {
             if (!isRankedMode() && message.message.startsWith("/")) {
@@ -200,7 +200,7 @@ function setup() {
         }
         if (!quiz.isSpectator && quiz.gameMode !== "Ranked") {
             if (quiz.answerInput.multipleChoice.displayed && autoThrow.multichoice) {
-                let index = autoThrow.multichoice === "random" ? number = Math.floor(Math.random() * 4) : autoThrow.multichoice - 1;
+                let index = autoThrow.multichoice === "random" ? Math.floor(Math.random() * 4) : autoThrow.multichoice - 1;
                 setTimeout(() => { quiz.answerInput.multipleChoice.handleClick(quiz.answerInput.multipleChoice.answerOptions[index]) }, autoThrow.time1);
             }
             else if (autoThrow.text) {
@@ -259,9 +259,9 @@ function setup() {
     }).bindListener();
     new Listener("team member answer", (payload) => {
         if (autoCopy && autoCopy === quiz.players[payload.gamePlayerId]._name.toLowerCase()) {
-            let current_text = document.querySelector("#qpAnswerInput").value;
+            let currentText = $("#qpAnswerInput").val();
             quiz.answerInput.setNewAnswer(payload.answer);
-            $("#qpAnswerInput").val(current_text);
+            $("#qpAnswerInput").val(currentText);
         }
     }).bindListener();
     new Listener("guess phase over", (payload) => {
@@ -298,8 +298,8 @@ function setup() {
     }).bindListener();
     new Listener("battle royal phase over", (payload) => {
         if (printLoot && !battleRoyal.isSpectator) {
-            for (let element of document.querySelectorAll("#brCollectedList li")) {
-                sendSystemMessage(element.innerText.substring(2));
+            for (let entry of battleRoyal.collectionController.entries) {
+                sendSystemMessage(entry.$entry.text().substring(2));
             }
         }
     }).bindListener();
@@ -385,7 +385,7 @@ function setup() {
         if (hidePlayers) setTimeout(() => { lobbyHidePlayers() }, 0);
     }).bindListener();
     new Listener("game invite", (payload) => {
-        if (autoAcceptInvite && !inRoom() && ((autoAcceptInvite === true && isFriend(payload.sender))
+        if (autoAcceptInvite && !inRoom() && ((autoAcceptInvite === true && socialTab.isFriend(payload.sender))
         || (Array.isArray(autoAcceptInvite) && autoAcceptInvite.includes(payload.sender.toLowerCase())))) {
             roomBrowser.fireSpectateGame(payload.gameId, undefined, true);
         }
@@ -405,7 +405,7 @@ function setup() {
             }
             if (playerDetection.players.length) {
                 for (let player of playerDetection.players) {
-                    if (room.players.includes(player)) popoutMessages.displayStandardMessage(`${player}`, `Room ${room.id}: ${room.settings.roomName}`);
+                    if (room.players.includes(player)) popoutMessages.displayStandardMessage(player, `Room ${room.id}: ${room.settings.roomName}`);
                 }
             }
         }
@@ -418,7 +418,7 @@ function setup() {
         }
     }).bindListener();
     new Listener("nexus game invite", (payload) => {
-        if (autoAcceptInvite && !inRoom() && ((autoAcceptInvite === true && isFriend(payload.sender))
+        if (autoAcceptInvite && !inRoom() && ((autoAcceptInvite === true && socialTab.isFriend(payload.sender))
         || (Array.isArray(autoAcceptInvite) && autoAcceptInvite.includes(payload.sender.toLowerCase())))) {
             socket.sendCommand({type: "nexus", command: "join dungeon lobby", data: {lobbyId: payload.lobbyId}});
         }
@@ -432,6 +432,9 @@ function setup() {
     new Listener("nexus player leave", (payload) => {
         setTimeout(() => { checkAutoHost() }, 1);
     }).bindListener();
+    new Listener("friend name change", (payload) => {
+        if (gameChat.isShown()) sendSystemMessage(`friend name change: ${payload.oldName} => ${payload.newName}`);
+    }).bindListener();
     $("#qpAnswerInput").on("input", (event) => {
         if (autoKey) {
             socket.sendCommand({type: "quiz", command: "quiz answer", data: {answer: event.target.value || " ", isPlaying: true, volumeAtMax: false}});
@@ -441,6 +444,11 @@ function setup() {
         if (event.which === 13 && muteSubmit && !volumeController.muted) {
             volumeController.setMuted(true);
             volumeController.adjustVolume();
+        }
+    });
+    $("#brMap").keypress((event) => {
+        if (event.which === 32 && printLoot && battleRoyal.inView) {
+            $("#brMapContent .brMapObject").popover($(".popover").length ? "hide" : "show");
         }
     });
     if (autoJoinRoom) {
@@ -1074,7 +1082,7 @@ function parseCommand(content, type, target) {
         volumeController.adjustVolume();
     }
     else if (/^\/clear$/i.test(content)) {
-        setTimeout(() => { document.querySelectorAll("#gcMessageContainer li").forEach((e) => e.remove()) }, 1);
+        setTimeout(() => { $("#gcMessageContainer li").remove() }, 1);
     }
     else if (/^\/(dd|dropdown)$/i.test(content)) {
         dropdown = !dropdown;
@@ -1382,6 +1390,14 @@ function parseCommand(content, type, target) {
     else if (/^\/version$/i.test(content)) {
         sendMessage("Mega Commands - " + version, type, target, true);
     }
+    else if (/^\/selfcolor$/i.test(content)) {
+        let data = JSON.parse(localStorage.getItem("highlightFriendsSettings"));
+        if (data) sendMessage(data.smColorSelfColor, type, target);
+    }
+    else if (/^\/friendcolor$/i.test(content)) {
+        let data = JSON.parse(localStorage.getItem("highlightFriendsSettings"));
+        if (data) sendMessage(data.smColorFriendColor, type, target);
+    }
 }
 
 /**
@@ -1391,7 +1407,7 @@ function parseCommand(content, type, target) {
  */
 function parseIncomingDM(content, sender) {
     if (commands) {
-        if (isFriend(sender)) {
+        if (socialTab.isFriend(sender)) {
             if (/^\/(fr|forceready)$/i.test(content) && lobby.inLobby && !lobby.isHost && !lobby.isSpectator && lobby.settings.gameMode !== "Ranked") {
                 lobby.fireMainButtonEvent();
             }
@@ -1459,7 +1475,7 @@ function parseIncomingDM(content, sender) {
  */
 function parseForceAll(content, type) {
     if (/^\/forceall version$/i.test(content)) {
-        sendMessage("0.80", type);
+        sendMessage("0.81", type);
     }
     else if (/^\/forceall roll [0-9]+$/i.test(content)) {
         let number = parseInt(/^\S+ roll ([0-9]+)$/.exec(content)[1]);
