@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.13
+// @version      0.14
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -43,7 +43,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.13";
+const version = "0.14";
 const saveData = JSON.parse(localStorage.getItem("customSongListGame")) || {};
 let replacedAnswers = saveData.replacedAnswers || {};
 let fastSkip = false;
@@ -1058,7 +1058,7 @@ function handleData(data) {
 // create song list table
 function createSongListTable() {
     $("#cslgSongListCount").text("Total Songs: " + songList.length);
-    $tbody = $("#cslgSongListTable tbody");
+    let $tbody = $("#cslgSongListTable tbody");
     $tbody.empty();
     songList.forEach((result, i) => {
         let $row = $("<tr></tr>");
@@ -1072,7 +1072,7 @@ function createSongListTable() {
 
 // create answer table
 function createAnswerTable() {
-    $tbody = $("#cslgAnswerTable tbody");
+    let $tbody = $("#cslgAnswerTable tbody");
     $tbody.empty();
     if (songList.length === 0) {
         $("#cslgAnswerText").text("No list loaded");
@@ -1194,7 +1194,7 @@ function applyStyles() {
         #cslgSongListTable tbody i.fa-trash:hover {
             opacity: .8;
         }
-        #cslgSongListTable th, #cslgAnswerTable td {
+        #cslgSongListTable th, #cslgSongListTable td {
             padding: 0 4px;
         }
         #cslgSongListTable tbody tr:nth-child(odd) {
