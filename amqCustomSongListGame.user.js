@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.14
+// @version      0.15
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -43,7 +43,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.14";
+const version = "0.15";
 const saveData = JSON.parse(localStorage.getItem("customSongListGame")) || {};
 let replacedAnswers = saveData.replacedAnswers || {};
 let fastSkip = false;
@@ -288,9 +288,9 @@ $("#cslgStartButton").click(() => {
         return displayMessage("Unable to start", "no songs");
     }
     if ($("#cslgSettingsStartPointRandomRadio").prop("checked")) startPointType = "random";
-    else if ($("cslgSettingsStartPointStartRadio").prop("checked")) startPointType = "start";
-    else if ($("cslgSettingsStartPointMiddleRadio").prop("checked")) startPointType = "middle";
-    else if ($("cslgSettingsStartPointEndRadio").prop("checked")) startPointType = "end";
+    else if ($("#cslgSettingsStartPointStartRadio").prop("checked")) startPointType = "start";
+    else if ($("#cslgSettingsStartPointMiddleRadio").prop("checked")) startPointType = "middle";
+    else if ($("#cslgSettingsStartPointEndRadio").prop("checked")) startPointType = "end";
     if ($("#cslgSettingsSkipNormalRadio").prop("checked")) fastSkip = false;
     else if ($("#cslgSettingsSkipFastRadio").prop("checked")) fastSkip = true;
     $("#cslgSettingsModal").modal("hide");
