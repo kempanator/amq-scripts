@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.15
+// @version      0.16
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -43,7 +43,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.15";
+const version = "0.16";
 const saveData = JSON.parse(localStorage.getItem("customSongListGame")) || {};
 let replacedAnswers = saveData.replacedAnswers || {};
 let fastSkip = false;
@@ -55,7 +55,7 @@ let currentAnswer = "";
 let score = 0;
 let songList = [];
 let songOrder = {}; //{song#: index#, ...}
-let startPointType; //"random" "start" "middle" "end"
+let startPoint; //[0] or [0, 100]
 let previousSongFinished = false;
 let skipInterval;
 let nextVideoReadyInterval;
@@ -159,10 +159,7 @@ $("#gameContainer").append($(`
                         </div>
                         <div>
                             <span style="font-size: 18px; font-weight: bold; margin-right: 15px;">Sample:</span>
-                            <label class="clickAble">Random<input id="cslgSettingsStartPointRandomRadio" type="radio" name="cslgStartPointMode"></label>
-                            <label class="clickAble" style="margin-left: 10px">Start<input id="cslgSettingsStartPointStartRadio" type="radio" name="cslgStartPointMode"></label>
-                            <label class="clickAble" style="margin-left: 10px">Middle<input id="cslgSettingsStartPointMiddleRadio" type="radio" name="cslgStartPointMode"></label>
-                            <label class="clickAble" style="margin-left: 10px">End<input id="cslgSettingsStartPointEndRadio" type="radio" name="cslgStartPointMode"></label>
+                            <input id="cslgSettingsStartPoint" type="text" style="width: 70px">
                         </div>
                         <div>
                             <span style="font-size: 18px; font-weight: bold; margin-right: 15px;">Skip Speed:</span>
@@ -287,10 +284,22 @@ $("#cslgStartButton").click(() => {
     if (Object.keys(songOrder).length === 0) {
         return displayMessage("Unable to start", "no songs");
     }
-    if ($("#cslgSettingsStartPointRandomRadio").prop("checked")) startPointType = "random";
-    else if ($("#cslgSettingsStartPointStartRadio").prop("checked")) startPointType = "start";
-    else if ($("#cslgSettingsStartPointMiddleRadio").prop("checked")) startPointType = "middle";
-    else if ($("#cslgSettingsStartPointEndRadio").prop("checked")) startPointType = "end";
+    let startPointText = $("#cslgSettingsStartPoint").val().trim();
+    if (/^[0-9]+$/.test(startPointText)) {
+        startPoint = [parseInt(startPointText)];
+        if (startPoint[0] < 0 || startPoint[0] > 100) {
+            return displayMessage("Unable to start", "song start sample must be a number or range 0-100");
+        }
+    }
+    else if (/^[0-9]+[\s-]+[0-9]+$/.test(startPointText)) {
+        startPoint = [parseInt(/^([0-9]+)[\s-]+[0-9]+$/.exec(startPointText)[1]), parseInt(/^[0-9]+[\s-]+([0-9]+)$/.exec(startPointText)[1])];
+        if (startPoint[0] < 0 || startPoint[0] > 100 || startPoint[1] < 0 || startPoint[1] > 100 || startPoint[0] > startPoint[1]) {
+            return displayMessage("Unable to start", "song start sample must be a number or range 0-100");
+        }
+    }
+    else {
+        return displayMessage("Unable to start", "song start sample must be a number or range 0-100");
+    }
     if ($("#cslgSettingsSkipNormalRadio").prop("checked")) fastSkip = false;
     else if ($("#cslgSettingsSkipFastRadio").prop("checked")) fastSkip = true;
     $("#cslgSettingsModal").modal("hide");
@@ -336,7 +345,7 @@ $("#cslgSettingsINCheckbox").prop("checked", true);
 $("#cslgSettingsCorrectGuessCheckbox").prop("checked", true);
 $("#cslgSettingsIncorrectGuessCheckbox").prop("checked", true);
 $("#cslgSettingsSongOrderRandomRadio").prop("checked", true);
-$("#cslgSettingsStartPointRandomRadio").prop("checked", true);
+$("#cslgSettingsStartPoint").val("0-100");
 $("#cslgSettingsSkipNormalRadio").prop("checked", true);
 $("#cslgFileUploadRow").hide();
 $("#cslgModeAnisongdbRadio").click(() => {
@@ -530,7 +539,7 @@ function startQuiz() {
         fireListener("quiz next video info", {
             "playLength": guessTime,
             "playbackSpeed": 1,
-            "startPont": getStartPoint(startPointType), //thanks egerod
+            "startPont": getStartPoint(),
             "videoInfo": {
                 "id": null,
                 "videoMap": {
@@ -619,7 +628,7 @@ function playSong(songNumber) {
             fireListener("quiz next video info", {
                 "playLength": guessTime,
                 "playbackSpeed": 1,
-                "startPont": getStartPoint(startPointType), //thanks egerod
+                "startPont": getStartPoint(),
                 "videoInfo": {
                     "id": null,
                     "videoMap": {
@@ -783,11 +792,13 @@ function isCorrectAnswer(songNumber, answer) {
 }
 
 // get start point value
-function getStartPoint(type) {
-    if (type === "random") return Math.floor(Math.random() * 101);
-    if (type === "start") return 0;
-    if (type === "middle") return 50;
-    if (type === "end") return 100;
+function getStartPoint() {
+    if (startPoint.length === 1) {
+        return startPoint[0];
+    }
+    else if (startPoint.length === 2) {
+        return Math.floor(Math.random() * (startPoint[1] - startPoint[0] + 1)) + startPoint[0];
+    }
 }
 
 // clear all intervals and timeouts
