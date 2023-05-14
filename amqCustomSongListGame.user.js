@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.16
+// @version      0.17
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -43,7 +43,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.16";
+const version = "0.17";
 const saveData = JSON.parse(localStorage.getItem("customSongListGame")) || {};
 let replacedAnswers = saveData.replacedAnswers || {};
 let fastSkip = false;
@@ -55,7 +55,8 @@ let currentAnswer = "";
 let score = 0;
 let songList = [];
 let songOrder = {}; //{song#: index#, ...}
-let startPoint; //[0] or [0, 100]
+let startPointRange = [0, 100];
+let difficultyRange = [0, 100];
 let previousSongFinished = false;
 let skipInterval;
 let nextVideoReadyInterval;
@@ -128,6 +129,7 @@ $("#gameContainer").append($(`
                                         <th class="number">#</th>
                                         <th class="song">Song</th>
                                         <th class="artist">Artist</th>
+                                        <th class="difficulty">Dif</th>
                                         <th class="trash"></th>
                                     </tr>
                                 </thead>
@@ -138,9 +140,9 @@ $("#gameContainer").append($(`
                     </div>
                     <div id="cslgQuizSettingsContainer" style="margin-top: 10px">
                         <div>
-                            <span style="font-size: 18px; font-weight: bold;">Songs:</span><input id="cslgSettingsSongs" type="text" style="width: 40px">
-                            <span style="font-size: 18px; font-weight: bold; margin-left: 15px;">Guess Time:</span><input id="cslgSettingsGuessTime" type="text" style="width: 40px">
-                            <span style="font-size: 18px; font-weight: bold; margin-left: 15px;">Extra Time:</span><input id="cslgSettingsExtraGuessTime" type="text" style="width: 40px">
+                            <span style="font-size: 18px; font-weight: bold; margin: 0 10px 0 0;">Songs:</span><input id="cslgSettingsSongs" type="text" style="width: 40px">
+                            <span style="font-size: 18px; font-weight: bold; margin: 0 10px 0 40px;">Guess Time:</span><input id="cslgSettingsGuessTime" type="text" style="width: 40px">
+                            <span style="font-size: 18px; font-weight: bold; margin: 0 10px 0 40px;">Extra Time:</span><input id="cslgSettingsExtraGuessTime" type="text" style="width: 40px">
                         </div>
                         <div>
                             <span style="font-size: 18px; font-weight: bold; margin-right: 15px;">Song Types:</span>
@@ -152,19 +154,25 @@ $("#gameContainer").append($(`
                             <label class="clickAble" style="margin-left: 10px">Wrong<input id="cslgSettingsIncorrectGuessCheckbox" type="checkbox"></label>
                         </div>
                         <div>
+                            <span style="font-size: 18px; font-weight: bold; margin-right: 15px;">Anime Types:</span>
+                            <label class="clickAble">TV<input id="cslgSettingsTVCheckbox" type="checkbox"></label>
+                            <label class="clickAble" style="margin-left: 10px">Movie<input id="cslgSettingsMovieCheckbox" type="checkbox"></label>
+                            <label class="clickAble" style="margin-left: 10px">OVA<input id="cslgSettingsOVACheckbox" type="checkbox"></label>
+                            <label class="clickAble" style="margin-left: 10px">ONA<input id="cslgSettingsONACheckbox" type="checkbox"></label>
+                            <label class="clickAble" style="margin-left: 10px">Special<input id="cslgSettingsSpecialCheckbox" type="checkbox"></label>
+                        </div>
+                        <div>
                             <span style="font-size: 18px; font-weight: bold; margin-right: 15px;">Song Order:</span>
                             <label class="clickAble">Random<input id="cslgSettingsSongOrderRandomRadio" type="radio" name="cslgSongOrderMode"></label>
                             <label class="clickAble" style="margin-left: 10px">Ascending<input id="cslgSettingsSongOrderAscendingRadio" type="radio" name="cslgSongOrderMode"></label>
                             <label class="clickAble" style="margin-left: 10px">Descending<input id="cslgSettingsSongOrderDescendingRadio" type="radio" name="cslgSongOrderMode"></label>
                         </div>
                         <div>
-                            <span style="font-size: 18px; font-weight: bold; margin-right: 15px;">Sample:</span>
+                            <span style="font-size: 18px; font-weight: bold; margin: 0 10px 0 0;">Sample:</span>
                             <input id="cslgSettingsStartPoint" type="text" style="width: 70px">
-                        </div>
-                        <div>
-                            <span style="font-size: 18px; font-weight: bold; margin-right: 15px;">Skip Speed:</span>
-                            <label class="clickAble">Normal<input id="cslgSettingsSkipNormalRadio" type="radio" name="cslgSkipMode"></label>
-                            <label class="clickAble" style="margin-left: 10px">Fast<input id="cslgSettingsSkipFastRadio" type="radio" name="cslgSkipMode"></label>
+                            <span style="font-size: 18px; font-weight: bold; margin: 0 10px 0 40px;">Difficulty:</span>
+                            <input id="cslgSettingsDifficulty" type="text" style="width: 70px">
+                            <label class="clickAble" style="margin-left: 50px">Fast Skip<input id="cslgSettingsFastSkip" type="checkbox"></label>
                         </div>
                         <p style="margin-top: 20px">Normal room settings are ignored. Only these settings will apply.</p>
                     </div>
@@ -188,7 +196,7 @@ $("#gameContainer").append($(`
                                 </tbody>
                             </table>
                         </div>
-                        <p style="margin-top: 5px">Use this window to replace invalid answers from your imported song list with valid answers from AMQ's autocomplete</p>
+                        <p style="margin-top: 5px">Use this window to replace invalid answers from your imported song list with valid answers from AMQ's autocomplete.</p>
                     </div>
                     <div id="cslgInfoContainer" style="text-align: center; margin: 40px 0;">
                         <p>Created by: kempanator</p>
@@ -270,38 +278,51 @@ $("#cslgStartButton").click(() => {
     if (isNaN(extraGuessTime) || extraGuessTime < 0 || extraGuessTime > 15) {
         return displayMessage("Unable to start", "invalid extra guess time");
     }
+    let startPointText = $("#cslgSettingsStartPoint").val().trim();
+    if (/^[0-9]+$/.test(startPointText)) {
+        startPointRange = [parseInt(startPointText), parseInt(startPointText)];
+    }
+    else if (/^[0-9]+[\s-]+[0-9]+$/.test(startPointText)) {
+        startPointRange = [parseInt(/^([0-9]+)[\s-]+[0-9]+$/.exec(startPointText)[1]), parseInt(/^[0-9]+[\s-]+([0-9]+)$/.exec(startPointText)[1])];
+    }
+    else {
+        return displayMessage("Unable to start", "song start sample must be a number or range 0-100");
+    }
+    if (startPointRange[0] < 0 || startPointRange[0] > 100 || startPointRange[1] < 0 || startPointRange[1] > 100 || startPointRange[0] > startPointRange[1]) {
+        return displayMessage("Unable to start", "song start sample must be a number or range 0-100");
+    }
+    let difficultyText = $("#cslgSettingsDifficulty").val().trim();
+    if (/^[0-9]+[\s-]+[0-9]+$/.test(difficultyText)) {
+        difficultyRange = [parseInt(/^([0-9]+)[\s-]+[0-9]+$/.exec(difficultyText)[1]), parseInt(/^[0-9]+[\s-]+([0-9]+)$/.exec(difficultyText)[1])];
+    }
+    else {
+        return displayMessage("Unable to start", "difficulty must be a range 0-100");
+    }
+    if (difficultyRange[0] < 0 || difficultyRange[0] > 100 || difficultyRange[1] < 0 || difficultyRange[1] > 100 || difficultyRange[0] > difficultyRange[1]) {
+        return displayMessage("Unable to start", "difficulty must be a range 0-100");
+    }
     let ops = $("#cslgSettingsOPCheckbox").prop("checked");
     let eds = $("#cslgSettingsEDCheckbox").prop("checked");
     let ins = $("#cslgSettingsINCheckbox").prop("checked");
+    let tv = $("#cslgSettingsTVCheckbox").prop("checked");
+    let movie = $("#cslgSettingsMovieCheckbox").prop("checked");
+    let ova = $("#cslgSettingsOVACheckbox").prop("checked");
+    let ona = $("#cslgSettingsONACheckbox").prop("checked");
+    let special = $("#cslgSettingsSpecialCheckbox").prop("checked");
     let correctGuesses = $("#cslgSettingsCorrectGuessCheckbox").prop("checked");
     let incorrectGuesses = $("#cslgSettingsIncorrectGuessCheckbox").prop("checked");
     let songKeys = Object.keys(songList)
-        .filter((key) => (ops && songList[key].songType === 1) || (eds && songList[key].songType === 2) || (ins && songList[key].songType === 3))
-        .filter((key) => (correctGuesses && songList[key].correctGuess) || (incorrectGuesses && songList[key].incorrectGuess));
+        .filter((key) => songTypeFilter(songList[key], ops, eds, ins))
+        .filter((key) => animeTypeFilter(songList[key], tv, movie, ova, ona, special))
+        .filter((key) => difficultyFilter(songList[key], difficultyRange[0], difficultyRange[1]))
+        .filter((key) => guessTypeFilter(songList[key], correctGuesses, incorrectGuesses));
     if ($("#cslgSettingsSongOrderRandomRadio").prop("checked")) shuffleArray(songKeys);
     else if ($("#cslgSettingsSongOrderDescendingRadio").prop("checked")) songKeys.reverse();
     songKeys.slice(0, numSongs).forEach((key, i) => { songOrder[i + 1] = parseInt(key) });
     if (Object.keys(songOrder).length === 0) {
         return displayMessage("Unable to start", "no songs");
     }
-    let startPointText = $("#cslgSettingsStartPoint").val().trim();
-    if (/^[0-9]+$/.test(startPointText)) {
-        startPoint = [parseInt(startPointText)];
-        if (startPoint[0] < 0 || startPoint[0] > 100) {
-            return displayMessage("Unable to start", "song start sample must be a number or range 0-100");
-        }
-    }
-    else if (/^[0-9]+[\s-]+[0-9]+$/.test(startPointText)) {
-        startPoint = [parseInt(/^([0-9]+)[\s-]+[0-9]+$/.exec(startPointText)[1]), parseInt(/^[0-9]+[\s-]+([0-9]+)$/.exec(startPointText)[1])];
-        if (startPoint[0] < 0 || startPoint[0] > 100 || startPoint[1] < 0 || startPoint[1] > 100 || startPoint[0] > startPoint[1]) {
-            return displayMessage("Unable to start", "song start sample must be a number or range 0-100");
-        }
-    }
-    else {
-        return displayMessage("Unable to start", "song start sample must be a number or range 0-100");
-    }
-    if ($("#cslgSettingsSkipNormalRadio").prop("checked")) fastSkip = false;
-    else if ($("#cslgSettingsSkipFastRadio").prop("checked")) fastSkip = true;
+    fastSkip = $("#cslgSettingsFastSkip").prop("checked");
     $("#cslgSettingsModal").modal("hide");
     //console.log(songOrder);
     startQuiz();
@@ -344,9 +365,15 @@ $("#cslgSettingsEDCheckbox").prop("checked", true);
 $("#cslgSettingsINCheckbox").prop("checked", true);
 $("#cslgSettingsCorrectGuessCheckbox").prop("checked", true);
 $("#cslgSettingsIncorrectGuessCheckbox").prop("checked", true);
+$("#cslgSettingsTVCheckbox").prop("checked", true);
+$("#cslgSettingsMovieCheckbox").prop("checked", true);
+$("#cslgSettingsOVACheckbox").prop("checked", true);
+$("#cslgSettingsONACheckbox").prop("checked", true);
+$("#cslgSettingsSpecialCheckbox").prop("checked", true);
 $("#cslgSettingsSongOrderRandomRadio").prop("checked", true);
 $("#cslgSettingsStartPoint").val("0-100");
-$("#cslgSettingsSkipNormalRadio").prop("checked", true);
+$("#cslgSettingsDifficulty").val("0-100");
+$("#cslgSettingsFastSkip").prop("checked", false);
 $("#cslgFileUploadRow").hide();
 $("#cslgModeAnisongdbRadio").click(() => {
     songList = [];
@@ -793,12 +820,43 @@ function isCorrectAnswer(songNumber, answer) {
 
 // get start point value
 function getStartPoint() {
-    if (startPoint.length === 1) {
-        return startPoint[0];
-    }
-    else if (startPoint.length === 2) {
-        return Math.floor(Math.random() * (startPoint[1] - startPoint[0] + 1)) + startPoint[0];
-    }
+    return Math.floor(Math.random() * (startPointRange[1] - startPointRange[0] + 1)) + startPointRange[0];
+}
+
+// return true if song type is allowed
+function songTypeFilter(song, ops, eds, ins) {
+    let type = song.songType;
+    if (ops && type === 1) return true;
+    if (eds && type === 2) return true;
+    if (ins && type === 3) return true;
+    return false;
+}
+
+// return true if anime type is allowed
+function animeTypeFilter(song, tv, movie, ova, ona, special) {
+    let type = song.animeType.toLowerCase();
+    if (tv && type === "tv") return true;
+    if (movie && type === "movie") return true;
+    if (ova && type === "ova") return true;
+    if (ona && type === "ona") return true;
+    if (special && type === "special") return true;
+    return false;
+}
+
+// return true if the song difficulty is in allowed range
+function difficultyFilter(song, low, high) {
+    if (low === 0 && high === 100) return true;
+    let dif = parseFloat(song.songDifficulty);
+    if (isNaN(dif)) return false;
+    if (dif >= low && dif <= high) return true;
+    return false;
+}
+
+// return true if guess type is allowed
+function guessTypeFilter(song, correctGuesses, incorrectGuesses) {
+    if (correctGuesses && song.correctGuess) return true;
+    if (incorrectGuesses && song.incorrectGuess) return true;
+    return false;
 }
 
 // clear all intervals and timeouts
@@ -1076,6 +1134,7 @@ function createSongListTable() {
         $row.append($("<td></td>").addClass("number").text(i + 1));
         $row.append($("<td></td>").addClass("song").text(result.songName));
         $row.append($("<td></td>").addClass("artist").text(result.songArtist));
+        $row.append($("<td></td>").addClass("difficulty").text(Number.isFinite(result.songDifficulty) ? Math.floor(result.songDifficulty) : ""));
         $row.append($("<td></td>").addClass("trash clickAble").append(`<i class="fa fa-trash" aria-hidden="true"></i>`));
         $tbody.append($row);
     });
@@ -1197,6 +1256,9 @@ function applyStyles() {
             font-weight: bold;
         }
         #cslgSongListTable .number {
+            width: 30px;
+        }
+        #cslgSongListTable .difficulty {
             width: 30px;
         }
         #cslgSongListTable .trash {
