@@ -14,7 +14,7 @@
 - Lots of commands (replacement for several other scripts)
 
 ### AMQ New Game Mode UI
-- Adds a user interface to new game mode to keep track of guesses https://imgur.com/q9GTFQr
+- A fully automatic guess counter for your team in new game mode https://imgur.com/a/UrN162K
 
 ### AMQ Show Room Players
 - Mouse over the players bar on a room tile to show full player list https://imgur.com/jivcLDo
