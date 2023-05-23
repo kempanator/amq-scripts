@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.17
+// @version      0.18
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -43,7 +43,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.17";
+const version = "0.18";
 const saveData = JSON.parse(localStorage.getItem("customSongListGame")) || {};
 let replacedAnswers = saveData.replacedAnswers || {};
 let fastSkip = false;
@@ -271,7 +271,7 @@ $("#cslgStartButton").click(() => {
         return displayMessage("Unable to start", "invalid number of songs");
     }
     guessTime = parseInt($("#cslgSettingsGuessTime").val());
-    if (isNaN(guessTime) || guessTime < 1 || guessTime > 60) {
+    if (isNaN(guessTime) || guessTime < 1 || guessTime > 99) {
         return displayMessage("Unable to start", "invalid guess time");
     }
     extraGuessTime = parseInt($("#cslgSettingsExtraGuessTime").val());
