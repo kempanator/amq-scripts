@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ New Game Mode UI
 // @namespace    https://github.com/kempanator
-// @version      0.17
+// @version      0.18
 // @description  Adds a user interface to new game mode to keep track of guesses
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -22,12 +22,12 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.17";
+const version = "0.18";
 let ngmWindow;
 let initialGuessCount = []; //list of initial # guesses for your team [5, 5, 5, 5]
 let guessCounter = []; //list of current # guesses for your team [4, 2, 1, 3]
 let countButtons = []; //list of jQuery objects of count buttons
-let answers = {}; //{0: {id: 0, text: "text", speed: 5000}, ...}
+let answers = {}; //{0: {id: 0, text: "text", speed: 5000, valid: false}, ...}
 let teamNumber = null; //your team number
 let teamList = []; //list of gamePlayerIds of everyone on your team
 let teamSlot = null; //your index # on your team
@@ -38,7 +38,7 @@ let autoThrowSelfCount = false;
 let autoSendTeamCount = 0; //0: off, 1: team chat, 2: regular chat
 let halfModeList = []; //list of your teammates with half point deductions enabled [true, false, true, false]
 let autocomplete = []; //store lowercase version for faster compare speed
-let skipAnswerValidation = false; //deduct .5 on any answer
+let answerValidation = 0; //0: none, 1: loose, 2: strict
 $("#qpOptionContainer").width($("#qpOptionContainer").width() + 35);
 $("#qpOptionContainer > div").append($(`<div id="qpNGM" class="clickAble qpOption"><img class="qpMenuItem" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB4AAAAUCAMAAACtdX32AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAGUExURdnZ2QAAAE/vHxMAAAACdFJOU/8A5bcwSgAAAAlwSFlzAAAOwgAADsIBFShKgAAAAEpJREFUKFO9jEESABAMA/X/nyahJIYje0qynZYApcGw81hDJRiU1xownvigr7jWL4yqITlmMU1HsqjmYGDsbp77D9crZVE90rqMqNWrAYH0hYPXAAAAAElFTkSuQmCC"></div>`)
     .click(() => {
@@ -142,9 +142,18 @@ function setup() {
                     }
                 }
                 else {
-                    let validAnswers = skipAnswerValidation
-                        ? Object.values(answers).filter((answer) => answer.text.trim())
-                        : Object.values(answers).filter((answer) => autocomplete.includes(answer.text.toLowerCase()));
+                    let validAnswers;
+                    answers.forEach((answer) => { answer.valid = autocomplete.includes(answer.text.toLowerCase()) });
+                    if (answerValidation === 0 ) {
+                        validAnswers = Object.values(answers).filter((answer) => answer.text.trim());
+                    }
+                    else if (answerValidation === 1) {
+                        validAnswers = Object.values(answers).filter((answer) => answer.valid);
+                        if (validAnswers.length === 0) validAnswers = Object.values(answers).filter((answer) => answer.text.trim());
+                    }
+                    else if (answerValidation === 2) {
+                        validAnswers = Object.values(answers).filter((answer) => answer.valid);
+                    }
                     if (validAnswers.length) {
                         let fastestSpeed = Math.min(...validAnswers.map((answer) => answer.speed));
                         let fastestPlayers = validAnswers.filter((answer) => answer.speed === fastestSpeed);
@@ -369,12 +378,12 @@ function setupNGMWindow() {
             if ($("#ngmHalfGuessInput").hasClass("disabled")) {
                 $(this).css({"background-color": "#4497ea", "border-color": "#006ab7", "color": "#ffffff"});
                 $("#ngmHalfGuessInput").removeClass("disabled");
-                $("#ngmSkipValidationButton").removeClass("disabled");
+                $("#ngmAnswerValidationButton").removeClass("disabled");
             }
             else {
                 $(this).css({"background-color": "#ffffff", "border-color": "#cccccc", "color": "#000000"});
                 $("#ngmHalfGuessInput").addClass("disabled");
-                $("#ngmSkipValidationButton").addClass("disabled");
+                $("#ngmAnswerValidationButton").addClass("disabled");
             }
         })
         .popover({
@@ -398,19 +407,22 @@ function setupNGMWindow() {
             html: true
         })
     );
-    $row3.append($(`<div id="ngmSkipValidationButton" class="ngmButton disabled" style="width: 34px; background-color: #ffffff; border-color: #cccccc; color: #333333;"><i class="fa fa-check" aria-hidden="true"></i></div>`)
+    $row3.append($(`<div id="ngmAnswerValidationButton" class="ngmButton disabled" style="width: 34px; background-color: #ffffff; border-color: #cccccc; color: #333333;"><i class="fa fa-check" aria-hidden="true"></i></div>`)
         .click(function() {
-            skipAnswerValidation = !skipAnswerValidation;
-            if (skipAnswerValidation) {
+            answerValidation = (answerValidation + 1) % 3;
+            if (answerValidation === 0) {
+                $(this).css({"background-color": "#ffffff", "border-color": "#cccccc", "color": "#333333"});
+            }
+            else if (answerValidation === 1) {
                 $(this).css({"background-color": "#4497ea", "border-color": "#006ab7", "color": "#ffffff"});
             }
-            else {
-                $(this).css({"background-color": "#ffffff", "border-color": "#cccccc", "color": "#333333"});
+            else if (answerValidation === 2) {
+                $(this).css({"background-color": "#9444EA", "border-color": "#6C00B7", "color": "#ffffff"});
             }
         })
         .popover({
-            title: "Skip Answer Validation",
-            content: `<p>deduct .5 points even if the answer is not valid</p>`,
+            title: "Answer Validation",
+            content: `<p>White: None<br>deduct .5 if the person has any text in their answer box</p><p>Blue: Loose<br>if at least 1 valid answer do strict mode, else none</p><p>Purple: Strict<br>only deduct .5 on valid answers</p>`,
             placement: "bottom",
             trigger: "hover",
             container: "body",
