@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ New Game Mode UI
 // @namespace    https://github.com/kempanator
-// @version      0.16
+// @version      0.17
 // @description  Adds a user interface to new game mode to keep track of guesses
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -22,22 +22,23 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.16";
+const version = "0.17";
 let ngmWindow;
-let initialGuessCount = []; // list of initial # guesses for your team [5, 5, 5, 5]
-let guessCounter = []; // list of current # guesses for your team [4, 2, 1, 3]
-let countButtons = []; // list of jQuery objects of count buttons
+let initialGuessCount = []; //list of initial # guesses for your team [5, 5, 5, 5]
+let guessCounter = []; //list of current # guesses for your team [4, 2, 1, 3]
+let countButtons = []; //list of jQuery objects of count buttons
 let answers = {}; //{0: {id: 0, text: "text", speed: 5000}, ...}
-let teamNumber = null; // your team number
-let teamList = []; // list of gamePlayerIds of everyone on your team
-let teamSlot = null; // your index # on your team
-let correctGuesses = 0; // total correct guesses from your team
-let remainingGuesses = 0; // total remaining guesses from your team
+let teamNumber = null; //your team number
+let teamList = []; //list of gamePlayerIds of everyone on your team
+let teamSlot = null; //your index # on your team
+let correctGuesses = 0; //total correct guesses from your team
+let remainingGuesses = 0; //total remaining guesses from your team
 let autoTrackCount = false;
-let autothrowSelfCount = false;
+let autoThrowSelfCount = false;
 let autoSendTeamCount = 0; //0: off, 1: team chat, 2: regular chat
-let halfModeList = []; // list of your teamates with half point deductions enabled [true, false, true, false]
+let halfModeList = []; //list of your teammates with half point deductions enabled [true, false, true, false]
 let autocomplete = []; //store lowercase version for faster compare speed
+let skipAnswerValidation = false; //deduct .5 on any answer
 $("#qpOptionContainer").width($("#qpOptionContainer").width() + 35);
 $("#qpOptionContainer > div").append($(`<div id="qpNGM" class="clickAble qpOption"><img class="qpMenuItem" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB4AAAAUCAMAAACtdX32AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAGUExURdnZ2QAAAE/vHxMAAAACdFJOU/8A5bcwSgAAAAlwSFlzAAAOwgAADsIBFShKgAAAAEpJREFUKFO9jEESABAMA/X/nyahJIYje0qynZYApcGw81hDJRiU1xownvigr7jWL4yqITlmMU1HsqjmYGDsbp77D9crZVE90rqMqNWrAYH0hYPXAAAAAElFTkSuQmCC"></div>`)
     .click(() => {
@@ -85,7 +86,7 @@ function setup() {
     new Listener("play next song", (payload) => {
         if (quiz.teamMode && !quiz.isSpectator && hostModal.$scoring.slider("getValue") === 3) {
             answers = {};
-            if (autothrowSelfCount && guessCounter.length) {
+            if (autoThrowSelfCount && guessCounter.length) {
                 setTimeout(() => {
                     socket.sendCommand({
                         type: "quiz",
@@ -131,7 +132,7 @@ function setup() {
                             if (remainingGuesses === 1) guessCounter = [...initialGuessCount];
                             else guessCounter[index] -= 1;
                         }
-                        countButtons.forEach((element, i) => { element.removeClass("disabled").text(guessCounter[i]) });
+                        countButtons.forEach((element, i) => { element.text(guessCounter[i]) });
                         if (autoSendTeamCount === 1) sendChatMessage(guessCounter.join(halfMode ? " " : ""), true);
                         else if (autoSendTeamCount === 2) sendChatMessage(guessCounter.join(halfMode ? " " : ""), false);
                     }
@@ -141,7 +142,9 @@ function setup() {
                     }
                 }
                 else {
-                    let validAnswers = Object.values(answers).filter((answer) => autocomplete.includes(answer.text.toLowerCase()));
+                    let validAnswers = skipAnswerValidation
+                        ? Object.values(answers).filter((answer) => answer.text.trim())
+                        : Object.values(answers).filter((answer) => autocomplete.includes(answer.text.toLowerCase()));
                     if (validAnswers.length) {
                         let fastestSpeed = Math.min(...validAnswers.map((answer) => answer.speed));
                         let fastestPlayers = validAnswers.filter((answer) => answer.speed === fastestSpeed);
@@ -152,7 +155,7 @@ function setup() {
                                 setTimeout(() => { countButtons[index].removeClass("ngmAnimateWrong") }, 2000);
                                 guessCounter[index] -= .5;
                                 if (guessCounter.every((x) => x <= 0)) guessCounter = [...initialGuessCount];
-                                countButtons.forEach((element, i) => { element.removeClass("disabled").text(guessCounter[i]) });
+                                countButtons.forEach((element, i) => { element.text(guessCounter[i]) });
                                 if (autoSendTeamCount === 1) sendChatMessage(guessCounter.join(halfMode ? " " : ""), true);
                                 else if (autoSendTeamCount === 2) sendChatMessage(guessCounter.join(halfMode ? " " : ""), false);
                             }
@@ -303,7 +306,6 @@ function resetCounter() {
             remainingGuesses = halfModeList.some((x) => x === true) ? null : totalGuesses - (correctGuesses % totalGuesses);
             $("#ngmRemainingGuesses").text(remainingGuesses ? `Remaining Guesses: ${remainingGuesses}` : "");
         }
-
     }
     else {
         return counterError();
@@ -367,10 +369,12 @@ function setupNGMWindow() {
             if ($("#ngmHalfGuessInput").hasClass("disabled")) {
                 $(this).css({"background-color": "#4497ea", "border-color": "#006ab7", "color": "#ffffff"});
                 $("#ngmHalfGuessInput").removeClass("disabled");
+                $("#ngmSkipValidationButton").removeClass("disabled");
             }
             else {
                 $(this).css({"background-color": "#ffffff", "border-color": "#cccccc", "color": "#000000"});
                 $("#ngmHalfGuessInput").addClass("disabled");
+                $("#ngmSkipValidationButton").addClass("disabled");
             }
         })
         .popover({
@@ -387,6 +391,26 @@ function setupNGMWindow() {
         .popover({
             title: "",
             content: `<p>for each person on your team (in order) type "h" or "-" to enable/disable half point deductions</p><p>example: h-h-</p><p>leave blank to enable for everyone</p>`,
+            placement: "bottom",
+            trigger: "hover",
+            container: "body",
+            animation: false,
+            html: true
+        })
+    );
+    $row3.append($(`<div id="ngmSkipValidationButton" class="ngmButton disabled" style="width: 34px; background-color: #ffffff; border-color: #cccccc; color: #333333;"><i class="fa fa-check" aria-hidden="true"></i></div>`)
+        .click(function() {
+            skipAnswerValidation = !skipAnswerValidation;
+            if (skipAnswerValidation) {
+                $(this).css({"background-color": "#4497ea", "border-color": "#006ab7", "color": "#ffffff"});
+            }
+            else {
+                $(this).css({"background-color": "#ffffff", "border-color": "#cccccc", "color": "#333333"});
+            }
+        })
+        .popover({
+            title: "Skip Answer Validation",
+            content: `<p>deduct .5 points even if the answer is not valid</p>`,
             placement: "bottom",
             trigger: "hover",
             container: "body",
@@ -420,8 +444,8 @@ function setupNGMWindow() {
     );
     $row4.append($(`<div id="ngmSelfCountButton" class="ngmButton disabled" style="width: 34px; background-color: #ffffff; border-color: #cccccc; color: #333333;"><i class="fa fa-user" aria-hidden="true"></i></div>`)
         .click(function() {
-            autothrowSelfCount = !autothrowSelfCount;
-            if (autothrowSelfCount) {
+            autoThrowSelfCount = !autoThrowSelfCount;
+            if (autoThrowSelfCount) {
                 $(this).css({"background-color": "#4497ea", "border-color": "#006ab7", "color": "#ffffff"});
             }
             else {
@@ -507,7 +531,6 @@ function applyStyles() {
             padding: 6px 0px;
             margin: 3px;
             display: inline-block;
-            vertical-align: middle;
             cursor: pointer;
             user-select: none;
         }
@@ -561,7 +584,7 @@ function applyStyles() {
         #ngmInitialGuessCountInput, #ngmHalfGuessInput {
             color: black;
             width: 60px;
-            margin-left: 3px;
+            margin: 0 3px;
             border-radius: 4px;
             padding: 6px 6px;
             border: 1px solid #cccccc;
