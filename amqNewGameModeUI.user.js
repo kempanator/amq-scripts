@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ New Game Mode UI
 // @namespace    https://github.com/kempanator
-// @version      0.18
+// @version      0.19
 // @description  Adds a user interface to new game mode to keep track of guesses
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -22,7 +22,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.18";
+const version = "0.19";
 let ngmWindow;
 let initialGuessCount = []; //list of initial # guesses for your team [5, 5, 5, 5]
 let guessCounter = []; //list of current # guesses for your team [4, 2, 1, 3]
@@ -143,7 +143,7 @@ function setup() {
                 }
                 else {
                     let validAnswers;
-                    answers.forEach((answer) => { answer.valid = autocomplete.includes(answer.text.toLowerCase()) });
+                    Object.values(answers).forEach((answer) => { answer.valid = autocomplete.includes(answer.text.toLowerCase()) });
                     if (answerValidation === 0 ) {
                         validAnswers = Object.values(answers).filter((answer) => answer.text.trim());
                     }
@@ -172,10 +172,15 @@ function setup() {
                     }
                 }
             }
-            let totalGuesses = initialGuessCount.reduce((a, b) => a + b);
             correctGuesses = payload.players.find((player) => player.gamePlayerId === quiz.ownGamePlayerId).correctGuesses;
-            remainingGuesses = halfMode ? null : totalGuesses - (correctGuesses % totalGuesses);
             $("#ngmCorrectAnswers").text(`Correct Answers: ${correctGuesses}`);
+            if (initialGuessCount.length) {
+                let totalGuesses = initialGuessCount.reduce((a, b) => a + b);
+                remainingGuesses = halfMode ? null : totalGuesses - (correctGuesses % totalGuesses);
+            }
+            else {
+                remainingGuesses = null;
+            }
             $("#ngmRemainingGuesses").text(remainingGuesses ? `Remaining Guesses: ${remainingGuesses}` : "");
         }
     }).bindListener();
