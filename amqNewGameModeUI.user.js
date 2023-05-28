@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ New Game Mode UI
 // @namespace    https://github.com/kempanator
-// @version      0.19
+// @version      0.20
 // @description  Adds a user interface to new game mode to keep track of guesses
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -22,7 +22,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.19";
+const version = "0.20";
 let ngmWindow;
 let initialGuessCount = []; //list of initial # guesses for your team [5, 5, 5, 5]
 let guessCounter = []; //list of current # guesses for your team [4, 2, 1, 3]
@@ -38,7 +38,7 @@ let autoThrowSelfCount = false;
 let autoSendTeamCount = 0; //0: off, 1: team chat, 2: regular chat
 let halfModeList = []; //list of your teammates with half point deductions enabled [true, false, true, false]
 let autocomplete = []; //store lowercase version for faster compare speed
-let answerValidation = 0; //0: none, 1: loose, 2: strict
+let answerValidation = 1; //0: none, 1: normal, 2: strict
 $("#qpOptionContainer").width($("#qpOptionContainer").width() + 35);
 $("#qpOptionContainer > div").append($(`<div id="qpNGM" class="clickAble qpOption"><img class="qpMenuItem" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB4AAAAUCAMAAACtdX32AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAGUExURdnZ2QAAAE/vHxMAAAACdFJOU/8A5bcwSgAAAAlwSFlzAAAOwgAADsIBFShKgAAAAEpJREFUKFO9jEESABAMA/X/nyahJIYje0qynZYApcGw81hDJRiU1xownvigr7jWL4yqITlmMU1HsqjmYGDsbp77D9crZVE90rqMqNWrAYH0hYPXAAAAAElFTkSuQmCC"></div>`)
     .click(() => {
@@ -99,10 +99,7 @@ function setup() {
     }).bindListener();
     new Listener("team member answer", (payload) => {
         if (quiz.teamMode && hostModal.$scoring.slider("getValue") === 3) {
-            answers[payload.gamePlayerId] = {
-                id: payload.gamePlayerId,
-                text: payload.answer
-            };
+            answers[payload.gamePlayerId] = {id: payload.gamePlayerId, text: payload.answer};
         }
     }).bindListener();
     new Listener("player answers", (payload) => {
@@ -142,7 +139,7 @@ function setup() {
                     }
                 }
                 else {
-                    let validAnswers;
+                    let validAnswers = [];
                     Object.values(answers).forEach((answer) => { answer.valid = autocomplete.includes(answer.text.toLowerCase()) });
                     if (answerValidation === 0 ) {
                         validAnswers = Object.values(answers).filter((answer) => answer.text.trim());
@@ -174,9 +171,12 @@ function setup() {
             }
             correctGuesses = payload.players.find((player) => player.gamePlayerId === quiz.ownGamePlayerId).correctGuesses;
             $("#ngmCorrectAnswers").text(`Correct Answers: ${correctGuesses}`);
-            if (initialGuessCount.length) {
+            if (halfMode) {
+                remainingGuesses = null;
+            }
+            else if (initialGuessCount.length) {
                 let totalGuesses = initialGuessCount.reduce((a, b) => a + b);
-                remainingGuesses = halfMode ? null : totalGuesses - (correctGuesses % totalGuesses);
+                remainingGuesses = totalGuesses - (correctGuesses % totalGuesses);
             }
             else {
                 remainingGuesses = null;
@@ -209,7 +209,7 @@ function setup() {
     ngmWindow.addPanel({
         id: "ngmPanel",
         width: 1.0,
-        height: "100%",
+        height: "100%"
     });
     setupNGMWindow();
 
@@ -341,7 +341,7 @@ function counterError() {
 function setupNGMWindow() {
     ngmWindow.window.find(".modal-header h2").remove();
     ngmWindow.window.find(".modal-header").append(`<div id="ngmTitle">NGM</div><div id="ngmCorrectAnswers"></div><div id="ngmRemainingGuesses"></div>`);
-    ngmWindow.panels[0].panel.append(`<div id="ngmGuessContainer" class="ngmRow"><div id="ngmNotInGame">Not in team game with lives</div></div>`)
+    ngmWindow.panels[0].panel.append(`<div id="ngmGuessContainer" class="ngmRow"><div id="ngmNotInGame">Not in team game with lives</div></div>`);
     let $row1 = $(`<div class="ngmRow"></div>`);
     let $row2 = $(`<div class="ngmRow"></div>`);
     let $row3 = $(`<div class="ngmRow"></div>`);
@@ -393,7 +393,7 @@ function setupNGMWindow() {
         })
         .popover({
             title: "Half Point Deductions",
-            content: "lose .5 points if you answer incorrectly",
+            content: "Lose .5 points if you answer incorrectly",
             placement: "bottom",
             trigger: "hover",
             container: "body",
@@ -404,7 +404,7 @@ function setupNGMWindow() {
     $row3.append($(`<input type="text" id="ngmHalfGuessInput" class="disabled">`)
         .popover({
             title: "",
-            content: `<p>for each person on your team (in order) type "h" or "-" to enable/disable half point deductions</p><p>example: h-h-</p><p>leave blank to enable for everyone</p>`,
+            content: `<p>For each person on your team (in order) type "h" or "-" to enable/disable half point deductions</p><p>Example: h-h-</p><p>Leave blank to enable for everyone</p>`,
             placement: "bottom",
             trigger: "hover",
             container: "body",
@@ -412,7 +412,7 @@ function setupNGMWindow() {
             html: true
         })
     );
-    $row3.append($(`<div id="ngmAnswerValidationButton" class="ngmButton disabled" style="width: 34px; background-color: #ffffff; border-color: #cccccc; color: #333333;"><i class="fa fa-check" aria-hidden="true"></i></div>`)
+    $row3.append($(`<div id="ngmAnswerValidationButton" class="ngmButton disabled" style="width: 34px; background-color: #4497ea; border-color: #006ab7; color: #ffffff;"><i class="fa fa-check" aria-hidden="true"></i></div>`)
         .click(function() {
             answerValidation = (answerValidation + 1) % 3;
             if (answerValidation === 0) {
@@ -427,7 +427,7 @@ function setupNGMWindow() {
         })
         .popover({
             title: "Answer Validation",
-            content: `<p>White: None<br>deduct .5 if the person has any text in their answer box</p><p>Blue: Loose<br>if at least 1 valid answer do strict mode, else none</p><p>Purple: Strict<br>only deduct .5 on valid answers</p>`,
+            content: `<p>White: None<br>deduct .5 if the person has any text in their answer box</p><p>Blue: Normal<br>if at least 1 valid answer do strict mode, else none</p><p>Purple: Strict<br>only deduct .5 on valid answers</p>`,
             placement: "bottom",
             trigger: "hover",
             container: "body",
@@ -451,7 +451,7 @@ function setupNGMWindow() {
         })
         .popover({
             title: "Auto Track",
-            content: "<p>attempt to auto update team guess counter</p>",
+            content: "<p>Attempt to auto update team guess counter</p>",
             placement: "bottom",
             trigger: "hover",
             container: "body",
@@ -494,7 +494,7 @@ function setupNGMWindow() {
         })
         .popover({
             title: "Auto Send Team Count",
-            content: "<p>On answer reveal, send team guess count to chat</p><p>blue: team chat<br>purple: public chat</p>",
+            content: "<p>On answer reveal, send team guess count to chat</p><p>Blue: team chat<br>Purple: public chat</p>",
             placement: "bottom",
             trigger: "hover",
             container: "body",
