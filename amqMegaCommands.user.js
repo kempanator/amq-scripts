@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.81
+// @version      0.82
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -78,12 +78,14 @@ OTHER
 /background [url]     change the background
 /logout               log out
 /relog                log out, log in, and auto join the room you were in
+/printonline          print friend name in chat if they log in
+/printoffline         print friend name in chat if they log out
 /version              check the version of this script
 /commands [on|off]    turn this script on or off
 */
 
 "use strict";
-const version = "0.81";
+const version = "0.82";
 const saveData = JSON.parse(localStorage.getItem("megaCommands")) || {};
 let animeList;
 let autoAcceptInvite = saveData.autoAcceptInvite ?? false;
@@ -114,6 +116,9 @@ let muteSubmit = saveData.muteSubmit ?? false;
 let playbackSpeed = saveData.playbackSpeed ?? null;
 let playerDetection = saveData.playerDetection ?? {invisible: false, players: []};
 let printLoot = saveData.printLoot ?? false;
+let printOffline = saveData.printOffline ?? false;
+let printOnline = saveData.printOnline ?? false;
+let selfDM = saveData.selfDM ?? false;
 let voteOptions = {};
 let votes = {};
 const rules = {
@@ -131,14 +136,19 @@ const rules = {
 };
 const scripts = {
     "autoready": "https://github.com/nyamu-amq/amq_scripts/raw/master/amqAutoReady.user.js",
-    "friends": "https://github.com/nyamu-amq/amq_scripts/raw/master/amqHighlightFriends.user.js",
-    "sounds": "https://github.com/ensorcell/amq-scripts/raw/master/notificationSounds.user.js",
+    "highlightfriends": "https://github.com/nyamu-amq/amq_scripts/raw/master/amqHighlightFriends.user.js",
+    "notificationsounds": "https://github.com/amq-script-project/AMQ-Scripts/raw/master/gameplay/amqNotificationSounds.user.js",
     "songlistui": "https://github.com/TheJoseph98/AMQ-Scripts/raw/master/amqSongListUI.user.js",
     "rigtrackerlite": "https://github.com/TheJoseph98/AMQ-Scripts/raw/master/amqRigTrackerLite.user.js",
     "answertime": "https://github.com/amq-script-project/AMQ-Scripts/raw/master/gameplay/amqPlayerAnswerTimeDisplay.user.js",
     "speedrun": "https://github.com/TheJoseph98/AMQ-Scripts/raw/master/amqSpeedrun.user.js",
-    "chattimestamps": "https://github.com/TheJoseph98/AMQ-Scripts/raw/master/amqChatTimestamps.user.js",
-    "emojianswer": "https://github.com/nyamu-amq/amq_scripts/raw/master/amqEmojiAnswer.user.js"
+    "emojianswer": "https://github.com/nyamu-amq/amq_scripts/raw/master/amqEmojiAnswer.user.js",
+    "answerstats": "https://github.com/kempanator/amq-scripts/raw/main/amqAnswerStats.user.js",
+    "chatplus": "https://github.com/kempanator/amq-scripts/raw/main/amqChatPlus.user.js",
+    "customsonglistgame" : "https://github.com/kempanator/amq-scripts/raw/main/amqCustomSongListGame.user.js",
+    "megacommands": "https://github.com/kempanator/amq-scripts/raw/main/amqMegaCommands.user.js",
+    "newgamemodeui": "https://github.com/kempanator/amq-scripts/raw/main/amqNewGameModeUI.user.js",
+    "showroomplayers": "https://github.com/kempanator/amq-scripts/raw/main/amqShowRoomPlayers.user.js"
 };
 const info = {
     "draw": "https://aggie.io",
@@ -164,6 +174,13 @@ function setup() {
     saveSettings();
     if (lastUsedVersion && version !== lastUsedVersion) {
         popoutMessages.displayStandardMessage("Mega Commands", "updated to version " + version);
+    }
+    if (selfDM) {
+        setTimeout(() => {
+            socialTab.startChat(selfName);
+            socialTab.chatBar.activeChats[0].object.close();
+            socialTab.chatBar.activeChats[0].object.selected();
+        }, 100);
     }
     if (autoStatus === "do not disturb") socialTab.socialStatus.changeSocialStatus(2);
     else if (autoStatus === "away") socialTab.socialStatus.changeSocialStatus(3);
@@ -393,7 +410,13 @@ function setup() {
     new Listener("friend state change", (payload) => {
         if (payload.online && autoInvite === payload.name.toLowerCase() && inRoom() && !isInYourRoom(autoInvite) && !isSoloMode() && !isRankedMode()) {
             sendSystemMessage(payload.name + " online: auto inviting");
-            setTimeOut(() => { socket.sendCommand({type: "social", command: "invite to game", data: {target: payload.name}}), 1000 });
+            setTimeout(() => { socket.sendCommand({type: "social", command: "invite to game", data: {target: payload.name}}) }, 1000);
+        }
+        else if (printOnline && payload.online) {
+            sendSystemMessage(payload.name + " online");
+        }
+        else if (printOffline && !payload.online) {
+            sendSystemMessage(payload.name + " offline");
         }
     }).bindListener();
     new Listener("New Rooms", (payload) => {
@@ -750,16 +773,16 @@ function parseCommand(content, type, target) {
     }
     else if (/^\/(mr|mutereplay)$/i.test(content)) {
         muteReplay = !muteReplay;
-        sendMessage("mute during replay phase " + (muteReplay ? "enabled" : "disabled"), type, target, true);
+        sendMessage(`mute during replay phase ${muteReplay ? "enabled" : "disabled"}`, type, target, true);
     }
     else if (/^\/(ms|mutesubmit)$/i.test(content)) {
         muteSubmit = !muteSubmit;
-        sendMessage("mute after answer submit " + (muteSubmit ? "enabled" : "disabled"), type, target, true);
+        sendMessage(`mute after answer submit ${muteSubmit ? "enabled" : "disabled"}`, type, target, true);
     }
     else if (/^\/(avs|autoskip|autovoteskip)$/i.test(content)) {
         if (autoVoteSkip === null) autoVoteSkip = 100;
         else autoVoteSkip = null;
-        sendMessage("auto vote skip " + (autoVoteSkip ? "enabled" : "disabled"), type, target, true);
+        sendMessage(`auto vote skip ${autoVoteSkip ? "enabled" : "disabled"}`, type, target, true);
     }
     else if (/^\/(avs|autoskip|autovoteskip) [0-9.]+$/i.test(content)) {
         let seconds = parseFloat(/^\S+ ([0-9.]+)$/.exec(content)[1]);
@@ -770,7 +793,7 @@ function parseCommand(content, type, target) {
     else if (/^\/(ak|autokey|autosubmit)$/i.test(content)) {
         autoKey = !autoKey;
         saveSettings();
-        sendMessage("auto key " + (autoKey ? "enabled" : "disabled"), type, target, true);
+        sendMessage(`auto key ${autoKey ? "enabled" : "disabled"}`, type, target, true);
     }
     else if (/^\/(at|att|atmc|autothrow|autothrowtime|autothrowmc|autothrowmultichoice|autothrowmultiplechoice)$/i.test(content)) {
         autoThrow = {time1: null, time2: null, text: null, multichoice: null};
@@ -876,12 +899,12 @@ function parseCommand(content, type, target) {
     else if (/^\/autoready$/i.test(content)) {
         autoReady = !autoReady;
         saveSettings();
-        sendMessage("auto ready " + (autoReady ? "enabled" : "disabled"), type, target, true);
+        sendMessage(`auto ready ${autoReady ? "enabled" : "disabled"}`, type, target, true);
         checkAutoReady();
     }
     else if (/^\/autostart$/i.test(content)) {
         autoStart = !autoStart;
-        sendMessage("auto start game " + (autoStart ? "enabled" : "disabled"), type, target, true);
+        sendMessage(`auto start game ${autoStart ? "enabled" : "disabled"}`, type, target, true);
         checkAutoStart();
     }
     else if (/^\/(ah|autohost)$/i.test(content)) {
@@ -904,7 +927,7 @@ function parseCommand(content, type, target) {
     else if (/^\/autoaccept$/i.test(content)) {
         autoAcceptInvite = !autoAcceptInvite;
         saveSettings();
-        sendMessage("auto accept invite " + (autoAcceptInvite ? "enabled" : "disabled"), type, target, true);
+        sendMessage(`auto accept invite ${autoAcceptInvite ? "enabled" : "disabled"}`, type, target, true);
     }
     else if (/^\/autoaccept .+$/i.test(content)) {
         autoAcceptInvite = /^\S+ (.+)$/.exec(content)[1].split(",").map((x) => x.trim().toLowerCase()).filter(Boolean);
@@ -962,7 +985,7 @@ function parseCommand(content, type, target) {
     else if (/^\/autolobby$/i.test(content)) {
         autoVoteLobby = !autoVoteLobby;
         saveSettings();
-        sendMessage("auto vote lobby " + (autoVoteLobby ? "enabled" : "disabled"), type, target, true);
+        sendMessage(`auto vote lobby ${autoVoteLobby ? "enabled" : "disabled"}`, type, target, true);
     }
     else if (/^\/autostatus$/i.test(content)) {
         autoStatus = "";
@@ -1086,13 +1109,13 @@ function parseCommand(content, type, target) {
     }
     else if (/^\/(dd|dropdown)$/i.test(content)) {
         dropdown = !dropdown;
-        sendMessage("dropdown " + (dropdown ? "enabled" : "disabled"), type, target, true);
+        sendMessage(`dropdown ${dropdown ? "enabled" : "disabled"}`, type, target, true);
         quiz.answerInput.typingInput.autoCompleteController.newList();
     }
     else if (/^\/(dds|dropdownspec|dropdownspectate)$/i.test(content)) {
         dropdownInSpec = !dropdownInSpec;
         if (dropdownInSpec) $("#qpAnswerInput").removeAttr("disabled");
-        sendMessage("dropdown while spectating " + (dropdownInSpec ? "enabled" : "disabled"), type, target, true);
+        sendMessage(`dropdown while spectating ${dropdownInSpec ? "enabled" : "disabled"}`, type, target, true);
         saveSettings();
     }
     else if (/^\/(pw|password)$/i.test(content)) {
@@ -1310,6 +1333,9 @@ function parseCommand(content, type, target) {
         }
         saveSettings();
     }
+    else if (/^\/countfriends$/i.test(content)) {
+        sendMessage(getAllFriends().length, type, target);
+    }
     else if (/^\/startvote .+,.+$/i.test(content)) {
         if (type !== "chat") return;
         let list = /^\S+ (.+)$/.exec(content)[1].split(",").map((x) => x.trim()).filter(Boolean);
@@ -1342,7 +1368,22 @@ function parseCommand(content, type, target) {
     else if (/^\/printloot$/i.test(content)) {
         printLoot = !printLoot;
         saveSettings();
-        sendMessage("print loot " + (printLoot ? "enabled" : "disabled"), type, target, true);
+        sendMessage(`print loot ${printLoot ? "enabled" : "disabled"}`, type, target, true);
+    }
+    else if (/^\/printonline$/i.test(content)) {
+        printOnline = !printOnline;
+        saveSettings();
+        sendMessage(`print when friends are online: ${printOnline ? "enabled" : "disabled"}`, type, target, true);
+    }
+    else if (/^\/printoffline$/i.test(content)) {
+        printOffline = !printOffline;
+        saveSettings();
+        sendMessage(`print when friends are offline: ${printOffline ? "enabled" : "disabled"}`, type, target, true);
+    }
+    else if (/^\/selfdm$/i.test(content)) {
+        selfDM = !selfDM;
+        saveSettings();
+        sendMessage(`open self dm on log in: ${selfDM ? "enabled" : "disabled"}`, type, target, true);
     }
     else if (/^\/(hp|hideplayers)$/i.test(content)) {
         hidePlayers = !hidePlayers;
@@ -1355,7 +1396,7 @@ function parseCommand(content, type, target) {
             else if (quiz.inQuiz) quizUnhidePlayers();
         }
         applyStyles();
-        sendMessage(hidePlayers ? "all players are now hidden" : "all players are now shown", type, target, true);
+        sendMessage(`all players are now ${hidePlayers ? "hidden" : "shown"}`, type, target, true);
     }
     else if (/^\/remove (popups?|popovers?)$/i.test(content)) {
         $(".popover").hide();
@@ -1475,7 +1516,7 @@ function parseIncomingDM(content, sender) {
  */
 function parseForceAll(content, type) {
     if (/^\/forceall version$/i.test(content)) {
-        sendMessage("0.81", type);
+        sendMessage("0.82", type);
     }
     else if (/^\/forceall roll [0-9]+$/i.test(content)) {
         let number = parseInt(/^\S+ roll ([0-9]+)$/.exec(content)[1]);
@@ -1744,7 +1785,9 @@ function sendChatMessage(message, isTeamMessage) {
 
 // send a client side message to game chat
 function sendSystemMessage(message) {
-    setTimeout(() => { gameChat.systemMessage(String(message)) }, 1);
+    if (gameChat.open) {
+        setTimeout(() => { gameChat.systemMessage(String(message)) }, 1);
+    }
 }
 
 // send a message in nexus chat
@@ -2087,5 +2130,8 @@ function saveSettings() {
     //settings.playbackSpeed = playbackSpeed;
     settings.playerDetection = playerDetection;
     settings.printLoot = printLoot;
+    settings.printOffline = printOffline;
+    settings.printOnline = printOnline;
+    settings.selfDM = selfDM;
     localStorage.setItem("megaCommands", JSON.stringify(settings));
 }
