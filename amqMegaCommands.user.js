@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.82
+// @version      0.83
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -23,7 +23,9 @@ GAME SETTINGS
 /type [oei]           change song types
 /watched              change selection type to watched
 /random               change selection type to random
-/time [5-60]          change song guess time
+/time [1-60]          change song guess time
+/extratime [0-15]     change song guess extra time
+/sample [low] [high]  change start sample point
 /lives [1-5]          change number of lives
 /team [1-8]           change team size
 /songs [5-100]        change number of songs
@@ -78,14 +80,14 @@ OTHER
 /background [url]     change the background
 /logout               log out
 /relog                log out, log in, and auto join the room you were in
-/printonline          print friend name in chat if they log in
-/printoffline         print friend name in chat if they log out
+/printonline          print friend names in chat when they log in
+/printoffline         print friend names in chat when they log out
 /version              check the version of this script
 /commands [on|off]    turn this script on or off
 */
 
 "use strict";
-const version = "0.82";
+const version = "0.83";
 const saveData = JSON.parse(localStorage.getItem("megaCommands")) || {};
 let animeList;
 let autoAcceptInvite = saveData.autoAcceptInvite ?? false;
@@ -674,6 +676,7 @@ function parseCommand(content, type, target) {
         else if (option[0] === "r") {
             settings.songType.advancedValue.random = value;
         }
+        else return;
         changeGameSettings(settings);
     }
     else if (/^\/watched$/i.test(content)) {
@@ -682,6 +685,14 @@ function parseCommand(content, type, target) {
         settings.songSelection.advancedValue.watched = 0;
         settings.songSelection.advancedValue.unwatched = 0;
         settings.songSelection.advancedValue.random = settings.numberOfSongs;
+        changeGameSettings(settings);
+    }
+    else if (/^\/unwatched$/i.test(content)) {
+        let settings = hostModal.getSettings();
+        settings.songSelection.standardValue = 2;
+        settings.songSelection.advancedValue.watched = 0;
+        settings.songSelection.advancedValue.unwatched = settings.numberOfSongs;
+        settings.songSelection.advancedValue.random = 0;
         changeGameSettings(settings);
     }
     else if (/^\/random$/i.test(content)) {
@@ -711,6 +722,7 @@ function parseCommand(content, type, target) {
         else if (option[0] === "r") {
             settings.songSelection.advancedValue.random = value;
         }
+        else return;
         changeGameSettings(settings);
     }
     else if (/^\/time [0-9]+$/i.test(content)) {
@@ -718,6 +730,54 @@ function parseCommand(content, type, target) {
         let settings = hostModal.getSettings();
         settings.guessTime.randomOn = false;
         settings.guessTime.standardValue = option;
+        changeGameSettings(settings);
+    }
+    else if (/^\/time [0-9]+[ -][0-9]+$/i.test(content)) {
+        let low = parseInt(/^\S+ ([0-9]+)[ -][0-9]+$/.exec(content)[1]);
+        let high = parseInt(/^\S+ [0-9]+[ -]([0-9]+)$/.exec(content)[1]);
+        let settings = hostModal.getSettings();
+        settings.guessTime.randomOn = true;
+        settings.guessTime.randomValue = [low, high];
+        changeGameSettings(settings);
+    }
+    else if (/^\/(etime|extratime) [0-9]+$/i.test(content)) {
+        let option = parseInt(/^\S+ ([0-9]+)$/.exec(content)[1]);
+        let settings = hostModal.getSettings();
+        settings.extraGuessTime.randomOn = false;
+        settings.extraGuessTime.standardValue = option;
+        changeGameSettings(settings);
+    }
+    else if (/^\/(etime|extratime) [0-9]+[ -][0-9]+$/i.test(content)) {
+        let low = parseInt(/^\S+ ([0-9]+)[ -][0-9]+$/.exec(content)[1]);
+        let high = parseInt(/^\S+ [0-9]+[ -]([0-9]+)$/.exec(content)[1]);
+        let settings = hostModal.getSettings();
+        settings.extraGuessTime.randomOn = true;
+        settings.extraGuessTime.randomValue = [low, high];
+        changeGameSettings(settings);
+    }
+    else if (/^\/(sp|sample|samplepoint|startpoint) [a-zA-z]+$/i.test(content)) {
+        let option = /^\S+ ([a-zA-z]+)$/.exec(content)[1].toLowerCase();
+        let settings = hostModal.getSettings();
+        settings.samplePoint.randomOn = false;
+        if (option[0] === "s") settings.samplePoint.standardValue = 1;
+        else if (option[0] === "m") settings.samplePoint.standardValue = 2;
+        else if (option[0] === "e") settings.samplePoint.standardValue = 3;
+        else return;
+        changeGameSettings(settings);
+    }
+    else if (/^\/(sp|sample|samplepoint|startpoint) [0-9]+$/i.test(content)) {
+        let option = parseInt(/^\S+ ([0-9]+)$/.exec(content)[1]);
+        let settings = hostModal.getSettings();
+        settings.samplePoint.randomOn = true;
+        settings.samplePoint.randomValue = [option, option];
+        changeGameSettings(settings);
+    }
+    else if (/^\/(sp|sample|samplepoint|startpoint) [0-9]+[ -][0-9]+$/i.test(content)) {
+        let low = parseInt(/^\S+ ([0-9]+)[ -][0-9]+$/.exec(content)[1]);
+        let high = parseInt(/^\S+ [0-9]+[ -]([0-9]+)$/.exec(content)[1]);
+        let settings = hostModal.getSettings();
+        settings.samplePoint.randomOn = true;
+        settings.samplePoint.randomValue = [low, high];
         changeGameSettings(settings);
     }
     else if (/^\/lives [0-9]+$/i.test(content)) {
@@ -738,6 +798,22 @@ function parseCommand(content, type, target) {
         let option = parseInt(/^\S+ ([0-9]+)$/.exec(content)[1]);
         let settings = hostModal.getSettings();
         settings.numberOfSongs = option;
+        changeGameSettings(settings);
+    }
+    else if (/^\/(d|dif|difficulty) [a-zA-Z]+$/i.test(content)) {
+        let option = /^\S+ ([a-zA-Z]+)$/.exec(content)[1].toLowerCase();
+        let settings = hostModal.getSettings();
+        settings.songDifficulity.advancedOn = false;
+        settings.songDifficulity.standardValue.easy = option.includes("e");
+        settings.songDifficulity.standardValue.medium = option.includes("m");
+        settings.songDifficulity.standardValue.hard = option.includes("h");
+        changeGameSettings(settings);
+    }
+    else if (/^\/(d|dif|difficulty) [0-9]+$/i.test(content)) {
+        let option = parseInt(/^\S+ ([0-9]+)$/.exec(content)[1]);
+        let settings = hostModal.getSettings();
+        settings.songDifficulity.advancedOn = true;
+        settings.songDifficulity.advancedValue = [option, option];
         changeGameSettings(settings);
     }
     else if (/^\/(d|dif|difficulty) [0-9]+[ -][0-9]+$/i.test(content)) {
@@ -1516,7 +1592,7 @@ function parseIncomingDM(content, sender) {
  */
 function parseForceAll(content, type) {
     if (/^\/forceall version$/i.test(content)) {
-        sendMessage("0.82", type);
+        sendMessage("0.83", type);
     }
     else if (/^\/forceall roll [0-9]+$/i.test(content)) {
         let number = parseInt(/^\S+ roll ([0-9]+)$/.exec(content)[1]);
