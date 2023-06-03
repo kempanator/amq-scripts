@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.83
+// @version      0.84
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -21,8 +21,9 @@ IMPORTANT: disable these scripts before installing
 GAME SETTINGS
 /size [2-40]          change room size
 /type [oei]           change song types
-/watched              change selection type to watched
 /random               change selection type to random
+/unwatched            change selection type to unwatched
+/watched              change selection type to watched
 /time [1-60]          change song guess time
 /extratime [0-15]     change song guess extra time
 /sample [low] [high]  change start sample point
@@ -30,6 +31,9 @@ GAME SETTINGS
 /team [1-8]           change team size
 /songs [5-100]        change number of songs
 /dif [low] [high]     change difficulty
+/vintage [text]       change vintage
+/genre [text]         change genre
+/tag [text]           change tags
 
 IN GAME/LOBBY
 /autoskip             automatically vote skip at the beginning of each song
@@ -87,7 +91,7 @@ OTHER
 */
 
 "use strict";
-const version = "0.83";
+const version = "0.84";
 const saveData = JSON.parse(localStorage.getItem("megaCommands")) || {};
 let animeList;
 let autoAcceptInvite = saveData.autoAcceptInvite ?? false;
@@ -156,6 +160,29 @@ const info = {
     "draw": "https://aggie.io",
     "piano": "https://musiclab.chromeexperiments.com/Shared-Piano/#amqpiano",
     "turnofflist": "https://files.catbox.moe/hn1mhw.png"
+};
+const dqMap = {
+    "Naruto": {genre: [1, 2, 3, 4, 6, 17], years: [2002, 2002], seasons: [3, 3]},
+    "Neon Genesis Evangelion": {genre: [1, 4, 9, 11, 12, 14], years: [1995, 1995], seasons: [3, 3]},
+    "Gintama": {genre: [1, 3, 4, 14], years: [2006, 2006], seasons: [1, 1]},
+    "Detective Conan": {genre: [2, 3, 11, 12], years: [1996, 1996], seasons: [0, 0]},
+    "BECK: Mongolian Chop Squad": {genre: [3, 4, 10, 15], years: [2004, 2004], seasons: [3, 3]},
+    "Initial D": {genre: [1, 4, 16], years: [1998, 1998], seasons: [1, 1]},
+    "Negima!?": {genre: [2, 3, 5, 6, 13], years: [2006, 2006], seasons: [3, 3]},
+    "Urusei Yatsura": {genre: [3, 4, 13, 14, 15], years: [1981, 1981], seasons: [3, 3]},
+    "Touch": {genre: [4, 13, 15, 16], years: [1985, 1985], seasons: [1, 1]},
+    "Code Geass: Lelouch of the Rebellion Remake Movies": {genre: [1, 9, 14, 17, 18], years: [2017, 2018], seasons: [3, 1]},
+    "Chainsaw Man": {genre: [1, 4, 7, 17], years: [2002, 2002], seasons: [0, 0]},
+    "Senki Zesshou Symphogear GX": {genre: [1, 4, 8, 10, 14], years: [2015, 2015], seasons: [2, 2]},
+    "Ojamajo Doremi Dokkaan!": {genre: [3, 4, 6, 8, 15], years: [2012, 2012], seasons: [3, 3]},
+    "Macross Delta": {genre: [1, 9, 10, 13, 14], years: [2016, 2016], seasons: [1, 1]},
+    "Macross 7": {genre: [1, 3, 4, 9, 10, 14], years: [1994, 1994], seasons: [3, 3]},
+    "Mobile Suit Gundam Seed Destiny": {genre: [1, 4, 9, 13, 14], years: [2004, 2004], seasons: [3, 3]},
+    "Extra Olympia Kyklos": {genre: [3, 6, 15, 16], years: [2020, 2020], seasons: [1, 1]},
+    "Persona 4 the Animation": {genre: [1, 2, 11, 14, 17], years: [2011, 2011], seasons: [3, 3]},
+    "Ranma 1/2": {genre: [1, 3, 5, 13, 15], years: [1989, 1989], seasons: [1, 1]},
+    "Re:Zero: Starting Life in Another World": {genre: [1, 2, 4, 6, 12, 13, 18], years: [2016, 2021], seasons: [1, 0]},
+    "Kimagure Orange★Road": {genre: [1, 3, 4, 6, 13], years: [1987, 1987], seasons: [1, 1]},
 };
 
 if (document.querySelector("#startPage")) {
@@ -635,6 +662,14 @@ function parseCommand(content, type, target) {
     else if (/^\/(calc|math) .+$/i.test(content)) {
         sendMessage(calc(/^\S+ (.+)$/.exec(content)[1]), type, target);
     }
+    else if (/^\/defaultsettings$/i.test(content)) {
+        let currentSettings = hostModal.getSettings();
+        let settings = hostModal.DEFUALT_SETTINGS;
+        settings.roomName = currentSettings.roomName;
+        settings.privateRoom = currentSettings.privateRoom;
+        settings.password = currentSettings.password;
+        changeGameSettings(settings);
+    }
     else if (/^\/size [0-9]+$/i.test(content)) {
         let option = parseInt(/^\S+ ([0-9]+)$/.exec(content)[1]);
         let settings = hostModal.getSettings();
@@ -679,28 +714,28 @@ function parseCommand(content, type, target) {
         else return;
         changeGameSettings(settings);
     }
-    else if (/^\/watched$/i.test(content)) {
+    else if (/^\/random$/i.test(content)) {
         let settings = hostModal.getSettings();
         settings.songSelection.standardValue = 1;
-        settings.songSelection.advancedValue.watched = 0;
-        settings.songSelection.advancedValue.unwatched = 0;
         settings.songSelection.advancedValue.random = settings.numberOfSongs;
+        settings.songSelection.advancedValue.unwatched = 0;
+        settings.songSelection.advancedValue.watched = 0;
         changeGameSettings(settings);
     }
     else if (/^\/unwatched$/i.test(content)) {
         let settings = hostModal.getSettings();
         settings.songSelection.standardValue = 2;
-        settings.songSelection.advancedValue.watched = 0;
-        settings.songSelection.advancedValue.unwatched = settings.numberOfSongs;
         settings.songSelection.advancedValue.random = 0;
+        settings.songSelection.advancedValue.unwatched = settings.numberOfSongs;
+        settings.songSelection.advancedValue.watched = 0;
         changeGameSettings(settings);
     }
-    else if (/^\/random$/i.test(content)) {
+    else if (/^\/watched$/i.test(content)) {
         let settings = hostModal.getSettings();
         settings.songSelection.standardValue = 3;
-        settings.songSelection.advancedValue.watched = settings.numberOfSongs;
-        settings.songSelection.advancedValue.unwatched = 0;
         settings.songSelection.advancedValue.random = 0;
+        settings.songSelection.advancedValue.unwatched = 0;
+        settings.songSelection.advancedValue.watched = settings.numberOfSongs;
         changeGameSettings(settings);
     }
     else if (/^\/selection \w+ [0-9]+$/i.test(content)) {
@@ -732,9 +767,9 @@ function parseCommand(content, type, target) {
         settings.guessTime.standardValue = option;
         changeGameSettings(settings);
     }
-    else if (/^\/time [0-9]+[ -][0-9]+$/i.test(content)) {
-        let low = parseInt(/^\S+ ([0-9]+)[ -][0-9]+$/.exec(content)[1]);
-        let high = parseInt(/^\S+ [0-9]+[ -]([0-9]+)$/.exec(content)[1]);
+    else if (/^\/time [0-9]+[ ,-]+[0-9]+$/i.test(content)) {
+        let low = parseInt(/^\S+ ([0-9]+)[ ,-]+[0-9]+$/.exec(content)[1]);
+        let high = parseInt(/^\S+ [0-9]+[ ,-]+([0-9]+)$/.exec(content)[1]);
         let settings = hostModal.getSettings();
         settings.guessTime.randomOn = true;
         settings.guessTime.randomValue = [low, high];
@@ -747,9 +782,9 @@ function parseCommand(content, type, target) {
         settings.extraGuessTime.standardValue = option;
         changeGameSettings(settings);
     }
-    else if (/^\/(etime|extratime) [0-9]+[ -][0-9]+$/i.test(content)) {
-        let low = parseInt(/^\S+ ([0-9]+)[ -][0-9]+$/.exec(content)[1]);
-        let high = parseInt(/^\S+ [0-9]+[ -]([0-9]+)$/.exec(content)[1]);
+    else if (/^\/(etime|extratime) [0-9]+[ ,-]+[0-9]+$/i.test(content)) {
+        let low = parseInt(/^\S+ ([0-9]+)[ ,-]+[0-9]+$/.exec(content)[1]);
+        let high = parseInt(/^\S+ [0-9]+[ ,-]+([0-9]+)$/.exec(content)[1]);
         let settings = hostModal.getSettings();
         settings.extraGuessTime.randomOn = true;
         settings.extraGuessTime.randomValue = [low, high];
@@ -772,9 +807,9 @@ function parseCommand(content, type, target) {
         settings.samplePoint.randomValue = [option, option];
         changeGameSettings(settings);
     }
-    else if (/^\/(sp|sample|samplepoint|startpoint) [0-9]+[ -][0-9]+$/i.test(content)) {
-        let low = parseInt(/^\S+ ([0-9]+)[ -][0-9]+$/.exec(content)[1]);
-        let high = parseInt(/^\S+ [0-9]+[ -]([0-9]+)$/.exec(content)[1]);
+    else if (/^\/(sp|sample|samplepoint|startpoint) [0-9]+[ ,-]+[0-9]+$/i.test(content)) {
+        let low = parseInt(/^\S+ ([0-9]+)[ ,-]+[0-9]+$/.exec(content)[1]);
+        let high = parseInt(/^\S+ [0-9]+[ ,-]+([0-9]+)$/.exec(content)[1]);
         let settings = hostModal.getSettings();
         settings.samplePoint.randomOn = true;
         settings.samplePoint.randomValue = [low, high];
@@ -816,12 +851,114 @@ function parseCommand(content, type, target) {
         settings.songDifficulity.advancedValue = [option, option];
         changeGameSettings(settings);
     }
-    else if (/^\/(d|dif|difficulty) [0-9]+[ -][0-9]+$/i.test(content)) {
-        let low = parseInt(/^\S+ ([0-9]+)[ -][0-9]+$/.exec(content)[1]);
-        let high = parseInt(/^\S+ [0-9]+[ -]([0-9]+)$/.exec(content)[1]);
+    else if (/^\/(d|dif|difficulty) [0-9]+[ ,-]+[0-9]+$/i.test(content)) {
+        let low = parseInt(/^\S+ ([0-9]+)[ ,-]+[0-9]+$/.exec(content)[1]);
+        let high = parseInt(/^\S+ [0-9]+[ ,-]+([0-9]+)$/.exec(content)[1]);
         let settings = hostModal.getSettings();
         settings.songDifficulity.advancedOn = true;
         settings.songDifficulity.advancedValue = [low, high];
+        changeGameSettings(settings);
+    }
+    else if (/^\/years?$/i.test(content)) {
+        let settings = hostModal.getSettings();
+        settings.vintage = hostModal.DEFUALT_SETTINGS.vintage;
+        changeGameSettings(settings);
+    }
+    else if (/^\/years? [0-9]+$/i.test(content)) {
+        let option = parseInt(/^\S+ ([0-9]+)$/.exec(content)[1]);
+        let settings = hostModal.getSettings();
+        settings.vintage.advancedValueList = [];
+        settings.vintage.standardValue = {years: [option, option], seasons: [0, 3]};
+        changeGameSettings(settings);
+    }
+    else if (/^\/years? [0-9]+[ ,-]+[0-9]+$/i.test(content)) {
+        let low = parseInt(/^\S+ ([0-9]+)[ ,-]+[0-9]+$/.exec(content)[1]);
+        let high = parseInt(/^\S+ [0-9]+[ ,-]+([0-9]+)$/.exec(content)[1]);
+        let settings = hostModal.getSettings();
+        settings.vintage.advancedValueList = [];
+        settings.vintage.standardValue = {years: [low, high], seasons: [0, 3]};
+        changeGameSettings(settings);
+    }
+    else if (/^\/seasons?$/i.test(content)) {
+        let settings = hostModal.getSettings();
+        settings.vintage.advancedValueList = [];
+        settings.vintage.standardValue.seasons = [0, 3];
+        changeGameSettings(settings);
+    }
+    else if (/^\/seasons? (winter|spring|summer|fall|0|1|2|3)$/i.test(content)) {
+        let seasonMap = {winter: 0, spring: 1, summer: 2, fall: 3, 0: 0, 1: 1, 2: 2, 3: 3};
+        let option = seasonMap[/^\S+ ([0-9]+)$/.exec(content)[1].toLowerCase()];
+        let settings = hostModal.getSettings();
+        settings.vintage.advancedValueList = [];
+        settings.vintage.standardValue.seasons = [option, option];
+        changeGameSettings(settings);
+    }
+    else if (/^\/seasons? (winter|spring|summer|fall|0|1|2|3)[ ,-]+(winter|spring|summer|fall|0|1|2|3)$/i.test(content)) {
+        let seasonMap = {winter: 0, spring: 1, summer: 2, fall: 3, 0: 0, 1: 1, 2: 2, 3: 3};
+        let low = seasonMap[/^\S+ (\w+)[ ,-]+\w+$/.exec(content)[1].toLowerCase()];
+        let high = seasonMap[/^\S+ \w+[ ,-]+(\w+)$/.exec(content)[1].toLowerCase()];
+        let settings = hostModal.getSettings();
+        settings.vintage.advancedValueList = [];
+        settings.vintage.standardValue.seasons = [low, high];
+        changeGameSettings(settings);
+    }
+    else if (/^\/vintage$/i.test(content)) {
+        let settings = hostModal.getSettings();
+        settings.vintage = hostModal.DEFUALT_SETTINGS.vintage;
+        changeGameSettings(settings);
+    }
+    else if (/^\/vintage (winter|spring|summer|fall|0|1|2|3) [0-9]+$/i.test(content)) {
+        let seasonMap = {winter: 0, spring: 1, summer: 2, fall: 3, 0: 0, 1: 1, 2: 2, 3: 3};
+        let season = seasonMap[/^\S+ (\w+) [0-9]+$/.exec(content)[1].toLowerCase()];
+        let year = parseInt(/^\S+ \w+ ([0-9]+)$/.exec(content)[1]);
+        let settings = hostModal.getSettings();
+        settings.vintage.advancedValueList = [];
+        settings.vintage.standardValue = {years: [year, year], seasons: [season, season]};
+        changeGameSettings(settings);
+    }
+    else if (/^\/vintage (winter|spring|summer|fall|0|1|2|3) [0-9]+[ ,-]+(winter|spring|summer|fall|0|1|2|3) [0-9]+$/i.test(content)) {
+        let seasonMap = {winter: 0, spring: 1, summer: 2, fall: 3, 0: 0, 1: 1, 2: 2, 3: 3};
+        let season1 = seasonMap[/^\S+ (\w+) [0-9]+[ ,-]+\w+ [0-9]+$/.exec(content)[1].toLowerCase()];
+        let season2 = seasonMap[/^\S+ \w+ [0-9]+[ ,-]+(\w+) [0-9]+$/.exec(content)[1].toLowerCase()];
+        let year1 = parseInt(/^\S+ \w+ ([0-9]+)[ ,-]+\w+ [0-9]+$/.exec(content)[1]);
+        let year2 = parseInt(/^\S+ \w+ [0-9]+[ ,-]+\w+ ([0-9]+)$/.exec(content)[1]);
+        let settings = hostModal.getSettings();
+        settings.vintage.advancedValueList = [];
+        settings.vintage.standardValue = {years: [year1, year2], seasons: [season1, season2]};
+        changeGameSettings(settings);
+    }
+    else if (/^\/genres?$/i.test(content)) {
+        let settings = hostModal.getSettings();
+        settings.genre = [];
+        changeGameSettings(settings);
+    }
+    else if (/^\/genres? .+$/i.test(content)) {
+        let genres = Object.values(idTranslator.genreNames).map((x) => x.toLowerCase());
+        let list = /^\S+ (.+)$/.exec(content)[1].toLowerCase().split(",").map((x) => x.trim()).filter((x) => genres.includes(x));
+        if (!list.length) return;
+        let settings = hostModal.getSettings();
+        settings.genre = [];
+        for (let genre of list) {
+            let id = Object.keys(idTranslator.genreNames).find((id) => idTranslator.genreNames[id].toLowerCase() === genre);
+            settings.genre.push({id: id, state: 1});
+        }
+        changeGameSettings(settings);
+    }
+    else if (/^\/tags?$/i.test(content)) {
+        let settings = hostModal.getSettings();
+        settings.tags = [];
+        changeGameSettings(settings);
+    }
+    else if (/^\/tags? .+$/i.test(content)) {
+        let tags = Object.values(idTranslator.tagNames).map((x) => x.toLowerCase());
+        let list = /^\S+ (.+)$/.exec(content)[1].toLowerCase().split(",").map((x) => x.trim()).filter((x) => tags.includes(x));
+        if (!list.length) return;
+        let settings = hostModal.getSettings();
+        settings.tags = [];
+        for (let tag of list) {
+            let id = Object.keys(idTranslator.tagNames).find((id) => idTranslator.tagNames[id].toLowerCase() === tag);
+            settings.tags.push({id: id, state: 1});
+        }
         changeGameSettings(settings);
     }
     else if (/^\/skip$/i.test(content)) {
@@ -838,11 +975,11 @@ function parseCommand(content, type, target) {
         let option = parseFloat(/^\S+ ([0-9.]+)$/.exec(content)[1]);
         if (isNaN(option) || option === 0) return;
         playbackSpeed = option;
-        sendMessage("song playback speed set to " + playbackSpeed, type, target, true);
+        sendMessage(`song playback speed set to ${playbackSpeed}`, type, target, true);
     }
-    else if (/^\/speed [0-9.]+[ -][0-9.]+$/i.test(content)) {
-        let low = parseFloat(/^\S+ ([0-9.]+)[ -][0-9.]+$/.exec(content)[1]);
-        let high = parseFloat(/^\S+ [0-9.]+[ -]([0-9.]+)$/.exec(content)[1]);
+    else if (/^\/speed [0-9.]+[ ,-]+[0-9.]+$/i.test(content)) {
+        let low = parseFloat(/^\S+ ([0-9.]+)[ ,-]+[0-9.]+$/.exec(content)[1]);
+        let high = parseFloat(/^\S+ [0-9.]+[ ,-]+([0-9.]+)$/.exec(content)[1]);
         if (isNaN(low) || isNaN(high) || low >= high) return;
         playbackSpeed = [low, high];
         sendMessage(`song playback speed set to random # between ${low} - ${high}`, type, target, true);
@@ -880,7 +1017,7 @@ function parseCommand(content, type, target) {
         autoThrow.time2 = null;
         autoThrow.text = translateShortcodeToUnicode(/^\S+ (.+)$/.exec(content)[1]).text;
         autoThrow.multichoice = null;
-        sendMessage("auto throwing: " + autoThrow.text, type, target, true);
+        sendMessage(`auto throwing: ${autoThrow.text}`, type, target, true);
     }
     else if (/^\/(att|autothrowtime) [0-9.]+ .+$/i.test(content)) {
         let time1 = parseFloat(/^\S+ ([0-9.]+) .+$/.exec(content)[1]);
@@ -924,7 +1061,7 @@ function parseCommand(content, type, target) {
     }
     else if (/^\/(ac|autocopy) \w+$/i.test(content)) {
         autoCopy = /^\S+ (\w+)$/.exec(content)[1].toLowerCase();
-        sendMessage("auto copying " + autoCopy, type, target, true);
+        sendMessage(`auto copying ${autoCopy}`, type, target, true);
     }
     else if (/^\/(am|automute)$/i.test(content)) {
         $("#qpVolume").removeClass("disabled");
@@ -941,9 +1078,9 @@ function parseCommand(content, type, target) {
         autoUnmute = null;
         sendMessage(`auto muting after ${seconds} second${seconds === 1 ? "" : "s"}`, type, target, true);
     }
-    else if (/^\/(am|automute) [0-9.]+[ -][0-9.]+$/i.test(content)) {
-        let low = parseFloat(/^\S+ ([0-9.]+)[ -][0-9.]+$/.exec(content)[1]);
-        let high = parseFloat(/^\S+ [0-9.]+[ -]([0-9.]+)$/.exec(content)[1]);
+    else if (/^\/(am|automute) [0-9.]+[ ,-]+[0-9.]+$/i.test(content)) {
+        let low = parseFloat(/^\S+ ([0-9.]+)[ ,-]+[0-9.]+$/.exec(content)[1]);
+        let high = parseFloat(/^\S+ [0-9.]+[ ,-]+([0-9.]+)$/.exec(content)[1]);
         if (isNaN(low) || isNaN(high) || low >= high) return;
         autoMute = [Math.floor(low * 1000), Math.floor(high * 1000)];
         autoUnmute = null;
@@ -964,9 +1101,9 @@ function parseCommand(content, type, target) {
         autoMute = null;
         sendMessage(`auto unmuting after ${seconds} second${seconds === 1 ? "" : "s"}`, type, target, true);
     }
-    else if (/^\/(au|autounmute) [0-9.]+[ -][0-9.]+$/i.test(content)) {
-        let low = parseFloat(/^\S+ ([0-9.]+)[ -][0-9.]+$/.exec(content)[1]);
-        let high = parseFloat(/^\S+ [0-9.]+[ -]([0-9.]+)$/.exec(content)[1]);
+    else if (/^\/(au|autounmute) [0-9.]+[ ,-]+[0-9.]+$/i.test(content)) {
+        let low = parseFloat(/^\S+ ([0-9.]+)[ ,-]+[0-9.]+$/.exec(content)[1]);
+        let high = parseFloat(/^\S+ [0-9.]+[ ,-]+([0-9.]+)$/.exec(content)[1]);
         if (isNaN(low) || isNaN(high) || low >= high) return;
         autoUnmute = [Math.floor(low * 1000), Math.floor(high * 1000)];
         autoMute = null;
@@ -989,7 +1126,7 @@ function parseCommand(content, type, target) {
     }
     else if (/^\/(ah|autohost) \S+$/i.test(content)) {
         autoHost = /^\S+ (\S+)$/.exec(content)[1].toLowerCase();
-        sendMessage("auto hosting " + autoHost, type, target, true);
+        sendMessage(`auto hosting ${autoHost}`, type, target, true);
         checkAutoHost();
     }
     else if (/^\/autoinvite$/i.test(content)) {
@@ -998,7 +1135,7 @@ function parseCommand(content, type, target) {
     }
     else if (/^\/autoinvite \w+$/i.test(content)) {
         autoInvite = /^\S+ (\w+)$/.exec(content)[1].toLowerCase();
-        sendMessage("auto inviting " + autoInvite, type, target, true);
+        sendMessage(`auto inviting ${autoInvite}`, type, target, true);
     }
     else if (/^\/autoaccept$/i.test(content)) {
         autoAcceptInvite = !autoAcceptInvite;
@@ -1008,7 +1145,7 @@ function parseCommand(content, type, target) {
     else if (/^\/autoaccept .+$/i.test(content)) {
         autoAcceptInvite = /^\S+ (.+)$/.exec(content)[1].split(",").map((x) => x.trim().toLowerCase()).filter(Boolean);
         saveSettings();
-        sendMessage("auto accept invite only from " + autoAcceptInvite.join(", "), type, target, true);
+        sendMessage(`auto accept invite only from ${autoAcceptInvite.join(", ")}`, type, target, true);
     }
     else if (/^\/autojoin$/i.test(content)) {
         if (autoJoinRoom || isSoloMode() || isRankedMode()) {
@@ -1055,7 +1192,7 @@ function parseCommand(content, type, target) {
     else if (/^\/autoswitch (p|s)/i.test(content)) {
         if (/^\S+ p/i.test(content)) autoSwitch = "player";
         else if (/^\S+ s/i.test(content)) autoSwitch = "spectator";
-        sendMessage("auto switching to " + autoSwitch, type, target, true);
+        sendMessage(`auto switching to ${autoSwitch}`, type, target, true);
         checkAutoSwitch();
     }
     else if (/^\/autolobby$/i.test(content)) {
@@ -1073,7 +1210,7 @@ function parseCommand(content, type, target) {
         if (option === "away" || option === "do not disturb" || option === "invisible") {
             autoStatus = option;
             saveSettings();
-            sendMessage("auto status set to " + autoStatus, type, target, true);
+            sendMessage(`auto status set to ${autoStatus}`, type, target, true);
         }
         else {
             sendMessage("Options: away, do not disturb, invisible", type, target, true);
@@ -1195,7 +1332,7 @@ function parseCommand(content, type, target) {
         saveSettings();
     }
     else if (/^\/(pw|password)$/i.test(content)) {
-        sendMessage("password: " + hostModal.$passwordInput.val(), type, target);
+        sendMessage(`password: ${hostModal.$passwordInput.val()}`, type, target);
     }
     else if (/^\/online \w+$/i.test(content)) {
         let name = /^\S+ (\w+)$/.exec(content)[1].toLowerCase();
@@ -1384,8 +1521,8 @@ function parseCommand(content, type, target) {
         saveSettings();
     }
     else if (/^\/detect$/i.test(content)) {
-        sendMessage("invisible: " + playerDetection.invisible, type, target, true);
-        sendMessage("players: " + playerDetection.players.join(", "), type, target, true);
+        sendMessage(`invisible: ${playerDetection.invisible}`, type, target, true);
+        sendMessage(`players: ${playerDetection.players.join(", ")}`, type, target, true);
     }
     else if (/^\/detect disable$/i.test(content)) {
         playerDetection = {invisible: false, players: []};
@@ -1515,6 +1652,27 @@ function parseCommand(content, type, target) {
         let data = JSON.parse(localStorage.getItem("highlightFriendsSettings"));
         if (data) sendMessage(data.smColorFriendColor, type, target);
     }
+    else if (/^\/(dq|daily|dailies|dailyquests?) .*$/i.test(content)) {
+        let genreDict = Object.assign({}, ...Object.entries(idTranslator.genreNames).map(([a,b]) => ({[b.toLowerCase()]: parseInt(a)}))); //{"action": "1", ...}
+        let list = /^\S+ (.+)$/.exec(content)[1].toLowerCase().split(",").map((x) => genreDict[x.trim()]).filter(Boolean);
+        if (list.length) {
+            let anime = genreLookup(list);
+            if (anime) {
+                matchSettingsToAnime(anime);
+                autoThrow.time1 = 100;
+                autoThrow.time2 = null;
+                autoThrow.text = anime;
+                autoThrow.multichoice = null;
+                sendMessage(`auto throwing: ${anime}`, type, target, true);
+            }
+            else {
+                sendMessage("no anime found for those genres", type, target, true);
+            }
+        }
+        else {
+            sendMessage("invalid genre", type, target, true);
+        }
+    }
 }
 
 /**
@@ -1532,7 +1690,7 @@ function parseIncomingDM(content, sender) {
                 socket.sendCommand({type: "social", command: "invite to game", data: {target: sender}});
             }
             else if (/^\/(fp|fpw|forcepassword)$/i.test(content) && inRoom()) {
-                sendMessage("password: " + hostModal.$passwordInput.val(), "dm", sender);
+                sendMessage(`password: ${hostModal.$passwordInput.val()}`, "dm", sender);
             }
             else if (/^\/(fh|forcehost)$/i.test(content)) {
                 if (lobby.inLobby && lobby.isHost) {
@@ -1592,7 +1750,7 @@ function parseIncomingDM(content, sender) {
  */
 function parseForceAll(content, type) {
     if (/^\/forceall version$/i.test(content)) {
-        sendMessage("0.83", type);
+        sendMessage("0.84", type);
     }
     else if (/^\/forceall roll [0-9]+$/i.test(content)) {
         let number = parseInt(/^\S+ roll ([0-9]+)$/.exec(content)[1]);
@@ -2147,6 +2305,36 @@ function quizUnhidePlayers() {
             entry.hidden = false;
             entry.$scoreBoardEntryTextContainer.find(".qpsPlayerName").css({"color": entry.textColor, "text-shadow": entry.textShadow}).text(entry.name);
         }
+    }
+}
+
+// input array of genre ids, return anime that satisfies all genres
+function genreLookup(inputGenres) {
+    for (let anime of Object.keys(dqMap)) {
+        if (inputGenres.every((genre) => dqMap[anime].genre.includes(genre))) {
+            return anime;
+        }
+    }
+    return null;
+}
+
+// change quiz settings to only get a specific anime
+function matchSettingsToAnime(anime) {
+    if (lobby.inLobby && lobby.isHost && anime in dqMap) {
+        let settings = hostModal.getSettings();
+        let data = dqMap[anime];
+        settings.songSelection.standardValue = 1;
+        settings.songSelection.advancedValue.random = settings.numberOfSongs;
+        settings.songSelection.advancedValue.unwatched = 0;
+        settings.songSelection.advancedValue.watched = 0;
+        settings.songType.advancedValue = {openings: 0, endings: 0, inserts: 0, random: 20};
+        settings.songType.standardValue = {openings: true, endings: true, inserts: true};
+        settings.vintage.advancedValueList = [];
+        settings.vintage.standardValue.years = data.years;
+        settings.vintage.standardValue.seasons = data.seasons;
+        settings.genre = data.genre.map((x) => ({id: String(x), state: 1}));
+        settings.tags = data.tags ?? [];
+        changeGameSettings(settings);
     }
 }
 
