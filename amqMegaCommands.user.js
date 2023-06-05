@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.84
+// @version      0.85
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -91,7 +91,7 @@ OTHER
 */
 
 "use strict";
-const version = "0.84";
+const version = "0.85";
 const saveData = JSON.parse(localStorage.getItem("megaCommands")) || {};
 let animeList;
 let autoAcceptInvite = saveData.autoAcceptInvite ?? false;
@@ -115,6 +115,7 @@ let countdown = null;
 let countdownInterval;
 let dropdown = saveData.dropdown ?? true;
 let dropdownInSpec = saveData.dropdownInSpec ?? false;
+let enableAllProfileButtons = saveData.enableAllProfileButtons ?? true;
 let hidePlayers = saveData.hidePlayers ?? false;
 let lastUsedVersion = saveData.lastUsedVersion ?? null;
 let muteReplay = saveData.muteReplay ?? false;
@@ -182,7 +183,7 @@ const dqMap = {
     "Persona 4 the Animation": {genre: [1, 2, 11, 14, 17], years: [2011, 2011], seasons: [3, 3]},
     "Ranma 1/2": {genre: [1, 3, 5, 13, 15], years: [1989, 1989], seasons: [1, 1]},
     "Re:Zero: Starting Life in Another World": {genre: [1, 2, 4, 6, 12, 13, 18], years: [2016, 2021], seasons: [1, 0]},
-    "Kimagure Orange★Road": {genre: [1, 3, 4, 6, 13], years: [1987, 1987], seasons: [1, 1]},
+    "Kimagure Orange★Road": {genre: [1, 3, 4, 6, 13], years: [1987, 1987], seasons: [1, 1]}
 };
 
 if (document.querySelector("#startPage")) {
@@ -555,7 +556,9 @@ function setup() {
         }
     }
     new MutationObserver(function() {
-        $("#playerProfileLayer .ppFooterOptionIcon").removeClass("disabled");
+        if (enableAllProfileButtons) {
+            $("#playerProfileLayer .ppFooterOptionIcon").removeClass("disabled");
+        }
     }).observe(document.querySelector("#playerProfileLayer"), {childList: true});
     AMQ_addScriptData({
         name: "Mega Commands",
@@ -573,7 +576,7 @@ function setup() {
  * @param {String} type dm, chat, teamchat, nexus
  * @param {String} target name of player you are sending to if dm
  */
-function parseCommand(content, type, target) {
+async function parseCommand(content, type, target) {
     if (content === "/commands on") commands = true;
     if (!commands) return;
     if (/^\/players$/i.test(content)) {
@@ -661,14 +664,6 @@ function parseCommand(content, type, target) {
     }
     else if (/^\/(calc|math) .+$/i.test(content)) {
         sendMessage(calc(/^\S+ (.+)$/.exec(content)[1]), type, target);
-    }
-    else if (/^\/defaultsettings$/i.test(content)) {
-        let currentSettings = hostModal.getSettings();
-        let settings = hostModal.DEFUALT_SETTINGS;
-        settings.roomName = currentSettings.roomName;
-        settings.privateRoom = currentSettings.privateRoom;
-        settings.password = currentSettings.password;
-        changeGameSettings(settings);
     }
     else if (/^\/size [0-9]+$/i.test(content)) {
         let option = parseInt(/^\S+ ([0-9]+)$/.exec(content)[1]);
@@ -1611,9 +1606,6 @@ function parseCommand(content, type, target) {
         applyStyles();
         sendMessage(`all players are now ${hidePlayers ? "hidden" : "shown"}`, type, target, true);
     }
-    else if (/^\/remove (popups?|popovers?)$/i.test(content)) {
-        $(".popover").hide();
-    }
     else if (/^\/commands$/i.test(content)) {
         sendMessage("Options: on, off, help, link, version, clear, auto", type, target, true);
     }
@@ -1644,6 +1636,9 @@ function parseCommand(content, type, target) {
     else if (/^\/version$/i.test(content)) {
         sendMessage("Mega Commands - " + version, type, target, true);
     }
+    else if (/^\/remove ?(popups?|popovers?)$/i.test(content)) {
+        $(".popover").hide();
+    }
     else if (/^\/selfcolor$/i.test(content)) {
         let data = JSON.parse(localStorage.getItem("highlightFriendsSettings"));
         if (data) sendMessage(data.smColorSelfColor, type, target);
@@ -1652,8 +1647,16 @@ function parseCommand(content, type, target) {
         let data = JSON.parse(localStorage.getItem("highlightFriendsSettings"));
         if (data) sendMessage(data.smColorFriendColor, type, target);
     }
+    else if (/^\/genreid .+$/i.test(content)) {
+        let list = /^\S+ (.+)$/.exec(content)[1].split(",").map((x) => x.trim()).filter(Boolean);
+        if (list.length) sendMessage(list.map((x) => idTranslator.genreNames[x]).filter(Boolean).join(", "), type, target);
+    }
+    else if (/^\/tagid .+$/i.test(content)) {
+        let list = /^\S+ (.+)$/.exec(content)[1].split(",").map((x) => x.trim()).filter(Boolean);
+        if (list.length) sendMessage(list.map((x) => idTranslator.tagNames[x]).filter(Boolean).join(", "), type, target);
+    }
     else if (/^\/(dq|daily|dailies|dailyquests?) .*$/i.test(content)) {
-        let genreDict = Object.assign({}, ...Object.entries(idTranslator.genreNames).map(([a,b]) => ({[b.toLowerCase()]: parseInt(a)}))); //{"action": "1", ...}
+        let genreDict = Object.assign({}, ...Object.entries(idTranslator.genreNames).map(([a, b]) => ({[b.toLowerCase()]: parseInt(a)}))); //{"action": "1", ...}
         let list = /^\S+ (.+)$/.exec(content)[1].toLowerCase().split(",").map((x) => genreDict[x.trim()]).filter(Boolean);
         if (list.length) {
             let anime = genreLookup(list);
@@ -1672,6 +1675,42 @@ function parseCommand(content, type, target) {
         else {
             sendMessage("invalid genre", type, target, true);
         }
+    }
+    else if (/^\/(sd|ds|settings default|default ?settings)$/i.test(content)) {
+        let currentSettings = hostModal.getSettings();
+        let settings = hostModal.DEFUALT_SETTINGS;
+        settings.roomName = currentSettings.roomName;
+        settings.privateRoom = currentSettings.privateRoom;
+        settings.password = currentSettings.password;
+        changeGameSettings(settings);
+    }
+    else if (/^\/settings anilist [0-9]+$/i.test(content)) {
+        let id = /^\S+ \S+ ([0-9]+)$/.exec(content)[1];
+        let data = await getAnimeFromAnilistId(id);
+        if (data) {
+            let genreDict = Object.assign({}, ...Object.entries(idTranslator.genreNames).map(([a, b]) => ({[b]: a})));
+            let seasonDict = {WINTER: 0, SPRING: 1, SUMMER: 2, FALL: 3};
+            let settings = hostModal.getSettings();
+            settings.songSelection.standardValue = 1;
+            settings.songSelection.advancedValue.random = settings.numberOfSongs;
+            settings.songSelection.advancedValue.unwatched = 0;
+            settings.songSelection.advancedValue.watched = 0;
+            settings.songType.advancedValue = {openings: 0, endings: 0, inserts: 0, random: 20};
+            settings.songType.standardValue = {openings: true, endings: true, inserts: true};
+            settings.vintage.advancedValueList = [];
+            settings.vintage.standardValue.years = [data.seasonYear, data.seasonYear];
+            settings.vintage.standardValue.seasons = [seasonDict[data.season], seasonDict[data.season]];
+            settings.genre = data.genres.map((x) => ({id: genreDict[x], state: 1}));
+            //settings.tags = data.tags.map((x) => ({id: String(x.id), state: 1}));
+            changeGameSettings(settings);
+        }
+        else {
+            sendMessage("invalid anilist id", type, target);
+        }
+    }
+    else if (/^\/(enableallprofilebuttons|profilebuttons)$/i.test(content)) {
+        enableAllProfileButtons = !enableAllProfileButtons;
+        sendMessage(`profile buttons ${enableAllProfileButtons ? "are now clickable" : "have default behavior"}`, type, target, true);
     }
 }
 
@@ -1750,7 +1789,7 @@ function parseIncomingDM(content, sender) {
  */
 function parseForceAll(content, type) {
     if (/^\/forceall version$/i.test(content)) {
-        sendMessage("0.84", type);
+        sendMessage("0.85", type);
     }
     else if (/^\/forceall roll [0-9]+$/i.test(content)) {
         let number = parseInt(/^\S+ roll ([0-9]+)$/.exec(content)[1]);
@@ -2338,6 +2377,32 @@ function matchSettingsToAnime(anime) {
     }
 }
 
+// input anilist id, return info json
+function getAnimeFromAnilistId(id) {
+    let query = `
+      query {
+        Media (id: ${id}, type: ANIME) {
+          title {
+            romaji
+            english
+          }
+          season
+          seasonYear
+          genres
+          tags {
+            id
+            name
+          }
+        }
+      }
+    `;
+    return fetch("https://graphql.anilist.co", {
+        method: "POST",
+        headers: {"Content-Type": "application/json", "Accept": "application/json"},
+        body: JSON.stringify({query: query})
+    }).then((res) => res.json()).then((json) => json.data.Media);
+}
+
 // apply styles
 function applyStyles() {
     $("#megaCommandsStyle").remove();
@@ -2387,6 +2452,7 @@ function saveSettings() {
     //settings.commands = commands;
     //settings.dropdown = dropdown;
     settings.dropdownInSpec = dropdownInSpec;
+    settings.enableAllProfileButtons = enableAllProfileButtons;
     //settings.hidePlayers = hidePlayers;
     settings.lastUsedVersion = version;
     //settings.muteReplay = muteReplay;
