@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.85
+// @version      0.86
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -91,7 +91,7 @@ OTHER
 */
 
 "use strict";
-const version = "0.85";
+const version = "0.86";
 const saveData = JSON.parse(localStorage.getItem("megaCommands")) || {};
 let animeList;
 let autoAcceptInvite = saveData.autoAcceptInvite ?? false;
@@ -179,11 +179,27 @@ const dqMap = {
     "Macross Delta": {genre: [1, 9, 10, 13, 14], years: [2016, 2016], seasons: [1, 1]},
     "Macross 7": {genre: [1, 3, 4, 9, 10, 14], years: [1994, 1994], seasons: [3, 3]},
     "Mobile Suit Gundam Seed Destiny": {genre: [1, 4, 9, 13, 14], years: [2004, 2004], seasons: [3, 3]},
+    "Zombie Land Saga Revenge": {genre: [3, 10, 17], years: [2021, 2021], seasons: [1, 1]},
+    "Revue Starlight": {genre: [1, 4, 10, 12], years: [2018, 2018], seasons: [2, 2]},
+    "Idoly Pride": {genre: [4, 10, 15, 17], years: [2021, 2021], seasons: [0, 0]},
     "Extra Olympia Kyklos": {genre: [3, 6, 15, 16], years: [2020, 2020], seasons: [1, 1]},
+    "Japan Animator Expo": {genre: [1, 5, 6, 9, 10, 17], years: [2014, 2014], seasons: [3, 3]},
     "Persona 4 the Animation": {genre: [1, 2, 11, 14, 17], years: [2011, 2011], seasons: [3, 3]},
     "Ranma 1/2": {genre: [1, 3, 5, 13, 15], years: [1989, 1989], seasons: [1, 1]},
     "Re:Zero: Starting Life in Another World": {genre: [1, 2, 4, 6, 12, 13, 18], years: [2016, 2021], seasons: [1, 0]},
-    "Kimagure Orange★Road": {genre: [1, 3, 4, 6, 13], years: [1987, 1987], seasons: [1, 1]}
+    "Guilty Crown": {genre: [1, 4, 9, 12, 13, 14], years: [2011, 2011], seasons: [3, 3]},
+    ".hack//Sign": {genre: [2, 6, 11, 14], years: [2002, 2002], seasons: [1, 1]},
+    "Heaven's Lost Property": {genre: [3, 5, 13, 14, 15, 17], years: [2009, 2009], seasons: [3, 3]},
+    "Kimagure Orange★Road": {genre: [1, 3, 4, 6, 13], years: [1987, 1987], seasons: [1, 1]},
+    "Cardcaptor Sakura": {genre: [3, 4, 6, 8, 13], years: [1998, 1998], seasons: [1, 1]},
+    "Healer Girl": {genre: [10, 15, 17], years: [2022, 2022], seasons: [1, 1]},
+    "Puella Magi Madoka Magica": {genre: [1, 4, 6, 8, 12, 18], years: [2011, 2011], seasons: [0, 0]},
+    "Magic Knight Rayearth": {genre: [2, 4, 6, 8, 9], years: [1994, 1995], seasons: [3, 1]},
+    "Fate/kaleid liner Prisma☆Illya 2wei Herz!": {genre: [1, 3, 5, 6, 8], years: [2015, 2015], seasons: [2, 2]},
+    "Aquarion Evol": {genre: [1, 4, 6, 9, 13, 14], years: [2012, 2012], seasons: [0, 0]},
+    "Koyomimonogatari": {genre: [3, 11, 17], years: [2016, 2016], seasons: [0, 0]},
+    "Made in Abyss": {genre: [2, 4, 6, 7, 11, 14], years: [2017, 2017], seasons: [2, 2]},
+    "Mirai Nikki": {genre: [1, 7, 11, 12, 17, 18], years: [2011, 2011], seasons: [3, 3]}
 };
 
 if (document.querySelector("#startPage")) {
@@ -1281,6 +1297,16 @@ async function parseCommand(content, type, target) {
     else if (/^\/queue$/i.test(content)) {
         gameChat.joinLeaveQueue();
     }
+    else if (/^\/host$/i.test(content)) {
+        if (type === "dm" && isInYourRoom(target)) {
+            if (lobby.inLobby || quiz.inQuiz || battleRoyal.inView) {
+                lobby.promoteHost(target);
+            }
+            else if (nexus.inCoopLobby || nexus.inNexusGame) {
+                socket.sendCommand({type: "nexus", command: "nexus promote host", data: {name: target}});
+            }
+        }
+    }
     else if (/^\/host \w+$/i.test(content)) {
         let name = getClosestNameInRoom(/^\S+ (\w+)$/.exec(content)[1]);
         if (isInYourRoom(name)) {
@@ -1593,6 +1619,10 @@ async function parseCommand(content, type, target) {
         saveSettings();
         sendMessage(`open self dm on log in: ${selfDM ? "enabled" : "disabled"}`, type, target, true);
     }
+    else if (/^\/(profilebuttons|enableallprofilebuttons)$/i.test(content)) {
+        enableAllProfileButtons = !enableAllProfileButtons;
+        sendMessage(`profile buttons ${enableAllProfileButtons ? "are now clickable" : "have default behavior"}`, type, target, true);
+    }
     else if (/^\/(hp|hideplayers)$/i.test(content)) {
         hidePlayers = !hidePlayers;
         if (hidePlayers) {
@@ -1656,16 +1686,13 @@ async function parseCommand(content, type, target) {
         if (list.length) sendMessage(list.map((x) => idTranslator.tagNames[x]).filter(Boolean).join(", "), type, target);
     }
     else if (/^\/(dq|daily|dailies|dailyquests?) .*$/i.test(content)) {
-        let genreDict = Object.assign({}, ...Object.entries(idTranslator.genreNames).map(([a, b]) => ({[b.toLowerCase()]: parseInt(a)}))); //{"action": "1", ...}
-        let list = /^\S+ (.+)$/.exec(content)[1].toLowerCase().split(",").map((x) => genreDict[x.trim()]).filter(Boolean);
-        if (list.length) {
+        let genreDict = Object.assign({}, ...Object.entries(idTranslator.genreNames).map(([a, b]) => ({[b.toLowerCase()]: parseInt(a)})));
+        let list = /^\S+ (.+)$/.exec(content)[1].toLowerCase().split(",").map((x) => genreDict[x.trim()]);
+        if (list.length && list.every(Boolean)) {
             let anime = genreLookup(list);
             if (anime) {
                 matchSettingsToAnime(anime);
-                autoThrow.time1 = 100;
-                autoThrow.time2 = null;
-                autoThrow.text = anime;
-                autoThrow.multichoice = null;
+                autoThrow = {time1: 100, time2: null, text: anime, multichoice: null};
                 sendMessage(`auto throwing: ${anime}`, type, target, true);
             }
             else {
@@ -1692,9 +1719,7 @@ async function parseCommand(content, type, target) {
             let seasonDict = {WINTER: 0, SPRING: 1, SUMMER: 2, FALL: 3};
             let settings = hostModal.getSettings();
             settings.songSelection.standardValue = 1;
-            settings.songSelection.advancedValue.random = settings.numberOfSongs;
-            settings.songSelection.advancedValue.unwatched = 0;
-            settings.songSelection.advancedValue.watched = 0;
+            settings.songSelection.advancedValue = {random: settings.numberOfSongs, unwatched: 0, watched: 0};
             settings.songType.advancedValue = {openings: 0, endings: 0, inserts: 0, random: 20};
             settings.songType.standardValue = {openings: true, endings: true, inserts: true};
             settings.vintage.advancedValueList = [];
@@ -1708,9 +1733,15 @@ async function parseCommand(content, type, target) {
             sendMessage("invalid anilist id", type, target);
         }
     }
-    else if (/^\/(enableallprofilebuttons|profilebuttons)$/i.test(content)) {
-        enableAllProfileButtons = !enableAllProfileButtons;
-        sendMessage(`profile buttons ${enableAllProfileButtons ? "are now clickable" : "have default behavior"}`, type, target, true);
+    else if (/^\/anilist [0-9]+$/i.test(content)) {
+        let id = /^\S+ ([0-9]+)$/.exec(content)[1];
+        let data = await getAnimeFromAnilistId(id);
+        if (data) {
+            sendMessage(data.title.english, type, target);
+        }
+        else {
+            sendMessage("invalid anilist id", type, target);
+        }
     }
 }
 
@@ -1789,7 +1820,7 @@ function parseIncomingDM(content, sender) {
  */
 function parseForceAll(content, type) {
     if (/^\/forceall version$/i.test(content)) {
-        sendMessage("0.85", type);
+        sendMessage("0.86", type);
     }
     else if (/^\/forceall roll [0-9]+$/i.test(content)) {
         let number = parseInt(/^\S+ roll ([0-9]+)$/.exec(content)[1]);
@@ -1985,29 +2016,16 @@ function getTeamDictionary() {
 // input team number, return list of names of players on team
 function getTeamList(team) {
     if (!Number.isInteger(team)) return [];
-    let list = [];
     if (lobby.inLobby) {
-        for (let player of Object.values(lobby.players)) {
-            if (parseInt(player.lobbySlot.$TEAM_DISPLAY_TEXT.text()) === team) {
-                list.push(player._name);
-            }
-        }
+        return Object.values(lobby.players).filter((player) => parseInt(player.lobbySlot.$TEAM_DISPLAY_TEXT.text()) === team).map((player) => player._name);
     }
-    else if (quiz.inQuiz) {
-        for (let player of Object.values(quiz.players)) {
-            if (player.teamNumber === team) {
-                list.push(player._name);
-            }
-        }
+    if (quiz.inQuiz) {
+        return Object.values(quiz.players).filter((player) => player.teamNumber === team).map((player) => player._name);
     }
-    else if (battleRoyal.inView) {
-        for (let player of Object.values(battleRoyal.players)) {
-            if (player.teamNumber === team) {
-                list.push(player._name);
-            }
-        }
+    if (battleRoyal.inView) {
+        return Object.values(battleRoyal.players).filter((player) => player.teamNumber === team).map((player) => player._name);
     }
-    return list;
+    return [];
 }
 
 // input player name, return their team number
@@ -2106,8 +2124,7 @@ function changeGameSettings(settings) {
 function getClosestNameInRoom(text) {
     let re = new RegExp(text, "i");
     let results = getPlayerList().concat(getSpectatorList()).filter((x) => re.test(x));
-    if (results.length === 1) return results[0];
-    else return text;
+    return results.length === 1 ? results[0] : text;
 }
 
 // check if all players are ready in lobby
@@ -2363,14 +2380,11 @@ function matchSettingsToAnime(anime) {
         let settings = hostModal.getSettings();
         let data = dqMap[anime];
         settings.songSelection.standardValue = 1;
-        settings.songSelection.advancedValue.random = settings.numberOfSongs;
-        settings.songSelection.advancedValue.unwatched = 0;
-        settings.songSelection.advancedValue.watched = 0;
+        settings.songSelection.advancedValue = {random: settings.numberOfSongs, unwatched: 0, watched: 0};
         settings.songType.advancedValue = {openings: 0, endings: 0, inserts: 0, random: 20};
         settings.songType.standardValue = {openings: true, endings: true, inserts: true};
         settings.vintage.advancedValueList = [];
-        settings.vintage.standardValue.years = data.years;
-        settings.vintage.standardValue.seasons = data.seasons;
+        settings.vintage.standardValue = {seasons: data.seasons, years: data.years};
         settings.genre = data.genre.map((x) => ({id: String(x), state: 1}));
         settings.tags = data.tags ?? [];
         changeGameSettings(settings);
