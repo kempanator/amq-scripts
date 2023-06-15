@@ -1,11 +1,13 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.86
+// @version      0.87
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
-// @grant        none
+// @grant        unsafeWindow
+// @grant        GM_xmlhttpRequest
+// @connect      myanimelist.net
 // @require      https://raw.githubusercontent.com/TheJoseph98/AMQ-Scripts/master/common/amqScriptInfo.js
 // @downloadURL  https://raw.githubusercontent.com/kempanator/amq-scripts/main/amqMegaCommands.user.js
 // @updateURL    https://raw.githubusercontent.com/kempanator/amq-scripts/main/amqMegaCommands.user.js
@@ -91,8 +93,9 @@ OTHER
 */
 
 "use strict";
-const version = "0.86";
+const version = "0.87";
 const saveData = JSON.parse(localStorage.getItem("megaCommands")) || {};
+let alertHidden = saveData.alertHidden ?? true;
 let animeList;
 let autoAcceptInvite = saveData.autoAcceptInvite ?? false;
 let autoCopy = saveData.autoCopy ?? "";
@@ -118,6 +121,7 @@ let dropdownInSpec = saveData.dropdownInSpec ?? false;
 let enableAllProfileButtons = saveData.enableAllProfileButtons ?? true;
 let hidePlayers = saveData.hidePlayers ?? false;
 let lastUsedVersion = saveData.lastUsedVersion ?? null;
+let malClientId = saveData.malClientId ?? null;
 let muteReplay = saveData.muteReplay ?? false;
 let muteSubmit = saveData.muteSubmit ?? false;
 let playbackSpeed = saveData.playbackSpeed ?? null;
@@ -173,7 +177,7 @@ const dqMap = {
     "Urusei Yatsura": {genre: [3, 4, 13, 14, 15], years: [1981, 1981], seasons: [3, 3]},
     "Touch": {genre: [4, 13, 15, 16], years: [1985, 1985], seasons: [1, 1]},
     "Code Geass: Lelouch of the Rebellion Remake Movies": {genre: [1, 9, 14, 17, 18], years: [2017, 2018], seasons: [3, 1]},
-    "Chainsaw Man": {genre: [1, 4, 7, 17], years: [2002, 2002], seasons: [0, 0]},
+    "Chainsaw Man": {genre: [1, 4, 7, 17], tags: [1090], years: [2022, 2022], seasons: [3, 3]},
     "Senki Zesshou Symphogear GX": {genre: [1, 4, 8, 10, 14], years: [2015, 2015], seasons: [2, 2]},
     "Ojamajo Doremi Dokkaan!": {genre: [3, 4, 6, 8, 15], years: [2012, 2012], seasons: [3, 3]},
     "Macross Delta": {genre: [1, 9, 10, 13, 14], years: [2016, 2016], seasons: [1, 1]},
@@ -186,10 +190,12 @@ const dqMap = {
     "Japan Animator Expo": {genre: [1, 5, 6, 9, 10, 17], years: [2014, 2014], seasons: [3, 3]},
     "Persona 4 the Animation": {genre: [1, 2, 11, 14, 17], years: [2011, 2011], seasons: [3, 3]},
     "Ranma 1/2": {genre: [1, 3, 5, 13, 15], years: [1989, 1989], seasons: [1, 1]},
+    "High School of the Dead": {genre: [1, 4, 5, 7, 13, 17], years: [2010, 2010], seasons: [2, 2]},
     "Re:Zero: Starting Life in Another World": {genre: [1, 2, 4, 6, 12, 13, 18], years: [2016, 2021], seasons: [1, 0]},
     "Guilty Crown": {genre: [1, 4, 9, 12, 13, 14], years: [2011, 2011], seasons: [3, 3]},
     ".hack//Sign": {genre: [2, 6, 11, 14], years: [2002, 2002], seasons: [1, 1]},
     "Heaven's Lost Property": {genre: [3, 5, 13, 14, 15, 17], years: [2009, 2009], seasons: [3, 3]},
+    "White Album 2": {genre: [4, 10, 13, 15], years: [2013, 2013], seasons: [3, 3]},
     "Kimagure Orange★Road": {genre: [1, 3, 4, 6, 13], years: [1987, 1987], seasons: [1, 1]},
     "Cardcaptor Sakura": {genre: [3, 4, 6, 8, 13], years: [1998, 1998], seasons: [1, 1]},
     "Healer Girl": {genre: [10, 15, 17], years: [2022, 2022], seasons: [1, 1]},
@@ -197,6 +203,7 @@ const dqMap = {
     "Magic Knight Rayearth": {genre: [2, 4, 6, 8, 9], years: [1994, 1995], seasons: [3, 1]},
     "Fate/kaleid liner Prisma☆Illya 2wei Herz!": {genre: [1, 3, 5, 6, 8], years: [2015, 2015], seasons: [2, 2]},
     "Aquarion Evol": {genre: [1, 4, 6, 9, 13, 14], years: [2012, 2012], seasons: [0, 0]},
+    "Wolf's Rain": {genre: [1, 2, 4, 6, 11, 14], years: [2003, 2003], seasons: [0, 0]},
     "Koyomimonogatari": {genre: [3, 11, 17], years: [2016, 2016], seasons: [0, 0]},
     "Made in Abyss": {genre: [2, 4, 6, 7, 11, 14], years: [2017, 2017], seasons: [2, 2]},
     "Mirai Nikki": {genre: [1, 7, 11, 12, 17, 18], years: [2011, 2011], seasons: [3, 3]}
@@ -422,8 +429,10 @@ function setup() {
         if (hidePlayers) setTimeout(() => { quizHidePlayers() }, 0);
     }).bindListener();
     new Listener("player hidden", (payload) => {
-        gameChat.systemMessage("Player Hidden: " + payload.name);
-        popoutMessages.displayStandardMessage("Player Hidden", payload.name);
+        if (alertHidden) {
+            gameChat.systemMessage("Player Hidden: " + payload.name);
+            popoutMessages.displayStandardMessage("Player Hidden", payload.name);
+        }
     }).bindListener();
     new Listener("Player Ready Change",  (payload) => {
         checkAutoStart();
@@ -1437,28 +1446,28 @@ async function parseCommand(content, type, target) {
         rejoinRoom(time);
     }
     else if (/^\/(logout|logoff)$/i.test(content)) {
-        window.onbeforeunload = null;
+        unsafeWindow.onbeforeunload = null;
         setTimeout(() => { options.logout() }, 1);
     }
     else if (/^\/(relog|logout rejoin|loggoff rejoin)$/i.test(content)) {
         if (isSoloMode()) {
             autoJoinRoom = {type: "solo", rejoin: quiz.inQuiz, temp: true, settings: hostModal.getSettings(), autoLogIn: true};
             saveSettings();
-            window.onbeforeunload = null;
-            setTimeout(() => { window.location = "/?forceLogin=True" }, 1);
+            unsafeWindow.onbeforeunload = null;
+            setTimeout(() => { unsafeWindow.location = "/?forceLogin=True" }, 1);
         }
         else if (isRankedMode()) {
             autoJoinRoom = {type: hostModal.$roomName.val().toLowerCase(), rejoin: quiz.inQuiz && !quiz.isSpectator, temp: true, autoLogIn: true};
             saveSettings();
-            window.onbeforeunload = null;
-            setTimeout(() => { window.location = "/?forceLogin=True" }, 1);
+            unsafeWindow.onbeforeunload = null;
+            setTimeout(() => { unsafeWindow.location = "/?forceLogin=True" }, 1);
         }
         else if (lobby.inLobby) {
             let password = hostModal.$passwordInput.val();
             autoJoinRoom = {type: "multiplayer", id: lobby.gameId, password: password, joinAsPlayer: !lobby.isSpectator, temp: true, autoLogIn: true};
             saveSettings();
-            window.onbeforeunload = null;
-            setTimeout(() => { window.location = "/?forceLogin=True" }, 1);
+            unsafeWindow.onbeforeunload = null;
+            setTimeout(() => { unsafeWindow.location = "/?forceLogin=True" }, 1);
         }
         else if (quiz.inQuiz || battleRoyal.inView) {
             let gameInviteListener = new Listener("game invite", (payload) => {
@@ -1467,8 +1476,8 @@ async function parseCommand(content, type, target) {
                     let password = hostModal.$passwordInput.val();
                     autoJoinRoom = {type: "multiplayer", id: payload.gameId, password: password, rejoin: !quiz.isSpectator, temp: true, autoLogIn: true};
                     saveSettings();
-                    window.onbeforeunload = null;
-                    setTimeout(() => { window.location = "/?forceLogin=True" }, 1);
+                    unsafeWindow.onbeforeunload = null;
+                    setTimeout(() => { unsafeWindow.location = "/?forceLogin=True" }, 1);
                 }
             });
             gameInviteListener.bindListener();
@@ -1479,34 +1488,34 @@ async function parseCommand(content, type, target) {
                 if (Object.keys(nexusCoopChat.playerMap).length > 1) {
                     autoJoinRoom = {type: "nexus coop", id: $("#ncdwPartySetupLobbyIdText").text(), temp: true, autoLogIn: true};
                     saveSettings();
-                    window.onbeforeunload = null;
-                    setTimeout(() => { window.location = "/?forceLogin=True" }, 1);
+                    unsafeWindow.onbeforeunload = null;
+                    setTimeout(() => { unsafeWindow.location = "/?forceLogin=True" }, 1);
                 }
                 else {
                     autoJoinRoom = {type: "nexus coop", temp: true, autoLogIn: true};
                     saveSettings();
-                    window.onbeforeunload = null;
-                    setTimeout(() => { window.location = "/?forceLogin=True" }, 1);
+                    unsafeWindow.onbeforeunload = null;
+                    setTimeout(() => { unsafeWindow.location = "/?forceLogin=True" }, 1);
                 }
             }
             else {
                 autoJoinRoom = {type: "nexus solo", temp: true, autoLogIn: true};
                 saveSettings();
-                window.onbeforeunload = null;
-                setTimeout(() => { window.location = "/?forceLogin=True" }, 1);
+                unsafeWindow.onbeforeunload = null;
+                setTimeout(() => { unsafeWindow.location = "/?forceLogin=True" }, 1);
             }
         }
         else if (nexus.inNexusGame) {
             autoJoinRoom = {type: "nexus coop", rejoin: true, temp: true, autoLogIn: true};
             saveSettings();
-            window.onbeforeunload = null;
-            setTimeout(() => { window.location = "/?forceLogin=True" }, 1);
+            unsafeWindow.onbeforeunload = null;
+            setTimeout(() => { unsafeWindow.location = "/?forceLogin=True" }, 1);
         }
         else {
             autoJoinRoom = {temp: true, autoLogIn: true};
             saveSettings();
-            window.onbeforeunload = null;
-            setTimeout(() => { window.location = "/?forceLogin=True" }, 1);
+            unsafeWindow.onbeforeunload = null;
+            setTimeout(() => { unsafeWindow.location = "/?forceLogin=True" }, 1);
         }
     }
     else if (/^\/alien$/i.test(content)) {
@@ -1599,17 +1608,22 @@ async function parseCommand(content, type, target) {
         voteOptions = {};
         votes = {};
     }
-    else if (/^\/printloot$/i.test(content)) {
+    else if (/^\/alert ?hidden$/i.test(content)) {
+        alertHidden = !alertHidden;
+        saveSettings();
+        sendMessage(`alert when players are hidden by moderator: ${alertHidden ? "enabled" : "disabled"}`, type, target, true);
+    }
+    else if (/^\/print ?loot$/i.test(content)) {
         printLoot = !printLoot;
         saveSettings();
         sendMessage(`print loot ${printLoot ? "enabled" : "disabled"}`, type, target, true);
     }
-    else if (/^\/printonline$/i.test(content)) {
+    else if (/^\/print ?online$/i.test(content)) {
         printOnline = !printOnline;
         saveSettings();
         sendMessage(`print when friends are online: ${printOnline ? "enabled" : "disabled"}`, type, target, true);
     }
-    else if (/^\/printoffline$/i.test(content)) {
+    else if (/^\/print ?offline$/i.test(content)) {
         printOffline = !printOffline;
         saveSettings();
         sendMessage(`print when friends are offline: ${printOffline ? "enabled" : "disabled"}`, type, target, true);
@@ -1685,7 +1699,26 @@ async function parseCommand(content, type, target) {
         let list = /^\S+ (.+)$/.exec(content)[1].split(",").map((x) => x.trim()).filter(Boolean);
         if (list.length) sendMessage(list.map((x) => idTranslator.tagNames[x]).filter(Boolean).join(", "), type, target);
     }
-    else if (/^\/(dq|daily|dailies|dailyquests?) .*$/i.test(content)) {
+    else if (/^\/(dq|daily|dailies|dailyquests?) detect$/i.test(content)) {
+        let genreDict = Object.assign({}, ...Object.entries(idTranslator.genreNames).map(([a, b]) => ({[b]: parseInt(a)})));
+        let list = Object.values(qusetContainer.questMap).filter((x) => x.name.includes(" Fan") && x.state !== x.targetState).map((x) => genreDict[x.name.split(" Fan")[0]]);
+        if (list.length) {
+            sendMessage(`Detected: ${list.map((x) => idTranslator.genreNames[x]).join(", ")}`, type, target, true);
+            let anime = genreLookup(list);
+            if (anime) {
+                matchSettingsToAnime(anime);
+                autoThrow = {time1: 100, time2: null, text: anime, multichoice: null};
+                sendMessage(`auto throwing: ${anime}`, type, target, true);
+            }
+            else {
+                sendMessage("no anime found for those genres", type, target, true);
+            }
+        }
+        else {
+            sendMessage("no incomplete genre quests detected", type, target, true);
+        }
+    }
+    else if (/^\/(dq|daily|dailies|dailyquests?) .+$/i.test(content)) {
         let genreDict = Object.assign({}, ...Object.entries(idTranslator.genreNames).map(([a, b]) => ({[b.toLowerCase()]: parseInt(a)})));
         let list = /^\S+ (.+)$/.exec(content)[1].toLowerCase().split(",").map((x) => genreDict[x.trim()]);
         if (list.length && list.every(Boolean)) {
@@ -1711,7 +1744,7 @@ async function parseCommand(content, type, target) {
         settings.password = currentSettings.password;
         changeGameSettings(settings);
     }
-    else if (/^\/settings anilist [0-9]+$/i.test(content)) {
+    else if (/^\/settings (a|ani|anilist) [0-9]+$/i.test(content)) {
         let id = /^\S+ \S+ ([0-9]+)$/.exec(content)[1];
         let data = await getAnimeFromAnilistId(id);
         if (data) {
@@ -1737,11 +1770,70 @@ async function parseCommand(content, type, target) {
         let id = /^\S+ ([0-9]+)$/.exec(content)[1];
         let data = await getAnimeFromAnilistId(id);
         if (data) {
-            sendMessage(data.title.english, type, target);
+            sendMessage(options.useRomajiNames ? data.title.romaji : (data.title.english || data.title.romaji), type, target);
         }
         else {
             sendMessage("invalid anilist id", type, target);
         }
+    }
+    else if (/^\/count (a|ani|anilist) \S+$/i.test(content)) {
+        let username = /^\S+ \S+ (\S+)$/.exec(content)[1];
+        let data = await getAnilistAnimeList(username);
+        if (data.length) {
+            sendMessage(data.length, type, target);
+        }
+        else {
+            sendMessage("invalid username", type, target);
+        }
+    }
+    else if (/^\/roll (a|ani|anilist) \S+$/i.test(content)) {
+        let username = /^\S+ \S+ (\S+)$/.exec(content)[1];
+        let data = await getAnilistAnimeList(username);
+        if (data.length) {
+            let result = data[Math.floor(Math.random() * data.length)].media.title;
+            sendMessage(options.useRomajiNames ? result.romaji : (result.english || result.romaji), type, target);
+        }
+        else {
+            sendMessage("invalid username", type, target);
+        }
+    }
+    else if (/^\/count (m|mal|myanimelist) \S+$/i.test(content)) {
+        if (malClientId) {
+            let username = /^\S+ \S+ (\S+)$/.exec(content)[1];
+            let data = await getMALAnimeList(username);
+            if (data.length) {
+                sendMessage(data.length, type, target);
+            }
+            else {
+                sendMessage("invalid username", type, target);
+            }
+        }
+        else {
+            sendMessage("mal client id is not set", type, target);
+        }
+    }
+    else if (/^\/roll (m|mal|myanimelist) \S+$/i.test(content)) {
+        if (malClientId) {
+            let username = /^\S+ \S+ (\S+)$/.exec(content)[1];
+            let data = await getMALAnimeList(username);
+            if (data.length) {
+                let result = data[Math.floor(Math.random() * data.length)].node.title;
+                sendMessage(result, type, target);
+            }
+            else {
+                sendMessage("invalid username", type, target);
+            }
+        }
+        else {
+            sendMessage("mal client id is not set", type, target);
+        }
+    }
+    else if (/^\/(malclientid|malapikey)$/i.test(content)) {
+        sendMessage(malClientId ? malClientId : "mal client id is not set", type, target, true);
+    }
+    else if (/^\/(malclientid|malapikey) \w+$/i.test(content)) {
+        malClientId = /^\S+ (\w+)$/.exec(content)[1];
+        sendMessage("mal client id set", type, target, true);
     }
 }
 
@@ -1820,11 +1912,16 @@ function parseIncomingDM(content, sender) {
  */
 function parseForceAll(content, type) {
     if (/^\/forceall version$/i.test(content)) {
-        sendMessage("0.86", type);
+        sendMessage("0.87", type);
     }
     else if (/^\/forceall roll [0-9]+$/i.test(content)) {
         let number = parseInt(/^\S+ roll ([0-9]+)$/.exec(content)[1]);
         sendMessage(Math.floor(Math.random() * number) + 1, type);
+    }
+    else if (/^\/forceall roll -?[0-9]+ -?[0-9]+$/i.test(content)) {
+        let low = parseInt(/^\S+ \S+ (-?[0-9]+) -?[0-9]+$/.exec(content)[1]);
+        let high = parseInt(/^\S+ \S+ -?[0-9]+ (-?[0-9]+)$/.exec(content)[1]);
+        sendMessage("rolls " + (Math.floor(Math.random() * (high - low + 1)) + low), type);
     }
     else if (/^\/forceall mute ?status$/i.test(content)) {
         sendMessage(volumeController.muted ? "🔇" : "🔉 " + Math.round(volumeController.volume * 100) + "%", type);
@@ -2417,6 +2514,60 @@ function getAnimeFromAnilistId(id) {
     }).then((res) => res.json()).then((json) => json.data.Media);
 }
 
+// input anilist username, return list of all anime in list
+function getAnilistAnimeList(username) {
+    let query = `
+      query {
+        MediaListCollection(userName: "${username}", type: ANIME) {
+          lists {
+            entries {
+              media {
+                id
+                title {
+                  romaji
+                  english
+                }
+              }
+            status
+            }
+          }
+        }
+      }
+    `;
+    return fetch("https://graphql.anilist.co", {
+        method: "POST",
+        headers: {"Content-Type": "application/json", "Accept": "application/json"},
+        body: JSON.stringify({query: query})
+    }).then((res) => res.json()).then((json) => {
+        if (json.errors) return [];
+        let list = [];
+        for (let item of json.data.MediaListCollection.lists) {
+            item.entries.forEach((anime) => { list.push(anime) });
+        }
+        return list;
+    });
+}
+
+// input myanimelist username, return list of all anime in list
+async function getMALAnimeList(username) {
+    let list = [];
+    let nextPage = "https://api.myanimelist.net/v2/users/" + username + "/animelist?offset=0&limit=1000&nsfw=true";
+    while (nextPage) {
+        let result = await new Promise((resolve, reject) => {
+            GM_xmlhttpRequest({
+                method: "GET",
+                url: nextPage,
+                headers: {"Content-Type": "application/json", "Accept": "application/json", "X-MAL-CLIENT-ID": malClientId},
+                onload: (res) => resolve(JSON.parse(res.response)),
+                onerror: (res) => reject(res)
+            });
+        });
+        result.data.forEach((anime) => { list.push(anime) });
+        nextPage = result.paging.next;
+    }
+    return list;
+}
+
 // apply styles
 function applyStyles() {
     $("#megaCommandsStyle").remove();
@@ -2447,6 +2598,7 @@ function applyStyles() {
 // save settings
 function saveSettings() {
     let settings = {};
+    settings.alertHidden = alertHidden;
     settings.autoAcceptInvite = autoAcceptInvite;
     //settings.autoCopy = autoCopy;
     //settings.autoHost = autoHost;
@@ -2469,6 +2621,7 @@ function saveSettings() {
     settings.enableAllProfileButtons = enableAllProfileButtons;
     //settings.hidePlayers = hidePlayers;
     settings.lastUsedVersion = version;
+    settings.malClientId = malClientId;
     //settings.muteReplay = muteReplay;
     //settings.muteSubmit = muteSubmit;
     //settings.playbackSpeed = playbackSpeed;
