@@ -1,8 +1,10 @@
 # amq-scripts
 
+### AMQ Anisongdb Search
+- AnisongDB search in game https://imgur.com/a/TmqtE5K
+
 ### AMQ Answer Stats
 - Tools for analyzing ranked answers in real time https://imgur.com/QIcwtXE
-- AnisongDB search in game + show all links https://imgur.com/uH6Dj63
 
 ### AMQ Chat Plus
 - Customizable chat/dms https://imgur.com/FAT78Ep
@@ -15,6 +17,9 @@
 
 ### AMQ New Game Mode UI
 - A fully automatic guess counter for your team in new game mode https://imgur.com/a/OqrQ6nI
+
+### AMQ Show All Song Links
+- Show all song links in the song info container https://imgur.com/a/bfnZoQu
 
 ### AMQ Show Room Players
 - Mouse over the players bar on a room tile to show full player list https://imgur.com/jivcLDo
