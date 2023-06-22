@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.87
+// @version      0.88
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -93,7 +93,7 @@ OTHER
 */
 
 "use strict";
-const version = "0.87";
+const version = "0.88";
 const saveData = JSON.parse(localStorage.getItem("megaCommands")) || {};
 let alertHidden = saveData.alertHidden ?? true;
 let animeList;
@@ -130,6 +130,7 @@ let printLoot = saveData.printLoot ?? false;
 let printOffline = saveData.printOffline ?? false;
 let printOnline = saveData.printOnline ?? false;
 let selfDM = saveData.selfDM ?? false;
+let tabSwitch = saveData.tabSwitch ?? true;
 let voteOptions = {};
 let votes = {};
 const rules = {
@@ -205,6 +206,10 @@ const dqMap = {
     "Aquarion Evol": {genre: [1, 4, 6, 9, 13, 14], years: [2012, 2012], seasons: [0, 0]},
     "Wolf's Rain": {genre: [1, 2, 4, 6, 11, 14], years: [2003, 2003], seasons: [0, 0]},
     "Koyomimonogatari": {genre: [3, 11, 17], years: [2016, 2016], seasons: [0, 0]},
+    "Beastars": {genre: [4, 11, 12, 13, 15], years: [2019, 2021], seasons: [3, 0]},
+    "Vivy: Fluorite Eye's Song": {genre: [1, 4, 10, 14, 18], years: [2021, 2021], seasons: [1, 1]},
+    "Monogatari Series Second Season": {genre: [3, 4, 11, 12, 13, 17], years: [2013, 2013], seasons: [2, 2]},
+    "Akame ga Kill!": {genre: [1, 2, 4, 6, 7, 12, 18], years: [2014, 2014], seasons: [2, 2]},
     "Made in Abyss": {genre: [2, 4, 6, 7, 11, 14], years: [2017, 2017], seasons: [2, 2]},
     "Mirai Nikki": {genre: [1, 7, 11, 12, 17, 18], years: [2011, 2011], seasons: [3, 3]}
 };
@@ -238,6 +243,13 @@ function setup() {
     if (autoStatus === "do not disturb") socialTab.socialStatus.changeSocialStatus(2);
     else if (autoStatus === "away") socialTab.socialStatus.changeSocialStatus(3);
     else if (autoStatus === "invisible") socialTab.socialStatus.changeSocialStatus(4);
+    document.body.addEventListener("keydown", (event) => {
+        if (event.which === 9) {
+            if (tabSwitch && quiz.inQuiz) {
+                toggleTextInputFocus();
+            }
+        }
+    });
     new Listener("game chat update", (payload) => {
         for (let message of payload.messages) {
             if (!isRankedMode() && message.message.startsWith("/")) {
@@ -1635,7 +1647,13 @@ async function parseCommand(content, type, target) {
     }
     else if (/^\/(profilebuttons|enableallprofilebuttons)$/i.test(content)) {
         enableAllProfileButtons = !enableAllProfileButtons;
+        saveSettings();
         sendMessage(`profile buttons ${enableAllProfileButtons ? "are now clickable" : "have default behavior"}`, type, target, true);
+    }
+    else if (/^\/tabswitch$/i.test(content)) {
+        tabSwitch = !tabSwitch;
+        saveSettings();
+        sendMessage(`switch text inputs with tab button: ${tabSwitch ? "enabled" : "disabled"}`, type, target, true);
     }
     else if (/^\/(hp|hideplayers)$/i.test(content)) {
         hidePlayers = !hidePlayers;
@@ -1706,9 +1724,8 @@ async function parseCommand(content, type, target) {
             sendMessage(`Detected: ${list.map((x) => idTranslator.genreNames[x]).join(", ")}`, type, target, true);
             let anime = genreLookup(list);
             if (anime) {
+                sendMessage(anime, type, target);
                 matchSettingsToAnime(anime);
-                autoThrow = {time1: 100, time2: null, text: anime, multichoice: null};
-                sendMessage(`auto throwing: ${anime}`, type, target, true);
             }
             else {
                 sendMessage("no anime found for those genres", type, target, true);
@@ -1724,9 +1741,8 @@ async function parseCommand(content, type, target) {
         if (list.length && list.every(Boolean)) {
             let anime = genreLookup(list);
             if (anime) {
+                sendMessage(anime, type, target);
                 matchSettingsToAnime(anime);
-                autoThrow = {time1: 100, time2: null, text: anime, multichoice: null};
-                sendMessage(`auto throwing: ${anime}`, type, target, true);
             }
             else {
                 sendMessage("no anime found for those genres", type, target, true);
@@ -1833,6 +1849,7 @@ async function parseCommand(content, type, target) {
     }
     else if (/^\/(malclientid|malapikey) \w+$/i.test(content)) {
         malClientId = /^\S+ (\w+)$/.exec(content)[1];
+        saveSettings();
         sendMessage("mal client id set", type, target, true);
     }
 }
@@ -1912,7 +1929,7 @@ function parseIncomingDM(content, sender) {
  */
 function parseForceAll(content, type) {
     if (/^\/forceall version$/i.test(content)) {
-        sendMessage("0.87", type);
+        sendMessage("0.88", type);
     }
     else if (/^\/forceall roll [0-9]+$/i.test(content)) {
         let number = parseInt(/^\S+ roll ([0-9]+)$/.exec(content)[1]);
@@ -2358,6 +2375,21 @@ function calc(input) {
     else return "ERROR";
 }
 
+// switch focus between answer box and chat
+function toggleTextInputFocus() {
+    setTimeout(() => {
+        if (quiz.answerInput.typingInput.$input.is(":focus")) {
+            gameChat.$chatInputField.focus();
+        }
+        else if (gameChat.$chatInputField.is(":focus")) {
+            quiz.answerInput.typingInput.$input.focus();
+        }
+        else {
+            gameChat.$chatInputField.focus();
+        }
+    }, 1);
+}
+
 // includes function for array of strings, ignore case
 Array.prototype.localeIncludes = function(s) {
     s = s.toLowerCase();
@@ -2630,5 +2662,6 @@ function saveSettings() {
     settings.printOffline = printOffline;
     settings.printOnline = printOnline;
     settings.selfDM = selfDM;
+    settings.tabSwitch = tabSwitch;
     localStorage.setItem("megaCommands", JSON.stringify(settings));
 }
