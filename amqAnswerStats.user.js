@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Answer Stats
 // @namespace    https://github.com/kempanator
-// @version      0.13
+// @version      0.14
 // @description  Adds a window to display quiz answer stats
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -30,10 +30,11 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.13";
+const version = "0.14";
 const regionDictionary = {E: "Eastern", C: "Central", W: "Western"};
 const saveData = JSON.parse(localStorage.getItem("answerStats")) || {};
 const saveData2 = JSON.parse(localStorage.getItem("highlightFriendsSettings")) || {};
+const textColor = $("body").css("color");
 let showPlayerColor = saveData.showPlayerColor ?? true;
 let selfColor = saveData2.smColorSelfColor ?? "#80c7ff";
 let friendColor = saveData2.smColorFriendColor ?? "#80ff80";
@@ -1163,9 +1164,9 @@ function applyStyles() {
         }
         .answerStatsHeaderButton {
             background: none;
-            border: 1px solid #D9D9D9;
+            border: 1px solid ${textColor};
             border-radius: 4px;
-            color: #D9D9D9;
+            color: ${textColor};
             line-height: normal;
             font-weight: bold;
             margin-left: 15px;
@@ -1187,9 +1188,9 @@ function applyStyles() {
         }
         #answerSpeedWindow .modal-header button {
             background: none;
-            border: 1px solid #D9D9D9;
+            border: 1px solid ${textColor};
             border-radius: 4px;
-            color: #D9D9D9;
+            color: ${textColor};
             font-weight: bold;
             margin: 5px 0px 5px 5px;
             padding: 0px 5px;
@@ -1226,9 +1227,9 @@ function applyStyles() {
         }
         #answerHistoryWindow .arrowButton {
             width: 27px;
-            border: 1px solid #D9D9D9;
+            border: 1px solid ${textColor};
             border-radius: 4px;
-            color: #D9D9D9;
+            color: ${textColor};
             font-size: 24px;
             font-weight: bold;
             text-align: center;
@@ -1241,9 +1242,9 @@ function applyStyles() {
             user-select: none;
         }
         #answerHistoryWindow .backButton {
-            border: 1px solid #D9D9D9;
+            border: 1px solid ${textColor};
             border-radius: 4px;
-            color: #D9D9D9;
+            color: ${textColor};
             font-weight: bold;
             margin: 0 2px;
             padding: 0px 5px;
@@ -1252,7 +1253,7 @@ function applyStyles() {
             user-select: none;
         }
         #answerHistoryWindow .infoButton {
-            color: #D9D9D9;
+            color: ${textColor};
             font-size: 16px;
             font-weight: bold;
             text-align: center;
@@ -1265,7 +1266,7 @@ function applyStyles() {
         }
         #answerHistoryWindow .saveButton, #answerHistoryWindow .openButton,
         #answerHistoryWindow .speedButton, #answerHistoryWindow .filterButton {
-            color: #D9D9D9;
+            color: ${textColor};
             font-size: 22px;
             font-weight: bold;
             margin: 0 0 0 8px;
@@ -1373,9 +1374,9 @@ function applyStyles() {
         }
         #answerCompareWindow .modal-header button {
             background: none;
-            border: 1px solid #D9D9D9;
+            border: 1px solid ${textColor};
             border-radius: 4px;
-            color: #D9D9D9;
+            color: ${textColor};
             font-weight: bold;
             margin: 5px 0px 5px 5px;
             padding: 0px 5px;
