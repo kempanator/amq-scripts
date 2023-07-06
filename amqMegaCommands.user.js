@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.88
+// @version      0.89
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -93,7 +93,7 @@ OTHER
 */
 
 "use strict";
-const version = "0.88";
+const version = "0.89";
 const saveData = JSON.parse(localStorage.getItem("megaCommands")) || {};
 let alertHidden = saveData.alertHidden ?? true;
 let animeList;
@@ -130,7 +130,7 @@ let printLoot = saveData.printLoot ?? false;
 let printOffline = saveData.printOffline ?? false;
 let printOnline = saveData.printOnline ?? false;
 let selfDM = saveData.selfDM ?? false;
-let tabSwitch = saveData.tabSwitch ?? true;
+let tabSwitch = saveData.tabSwitch ?? 0; //0: off, 1: chat first, 2: answerbox first, 3: only chat, 4: only answerbox
 let voteOptions = {};
 let votes = {};
 const rules = {
@@ -1651,9 +1651,26 @@ async function parseCommand(content, type, target) {
         sendMessage(`profile buttons ${enableAllProfileButtons ? "are now clickable" : "have default behavior"}`, type, target, true);
     }
     else if (/^\/tabswitch$/i.test(content)) {
-        tabSwitch = !tabSwitch;
+        sendMessage("0: off, 1: chat first, 2: answerbox first, 3: only chat, 4: only answerbox", type, target, true);
+    }
+    else if (/^\/tabswitch [0-4]$/i.test(content)) {
+        tabSwitch = parseInt(/^\S+ ([0-4])$/.exec(content)[1]);
         saveSettings();
-        sendMessage(`switch text inputs with tab button: ${tabSwitch ? "enabled" : "disabled"}`, type, target, true);
+        if (tabSwitch === 0) {
+            sendMessage("tab switch disabled", type, target, true);
+        }
+        else if (tabSwitch === 1) {
+            sendMessage("tab switch set to chat first", type, target, true);
+        }
+        else if (tabSwitch === 2) {
+            sendMessage("tab switch set to answerbox first", type, target, true);
+        }
+        else if (tabSwitch === 3) {
+            sendMessage("tab switch set to only chat", type, target, true);
+        }
+        else if (tabSwitch === 4) {
+            sendMessage("tab switch set to only answerbox", type, target, true);
+        }
     }
     else if (/^\/(hp|hideplayers)$/i.test(content)) {
         hidePlayers = !hidePlayers;
@@ -1929,7 +1946,7 @@ function parseIncomingDM(content, sender) {
  */
 function parseForceAll(content, type) {
     if (/^\/forceall version$/i.test(content)) {
-        sendMessage("0.88", type);
+        sendMessage("0.89", type);
     }
     else if (/^\/forceall roll [0-9]+$/i.test(content)) {
         let number = parseInt(/^\S+ roll ([0-9]+)$/.exec(content)[1]);
@@ -2378,16 +2395,35 @@ function calc(input) {
 // switch focus between answer box and chat
 function toggleTextInputFocus() {
     setTimeout(() => {
-        if (quiz.answerInput.typingInput.$input.is(":focus")) {
+        if (tabSwitch === 1) {
+            if (quiz.answerInput.typingInput.$input.is(":focus")) {
+                gameChat.$chatInputField.focus();
+            }
+            else if (gameChat.$chatInputField.is(":focus")) {
+                quiz.answerInput.typingInput.$input.focus();
+            }
+            else {
+                gameChat.$chatInputField.focus();
+            }
+        }
+        else if (tabSwitch === 2) {
+            if (quiz.answerInput.typingInput.$input.is(":focus")) {
+                gameChat.$chatInputField.focus();
+            }
+            else if (gameChat.$chatInputField.is(":focus")) {
+                quiz.answerInput.typingInput.$input.focus();
+            }
+            else {
+                quiz.answerInput.typingInput.$input.focus();
+            }
+        }
+        else if (tabSwitch === 3) {
             gameChat.$chatInputField.focus();
         }
-        else if (gameChat.$chatInputField.is(":focus")) {
+        else if (tabSwitch === 4) {
             quiz.answerInput.typingInput.$input.focus();
         }
-        else {
-            gameChat.$chatInputField.focus();
-        }
-    }, 1);
+    }, 10);
 }
 
 // includes function for array of strings, ignore case
