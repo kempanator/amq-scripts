@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.89
+// @version      0.90
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -93,10 +93,11 @@ OTHER
 */
 
 "use strict";
-const version = "0.89";
+const version = "0.90";
 const saveData = JSON.parse(localStorage.getItem("megaCommands")) || {};
 let alertHidden = saveData.alertHidden ?? true;
 let animeList;
+let animeAutoCompleteLowerCase = [];
 let autoAcceptInvite = saveData.autoAcceptInvite ?? false;
 let autoCopy = saveData.autoCopy ?? "";
 let autoHost = saveData.autoHost ?? "";
@@ -293,7 +294,7 @@ function setup() {
                     setTimeout(() => { quiz.answerInput.setNewAnswer(autoThrow.text) }, autoThrow.time1);
                 }
             }
-            if (autoVoteSkip !== null) {
+            if (Number.isInteger(autoVoteSkip)) {
                 setTimeout(() => { if (!quiz.skipController._toggled) quiz.skipClicked() }, autoVoteSkip);
             }
         }
@@ -344,6 +345,9 @@ function setup() {
             let currentText = $("#qpAnswerInput").val();
             quiz.answerInput.setNewAnswer(payload.answer);
             $("#qpAnswerInput").val(currentText);
+        }
+        if (autoVoteSkip === "valid" && !quiz.skipController._toggled && animeAutoCompleteLowerCase.includes(payload.answer.toLowerCase())) {
+            quiz.skipClicked();
         }
     }).bindListener();
     new Listener("guess phase over", (payload) => {
@@ -524,6 +528,16 @@ function setup() {
     }).bindListener();
     new Listener("friend name change", (payload) => {
         if (gameChat.isShown()) sendSystemMessage(`friend name change: ${payload.oldName} => ${payload.newName}`);
+    }).bindListener();
+    new Listener("get all song names", () => {
+        setTimeout(() => {
+            animeAutoCompleteLowerCase = quiz.answerInput.typingInput.autoCompleteController.list.map(x => x.toLowerCase());
+        }, 10);
+    }).bindListener();
+    new Listener("update all song names", () => {
+        setTimeout(() => {
+            animeAutoCompleteLowerCase = quiz.answerInput.typingInput.autoCompleteController.list.map(x => x.toLowerCase());
+        }, 10);
     }).bindListener();
     $("#qpAnswerInput").on("input", (event) => {
         if (autoKey) {
@@ -1034,6 +1048,10 @@ async function parseCommand(content, type, target) {
         if (isNaN(seconds)) return;
         autoVoteSkip = Math.floor(seconds * 1000);
         sendMessage(`auto vote skip after ${seconds} seconds`, type, target, true);
+    }
+    else if (/^\/(avs|autoskip|autovoteskip) (v|valid|onvalid)$/i.test(content)) {
+        autoVoteSkip = "valid";
+        sendMessage(`auto vote skip after first valid answer on team`, type, target, true);
     }
     else if (/^\/(ak|autokey|autosubmit)$/i.test(content)) {
         autoKey = !autoKey;
@@ -1946,7 +1964,7 @@ function parseIncomingDM(content, sender) {
  */
 function parseForceAll(content, type) {
     if (/^\/forceall version$/i.test(content)) {
-        sendMessage("0.89", type);
+        sendMessage("0.90", type);
     }
     else if (/^\/forceall roll [0-9]+$/i.test(content)) {
         let number = parseInt(/^\S+ roll ([0-9]+)$/.exec(content)[1]);
