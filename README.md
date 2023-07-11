@@ -18,6 +18,9 @@
 ### AMQ New Game Mode UI
 - A fully automatic guess counter for your team in new game mode https://imgur.com/a/OqrQ6nI
 
+### AMQ Play Button Shortcuts
+- Add Solo, Multiplayer, Nexus shortcuts to the play button https://imgur.com/a/9nmYmSt
+
 ### AMQ Show All Song Links
 - Show all song links in the song info container https://imgur.com/a/bfnZoQu
 
