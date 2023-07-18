@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.90
+// @version      0.91
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -93,7 +93,7 @@ OTHER
 */
 
 "use strict";
-const version = "0.90";
+const version = "0.91";
 const saveData = JSON.parse(localStorage.getItem("megaCommands")) || {};
 let alertHidden = saveData.alertHidden ?? true;
 let animeList;
@@ -181,7 +181,7 @@ const dqMap = {
     "Code Geass: Lelouch of the Rebellion Remake Movies": {genre: [1, 9, 14, 17, 18], years: [2017, 2018], seasons: [3, 1]},
     "Chainsaw Man": {genre: [1, 4, 7, 17], tags: [1090], years: [2022, 2022], seasons: [3, 3]},
     "Senki Zesshou Symphogear GX": {genre: [1, 4, 8, 10, 14], years: [2015, 2015], seasons: [2, 2]},
-    "Ojamajo Doremi Dokkaan!": {genre: [3, 4, 6, 8, 15], years: [2012, 2012], seasons: [3, 3]},
+    "Ojamajo Doremi Dokkaan!": {genre: [3, 4, 6, 8, 15], years: [2002, 2002], seasons: [0, 0]},
     "Macross Delta": {genre: [1, 9, 10, 13, 14], years: [2016, 2016], seasons: [1, 1]},
     "Macross 7": {genre: [1, 3, 4, 9, 10, 14], years: [1994, 1994], seasons: [3, 3]},
     "Mobile Suit Gundam Seed Destiny": {genre: [1, 4, 9, 13, 14], years: [2004, 2004], seasons: [3, 3]},
@@ -211,6 +211,7 @@ const dqMap = {
     "Vivy: Fluorite Eye's Song": {genre: [1, 4, 10, 14, 18], years: [2021, 2021], seasons: [1, 1]},
     "Monogatari Series Second Season": {genre: [3, 4, 11, 12, 13, 17], years: [2013, 2013], seasons: [2, 2]},
     "Akame ga Kill!": {genre: [1, 2, 4, 6, 7, 12, 18], years: [2014, 2014], seasons: [2, 2]},
+    "Magical Girl Site": {genre: [1, 4, 7, 8, 12, 17], years: [2018, 2018], seasons: [1, 1]},
     "Made in Abyss": {genre: [2, 4, 6, 7, 11, 14], years: [2017, 2017], seasons: [2, 2]},
     "Mirai Nikki": {genre: [1, 7, 11, 12, 17, 18], years: [2011, 2011], seasons: [3, 3]}
 };
@@ -1378,7 +1379,15 @@ async function parseCommand(content, type, target) {
         volumeController.adjustVolume();
     }
     else if (/^\/clear$/i.test(content)) {
-        setTimeout(() => { $("#gcMessageContainer li").remove() }, 1);
+        if (type === "chat" || type === "teamchat") {
+            setTimeout(() => { $("#gcMessageContainer li").remove() }, 1);
+        }
+        else if (type === "nexus") {
+            setTimeout(() => { $("#nexusCoopMainContainer .nexusCoopChatMessage").remove() }, 1);
+        }
+        else if (type === "dm") {
+            setTimeout(() => { $(`#chatBox-${target} li`).remove() }, 1);
+        }
     }
     else if (/^\/(dd|dropdown)$/i.test(content)) {
         dropdown = !dropdown;
@@ -1479,7 +1488,7 @@ async function parseCommand(content, type, target) {
         unsafeWindow.onbeforeunload = null;
         setTimeout(() => { options.logout() }, 1);
     }
-    else if (/^\/(relog|logout rejoin|loggoff rejoin)$/i.test(content)) {
+    else if (/^\/relog$/i.test(content)) {
         if (isSoloMode()) {
             autoJoinRoom = {type: "solo", rejoin: quiz.inQuiz, temp: true, settings: hostModal.getSettings(), autoLogIn: true};
             saveSettings();
@@ -1964,7 +1973,7 @@ function parseIncomingDM(content, sender) {
  */
 function parseForceAll(content, type) {
     if (/^\/forceall version$/i.test(content)) {
-        sendMessage("0.90", type);
+        sendMessage("0.91", type);
     }
     else if (/^\/forceall roll [0-9]+$/i.test(content)) {
         let number = parseInt(/^\S+ roll ([0-9]+)$/.exec(content)[1]);
