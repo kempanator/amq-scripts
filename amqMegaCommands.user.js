@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.91
+// @version      0.92
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -69,6 +69,7 @@ IN GAME/LOBBY
 /speed [number]       change client-side song playback speed (0.0625 - 16)
 /mutereplay           auto mute during the replay phase
 /mutesubmit           auto mute after answer submit
+/continuesample       continue song audio after answer reveal instead of resetting
 
 OTHER
 /roll                 roll number, player, teammate, playerteam, spectator
@@ -93,13 +94,14 @@ OTHER
 */
 
 "use strict";
-const version = "0.91";
+const version = "0.92";
 const saveData = JSON.parse(localStorage.getItem("megaCommands")) || {};
 let alertHidden = saveData.alertHidden ?? true;
 let animeList;
 let animeAutoCompleteLowerCase = [];
 let autoAcceptInvite = saveData.autoAcceptInvite ?? false;
 let autoCopy = saveData.autoCopy ?? "";
+let autoDownloadSong = saveData ?? [];
 let autoHost = saveData.autoHost ?? "";
 let autoInvite = saveData.autoInvite ?? "";
 let autoJoinRoom = saveData.autoJoinRoom ?? false;
@@ -115,6 +117,7 @@ let autoVoteLobby = saveData.autoVoteLobby ?? false;
 let autoVoteSkip = saveData.autoVoteSkip ?? null;
 let backgroundURL = saveData.backgroundURL ?? "";
 let commands = saveData.commands ?? true;
+let continueSample = saveData.continueSample ?? false;
 let countdown = null;
 let countdownInterval;
 let dropdown = saveData.dropdown ?? true;
@@ -339,6 +342,7 @@ function setup() {
         if (muteReplay) sendSystemMessage("Mute During Replay Phase: Enabled");
         if (muteSubmit) sendSystemMessage("Mute After Submit: Enabled");
         if (playbackSpeed !== null) sendSystemMessage("Song Playback Speed: " + (Array.isArray(playbackSpeed) ? `random ${playbackSpeed[0]}x - ${playbackSpeed[1]}x` : `${playbackSpeed}x`));
+        if (autoDownloadSong.length) sendSystemMessage("Auto Download Song: " + autoDownloadSong.join(", "));
         if (hidePlayers) setTimeout(() => { quizHidePlayers() }, 0);
     }).bindListener();
     new Listener("team member answer", (payload) => {
@@ -373,6 +377,17 @@ function setup() {
         if (muteReplay) {
             volumeController.setMuted(true);
             volumeController.adjustVolume();
+        }
+        if (autoDownloadSong.length) {
+            if (autoDownloadSong.includes("720")) {
+                downloadSong(payload.songInfo.urlMap.catbox?.[720]);
+            }
+            if (autoDownloadSong.includes("480")) {
+                downloadSong(payload.songInfo.urlMap.catbox?.[480]);
+            }
+            if (autoDownloadSong.includes("mp3")) {
+                downloadSong(payload.songInfo.urlMap.catbox?.[0]);
+            }
         }
     }).bindListener();
     new Listener("return lobby vote start", (payload) => {
@@ -1267,6 +1282,22 @@ async function parseCommand(content, type, target) {
             sendMessage("Options: away, do not disturb, invisible", type, target, true);
         }
     }
+    else if (/^\/(ads|autodownloadsongs?)$/i.test(content)) {
+        if (autoDownloadSong.length) {
+            autoDownloadSong = [];
+            sendMessage("auto download song disabled", type, target, true);
+        }
+        else {
+            sendMessage("Options: 720, 480, mp3", type, target, true);
+        }
+    }
+    else if (/^\/(ads|autodownloadsongs?) .+$/i.test(content)) {
+        let option = /^\S+ (.+)$/.exec(content)[1].toLowerCase().split(/[, ]+/).map((x) => x.trim()).filter((x) => x === "720" || x === "480" || x === "mp3");
+        if (option.length) {
+            autoDownloadSong = option;
+            sendMessage(`auto downloading ${autoDownloadSong.join(", ")}`, type, target, true);
+        }        
+    }
     else if (/^\/(cd|countdown)$/i.test(content)) {
         if (countdown === null) {
             sendMessage("Command: /countdown #", type, target, true);
@@ -1699,6 +1730,32 @@ async function parseCommand(content, type, target) {
             sendMessage("tab switch set to only answerbox", type, target, true);
         }
     }
+    else if (/^\/(cs|continue ?sample)$/i.test(content)) {
+        continueSample = !continueSample;
+        saveSettings();
+        sendMessage(`continue sample ${continueSample ? "enabled" : "disabled"}`, type, target, true);
+    }
+    else if (/^\/(rv|replay ?video|video replay)$/i.test(content)) {
+        let currentVideoPlayer = quizVideoController.getCurrentPlayer();
+        currentVideoPlayer.pauseVideo();
+        currentVideoPlayer.player.currentTime(currentVideoPlayer.startPoint);
+        currentVideoPlayer.player.play();
+        currentVideoPlayer.updateVolume(currentVideoPlayer.videoVolume);
+    }
+    else if (/^\/(rv|replay ?video|video replay) [0-9]+$/i.test(content)) {
+        let startPoint = parseInt(/^\/(rv|replay ?video|video replay) ([0-9]+)$/.exec(content)[2]);
+        let currentVideoPlayer = quizVideoController.getCurrentPlayer();
+        currentVideoPlayer.pauseVideo();
+        currentVideoPlayer.player.currentTime(startPoint);
+        currentVideoPlayer.player.play();
+        currentVideoPlayer.updateVolume(currentVideoPlayer.videoVolume);
+    }
+    else if (/^\/(pause ?video|stop ?video|video pause|video stop)$/i.test(content)) {
+        quizVideoController.getCurrentPlayer().pauseVideo();
+    }
+    else if (/^\/(play ?video|video play)$/i.test(content)) {
+        quizVideoController.getCurrentPlayer().player.play();
+    }
     else if (/^\/(hp|hideplayers)$/i.test(content)) {
         hidePlayers = !hidePlayers;
         if (hidePlayers) {
@@ -1973,7 +2030,7 @@ function parseIncomingDM(content, sender) {
  */
 function parseForceAll(content, type) {
     if (/^\/forceall version$/i.test(content)) {
-        sendMessage("0.91", type);
+        sendMessage("0.92", type);
     }
     else if (/^\/forceall roll [0-9]+$/i.test(content)) {
         let number = parseInt(/^\S+ roll ([0-9]+)$/.exec(content)[1]);
@@ -2407,6 +2464,7 @@ function autoList() {
     if (autoSwitch) list.push("Auto Switch: " + autoSwitch);
     if (autoStatus) list.push("Auto Status: " + autoStatus);
     if (autoJoinRoom) list.push("Auto Join Room: " + autoJoinRoom.id);
+    if (autoDownloadSong.length) list.push("Auto Download Song: " + autoDownloadSong.join(", "));
     return list;
 }
 
@@ -2481,6 +2539,14 @@ AutoCompleteController.prototype.newList = function() {
     this.list = dropdown ? animeList : [];
     oldNewList.apply(this, arguments);
 }
+
+// override replayVideo function for sample continue
+QuizVideoController.prototype.replayVideo = function() {
+    if (!continueSample) {
+        this.getCurrentPlayer().replayVideo();
+    }
+    this.getCurrentPlayer().show();
+};
 
 // hide player names and avatars in lobby
 function lobbyHidePlayers() {
@@ -2663,6 +2729,19 @@ async function getMALAnimeList(username) {
     return list;
 }
 
+// download audio/video file from url
+async function downloadSong(url) {
+    if (!url) return;
+    let blob = await fetch(url).then(response => response.blob()).then(blob => window.URL.createObjectURL(blob));
+    let fileName = url.split("/").slice(-1)[0];
+    let element = document.createElement("a");
+    element.setAttribute("href", blob);
+    element.setAttribute("download", fileName);
+    document.body.appendChild(element);
+    element.click();
+    element.remove();
+}
+
 // apply styles
 function applyStyles() {
     $("#megaCommandsStyle").remove();
@@ -2696,6 +2775,7 @@ function saveSettings() {
     settings.alertHidden = alertHidden;
     settings.autoAcceptInvite = autoAcceptInvite;
     //settings.autoCopy = autoCopy;
+    //settings.autoDownloadSong = autoDownloadSong;
     //settings.autoHost = autoHost;
     //settings.autoInvite = autoInvite;
     settings.autoJoinRoom = autoJoinRoom;
@@ -2711,6 +2791,7 @@ function saveSettings() {
     //settings.autoVoteSkip = autoVoteSkip;
     settings.backgroundURL = backgroundURL;
     //settings.commands = commands;
+    settings.continueSample = continueSample;
     //settings.dropdown = dropdown;
     settings.dropdownInSpec = dropdownInSpec;
     settings.enableAllProfileButtons = enableAllProfileButtons;
