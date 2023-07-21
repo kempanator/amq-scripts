@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.92
+// @version      0.93
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -69,7 +69,8 @@ IN GAME/LOBBY
 /speed [number]       change client-side song playback speed (0.0625 - 16)
 /mutereplay           auto mute during the replay phase
 /mutesubmit           auto mute after answer submit
-/continuesample       continue song audio after answer reveal instead of resetting
+/continuesample       continue sample after answer reveal instead of resetting
+/loopvideo            loop the video when it ends
 
 OTHER
 /roll                 roll number, player, teammate, playerteam, spectator
@@ -94,7 +95,7 @@ OTHER
 */
 
 "use strict";
-const version = "0.92";
+const version = "0.93";
 const saveData = JSON.parse(localStorage.getItem("megaCommands")) || {};
 let alertHidden = saveData.alertHidden ?? true;
 let animeList;
@@ -125,6 +126,7 @@ let dropdownInSpec = saveData.dropdownInSpec ?? false;
 let enableAllProfileButtons = saveData.enableAllProfileButtons ?? true;
 let hidePlayers = saveData.hidePlayers ?? false;
 let lastUsedVersion = saveData.lastUsedVersion ?? null;
+let loopVideo = saveData.loopVideo ?? false;
 let malClientId = saveData.malClientId ?? null;
 let muteReplay = saveData.muteReplay ?? false;
 let muteSubmit = saveData.muteSubmit ?? false;
@@ -244,6 +246,11 @@ function setup() {
             socialTab.chatBar.activeChats[0].object.close();
             socialTab.chatBar.activeChats[0].object.selected();
         }, 100);
+    }
+    if (loopVideo) {
+        for (let videoPlayer of quizVideoController.moePlayers) {
+            videoPlayer.$player[0].loop = true;
+        }
     }
     if (autoStatus === "do not disturb") socialTab.socialStatus.changeSocialStatus(2);
     else if (autoStatus === "away") socialTab.socialStatus.changeSocialStatus(3);
@@ -379,11 +386,16 @@ function setup() {
             volumeController.adjustVolume();
         }
         if (autoDownloadSong.length) {
-            if (autoDownloadSong.includes("720")) {
-                downloadSong(payload.songInfo.urlMap.catbox?.[720]);
+            if (autoDownloadSong.includes("video")) {
+                downloadSong(payload.songInfo.urlMap.catbox?.[720] || payload.songInfo.urlMap.catbox?.[480]);
             }
-            if (autoDownloadSong.includes("480")) {
-                downloadSong(payload.songInfo.urlMap.catbox?.[480]);
+            else {
+                if (autoDownloadSong.includes("720")) {
+                    downloadSong(payload.songInfo.urlMap.catbox?.[720]);
+                }
+                if (autoDownloadSong.includes("480")) {
+                    downloadSong(payload.songInfo.urlMap.catbox?.[480]);
+                }
             }
             if (autoDownloadSong.includes("mp3")) {
                 downloadSong(payload.songInfo.urlMap.catbox?.[0]);
@@ -1288,11 +1300,11 @@ async function parseCommand(content, type, target) {
             sendMessage("auto download song disabled", type, target, true);
         }
         else {
-            sendMessage("Options: 720, 480, mp3", type, target, true);
+            sendMessage("Options: 720, 480, mp3, video", type, target, true);
         }
     }
     else if (/^\/(ads|autodownloadsongs?) .+$/i.test(content)) {
-        let option = /^\S+ (.+)$/.exec(content)[1].toLowerCase().split(/[, ]+/).map((x) => x.trim()).filter((x) => x === "720" || x === "480" || x === "mp3");
+        let option = /^\S+ (.+)$/.exec(content)[1].toLowerCase().split(/[, ]+/).map((x) => x.trim()).filter((x) => x === "720" || x === "480" || x === "mp3" || x === "video");
         if (option.length) {
             autoDownloadSong = option;
             sendMessage(`auto downloading ${autoDownloadSong.join(", ")}`, type, target, true);
@@ -1735,6 +1747,9 @@ async function parseCommand(content, type, target) {
         saveSettings();
         sendMessage(`continue sample ${continueSample ? "enabled" : "disabled"}`, type, target, true);
     }
+    else if (/^\/video$/i.test(content)) {
+        sendMessage("Options: pause, play, replay, loop", type, target, true);
+    }
     else if (/^\/(rv|replay ?video|video replay)$/i.test(content)) {
         let currentVideoPlayer = quizVideoController.getCurrentPlayer();
         currentVideoPlayer.pauseVideo();
@@ -1755,6 +1770,14 @@ async function parseCommand(content, type, target) {
     }
     else if (/^\/(play ?video|video play)$/i.test(content)) {
         quizVideoController.getCurrentPlayer().player.play();
+    }
+    else if (/^\/(loop ?video|video loop)$/i.test(content)) {
+        loopVideo = !loopVideo;
+        for (let videoPlayer of quizVideoController.moePlayers) {
+            videoPlayer.$player[0].loop = loopVideo;
+        }
+        saveSettings();
+        sendMessage(`loop video ${loopVideo ? "enabled" : "disabled"}`, type, target, true);
     }
     else if (/^\/(hp|hideplayers)$/i.test(content)) {
         hidePlayers = !hidePlayers;
@@ -2030,7 +2053,7 @@ function parseIncomingDM(content, sender) {
  */
 function parseForceAll(content, type) {
     if (/^\/forceall version$/i.test(content)) {
-        sendMessage("0.92", type);
+        sendMessage("0.93", type);
     }
     else if (/^\/forceall roll [0-9]+$/i.test(content)) {
         let number = parseInt(/^\S+ roll ([0-9]+)$/.exec(content)[1]);
@@ -2797,6 +2820,7 @@ function saveSettings() {
     settings.enableAllProfileButtons = enableAllProfileButtons;
     //settings.hidePlayers = hidePlayers;
     settings.lastUsedVersion = version;
+    settings.loopVideo = loopVideo;
     settings.malClientId = malClientId;
     //settings.muteReplay = muteReplay;
     //settings.muteSubmit = muteSubmit;
