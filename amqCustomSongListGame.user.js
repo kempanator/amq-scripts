@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.18
+// @version      0.19
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -43,7 +43,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.18";
+const version = "0.19";
 const saveData = JSON.parse(localStorage.getItem("customSongListGame")) || {};
 let replacedAnswers = saveData.replacedAnswers || {};
 let fastSkip = false;
@@ -629,7 +629,7 @@ function playSong(songNumber) {
     if (extraGuessTime) {
         extraGuessTimer = setTimeout(() => {
             fireListener("extra guess time");
-        }, extraGuessTime * 1000);
+        }, guessTime * 1000);
     }
     endGuessTimer = setTimeout(() => {
         clearInterval(skipInterval);
@@ -834,13 +834,19 @@ function songTypeFilter(song, ops, eds, ins) {
 
 // return true if anime type is allowed
 function animeTypeFilter(song, tv, movie, ova, ona, special) {
-    let type = song.animeType.toLowerCase();
-    if (tv && type === "tv") return true;
-    if (movie && type === "movie") return true;
-    if (ova && type === "ova") return true;
-    if (ona && type === "ona") return true;
-    if (special && type === "special") return true;
-    return false;
+    if (song.animeType) {
+        let type = song.animeType.toLowerCase();
+        if (tv && type === "tv") return true;
+        if (movie && type === "movie") return true;
+        if (ova && type === "ova") return true;
+        if (ona && type === "ona") return true;
+        if (special && type === "special") return true;
+        return false;
+    }
+    else {
+        if (tv && movie && ova && ona && special) return true;
+        return false;
+    }
 }
 
 // return true if the song difficulty is in allowed range
