@@ -1,6 +1,6 @@
 /* ==UserStyle==
 @name         Elodie's AMQ Style Script
-@version      10.0
+@version      10.1
 @namespace    userstyles.world/user/melodyelodie
 @description  A custom theme for animemusicquiz.com
 @author       melodyelodie
@@ -16,6 +16,78 @@ You can pretty much change any element here. Feel free to message me if you want
 
 - MelodyElodie
 
+
+V10 rewrite by kempanator [July 2023]
+- More complete styling
+- Midnight and Twilight scripts merged
+- All colors are now controlled by variables
+
+
+Installing:
+1. Install the Stylus browser extension
+2. Go to one of these links
+    https://userstyles.world/style/1435/elodies-amq-script-midnight
+    https://userstyles.world/style/7990/elodies-amq-script-twilight
+3. A Stylus window should pop up
+4. Click "Install"
+
+Editing:
+1. After installing, click "Edit"
+2. Change variables in :root to whatever color scheme you want
+
+Finding the edit menu after closing this window:
+1. Click the Stylus extension icon
+2. Click "Manage"
+3. Click "Elodie's AMQ Style Script"
+
+
+Color Variable Explanations:
+mainBackground                 url of background image
+gameChatBackground             background color of game chat
+nexusChatBackground            background color of nexus chat
+dmBackground                   background color of private messages
+        
+windowBackground               background color of modals and draggable windows
+containerBackground            background color of main menu buttons and quiz side windows
+videoBackground                background color of quiz video player
+answerInputBackground          background color answer input bar
+avatarBackground               background color of avatars in quiz and avatar store
+lobbyAvatarNameBackground      background color of player name in lobby 
+        
+textColor                      text color of <body>
+textShadowColor                shadow color for text
+boxShadowColor                 shadow color for all windows and containers
+borderRadius:                  border radius for all windows and containers
+
+primaryColor                   top/bottom menu bars
+secondaryColor                 gray stuff in default AMQ
+accentColor                    blue stuff in default AMQ
+glowColor                      correct answer highlight, particles, lives
+        
+correctAnswerColor             avatar border color for correct answers in quiz
+wrongAnswerColor               avatar border color for wrong answers in quiz
+waitingAnswerColor             avatar border color for answers during guess phase in quiz
+statusWatchingColor            line color of watching status after answer reveal
+statusCompletedColor           line color of completed status after answer reveal
+statusHoldColor                line color of hold status after answer reveal
+statusDroppedColor             line color of dropped status after answer reveal
+statusPlanningColor            line color of planning status after answer reveal
+songHistoryCorrectColor        table row color for correct answers in song history window
+songHistoryWrongColor          table row color for wrong answers in song history window
+rankedChallengerColor          player name color in chat if they are a ranked challenger
+
+*DO NOT TOUCH THE VARIABLES AFTER THIS
+
+
+Other recommended scripts:
+Joseph's Song List UI: https://github.com/TheJoseph98/AMQ-Scripts/raw/master/amqSongListUI.user.js
+Klem's Expand Library Player: https://github.com/Klemkinis/AMQ-Expand-Library-Radio/raw/main/Expand%20Library%20Radio.user.js
+Kempanator's Chat Plus: https://github.com/kempanator/amq-scripts/raw/main/amqChatPlus.user.js
+
+
+Link for development:
+https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
+
 =============================================================================================*/
 
 
@@ -28,19 +100,24 @@ You can pretty much change any element here. Feel free to message me if you want
         --gameChatBackground: #00000080;
         --nexusChatBackground: #1b1b1bdd;
         --dmBackground: #1b1b1bdd;
+        
+        --windowBackground: #1b1b1bdd;
         --containerBackground: #1b1b1bcc;
         --videoBackground: #00000080;
+        --answerInputBackground: #1b1b1bdd;
         --avatarBackground: transparent;
-        --windowBackground: #1b1b1bdd;
-        --boxShadowColor: #00000080;
+        --lobbyAvatarNameBackground: var(--secondaryColor);
+        
         --textColor: #d9d9d9;
         --textShadowColor: #00000080;
-
+        --boxShadowColor: #00000080;
+        --borderRadius: 10px;
+        
         --primaryColor: #1b1b1b;
         --secondaryColor: #424242;
         --accentColor: #a577bf;
         --glowColor: #f096ff;
-
+        
         --correctAnswerColor: #428ac1;
         --wrongAnswerColor: #db2d2d;
         --waitingAnswerColor: #a5a5a5;
@@ -49,20 +126,24 @@ You can pretty much change any element here. Feel free to message me if you want
         --statusHoldColor: #f7ff32;
         --statusDroppedColor: #ff070c;
         --statusPlanningColor: #ffffff;
-        --songHistoryCorrectColor: #053a05;
-        --songHistoryWrongColor: #3c0707;
+        --songHistoryCorrectColor: #144314;
+        --songHistoryWrongColor: #4c1111;
         --rankedChallengerColor: #0cd5f7;
-
+        
         --colorMod: black;
         --colorModOpposite: white;
         --brightnessMod: 1;
+        --textColorTransparent: color-mix(in srgb, var(--textColor), transparent 50%);
+        --primaryColorContrast: color-mix(in srgb, var(--primaryColor), var(--colorModOpposite) 5%);
+        --primaryColorContrast2: color-mix(in srgb, var(--primaryColor), var(--colorModOpposite) 12%);
         --primaryColorTransparent: color-mix(in srgb, var(--primaryColor), transparent 20%);
         --secondaryColorDark: color-mix(in srgb, var(--secondaryColor), black 50%);
         --accentColorLight: color-mix(in srgb, var(--accentColor), white 40%);
         --accentColorDark: color-mix(in srgb, var(--accentColor), black 20%);
         --accentColorContrast: color-mix(in srgb, var(--accentColor), var(--colorModOpposite) 40%);
         --accentColorTransparent: color-mix(in srgb, var(--accentColor), transparent 50%);
-        --borderRadius: 10px;
+        --songHistoryCorrectColorHover: color-mix(in srgb, var(--songHistoryCorrectColor), white 5%);
+        --songHistoryWrongColorHover: color-mix(in srgb, var(--songHistoryWrongColor), white 5%);
     }
     
     
@@ -73,19 +154,24 @@ You can pretty much change any element here. Feel free to message me if you want
         --gameChatBackground: #eeeeee80;
         --nexusChatBackground: #eeeeeedd;
         --dmBackground: #eeeeeedd;
+        
         --windowBackground: #eeeeeeee;
         --containerBackground: #eeeeeebb;
         --videoBackground: #eeeeee80;
+        --answerInputBackground: #eeeeeecc;
         --avatarBackground: #eeeeee80;
-        --boxShadowColor: #aaaaaa80;
+        --lobbyAvatarNameBackground: var(--secondaryColor);
+        
         --textColor: black;
         --textShadowColor: #aaaaaa80;
-
+        --boxShadowColor: #aaaaaa80;
+        --borderRadius: 10px;
+        
         --primaryColor: #eeeeee;
         --secondaryColor: #cccccc;
         --accentColor: #46bfbb;
         --glowColor: #65dbff;
-
+        
         --correctAnswerColor: #64ade5;
         --wrongAnswerColor: #e55d73;
         --waitingAnswerColor: #dddddd;
@@ -97,17 +183,21 @@ You can pretty much change any element here. Feel free to message me if you want
         --songHistoryCorrectColor: #acd9ac;
         --songHistoryWrongColor: #ddb2b2;
         --rankedChallengerColor: #0a6372;
-
+        
         --colorMod: white;
         --colorModOpposite: black;
         --brightnessMod: 0;
+        --textColorTransparent: color-mix(in srgb, var(--textColor), transparent 50%);
+        --primaryColorContrast: color-mix(in srgb, var(--primaryColor), var(--colorModOpposite) 5%);
+        --primaryColorContrast2: color-mix(in srgb, var(--primaryColor), var(--colorModOpposite) 12%);
         --primaryColorTransparent: color-mix(in srgb, var(--primaryColor), transparent 20%);
         --secondaryColorDark: color-mix(in srgb, var(--secondaryColor), black 50%);
         --accentColorLight: color-mix(in srgb, var(--accentColor), white 40%);
         --accentColorDark: color-mix(in srgb, var(--accentColor), black 20%);
         --accentColorContrast: color-mix(in srgb, var(--accentColor), var(--colorModOpposite) 40%);
         --accentColorTransparent: color-mix(in srgb, var(--accentColor), transparent 50%);
-        --borderRadius: 10px;
+        --songHistoryCorrectColorHover: color-mix(in srgb, var(--songHistoryCorrectColor), white 15%);
+        --songHistoryWrongColorHover: color-mix(in srgb, var(--songHistoryWrongColor), white 15%);
     }
     */
     
@@ -416,7 +506,16 @@ You can pretty much change any element here. Feel free to message me if you want
         background-color: transparent;
     }
     #startPageFAQ {
-        border-top: 2px solid var(--primaryColor);
+        border-top: none;
+    }
+    .startPageSocailIcon {
+        background-color: var(--primaryColor);
+    }
+    .startPageSocailIcon > i {
+        color: var(--textColor);
+    }
+    .startPageSocailIcon > img {
+        filter: brightness(var(--brightnessMod));
     }
 
 
@@ -441,7 +540,11 @@ You can pretty much change any element here. Feel free to message me if you want
     }
     #mpRankedDescriptionButton,
     #mpRankedTimer {
-        background-color: var(--primaryColor);
+        background-color: var(--containerBackground);
+    }
+    #mpRankedDescriptionButton > h1,
+    #mpRankedTimer > h3 {
+        color: var(--textColor);
     }
     #rankedModeSelector .modal-header {
         background-color: var(--primaryColor);
@@ -475,11 +578,15 @@ You can pretty much change any element here. Feel free to message me if you want
         border-radius: var(--borderRadius) var(--borderRadius) 0 0;
     }
     #mpDriveDonationContainer .button {
-        background-color: var(--primaryColor);
+        background-color: var(--containerBackground);
+        border-radius: 3px;
     }
     #mpDriveFreeDonationHightlight {
         background-color: var(--accentColor);
         box-shadow: 0 0 15px 4px var(--accentColor);
+    }
+    #admDonationButton {
+        border-radius: 3px;
     }
     #mpNewsContainer {
         background-color: var(--containerBackground);
@@ -514,6 +621,9 @@ You can pretty much change any element here. Feel free to message me if you want
         color: var(--textColor);
         text-shadow: 0 0 3px var(--textShadowColor);
     }
+    #mpSocialRewardContainerImageDiscord {
+        filter: brightness(var(--brightnessMod));
+    }
     #mpSocialRewardContainerImageTwitter {
         color: var(--accentColor);
         filter: none;
@@ -524,27 +634,56 @@ You can pretty much change any element here. Feel free to message me if you want
     #mpPatreonContainerInner > img {
         filter: brightness(var(--brightnessMod));
     }
-    #mpDriveTopTabContainer .leftRightButtonTop.selected {
+    #mpDriveTopTabContainer .leftRightButtonTop {
         background-color: var(--primaryColor);
     }
+    #mpDriveTopTabContainer .leftRightButtonTop.selected {
+        background-color: var(--secondaryColor);
+    }
     .mpDriveEntry {
-        background-color: var(--primaryColor);
+        background-color: var(--secondaryColor);
         overflow: hidden;
     }
     .mpDriveEntry:nth-child(2n) {
-        background-color: var(--secondaryColor);
+        background-color: var(--primaryColor);
     }
     .mpDriveEntryName::after {
-        background-image: linear-gradient(to left, var(--primaryColor), transparent);
+        background-image: linear-gradient(to left, var(--secondaryColor), transparent);
     }
     .mpDriveEntry:nth-child(2n) .mpDriveEntryName::after {
-        background-image: linear-gradient(to left, var(--secondaryColor), transparent);
+        background-image: linear-gradient(to left, var(--primaryColor), transparent);
     }
     .mpDrivenEntryTarget {
         font-weight: normal;
         opacity: .6;
         float: left;
         white-space: nowrap;
+    }
+    #mpDriveStandingHeaderShadowHider > .floatingContainer {
+        background-color: transparent;
+        box-shadow: none;
+    }
+    #mpDriveRecentHeaderShadowHider > .floatingContainer {
+        background-color: transparent;
+        box-shadow: none;
+    }
+    #mpDriveStatsContainer .floatingContainer {
+        border-radius: var(--borderRadius);
+    }
+    #mpDriveStatsContainer .mpMainTitleShadowHider > .floatingContainer {
+        border-radius: 3px 3px 0 0;
+    }
+    .mpHalfStatContainer .mpDriveEntry:first-of-type {
+        border-radius: var(--borderRadius) var(--borderRadius) 0 0;
+    }
+    .mpHalfStatContainer .mpDriveEntry:last-of-type {
+        border-radius: 0 0 var(--borderRadius) var(--borderRadius);
+    }
+    #mpDriveRecentContainer .mpDriveEntry:first-of-type {
+        border-radius: var(--borderRadius) var(--borderRadius) 0 0;
+    }
+    #mpDriveRecentContainer .mpDriveEntry:last-of-type {
+        border-radius: 0 0 var(--borderRadius) var(--borderRadius);
     }
     #mpNewsBody {
         border-radius: var(--borderRadius);
@@ -612,9 +751,28 @@ You can pretty much change any element here. Feel free to message me if you want
     }
     .socialTabPlayerEntry {
         color: var(--textColor);
+        transition: transform .1s linear;
+    }
+    .stPlayerName > h4 {
+        transition: transform .1s linear;
+    }
+    .stPlayerName > h3 {
+        transition: transform .1s linear;
+    }
+    .stPlayerNameContainer {
+        transition: transform .1s linear;
+    }
+    .socialTabFriendPlayerEntry > .stPlayerName > h3 {
+        transition: transform .1s linear;
+    }
+    .socialTabFriendPlayerEntryPicture {
+        transition: transform .1s linear;
+    }
+    .socialTabPlayerSocialStatusOuterCircle {
+        transition: transform .1s linear;
     }
     #friendOfflineList .stPlayerName {
-        color: color-mix(in srgb, var(--textColor), transparent 50%);
+        color: var(--textColorTransparent);
     }
     .socialTabPlayerEntry.profileOpen {
         background-color: var(--secondaryColor);
@@ -692,7 +850,7 @@ You can pretty much change any element here. Feel free to message me if you want
         border-right: 2px solid var(--secondaryColor);
     }
     .ppPlayerLevelLowerBoarder {
-        box-shadow: inset 0 0 10px 2px var(--boxShadowColor);
+        box-shadow: 0 0 10px 2px var(--boxShadowColor);
     }
     .ppBadgeContainer {
         background-color: var(--primaryColor);
@@ -732,6 +890,9 @@ You can pretty much change any element here. Feel free to message me if you want
     .ppImageSelectorEmote.selected {
         background-color: var(--secondaryColor);
     }
+    .badgePopoverTitle {
+        border-bottom: none;
+    }
 
 
     /* Leaderboard */
@@ -741,11 +902,14 @@ You can pretty much change any element here. Feel free to message me if you want
     .lbmBoardEntry.self > .lbmStandingNumber {
         background-color: var(--accentColor);
     }
-    .boardTab.selected {
-        background-color: var(--primaryColor);
-    }
     .board {
         background-color: var(--primaryColor);
+    }
+    .boardTab {
+        background-color: var(--primaryColor);
+    }
+    .boardTab.selected {
+        background-color: var(--secondaryColor);
     }
 
 
@@ -874,6 +1038,9 @@ You can pretty much change any element here. Feel free to message me if you want
     #gcInputCooldownBar {
         background-color: var(--accentColor);
     }
+    #gcEmojiLockInContainer {
+        border: 2px dashed var(--textColor);
+    }
     #gcEmojiPickerButton > i {
         color: var(--textColor);
     }
@@ -941,7 +1108,7 @@ You can pretty much change any element here. Feel free to message me if you want
     .chatBoxContainer .header {
         background-color: var(--primaryColor);
         box-shadow: 0 4px 10px -3px var(--boxShadowColor);
-        border-bottom: solid 1px var(--secondaryColor);
+        border-bottom: none;
     }
     .chatBox::before {
         background-color: var(--primaryColor);
@@ -1097,7 +1264,7 @@ You can pretty much change any element here. Feel free to message me if you want
         background-color: var(--primaryColor);
     }
     .lobbyAvatarNameContainer {
-        background-color: var(--secondaryColor);
+        background-color: var(--lobbyAvatarNameBackground);
         box-shadow: 0 0 10px 2px var(--boxShadowColor);
     }
     .lbReady .lobbyAvatarImgContainer {
@@ -1238,7 +1405,7 @@ You can pretty much change any element here. Feel free to message me if you want
 
     /* Answer Input */
     #qpAnswerInputContainer {
-        background-color: var(--primaryColor);
+        background-color: var(--answerInputBackground);
         border-radius: 20px;
     }
     #qpAnswerInputContainer.focused {
@@ -1246,6 +1413,9 @@ You can pretty much change any element here. Feel free to message me if you want
     }
     #qpAnswerInputContainer .awesomplete {
         width: 95%;
+    }
+    #qpAnswerInput {
+        background-color: transparent;
     }
     .qpVoteSkip {
         background-color: var(--primaryColor);
@@ -1263,6 +1433,7 @@ You can pretty much change any element here. Feel free to message me if you want
     .qpVoteState {
         background-color: var(--primaryColor);
         box-shadow: 0 0 5px var(--boxShadowColor);
+        width: 130px;
         transition: transform .1s linear;
     }
     .qpSkipContainer.highlight .qpVoteSkip,
@@ -1401,6 +1572,25 @@ You can pretty much change any element here. Feel free to message me if you want
         opacity: 1;
         left: 0;
     }
+    .qpAvatarAnswerNumber {
+        color: var(--textColor);
+        text-shadow: none;
+    }
+    .qpAvatarAnswerNumberInnerContainer {
+        background-color: transparent;
+    }
+    .qpAvatarAnswerNumberInnerContainer.correct {
+        background-color: transparent;
+    }
+    .qpAvatarAnswerNumberInnerContainer.correct .qpAvatarAnswerNumber {
+        color: var(--correctAnswerColor);
+    }
+    .qpAvatarAnswerNumberInnerContainer.wrong {
+        background-color: transparent;
+    }
+    .qpAvatarAnswerNumberInnerContainer.wrong .qpAvatarAnswerNumber {
+        color: var(--wrongAnswerColor);
+    }
     .qpAvatarLootedStatusOuterContainer {
         box-shadow: 0 0 10px 2px var(--boxShadowColor);
     }
@@ -1412,21 +1602,20 @@ You can pretty much change any element here. Feel free to message me if you want
     }
     .qpAvatarImageContainer {
         background-color: var(--avatarBackground);
-        border-radius: var(--borderRadius) var(--borderRadius) 0 0;
     }
-    .qpAvatarImageContainer:has(.qpAvatarImage[src*="Right."]) {
+    .qpAvatarImageContainer:has(.avatarImage[src*="Right."]) {
         background-color: color-mix(in srgb, var(--correctAnswerColor), transparent 90%);
         box-shadow: inset 0 0 5px var(--correctAnswerColor), 0 0 10px var(--correctAnswerColor), 0 0 10px var(--correctAnswerColor), 0 0 10px var(--correctAnswerColor);
     }
-    .qpAvatarImageContainer:has(.qpAvatarImage[src*="Wrong."]) {
+    .qpAvatarImageContainer:has(.avatarImage[src*="Wrong."]) {
         background-color: color-mix(in srgb, var(--wrongAnswerColor), transparent 90%);
         box-shadow: inset 0 0 5px var(--wrongAnswerColor), 0 0 10px var(--wrongAnswerColor), 0 0 10px var(--wrongAnswerColor), 0 0 10px var(--wrongAnswerColor);
     }
-    .qpAvatarImageContainer:has(.qpAvatarImage[src*="Confused."]) {
+    .qpAvatarImageContainer:has(.avatarImage[src*="Confused."]) {
         background-color: color-mix(in srgb, var(--wrongAnswerColor), transparent 90%);
         box-shadow: inset 0 0 5px var(--wrongAnswerColor), 0 0 10px var(--wrongAnswerColor), 0 0 10px var(--wrongAnswerColor), 0 0 10px var(--wrongAnswerColor);
     }
-    .qpAvatarImageContainer:has(.qpAvatarImage[src*="Waiting."]) {
+    .qpAvatarImageContainer:has(.avatarImage[src*="Waiting."]) {
         background-color: color-mix(in srgb, var(--waitingAnswerColor), transparent 90%);
         box-shadow: inset 0 0 5px var(--waitingAnswerColor), 0 0 10px var(--waitingAnswerColor), 0 0 10px var(--waitingAnswerColor), 0 0 10px var(--waitingAnswerColor);
     }
@@ -1542,9 +1731,6 @@ You can pretty much change any element here. Feel free to message me if you want
         background-color: var(--accentColor);
         box-shadow: 0 0 5px var(--accentColor);
         border-color: var(--textColor);
-    }
-    .brMapObject.active.inventoryFull {
-        border-color: #ac2925;
     }
     .brContainerContent {
         background-color: var(--primaryColor);
@@ -1964,6 +2150,9 @@ You can pretty much change any element here. Feel free to message me if you want
     .swAvatarTile:nth-of-type(4n) {
         margin-right: 10px;
     }
+    .swAvatarTile > .avatarDisplay {
+        border-radius: var(--borderRadius);
+    }
     .swAvatarTileType {
         background-color: var(--primaryColor);
     }
@@ -1976,8 +2165,8 @@ You can pretty much change any element here. Feel free to message me if you want
     }
     .swAvatarTileFooter {
         background-color: var(--primaryColor);
-        opacity: .6;
         border-radius: 0 0 var(--borderRadius) var(--borderRadius);
+        opacity: .6;
     }
     .swAvatarTile:hover > .swAvatarTileFooter {
         opacity: 1;
@@ -2003,7 +2192,7 @@ You can pretty much change any element here. Feel free to message me if you want
         border-bottom: 2px solid var(--primaryColor);
     }
     .swRightColumnEdgeEffect {
-        background-color: var(--primaryColor);
+        background-color: transparent;
     }
     #swRightColumnAvatarChangeBackgroundButton {
         background-color: var(--primaryColor);
@@ -2249,13 +2438,13 @@ You can pretty much change any element here. Feel free to message me if you want
         background-color: var(--songHistoryCorrectColor);
     }
     .shSongTable tr.shRow.correctGuess:hover {
-        background-color: color-mix(in srgb, var(--songHistoryCorrectColor), white 15%);
+        background-color: var(--songHistoryCorrectColorHover);
     }
     .shSongTable tr.wrongGuess {
         background-color: var(--songHistoryWrongColor);
     }
     .shSongTable tr.shRow.wrongGuess:hover {
-        background-color: color-mix(in srgb, var(--songHistoryWrongColor), white 15%);
+        background-color: var(--songHistoryWrongColorHover);
     }
 
 
@@ -2928,6 +3117,9 @@ You can pretty much change any element here. Feel free to message me if you want
 
 
     /* Joseph's Song List Script */
+    #listWindowOptions {
+        border-bottom: 1px solid var(--secondaryColor);
+    }
     #listWindowTable {
         background-color: var(--primaryColor);
     }
@@ -2954,13 +3146,13 @@ You can pretty much change any element here. Feel free to message me if you want
         background-color: var(--songHistoryCorrectColor);
     }
     #listWindowTable tr.songData.correctGuess:hover {
-        background-color: color-mix(in srgb, var(--songHistoryCorrectColor), white 15%);
+        background-color: var(--songHistoryCorrectColorHover);
     }
     #listWindowTable tr.songData.incorrectGuess {
         background-color: var(--songHistoryWrongColor);
     }
     #listWindowTable tr.songData.incorrectGuess:hover {
-        background-color: color-mix(in srgb, var(--songHistoryWrongColor), white 15%);
+        background-color: var(--songHistoryWrongColorHover);
     }
 
 
@@ -3017,16 +3209,16 @@ You can pretty much change any element here. Feel free to message me if you want
         background-color: var(--primaryColor);
     }
     #answerHistoryTable tbody tr:nth-child(odd) {
-        background-color: var(--primaryColor);
+        background-color: var(--primaryColorContrast2);
     }
     #answerHistoryTable tbody tr:nth-child(even) {
-        background-color: var(--primaryColor);
+        background-color: var(--primaryColorContrast);
     }
     #answerCompareTable tbody tr:nth-child(odd) {
-        background-color: var(--primaryColor);
+        background-color: var(--primaryColorContrast2);
     }
     #answerCompareTable tbody tr:nth-child(even) {
-        background-color: var(--primaryColor);
+        background-color: var(--primaryColorContrast);
     }
     #answerCompareTable tbody tr.highlightCorrect {
         background-color: var(--songHistoryCorrectColor);
@@ -3041,10 +3233,13 @@ You can pretty much change any element here. Feel free to message me if you want
         background-color: var(--primaryColor);
     }
     #anisongdbTable tbody tr:nth-child(odd) {
-        background-color: var(--primaryColor);
+        background-color: var(--primaryColorContrast2);
     }
     #anisongdbTable tbody tr:nth-child(even) {
-        background-color: var(--primaryColor);
+        background-color: var(--primaryColorContrast);
+    }
+    #anisongdbTable tbody tr:hover {
+        color: var(--accentColorContrast);
     }
 
 
@@ -3053,19 +3248,19 @@ You can pretty much change any element here. Feel free to message me if you want
         background-color: var(--primaryColor);
     }
     #cslgSongListTable tbody tr:nth-child(odd) {
-        background-color: var(--primaryColor);
+        background-color: var(--primaryColorContrast2);
     }
     #cslgSongListTable tbody tr:nth-child(even) {
-        background-color: var(--primaryColor);
+        background-color: var(--primaryColorContrast);
     }
     #cslgAnswerTable thead tr {
         background-color: var(--primaryColor);
     }
     #cslgAnswerTable tbody tr:nth-child(odd) {
-        background-color: var(--primaryColor);
+        background-color: var(--primaryColorContrast2);
     }
     #cslgAnswerTable tbody tr:nth-child(even) {
-        background-color: var(--primaryColor);
+        background-color: var(--primaryColorContrast);
     }
 
 
@@ -3096,5 +3291,10 @@ You can pretty much change any element here. Feel free to message me if you want
     /* Disable sliding animations */
     /*.fade, .menuBar .popOut, .modal.fade .modal-dialog, .modal.in .modal-dialog, #optionsContainer, #questContainer, #questContainer.open, .chatBoxContainer {
         transition: none;
+    }*/
+    
+    /* Move avatar name/info down */
+    /*.qpAvatarInfoBar {
+        bottom: -30px;
     }*/
 }
