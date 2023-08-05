@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Show All Song Links
 // @namespace    https://github.com/kempanator
-// @version      0.1
+// @version      0.2
 // @description  Show all song links in the song info container
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -12,15 +12,15 @@
 // ==/UserScript==
 
 "use strict";
-if (document.querySelector("#startPage")) return;
+if (document.querySelector("#loginPage")) return;
 let loadInterval = setInterval(() => {
-    if (document.querySelector("#loadingScreen").classList.contains("hidden")) {
+    if ($("#loadingScreen").hasClass("hidden")) {
         setup();
         clearInterval(loadInterval);
     }
 }, 500);
 
-const version = "0.1";
+const version = "0.2";
 
 function setup() {
     new Listener("answer results", (payload) => {

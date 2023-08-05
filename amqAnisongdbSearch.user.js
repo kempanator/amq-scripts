@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Anisongdb Search
 // @namespace    https://github.com/kempanator
-// @version      0.1
+// @version      0.2
 // @description  Adds a window to search anisongdb.com in game
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -19,15 +19,15 @@ Features:
 */
 
 "use strict";
-if (document.querySelector("#startPage")) return;
+if (document.querySelector("#loginPage")) return;
 let loadInterval = setInterval(() => {
-    if (document.querySelector("#loadingScreen").classList.contains("hidden")) {
+    if ($("#loadingScreen").hasClass("hidden")) {
         setup();
         clearInterval(loadInterval);
     }
 }, 500);
 
-const version = "0.1";
+const version = "0.2";
 let anisongdbWindow;
 let injectSearchButtons = true;
 let anisongdbSort = {animeSortAscending: false, artistSortAscending: false, songSortAscending: false, typeSortAscending: false, vintageSortAscending: false};

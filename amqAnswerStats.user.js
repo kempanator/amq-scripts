@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Answer Stats
 // @namespace    https://github.com/kempanator
-// @version      0.15
+// @version      0.16
 // @description  Adds a window to display quiz answer stats
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -22,15 +22,15 @@ Features:
 */
 
 "use strict";
-if (document.querySelector("#startPage")) return;
+if (document.querySelector("#loginPage")) return;
 let loadInterval = setInterval(() => {
-    if (document.querySelector("#loadingScreen").classList.contains("hidden")) {
+    if ($("#loadingScreen").hasClass("hidden")) {
         setup();
         clearInterval(loadInterval);
     }
 }, 500);
 
-const version = "0.15";
+const version = "0.16";
 const regionDictionary = {E: "Eastern", C: "Central", W: "Western"};
 const saveData = JSON.parse(localStorage.getItem("answerStats")) || {};
 const saveData2 = JSON.parse(localStorage.getItem("highlightFriendsSettings")) || {};

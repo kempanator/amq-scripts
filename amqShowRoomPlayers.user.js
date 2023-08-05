@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Show Room Players
 // @namespace    https://github.com/kempanator
-// @version      0.15
+// @version      0.16
 // @description  Adds extra functionality to room tiles
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -21,14 +21,14 @@ New room tile features:
 */
 
 "use strict";
-if (document.querySelector("#startPage")) return;
+if (document.querySelector("#loginPage")) return;
 let loadInterval = setInterval(() => {
-    if (document.querySelector("#loadingScreen").classList.contains("hidden")) {
+    if ($("#loadingScreen").hasClass("hidden")) {
         setup();
         clearInterval(loadInterval);
     }
 }, 500);
-const version = "0.15";
+const version = "0.16";
 //const saveData = JSON.parse(localStorage.getItem("showRoomPlayers")) || {};
 const saveData2 = JSON.parse(localStorage.getItem("highlightFriendsSettings")) || {};
 let selfColor = saveData2.smColorSelfColor ?? "#80c7ff";
@@ -171,7 +171,7 @@ RoomTile.prototype.updateRoomPlayers = function() {
 
 // update the room tile avatar when a new host is promoted
 RoomTile.prototype.updateAvatar = function(avatarInfo) {
-    this.avatarPreloadImage.cancel();
+    if (this.avatarPreloadImage) this.avatarPreloadImage.cancel();
     this.$tile.find(".rbrRoomImage").removeAttr("src srcset sizes").removeClass().addClass(`rbrRoomImage sizeMod${avatarInfo.avatar.sizeModifier}`);
     let avatarSrc = cdnFormater.newAvatarSrc(
         avatarInfo.avatar.avatarName,

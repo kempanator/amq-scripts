@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.93
+// @version      0.94
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -95,7 +95,7 @@ OTHER
 */
 
 "use strict";
-const version = "0.93";
+const version = "0.94";
 const saveData = JSON.parse(localStorage.getItem("megaCommands")) || {};
 let alertHidden = saveData.alertHidden ?? true;
 let animeList;
@@ -221,14 +221,14 @@ const dqMap = {
     "Mirai Nikki": {genre: [1, 7, 11, 12, 17, 18], years: [2011, 2011], seasons: [3, 3]}
 };
 
-if (document.querySelector("#startPage")) {
+if (document.querySelector("#loginPage")) {
     if (autoJoinRoom.autoLogIn && document.querySelector(".loginMainForm h1").innerText === "Account Already Online") {
         setTimeout(() => { document.querySelector(".loginMainForm a").click() }, 100);
     }
     return;
 }
 let loadInterval = setInterval(() => {
-    if (document.querySelector("#loadingScreen").classList.contains("hidden")) {
+    if ($("#loadingScreen").hasClass("hidden")) {
         setup();
         clearInterval(loadInterval);
     }
@@ -339,7 +339,7 @@ function setup() {
         }
     }).bindListener();
     new Listener("Game Starting", (payload) => {
-        if (autoVoteSkip !== null) sendSystemMessage("Auto Vote Skip: Enabled");
+        if (autoVoteSkip !== null) sendSystemMessage("Auto Vote Skip: " + (Number.isFinite(autoVoteSkip) ? autoVoteSkip : (autoVoteSkip === "valid" ? "on first valid answer": "Enabled")));
         if (autoKey) sendSystemMessage("Auto Key: Enabled");
         if (autoCopy) sendSystemMessage("Auto Copy: " + autoCopy);
         if (autoThrow.text) sendSystemMessage("Auto Throw: " + autoThrow.text);
@@ -1079,7 +1079,7 @@ async function parseCommand(content, type, target) {
     }
     else if (/^\/(avs|autoskip|autovoteskip) (v|valid|onvalid)$/i.test(content)) {
         autoVoteSkip = "valid";
-        sendMessage(`auto vote skip after first valid answer on team`, type, target, true);
+        sendMessage(`auto vote skip after first valid answer on team ${autoVoteSkip ? "enabled" : "disabled"}`, type, target, true);
     }
     else if (/^\/(ak|autokey|autosubmit)$/i.test(content)) {
         autoKey = !autoKey;
@@ -1456,7 +1456,7 @@ async function parseCommand(content, type, target) {
         socket.sendCommand({type: "social", command: "get online users"});
     }
     else if (/^\/invisible$/i.test(content)) {
-        let handleAllOnlineMessage = new Listener("all online users", function (onlineUsers) {
+        let handleAllOnlineMessage = new Listener("all online users", (onlineUsers) => {
             let list = Object.keys(socialTab.offlineFriends).filter((name) => onlineUsers.includes(name));
             sendMessage(list.length > 0 ? list.join(", ") : "no invisible friends detected", type, target);
             handleAllOnlineMessage.unbindListener();
@@ -2053,7 +2053,7 @@ function parseIncomingDM(content, sender) {
  */
 function parseForceAll(content, type) {
     if (/^\/forceall version$/i.test(content)) {
-        sendMessage("0.93", type);
+        sendMessage("0.94", type);
     }
     else if (/^\/forceall roll [0-9]+$/i.test(content)) {
         let number = parseInt(/^\S+ roll ([0-9]+)$/.exec(content)[1]);
@@ -2471,7 +2471,7 @@ function getPlayerNameCorrectCase(name) {
 // return list of every auto function that is enabled
 function autoList() {
     let list = [];
-    if (autoVoteSkip !== null) list.push("Auto Vote Skip: Enabled");
+    if (autoVoteSkip !== null) list.push("Auto Vote Skip: " + (Number.isFinite(autoVoteSkip) ? autoVoteSkip : (autoVoteSkip === "valid" ? "on first valid answer": "Enabled")));
     if (autoKey) list.push("Auto Key: Enabled");
     if (autoCopy) list.push("Auto Copy: " + autoCopy);
     if (autoThrow.text) list.push("Auto Throw: " + autoThrow.text);
