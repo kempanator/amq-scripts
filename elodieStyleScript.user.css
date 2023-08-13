@@ -1,6 +1,6 @@
 /* ==UserStyle==
 @name         Elodie's AMQ Style Script
-@version      10.1
+@version      10.2
 @namespace    userstyles.world/user/melodyelodie
 @description  A custom theme for animemusicquiz.com
 @author       melodyelodie
@@ -18,27 +18,36 @@ You can pretty much change any element here. Feel free to message me if you want
 
 
 V10 rewrite by kempanator [July 2023]
-- More complete styling
-- Midnight and Twilight scripts merged
-- All colors are now controlled by variables
+  10.0
+    - more complete styling
+    - midnight and twilight scripts merged
+    - all colors are now controlled by variables
+  10.1
+    - added more variables
+  10.2
+    - styled new log in page
+    - game chat + other backgrounds now support images
+    - fixed missing answer color on animated avatars
+    - fixed readability on autocomplete dropdown
 
 
 Installing:
-1. Install the Stylus browser extension
-2. Go to one of these links
+  1. Install the Stylus browser extension
+  2. Go to one of these links
     https://userstyles.world/style/1435/elodies-amq-script-midnight
     https://userstyles.world/style/7990/elodies-amq-script-twilight
-3. A Stylus window should pop up
-4. Click "Install"
+  3. Click "Install"
+  4. A Stylus window should pop up
+  5. Click "Install style"
 
 Editing:
-1. After installing, click "Edit"
-2. Change variables in :root to whatever color scheme you want
+  1. After installing, click "Edit"
+  2. Change variables in :root to whatever color scheme you want
 
 Finding the edit menu after closing this window:
-1. Click the Stylus extension icon
-2. Click "Manage"
-3. Click "Elodie's AMQ Style Script"
+  1. Click the Stylus extension icon
+  2. Click "Manage"
+  3. Click "Elodie's AMQ Style Script"
 
 
 Color Variable Explanations:
@@ -46,24 +55,26 @@ mainBackground                 url of background image
 gameChatBackground             background color of game chat
 nexusChatBackground            background color of nexus chat
 dmBackground                   background color of private messages
-        
+avatarStoreBackground          background of avatar store
+battleRoyaleBackground         background color of battle royale map
+
 windowBackground               background color of modals and draggable windows
 containerBackground            background color of main menu buttons and quiz side windows
 videoBackground                background color of quiz video player
 answerInputBackground          background color answer input bar
 avatarBackground               background color of avatars in quiz and avatar store
 lobbyAvatarNameBackground      background color of player name in lobby 
-        
+
 textColor                      text color of <body>
 textShadowColor                shadow color for text
 boxShadowColor                 shadow color for all windows and containers
 borderRadius:                  border radius for all windows and containers
 
-primaryColor                   top/bottom menu bars
-secondaryColor                 gray stuff in default AMQ
-accentColor                    blue stuff in default AMQ
-glowColor                      correct answer highlight, particles, lives
-        
+primaryColor                   top/bottom menu bars - #1b1b1b
+secondaryColor                 gray stuff in default AMQ - #424242
+accentColor                    blue stuff in default AMQ - #4497ea
+glowColor                      correct answer highlight, particles, lives - #b6ff00
+
 correctAnswerColor             avatar border color for correct answers in quiz
 wrongAnswerColor               avatar border color for wrong answers in quiz
 waitingAnswerColor             avatar border color for answers during guess phase in quiz
@@ -91,7 +102,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
 =============================================================================================*/
 
 
-@-moz-document domain(animemusicquiz.com) {
+@-moz-document domain("animemusicquiz.com") {
     
     
     /* Dark Mode */
@@ -100,6 +111,8 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         --gameChatBackground: #00000080;
         --nexusChatBackground: #1b1b1bdd;
         --dmBackground: #1b1b1bdd;
+        --avatarStoreBackground: var(--mainBackground);
+        --battleRoyaleBackground: #00000080;
         
         --windowBackground: #1b1b1bdd;
         --containerBackground: #1b1b1bcc;
@@ -142,6 +155,8 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         --accentColorDark: color-mix(in srgb, var(--accentColor), black 20%);
         --accentColorContrast: color-mix(in srgb, var(--accentColor), var(--colorModOpposite) 40%);
         --accentColorTransparent: color-mix(in srgb, var(--accentColor), transparent 50%);
+        --correctAnswerColorTransparent: color-mix(in srgb, var(--correctAnswerColor), transparent 80%);
+        --wrongAnswerColorTransparent: color-mix(in srgb, var(--wrongAnswerColor), transparent 80%);
         --songHistoryCorrectColorHover: color-mix(in srgb, var(--songHistoryCorrectColor), white 5%);
         --songHistoryWrongColorHover: color-mix(in srgb, var(--songHistoryWrongColor), white 5%);
     }
@@ -154,6 +169,8 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         --gameChatBackground: #eeeeee80;
         --nexusChatBackground: #eeeeeedd;
         --dmBackground: #eeeeeedd;
+        --avatarStoreBackground: var(--mainBackground);
+        --battleRoyaleBackground: #eeeeee80;
         
         --windowBackground: #eeeeeeee;
         --containerBackground: #eeeeeebb;
@@ -196,6 +213,8 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         --accentColorDark: color-mix(in srgb, var(--accentColor), black 20%);
         --accentColorContrast: color-mix(in srgb, var(--accentColor), var(--colorModOpposite) 40%);
         --accentColorTransparent: color-mix(in srgb, var(--accentColor), transparent 50%);
+        --correctAnswerColorTransparent: color-mix(in srgb, var(--correctAnswerColor), transparent 80%);
+        --wrongAnswerColorTransparent: color-mix(in srgb, var(--wrongAnswerColor), transparent 80%);
         --songHistoryCorrectColorHover: color-mix(in srgb, var(--songHistoryCorrectColor), white 15%);
         --songHistoryWrongColorHover: color-mix(in srgb, var(--songHistoryWrongColor), white 15%);
     }
@@ -439,24 +458,28 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         background: var(--primaryColor);
         box-shadow: 0 0 10px 2px var(--boxShadowColor);
     }
+    .awesomplete > ul::before {
+        background: var(--primaryColor);
+        border: 1px solid var(--primaryColor);
+    }
     .awesomplete > ul > li[aria-selected="true"] {
         background: var(--accentColorDark);
         color: var(--textColor);
     }
     .awesomplete li[aria-selected="true"] mark {
         background: var(--accentColorDark);
+        color: var(--textColor);
+    }
+    .awesomplete mark {
         color: var(--accentColor);
     }
     .awesomplete > ul > li:hover {
         background: var(--accentColorLight);
-        color: var(--textColor);
+        color: var(--primaryColor);
     }
-    .awesomplete > ul::before {
-        background: var(--primaryColor);
-        border: 1px solid var(--primaryColor);
-    }
-    .awesomplete mark {
-        color: var(--accentColor);
+    .awesomplete > ul > li:hover mark {
+        background: var(--accentColorLight);
+        color: var(--primaryColor);
     }
 
 
@@ -487,38 +510,99 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     .rankedResultPopoutContent > .rankedPoputRankGlow {
         text-shadow: 0 0 5px #ffffff, 0 0 10px #ffffff, 0 0 15px #ffffff, 0 0 20px var(--accentColor), 0 0 35px var(--accentColor), 0 0 40px var(--accentColor), 0 0 50px var(--accentColor), 0 0 75px var(--accentColor);
     }
+    .leftVoteButton {
+        background-color: var(--primaryColor);
+    }
+    .leftVoteButtonYes.selected {
+        background-color: var(--accentColor);
+    }
+    .leftVoteTimerBar {
+        background-color: var(--accentColorLight);
+    }
 
 
-    /* Start Page */
-    #startPage {
+    /* Log In Page */
+    #loginPage {
         background-image: var(--mainBackground);
         background-size: cover;
         color: var(--textColor);
     }
-    #startPageCenter {
+    #lpTopBackground img {
+        content: var(--mainBackground);
+    }
+    .lpPlayButton {
+        background: var(--containerBackground);
+        box-shadow: 0 0 10px 2px var(--boxShadowColor);
+        border-radius: var(--borderRadius);
+        animation: none;
+    }
+    .lpPlayButton:hover {
+        box-shadow: 0 0 10px 2px var(--accentColor);
+        transition: none;
+    }
+    #lpLoginBox {
         background-color: var(--containerBackground);
         box-shadow: 0 0 10px 2px var(--boxShadowColor);
+        border-radius: var(--borderRadius);
     }
-    #startPageLogoContainer {
-        background-color: transparent;
-    }
-    #infoFooter {
-        background-color: transparent;
-    }
-    #startPageFAQ {
-        border-top: none;
-    }
-    .startPageSocailIcon {
+    .lpSocialIcon {
         background-color: var(--primaryColor);
     }
-    .startPageSocailIcon > i {
+    .lpSocialIcon > i {
         color: var(--textColor);
     }
-    .startPageSocailIcon > img {
+    .lpSocialIcon > img {
         filter: brightness(var(--brightnessMod));
     }
-
-
+    #lpMainContainerFadeout {
+        background-image: linear-gradient(180deg, transparent 0%, var(--primaryColor) 100%);
+    }
+    #lpContainerInBetween {
+        background-color: var(--primaryColor);
+    }
+    #lpInfoContainerFadein {
+        background-image: linear-gradient(180deg, var(--primaryColor) 0%, transparent 100%);
+    }
+    #lpInfoContainer {
+        background: var(--secondaryColor);
+    }
+    .lpInfoBackdrop {
+        opacity: .2;
+        filter: grayscale(1);
+    }
+    #lpInfoContainerContent {
+        background-color: var(--primaryColor);
+        box-shadow: 0 0px 15px 2px var(--boxShadowColor);
+    }
+    #lpInfoContainerTitle {
+        text-shadow: 0px 0px 20px var(--textShadowColor);
+        margin-top: 20px;
+    }
+    .lpInfoHalf {
+        text-shadow: 0px 0px 5px var(--textShadowColor);
+    }
+    .lpPicture {
+        filter: drop-shadow(0 0 5px var(--textShadowColor));
+    }
+    #lpFooter {
+        background-color: var(--primaryColor);
+        box-shadow: 0 0px 15px 2px var(--boxShadowColor);
+    }
+    .cc-color-override-530831885.cc-window {
+        background-color: var(--secondaryColor);
+        color: var(--textColor);
+    }
+    .cc-color-override-530831885 .cc-btn {
+        background-color: var(--accentColor);
+    }
+    .cc-color-override-530831885 .cc-btn:hover, .cc-color-override-530831885 .cc-btn:focus {
+        background-color: var(--accentColorLight);
+    }
+    .cc-color-override-530831885 .cc-link, .cc-color-override-530831885 .cc-link:active, .cc-color-override-530831885 .cc-link:visited {
+        color: var(--accentColorContrast);
+    }
+    
+    
     /* Main Menu */
     #loadingScreen {
         background-image: var(--mainBackground);
@@ -1001,6 +1085,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     /* Game Chat */
     #gameChatContainer {
         background: var(--gameChatBackground);
+        background-size: cover;
     }
     #gameChatPage > .col-xs-9 {
         background-image: none;
@@ -1028,6 +1113,9 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     }
     .gcUserName.gcNameGlow {
         text-shadow: 0 0 5px var(--rankedChallengerColor);
+    }
+    #gcMessageContainer > li.highlight {
+        background-color: var(--accentColorTransparent);
     }
     #gcMessageContainer > li .gcTeamMessageIcon {
         background-color: var(--accentColorDark);
@@ -1089,7 +1177,8 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         text-shadow: 0 0 10px var(--colorModOpposite), 0 0 20px var(--colorModOpposite), 0 0 30px var(--colorModOpposite), 0 0 40px var(--accentColor), 0 0 70px var(--accentColor), 0 0 80px var(--accentColor), 0 0 100px var(--accentColor), 0 0 150px var(--accentColor);
     }
     .chatBoxContainer {
-        background-color: var(--dmBackground);
+        background: var(--dmBackground);
+        background-size: cover;
         box-shadow: 0 0 10px 2px var(--boxShadowColor);
         border-left: solid 2px var(--primaryColor);
         border-right: solid 2px var(--primaryColor);
@@ -1359,15 +1448,6 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     #qpDownvoteContainer > i {
         margin-left: 0;
     }
-    .leftVoteTimerBar {
-        background-color: var(--accentColor);
-    }
-    .leftVoteButton {
-        background-color: var(--primaryColor);
-    }
-    .leftVoteButtonYes.selected {
-        background-color: var(--accentColor);
-    }
 
 
     /* Video Player */
@@ -1385,6 +1465,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     }
     #qpVideoOverflowContainer {
         background: var(--videoBackground);
+        background-size: cover;
         border-radius: var(--borderRadius);
     }
     #qpVideoHider {
@@ -1596,28 +1677,25 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     }
     .qpAvatarLootedStatusInnerContainer {
         background-color: var(--accentColor);
+        opacity: 1;
     }
     .qpAvatarLootedStatusText {
+        color: var(--textColor);
         text-shadow: 0 -1px 0 var(--textShadowColor);
     }
     .qpAvatarImageContainer {
         background-color: var(--avatarBackground);
     }
-    .qpAvatarImageContainer:has(.avatarImage[src*="Right."]) {
-        background-color: color-mix(in srgb, var(--correctAnswerColor), transparent 90%);
-        box-shadow: inset 0 0 5px var(--correctAnswerColor), 0 0 10px var(--correctAnswerColor), 0 0 10px var(--correctAnswerColor), 0 0 10px var(--correctAnswerColor);
+    .qpAvatarContainer:has(.avatarImage[src*="Waiting."]) .qpAvatarBackgroundContainer {
+        box-shadow: inset 0 0 10px var(--waitingAnswerColor), 0 0 10px var(--waitingAnswerColor), 0 0 10px var(--waitingAnswerColor), 0 0 10px var(--waitingAnswerColor);
     }
-    .qpAvatarImageContainer:has(.avatarImage[src*="Wrong."]) {
-        background-color: color-mix(in srgb, var(--wrongAnswerColor), transparent 90%);
-        box-shadow: inset 0 0 5px var(--wrongAnswerColor), 0 0 10px var(--wrongAnswerColor), 0 0 10px var(--wrongAnswerColor), 0 0 10px var(--wrongAnswerColor);
+    .qpAvatarContainer:has(.qpAvatarAnswerText.rightAnswer) .qpAvatarBackgroundContainer {
+        background-color: var(--correctAnswerColorTransparent);
+        box-shadow: inset 0 0 10px var(--correctAnswerColor), 0 0 10px var(--correctAnswerColor), 0 0 10px var(--correctAnswerColor), 0 0 10px var(--correctAnswerColor);
     }
-    .qpAvatarImageContainer:has(.avatarImage[src*="Confused."]) {
-        background-color: color-mix(in srgb, var(--wrongAnswerColor), transparent 90%);
-        box-shadow: inset 0 0 5px var(--wrongAnswerColor), 0 0 10px var(--wrongAnswerColor), 0 0 10px var(--wrongAnswerColor), 0 0 10px var(--wrongAnswerColor);
-    }
-    .qpAvatarImageContainer:has(.avatarImage[src*="Waiting."]) {
-        background-color: color-mix(in srgb, var(--waitingAnswerColor), transparent 90%);
-        box-shadow: inset 0 0 5px var(--waitingAnswerColor), 0 0 10px var(--waitingAnswerColor), 0 0 10px var(--waitingAnswerColor), 0 0 10px var(--waitingAnswerColor);
+    .qpAvatarContainer:has(.qpAvatarAnswerText.wrongAnswer) .qpAvatarBackgroundContainer {
+        background-color: var(--wrongAnswerColorTransparent);
+        box-shadow: inset 0 0 10px var(--wrongAnswerColor), 0 0 10px var(--wrongAnswerColor), 0 0 10px var(--wrongAnswerColor), 0 0 10px var(--wrongAnswerColor);
     }
     .qpAvatarContainer.disabled .particleEmiter {
         opacity: 0;
@@ -1632,9 +1710,12 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     .qpAvatarInfoBar {
         background-color: var(--primaryColor);
     }
+    .qpAvatarLevelBar {
+        box-shadow: none;
+    }
     .qpAvatarLevelOuter {
         background-color: var(--primaryColor);
-        box-shadow: none;
+        box-shadow: 0 0 5px 2px var(--boxShadowColor);
     }
     .qpAvatarHostIcon,
     .qpAvatarHiddenIcon {
@@ -1683,7 +1764,8 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         box-shadow: none;
     }
     #brMapContent {
-        background-color: var(--gameChatBackground);
+        background: var(--battleRoyaleBackground);
+        background-size: cover;
     }
     .brTile {
         border: 2px solid var(--primaryColor);
@@ -1933,12 +2015,14 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         transition: max-height .2s linear;
     }
     .pmButton {
+        background-color: var(--primaryColor);
         box-shadow: 0 0 10px 2px var(--boxShadowColor);
     }
     .pmButton:hover {
         box-shadow: 0 0 10px 2px var(--accentColor);
     }
     #pmPatroenLink {
+        background-color: var(--primaryColor);
         box-shadow: 0 0 10px 2px var(--boxShadowColor);
     }
     #pmPatroenLink:hover {
@@ -1977,7 +2061,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
 
     /* Avatar Store */
     #storeWindow {
-        background-image: var(--mainBackground);
+        background: var(--avatarStoreBackground);
         background-size: cover;
     }
     #swCloseButton {
@@ -2137,6 +2221,16 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     }
     #swTicketRollExecuteHoverInner:hover {
         background-color: var(--secondaryColor);
+    }
+    #swTicketPromoContainerInner {
+        background-color: var(--primaryColor);
+        box-shadow: 0 0 10px 2px var(--boxShadowColor);
+    }
+    #swTicketPromoFooter {
+        background-color: var(--primaryColorTransparent);
+    }
+    #swTicketPromoTimerContainer {
+        text-shadow: 0px 0px 6px var(--textShadowColor), 0px 0px 4px var(--textShadowColor);
     }
     #swContentAvatarContainer {
         padding-top: 135px;
@@ -2362,7 +2456,8 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         text-shadow: 0 0 10px #ffffff, 0 0 20px #ffffff, 0 0 30px #ffffff, 0 0 40px var(--accentColor), 0 0 70px var(--accentColor), 0 0 80px var(--accentColor), 0 0 100px var(--accentColor), 0 0 150px var(--accentColor);
     }
     #ctmMessageContainer {
-        background-color: var(--gameChatBackground);
+        background: var(--gameChatBackground);
+        background-size: cover;
     }
 
 
@@ -2990,7 +3085,8 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         color: var(--textColor);
     }
     #nexusCoopMainContainer {
-        background-color: var(--nexusChatBackground);
+        background: var(--nexusChatBackground);
+        background-size: cover;
         border: 2px solid var(--primaryColor);
         box-shadow: 0 0 5px 0 var(--boxShadowColor);
     }
@@ -3170,6 +3266,12 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     }
     #radioOverlay div {
         color: var(--textColor) !important;
+    }
+    
+    
+    /* 43D's Voice Universal Script */
+    #btnOpenVoiceSetting {
+        box-shadow: 1px 3px 10px var(--boxShadowColor) !important;
     }
 
 
