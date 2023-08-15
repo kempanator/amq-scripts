@@ -176,7 +176,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         --containerBackground: #eeeeeebb;
         --videoBackground: #eeeeee80;
         --answerInputBackground: #eeeeeecc;
-        --avatarBackground: #eeeeee80;
+        --avatarBackground: transparent;
         --lobbyAvatarNameBackground: var(--secondaryColor);
         
         --textColor: black;
