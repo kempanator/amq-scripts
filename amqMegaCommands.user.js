@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.94
+// @version      0.95
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -21,81 +21,84 @@ IMPORTANT: disable these scripts before installing
 - auto answer on keypress by (unknown)
 
 GAME SETTINGS
-/size [2-40]          change room size
-/type [oei]           change song types
-/random               change selection type to random
-/unwatched            change selection type to unwatched
-/watched              change selection type to watched
-/time [1-60]          change song guess time
-/extratime [0-15]     change song guess extra time
-/sample [low] [high]  change start sample point
-/lives [1-5]          change number of lives
-/team [1-8]           change team size
-/songs [5-100]        change number of songs
-/dif [low] [high]     change difficulty
-/vintage [text]       change vintage
-/genre [text]         change genre
-/tag [text]           change tags
+/size [2-40]              change room size
+/type [oei]               change song types
+/random                   change selection type to random
+/unwatched                change selection type to unwatched
+/watched                  change selection type to watched
+/time [1-60]              change song guess time
+/extratime [0-15]         change song guess extra time
+/sample [low] [high]      change start sample point
+/lives [1-5]              change number of lives
+/team [1-8]               change team size
+/songs [5-100]            change number of songs
+/dif [low] [high]         change difficulty
+/vintage [text]           change vintage
+/genre [text]             change genre
+/tag [text]               change tags
 
 IN GAME/LOBBY
-/autoskip             automatically vote skip at the beginning of each song
-/autokey              automatically submit answer on each key press
-/autothrow [text]     automatically send answer at the beginning of each song
-/autocopy [name]      automatically copy a team member's answer
-/automute [seconds]   automatically mute sound during quiz after # of seconds
-/autounmute [seconds] automatically unmute sound during quiz after # of seconds
-/autoready            automatically ready up in lobby
-/autostart            automatically start the game when everyone is ready if you are host
-/autohost [name]      automatically promote player to host if you are the current host
-/autoinvite [name]    automatically invite a player to your room when they log in (only friends)
-/autoaccept           automatically accept game invites if you aren't in a room (only friends)
-/autolobby            automatically vote return to lobby when host starts a vote
-/ready                ready/unready in lobby
-/invite [name]        invite player to game
-/host [name]          promote player to host
-/kick [name]          kick player
-/skip                 vote skip on current song
-/pause                pause/unpause game
-/lobby                start return to lobby vote
-/leave                leave room
-/rejoin [seconds]     leave and rejoin the room you're in after # of seconds
-/spec                 change to spectator
-/join                 change from spectator to player in lobby
-/queue                join/leave queue
-/volume [0-100]       change volume
-/countdown [seconds]  start game after # of seconds
-/dropdown             enable/disable anime dropdown
-/dropdownspec         enable drop down while spectating
-/speed [number]       change client-side song playback speed (0.0625 - 16)
-/mutereplay           auto mute during the replay phase
-/mutesubmit           auto mute after answer submit
-/continuesample       continue sample after answer reveal instead of resetting
-/loopvideo            loop the video when it ends
+/autoskip                 automatically vote skip at the beginning of each song
+/autokey                  automatically submit answer on each key press
+/autothrow [text]         automatically send answer at the beginning of each song
+/autocopy [name]          automatically copy a team member's answer
+/automute [seconds]       automatically mute sound during quiz after # of seconds
+/autounmute [seconds]     automatically unmute sound during quiz after # of seconds
+/automutetoggle [list]    start unmuted and automatically toggle mute iterating over a list of # of seconds
+/automuterandom [time]    automatically mute a random time interval during guess phase
+/autounmuterandom [time]  automatically unmute a random time interval during guess phase
+/autoready                automatically ready up in lobby
+/autostart                automatically start the game when everyone is ready if you are host
+/autohost [name]          automatically promote player to host if you are the current host
+/autoinvite [name]        automatically invite a player to your room when they log in (only friends)
+/autoaccept               automatically accept game invites if you aren't in a room (only friends)
+/autolobby                automatically vote return to lobby when host starts a vote
+/ready                    ready/unready in lobby
+/invite [name]            invite player to game
+/host [name]              promote player to host
+/kick [name]              kick player
+/skip                     vote skip on current song
+/pause                    pause/unpause game
+/lobby                    start return to lobby vote
+/leave                    leave room
+/rejoin [seconds]         leave and rejoin the room you're in after # of seconds
+/spec                     change to spectator
+/join                     change from spectator to player in lobby
+/queue                    join/leave queue
+/volume [0-100]           change volume
+/countdown [seconds]      start game after # of seconds
+/dropdown                 enable/disable anime dropdown
+/dropdownspec             enable drop down while spectating
+/speed [number]           change client-side song playback speed (0.0625 - 16)
+/mutereplay               auto mute during the replay phase
+/mutesubmit               auto mute after answer submit
+/continuesample           continue sample after answer reveal instead of resetting
+/loopvideo                loop the video when it ends
 
 OTHER
-/roll                 roll number, player, teammate, playerteam, spectator
-/shuffle [list]       shuffle a list of anything (separate with commas)
-/startvote [list]     start a vote with a list of options (separate with commas)
-/stopvote             stop the vote and print results
-/calc [expression]    calculate a math expression
-/rules                show list of gamemodes and rules
-/info                 show list of external utilities
-/clear                clear chat
-/dm [name] [text]     direct message a player
-/profile [name]       show profile window of any player
-/password             reveal private room password
-/invisible            show invisible friends
-/background [url]     change the background
-/logout               log out
-/relog                log out, log in, and auto join the room you were in
-/printonline          print friend names in chat when they log in
-/printoffline         print friend names in chat when they log out
-/version              check the version of this script
-/commands [on|off]    turn this script on or off
+/roll                     roll number, player, teammate, playerteam, spectator
+/shuffle [list]           shuffle a list of anything (separate with commas)
+/startvote [list]         start a vote with a list of options (separate with commas)
+/stopvote                 stop the vote and print results
+/calc [expression]        calculate a math expression
+/rules                    show list of gamemodes and rules
+/info                     show list of external utilities
+/clear                    clear chat
+/dm [name] [text]         direct message a player
+/profile [name]           show profile window of any player
+/password                 reveal private room password
+/invisible                show invisible friends
+/background [url]         change the background
+/logout                   log out
+/relog                    log out, log in, and auto join the room you were in
+/printonline              print friend names in chat when they log in
+/printoffline             print friend names in chat when they log out
+/version                  check the version of this script
+/commands [on|off]        turn this script on or off
 */
 
 "use strict";
-const version = "0.94";
+const version = "0.95";
 const saveData = JSON.parse(localStorage.getItem("megaCommands")) || {};
 let alertHidden = saveData.alertHidden ?? true;
 let animeList;
@@ -107,13 +110,12 @@ let autoHost = saveData.autoHost ?? "";
 let autoInvite = saveData.autoInvite ?? "";
 let autoJoinRoom = saveData.autoJoinRoom ?? false;
 let autoKey = saveData.autoKey ?? false;
-let autoMute = saveData.autoMute ?? null;
+let autoMute = saveData.autoMute ?? {mute: [], unmute: [], toggle: [], randomMute: null, randomUnmute: null};
 let autoReady = saveData.autoReady ?? false;
 let autoStart = saveData.autoStart ?? false;
 let autoStatus = saveData.autoStatus ?? "";
 let autoSwitch = saveData.autoSwitch ?? "";
 let autoThrow = saveData.autoThrow ?? {time1: null, time2: null, text: null, multichoice: null};
-let autoUnmute = saveData.autoUnmute ?? null;
 let autoVoteLobby = saveData.autoVoteLobby ?? false;
 let autoVoteSkip = saveData.autoVoteSkip ?? null;
 let backgroundURL = saveData.backgroundURL ?? "";
@@ -199,6 +201,7 @@ const dqMap = {
     "Ranma 1/2": {genre: [1, 3, 5, 13, 15], years: [1989, 1989], seasons: [1, 1]},
     "High School of the Dead": {genre: [1, 4, 5, 7, 13, 17], years: [2010, 2010], seasons: [2, 2]},
     "Re:Zero: Starting Life in Another World": {genre: [1, 2, 4, 6, 12, 13, 18], years: [2016, 2021], seasons: [1, 0]},
+    "NieR:Automata Ver1.1a": {genre: [1, 4, 6, 12, 14], years: [2023, 2023], seasons: [0, 0]},
     "Guilty Crown": {genre: [1, 4, 9, 12, 13, 14], years: [2011, 2011], seasons: [3, 3]},
     ".hack//Sign": {genre: [2, 6, 11, 14], years: [2002, 2002], seasons: [1, 1]},
     "Heaven's Lost Property": {genre: [3, 5, 13, 14, 15, 17], years: [2009, 2009], seasons: [3, 3]},
@@ -309,8 +312,8 @@ function setup() {
                 setTimeout(() => { if (!quiz.skipController._toggled) quiz.skipClicked() }, autoVoteSkip);
             }
         }
-        if (autoMute !== null) {
-            let time = Array.isArray(autoMute) ? Math.floor(Math.random() * (autoMute[1] - autoMute[0] + 1)) + autoMute[0] : autoMute;
+        if (autoMute.mute.length) {
+            let time = autoMute.mute.length === 1 ? autoMute.mute[0] : Math.floor(Math.random() * (autoMute.mute[1] - autoMute.mute[0] + 1)) + autoMute.mute[0];
             $("#qpVolume").removeClass("disabled");
             volumeController.setMuted(false);
             volumeController.adjustVolume();
@@ -320,8 +323,8 @@ function setup() {
                 volumeController.adjustVolume();
             }, time);
         }
-        if (autoUnmute !== null) {
-            let time = Array.isArray(autoUnmute) ? Math.floor(Math.random() * (autoUnmute[1] - autoUnmute[0] + 1)) + autoUnmute[0] : autoUnmute;
+        else if (autoMute.unmute.length) {
+            let time = autoMute.unmute.length === 1 ? autoMute.unmute[0] : Math.floor(Math.random() * (autoMute.unmute[1] - autoMute.unmute[0] + 1)) + autoMute.unmute[0];
             $("#qpVolume").addClass("disabled");
             volumeController.setMuted(true);
             volumeController.adjustVolume();
@@ -330,6 +333,63 @@ function setup() {
                 volumeController.setMuted(false);
                 volumeController.adjustVolume();
             }, time);
+        }
+        else if (autoMute.toggle.length) {
+            $("#qpVolume").addClass("disabled");
+            volumeController.setMuted(false);
+            volumeController.adjustVolume();
+            autoMute.toggle.forEach((value, index) => {
+                if (index % 2 === 0) {
+                    setTimeout(() => {
+                        volumeController.setMuted(true);
+                        volumeController.adjustVolume();
+                    }, value);
+                }
+                else {
+                    setTimeout(() => {
+                        volumeController.setMuted(false);
+                        volumeController.adjustVolume();
+                    }, value);
+                }
+            });
+        }
+        else if (autoMute.randomMute) {
+            $("#qpVolume").removeClass("disabled");
+            volumeController.setMuted(false);
+            volumeController.adjustVolume();
+            let maxTime = (payload.time * 1000) - autoMute.randomMute;
+            let time = Math.floor(Math.random() * maxTime);
+            if (maxTime > 0) {
+                setTimeout(() => {
+                    $("#qpVolume").addClass("disabled");
+                    volumeController.setMuted(true);
+                    volumeController.adjustVolume();
+                }, time);
+                setTimeout(() => {
+                    $("#qpVolume").removeClass("disabled");
+                    volumeController.setMuted(false);
+                    volumeController.adjustVolume();
+                }, time + autoMute.randomMute);
+            }
+        }
+        else if (autoMute.randomUnmute) {
+            $("#qpVolume").addClass("disabled");
+            volumeController.setMuted(true);
+            volumeController.adjustVolume();
+            let maxTime = (payload.time * 1000) - autoMute.randomUnmute;
+            let time = Math.floor(Math.random() * maxTime);
+            if (maxTime > 0) {
+                setTimeout(() => {
+                    $("#qpVolume").removeClass("disabled");
+                    volumeController.setMuted(false);
+                    volumeController.adjustVolume();
+                }, time);
+                setTimeout(() => {
+                    $("#qpVolume").addClass("disabled");
+                    volumeController.setMuted(true);
+                    volumeController.adjustVolume();
+                }, time + autoMute.randomUnmute);
+            }
         }
         if (dropdownInSpec && quiz.isSpectator) {
             setTimeout(() => {
@@ -344,8 +404,13 @@ function setup() {
         if (autoCopy) sendSystemMessage("Auto Copy: " + autoCopy);
         if (autoThrow.text) sendSystemMessage("Auto Throw: " + autoThrow.text);
         if (autoThrow.multichoice) sendSystemMessage("Auto Throwing Multi Choice Option: " + autoThrow.multichoice);
-        if (autoMute !== null) sendSystemMessage("Auto Mute: " + (Array.isArray(autoMute) ? `random ${autoMute[0] / 1000}s - ${autoMute[1] / 1000}s` : `${autoMute / 1000}s`));
-        if (autoUnmute !== null) sendSystemMessage("Auto Unmute: " + (Array.isArray(autoUnmute) ? `random ${autoUnmute[0] / 1000}s - ${autoUnmute[1] / 1000}s` : `${autoUnmute / 1000}s`));
+        if (autoMute.mute.length === 1) sendSystemMessage(`Auto Mute: ${autoMute.mute[0] / 1000}s`);
+        else if (autoMute.mute.length === 2) sendSystemMessage(`Auto Mute: random ${autoMute.mute[0] / 1000}s - ${autoMute.mute[1] / 1000}s`);
+        else if (autoMute.unmute.length === 1) sendSystemMessage(`Auto Unmute: ${autoMute.unmute[0] / 1000}s`);
+        else if (autoMute.unmute.length === 2) sendSystemMessage(`Auto Unmute: random ${autoMute.unmute[0] / 1000}s - ${autoMute.unmute[1] / 1000}s`);
+        else if (autoMute.toggle.length) sendSystemMessage(`Auto Mute Toggle: ${autoMute.toggle.map((x) => x / 1000).join(", ")}`);
+        else if (autoMute.randomMute) sendSystemMessage(`Auto Mute Random: ${autoMute.randomMute / 1000}s`);
+        else if (autoMute.randomUnmute) sendSystemMessage(`Auto Unmute Random: ${autoMute.randomUnmute / 1000}s`);
         if (muteReplay) sendSystemMessage("Mute During Replay Phase: Enabled");
         if (muteSubmit) sendSystemMessage("Mute After Submit: Enabled");
         if (playbackSpeed !== null) sendSystemMessage("Song Playback Speed: " + (Array.isArray(playbackSpeed) ? `random ${playbackSpeed[0]}x - ${playbackSpeed[1]}x` : `${playbackSpeed}x`));
@@ -363,7 +428,7 @@ function setup() {
         }
     }).bindListener();
     new Listener("guess phase over", (payload) => {
-        if (autoMute !== null || autoUnmute !== null) {
+        if (autoMute.mute.length || autoMute.unmute.length || autoMute.toggle.length || autoMute.randomMute || autoMute.randomUnmute) {
             $("#qpVolume").removeClass("disabled");
             volumeController.setMuted(false);
             volumeController.adjustVolume();
@@ -376,7 +441,7 @@ function setup() {
         }
     }).bindListener();
     new Listener("answer results", (payload) => {
-        if (autoMute !== null || autoUnmute !== null) {
+        if (autoMute.mute.length || autoMute.unmute.length || autoMute.toggle.length || autoMute.randomMute || autoMute.randomUnmute) {
             $("#qpVolume").removeClass("disabled");
             volumeController.setMuted(false);
             volumeController.adjustVolume();
@@ -1141,51 +1206,57 @@ async function parseCommand(content, type, target) {
         autoCopy = /^\S+ (\w+)$/.exec(content)[1].toLowerCase();
         sendMessage(`auto copying ${autoCopy}`, type, target, true);
     }
-    else if (/^\/(am|automute)$/i.test(content)) {
+    else if (/^\/(am|au|amt|amr|aur|automute|autounmute|automutetoggle|automuterandom|autounmuterandom)$/i.test(content)) {
         $("#qpVolume").removeClass("disabled");
         volumeController.setMuted(false);
         volumeController.adjustVolume();
-        autoMute = null;
-        autoUnmute = null;
-        sendMessage("auto mute disabled", type, target, true);
+        autoMute = {mute: [], unmute: [], toggle: [], randomMute: null, randomUnmute: null};
+        sendMessage("auto mute system disabled", type, target, true);
     }
     else if (/^\/(am|automute) [0-9.]+$/i.test(content)) {
         let seconds = parseFloat(/^\S+ ([0-9.]+)$/.exec(content)[1]);
         if (isNaN(seconds)) return;
-        autoMute = Math.floor(seconds * 1000);
-        autoUnmute = null;
+        autoMute = {mute: [Math.floor(seconds * 1000)], unmute: [], toggle: [], randomMute: null, randomUnmute: null};
         sendMessage(`auto muting after ${seconds} second${seconds === 1 ? "" : "s"}`, type, target, true);
     }
     else if (/^\/(am|automute) [0-9.]+[ ,-]+[0-9.]+$/i.test(content)) {
         let low = parseFloat(/^\S+ ([0-9.]+)[ ,-]+[0-9.]+$/.exec(content)[1]);
         let high = parseFloat(/^\S+ [0-9.]+[ ,-]+([0-9.]+)$/.exec(content)[1]);
         if (isNaN(low) || isNaN(high) || low >= high) return;
-        autoMute = [Math.floor(low * 1000), Math.floor(high * 1000)];
-        autoUnmute = null;
+        autoMute = {mute: [Math.floor(low * 1000), Math.floor(high * 1000)], unmute: [], toggle: [], randomMute: null, randomUnmute: null};
         sendMessage(`auto muting after random # of seconds between ${low} - ${high}`, type, target, true);
-    }
-    else if (/^\/(au|autounmute)$/i.test(content)) {
-        $("#qpVolume").removeClass("disabled");
-        volumeController.setMuted(false);
-        volumeController.adjustVolume();
-        autoUnmute = null;
-        autoMute = null;
-        sendMessage("auto unmute disabled", type, target, true);
     }
     else if (/^\/(au|autounmute) [0-9.]+$/i.test(content)) {
         let seconds = parseFloat(/^\S+ ([0-9.]+)$/.exec(content)[1]);
         if (isNaN(seconds)) return;
-        autoUnmute = Math.floor(seconds * 1000);
-        autoMute = null;
+        autoMute = {mute: [], unmute: [Math.floor(seconds * 1000)], toggle: [], randomMute: null, randomUnmute: null};
         sendMessage(`auto unmuting after ${seconds} second${seconds === 1 ? "" : "s"}`, type, target, true);
     }
     else if (/^\/(au|autounmute) [0-9.]+[ ,-]+[0-9.]+$/i.test(content)) {
         let low = parseFloat(/^\S+ ([0-9.]+)[ ,-]+[0-9.]+$/.exec(content)[1]);
         let high = parseFloat(/^\S+ [0-9.]+[ ,-]+([0-9.]+)$/.exec(content)[1]);
         if (isNaN(low) || isNaN(high) || low >= high) return;
-        autoUnmute = [Math.floor(low * 1000), Math.floor(high * 1000)];
-        autoMute = null;
+        autoMute = {mute: [], unmute: [Math.floor(low * 1000), Math.floor(high * 1000)], toggle: [], randomMute: null, randomUnmute: null};
         sendMessage(`auto unmuting after random # of seconds between ${low} - ${high}`, type, target, true);
+    }
+    else if (/^\/(amt|automutetoggle) .+$/i.test(content)) {
+        let list = /^\S+ (.+)$/.exec(content)[1].split(/[, ]+/).map((x) => Number(x)).filter((x) => Number.isFinite && x >= 0);
+        list = [...new Set(list)].sort((a, b) => a - b);
+        if (list.length < 2) return;
+        autoMute = {mute: [], unmute: [], toggle: list.map((x) => Math.floor(x * 1000)), randomMute: null, randomUnmute: null};
+        sendMessage(`auto mute toggle list set to ${list.join(", ")}`, type, target, true);
+    }
+    else if (/^\/(amr|automuterandom) [0-9.]+$/i.test(content)) {
+        let option = parseFloat(/^\S+ ([0-9.]+)$/.exec(content)[1]);
+        if (isNaN(option) || option === 0) return;
+        autoMute = {mute: [], unmute: [], toggle: [], randomMute: Math.floor(option * 1000), randomUnmute: null};
+        sendMessage(`auto mute a random ${option} second interval`, type, target, true);
+    }
+    else if (/^\/(aur|autounmuterandom) [0-9.]+$/i.test(content)) {
+        let option = parseFloat(/^\S+ ([0-9.]+)$/.exec(content)[1]);
+        if (isNaN(option) || option === 0) return;
+        autoMute = {mute: [], unmute: [], toggle: [], randomMute: null, randomUnmute: Math.floor(option * 1000)};
+        sendMessage(`auto unmute a random ${option} second interval`, type, target, true);
     }
     else if (/^\/autoready$/i.test(content)) {
         autoReady = !autoReady;
@@ -2053,7 +2124,7 @@ function parseIncomingDM(content, sender) {
  */
 function parseForceAll(content, type) {
     if (/^\/forceall version$/i.test(content)) {
-        sendMessage("0.94", type);
+        sendMessage("0.95", type);
     }
     else if (/^\/forceall roll [0-9]+$/i.test(content)) {
         let number = parseInt(/^\S+ roll ([0-9]+)$/.exec(content)[1]);
@@ -2476,8 +2547,13 @@ function autoList() {
     if (autoCopy) list.push("Auto Copy: " + autoCopy);
     if (autoThrow.text) list.push("Auto Throw: " + autoThrow.text);
     if (autoThrow.multichoice) list.push("Auto Throwing Multi Choice Option: " + autoThrow.multichoice);
-    if (autoMute !== null) list.push("Auto Mute: " + (Array.isArray(autoMute) ? `random ${autoMute[0] / 1000}s - ${autoMute[1] / 1000}s` : `${autoMute / 1000}s`));
-    if (autoUnmute !== null) list.push("Auto Unmute: " + (Array.isArray(autoUnmute) ? `random ${autoUnmute[0] / 1000}s - ${autoUnmute[1] / 1000}s` : `${autoUnmute / 1000}s`));
+    if (autoMute.mute.length === 1) list.push(`Auto Mute: ${autoMute.mute[0] / 1000}s`);
+    else if (autoMute.mute.length === 2) list.push(`Auto Mute: random ${autoMute.mute[0] / 1000}s - ${autoMute.mute[1] / 1000}s`);
+    else if (autoMute.unmute.length === 1) list.push(`Auto Unmute: ${autoMute.unmute[0] / 1000}s`);
+    else if (autoMute.unmute.length === 2) list.push(`Auto Unmute: random ${autoMute.unmute[0] / 1000}s - ${autoMute.unmute[1] / 1000}s`);
+    else if (autoMute.toggle.length) list.push(`Auto Mute Toggle: ${autoMute.toggle.map((x) => x / 1000).join(", ")}`);
+    else if (autoMute.randomMute) list.push(`Auto Mute Random: ${autoMute.randomMute / 1000}s`);
+    else if (autoMute.randomUnmute) list.push(`Auto Unmute Random: ${autoMute.randomUnmute / 1000}s`);
     if (autoReady) list.push("Auto Ready: Enabled");
     if (autoStart) list.push("Auto Start: Enabled");
     if (autoHost) list.push("Auto Host: " + autoHost);
@@ -2579,7 +2655,7 @@ function lobbyHidePlayers() {
             player.hidden = true;
             player.textColor = player.lobbySlot.$NAME_CONTAINER.css("color");
             player.lobbySlot.$IS_HOST_CONTAINER.addClass("hide");
-            player.lobbySlot.$AVATAR_IMAGE.addClass("hide");
+            player.lobbySlot.avatarIconDisplayHandler.$container.addClass("hide");
             player.lobbySlot.$NAME_CONTAINER.css("color", "inherit").text("player");
             player.lobbySlot.$LEVEL_CONTAINER.text("");
         }
@@ -2593,7 +2669,7 @@ function lobbyUnhidePlayers() {
         if (player._name !== selfName) {
             player.hidden = false;
             if (player._host) player.lobbySlot.$IS_HOST_CONTAINER.removeClass("hide");
-            player.lobbySlot.$AVATAR_IMAGE.removeClass("hide");
+            player.lobbySlot.avatarIconDisplayHandler.$container.removeClass("hide");
             player.lobbySlot.$NAME_CONTAINER.css("color", player.textColor).text(player._name);
             player.lobbySlot.$LEVEL_CONTAINER.text(player.level);
         }
@@ -2606,7 +2682,7 @@ function quizHidePlayers() {
         if (!player.isSelf && !player.hidden) {
             player.hidden = true;
             player.textColor = player.avatarSlot.$nameContainer.css("color");
-            player.avatarSlot.$avatarImage.addClass("hide");
+            player.avatarSlot.$avatarImageContainer.addClass("hide");
             player.avatarSlot.$backgroundContainer.addClass("hide");
             player.avatarSlot.$nameContainer.css("color", "inherit").text("player");
             player.avatarSlot.$pointContainer.css("color", "inherit");
@@ -2630,7 +2706,7 @@ function quizUnhidePlayers() {
     for (let player of Object.values(quiz.players)) {
         if (!player.isSelf) {
             player.hidden = false;
-            player.avatarSlot.$avatarImage.removeClass("hide");
+            player.avatarSlot.$avatarImageContainer.removeClass("hide");
             player.avatarSlot.$backgroundContainer.removeClass("hide");
             player.avatarSlot.$nameContainer.css("color", player.textColor).text(player._name);
             player.avatarSlot.$pointContainer.css("color", player.textColor);
@@ -2809,7 +2885,6 @@ function saveSettings() {
     settings.autoStatus = autoStatus;
     //settings.autoSwitch = autoSwitch;
     //settings.autoThrow = autoThrow;
-    //settings.autoUnmute = autoUnmute;
     settings.autoVoteLobby = autoVoteLobby;
     //settings.autoVoteSkip = autoVoteSkip;
     settings.backgroundURL = backgroundURL;
