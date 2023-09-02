@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.20
+// @version      0.21
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -43,7 +43,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.20";
+const version = "0.21";
 const saveData = JSON.parse(localStorage.getItem("customSongListGame")) || {};
 let replacedAnswers = saveData.replacedAnswers || {};
 let fastSkip = false;
@@ -1009,7 +1009,7 @@ function handleData(data) {
                 songTypeNumber: song.songType[0] === "I" ? null : parseInt(song.songType.split(" ")[1]),
                 songDifficulty: song.songDifficulty,
                 animeType: song.animeType,
-                animeVintage: song.vintage,
+                animeVintage: song.animeVintage,
                 annId: song.annId,
                 malId: null,
                 kitsuId: null,
@@ -1105,7 +1105,7 @@ function handleData(data) {
                 songArtist: song.artist,
                 songName: song.songName,
                 songType: Object({O: 1, E: 2, I: 3})[song.type[0]],
-                songTypeNumber: song.songType[0] === "I" ? null : parseInt(song.type.split(" ")[1]),
+                songTypeNumber: song.type[0] === "I" ? null : parseInt(song.type.split(" ")[1]),
                 songDifficulty: song.songDifficulty,
                 animeType: null,
                 animeVintage: song.vintage,
