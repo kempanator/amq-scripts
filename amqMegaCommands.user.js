@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.95
+// @version      0.96
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -66,6 +66,7 @@ IN GAME/LOBBY
 /join                     change from spectator to player in lobby
 /queue                    join/leave queue
 /volume [0-100]           change volume
+/quality [text]           change video quality to mp3, 480, 720
 /countdown [seconds]      start game after # of seconds
 /dropdown                 enable/disable anime dropdown
 /dropdownspec             enable drop down while spectating
@@ -98,7 +99,7 @@ OTHER
 */
 
 "use strict";
-const version = "0.95";
+const version = "0.96";
 const saveData = JSON.parse(localStorage.getItem("megaCommands")) || {};
 let alertHidden = saveData.alertHidden ?? true;
 let animeList;
@@ -221,6 +222,7 @@ const dqMap = {
     "Akame ga Kill!": {genre: [1, 2, 4, 6, 7, 12, 18], years: [2014, 2014], seasons: [2, 2]},
     "Magical Girl Site": {genre: [1, 4, 7, 8, 12, 17], years: [2018, 2018], seasons: [1, 1]},
     "Made in Abyss": {genre: [2, 4, 6, 7, 11, 14], years: [2017, 2017], seasons: [2, 2]},
+    "Girls' Last Tour": {genre: [2, 14, 15], years: [2017, 2017], seasons: [3, 3]},
     "Mirai Nikki": {genre: [1, 7, 11, 12, 17, 18], years: [2011, 2011], seasons: [3, 3]}
 };
 
@@ -1240,7 +1242,7 @@ async function parseCommand(content, type, target) {
         sendMessage(`auto unmuting after random # of seconds between ${low} - ${high}`, type, target, true);
     }
     else if (/^\/(amt|automutetoggle) .+$/i.test(content)) {
-        let list = /^\S+ (.+)$/.exec(content)[1].split(/[, ]+/).map((x) => Number(x)).filter((x) => Number.isFinite && x >= 0);
+        let list = /^\S+ (.+)$/.exec(content)[1].split(/[, ]+/).map((x) => parseFloat(x)).filter((x) => !isNaN(x) && x >= 0);
         list = [...new Set(list)].sort((a, b) => a - b);
         if (list.length < 2) return;
         autoMute = {mute: [], unmute: [], toggle: list.map((x) => Math.floor(x * 1000)), randomMute: null, randomUnmute: null};
@@ -1486,11 +1488,43 @@ async function parseCommand(content, type, target) {
     else if (/^\/(lb|lobby|returntolobby)$/i.test(content)) {
         socket.sendCommand({type: "quiz", command: "start return lobby vote"});
     }
+    else if (/^\/(v|volume)$/i.test(content)) {
+        sendMessage(volumeController.muted ? "🔇" : "🔉 " + Math.round(volumeController.volume * 100) + "%", type, target);
+    }
     else if (/^\/(v|volume) [0-9]+$/i.test(content)) {
         let option = parseFloat(/^\S+ ([0-9]+)$/.exec(content)[1]) / 100;
         volumeController.volume = option;
         volumeController.setMuted(false);
         volumeController.adjustVolume();
+    }
+    else if (/^\/(v|volume) (m|mute)$/i.test(content)) {
+        volumeController.setMuted(true);
+        volumeController.adjustVolume();
+    }
+    else if (/^\/(v|volume) (u|unmute)$/i.test(content)) {
+        volumeController.setMuted(false);
+        volumeController.adjustVolume();
+    }
+    else if (/^\/(q|quality)$/i.test(content)) {
+        sendMessage(qualityController.targetResolution, type, target);
+    }
+    else if (/^\/(q|quality) \S+$/i.test(content)) {
+        let option = /^\S+ (\S+)$/.exec(content)[1].toLowerCase();
+        if (option === "0" || option === "mp3" || option === "sound") {
+            qualityController.newResolution(0);
+            qualityController.resetSelected();
+            qualityController._$0.addClass("selected");
+        }
+        else if (option === "480") {
+            qualityController.newResolution(480);
+            qualityController.resetSelected();
+            qualityController._$480.addClass("selected");
+        }
+        else if (option === "720") {
+            qualityController.newResolution(720);
+            qualityController.resetSelected();
+            qualityController._$720.addClass("selected");
+        }
     }
     else if (/^\/clear$/i.test(content)) {
         if (type === "chat" || type === "teamchat") {
@@ -1684,11 +1718,11 @@ async function parseCommand(content, type, target) {
                 socket.sendCommand({
                     type: "social",
                     command: "chat message",
-                    data: {target: alien, message: "Aliens: " + aliens.join(", ") + " (turn on your list and disable share entries)"}
+                    data: {target: alien, message: `Aliens: ${aliens.join(", ")} (turn on your list and disable share entries)`}
                 });
             }, 500 * i);
         });
-        setTimeout(() => { sendMessage(n + " alien" + (n === 1 ? "" : "s") + " chosen", type, target) }, 500 * n);
+        setTimeout(() => { sendMessage(`${n} alien${n === 1 ? "" : "s"} chosen`, type, target) }, 500 * n);
     }
     else if (/^\/(bg|background|wallpaper)$/i.test(content)) {
         backgroundURL = "";
@@ -2124,7 +2158,7 @@ function parseIncomingDM(content, sender) {
  */
 function parseForceAll(content, type) {
     if (/^\/forceall version$/i.test(content)) {
-        sendMessage("0.95", type);
+        sendMessage("0.96", type);
     }
     else if (/^\/forceall roll [0-9]+$/i.test(content)) {
         let number = parseInt(/^\S+ roll ([0-9]+)$/.exec(content)[1]);
@@ -2473,7 +2507,7 @@ function checkAutoSwitch() {
 function checkAutoHost() {
     if (!autoHost) return;
     if (lobby.inLobby && lobby.isHost) {
-        if (autoHost === "{random}") {
+        if (autoHost === "*") {
             lobby.promoteHost(getRandomOtherPlayer());
         }
         else if (isInYourRoom(autoHost)) {
@@ -2481,7 +2515,7 @@ function checkAutoHost() {
         }
     }
     else if (nexus.inCoopLobby && nexusCoopChat.hostName === selfName && Object.keys(nexusCoopChat.playerMap).length > 1) {
-        if (autoHost === "{random}") {
+        if (autoHost === "*") {
             socket.sendCommand({type: "nexus", command: "nexus promote host", data: {name: getRandomOtherPlayer()}});
         }
         else if (isInYourRoom(autoHost)) {
