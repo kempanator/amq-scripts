@@ -62,7 +62,8 @@ windowBackground               background color of modals and draggable windows
 containerBackground            background color of main menu buttons and quiz side windows
 videoBackground                background color of quiz video player
 answerInputBackground          background color answer input bar
-avatarBackground               background color of avatars in quiz and avatar store
+avatarBackground               background color of avatars in quiz
+avatarStoreAvatarBackground    background color of avatars in avatar store
 lobbyAvatarNameBackground      background color of player name in lobby 
 
 textColor                      text color of <body>
@@ -119,6 +120,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         --videoBackground: #00000080;
         --answerInputBackground: #1b1b1bdd;
         --avatarBackground: transparent;
+        --avatarStoreAvatarBackground: #1b1b1bcc;
         --lobbyAvatarNameBackground: var(--secondaryColor);
         
         --textColor: #d9d9d9;
@@ -177,6 +179,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         --videoBackground: #eeeeee80;
         --answerInputBackground: #eeeeeecc;
         --avatarBackground: transparent;
+        --avatarStoreAvatarBackground: #eeeeeecc;
         --lobbyAvatarNameBackground: var(--secondaryColor);
         
         --textColor: black;
@@ -1126,6 +1129,9 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     #gcInputCooldownBar {
         background-color: var(--accentColor);
     }
+    #gcPlayerOnlyMessage {
+        background-color: var(--secondaryColor);
+    }
     #gcEmojiLockInContainer {
         border: 2px dashed var(--textColor);
     }
@@ -1469,7 +1475,6 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         border-radius: var(--borderRadius);
     }
     #qpVideoHider {
-        background-color: var(--primaryColor);
         background-color: transparent;
         border-radius: var(--borderRadius);
     }
@@ -1481,6 +1486,17 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     }
     #qpVideoProgressBar {
         background-color: var(--accentColor);
+    }
+    #qpVideoTroubleshootingContainer {
+        background-color: var(--containerBackground);
+    }
+    #qpVideoTroubleshootingContainer .close {
+        color: var(--textColor);
+        text-shadow: none;
+        opacity: 1;
+    }
+    #qpVideoTroubleshootingContainer .close:hover {
+        opacity: .7;
     }
 
 
@@ -1594,15 +1610,13 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     /* Quiz Avatar */
     .qpAvatarAnswerContainer {
         background-color: var(--primaryColor);
-        border-radius: var(--borderRadius);
+        border-radius: 3px;
     }
-    .qpAvatarAnswerContainer.rightAnswer .qpAvatarAnswer {
-        box-shadow: none;
-        text-shadow: none;
+    .qpAvatarAnswerContainer:has(.qpAvatarAnswerText.rightAnswer) {
+        box-shadow: inset 0 0 2px var(--correctAnswerColor), 0 0 5px var(--correctAnswerColor), 0 0 5px var(--correctAnswerColor), 0 0 5px var(--correctAnswerColor);
     }
-    .qpAvatarAnswerContainer.wrongAnswer .qpAvatarAnswer {
-        box-shadow: none;
-        text-shadow: none;
+    .qpAvatarAnswerContainer:has(.qpAvatarAnswerText.wrongAnswer) {
+        box-shadow: inset 0 0 2px var(--wrongAnswerColor), 0 0 5px var(--wrongAnswerColor), 0 0 5px var(--wrongAnswerColor), 0 0 5px var(--wrongAnswerColor);
     }
     .qpAvatarAnswerText {
         border-right: 17px solid transparent;
@@ -1616,10 +1630,10 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         text-shadow: none;
     }
     .qpAvatarStatusOuterContainer {
-        border-radius: 0 var(--borderRadius) var(--borderRadius) 0;
+        border-radius: 0 3px 3px 0;
     }
     .qpAvatarStatusInnerContainer {
-        background-color: var(--primaryColor);
+        background-color: transparent;
         box-shadow: 1px -3px 10px var(--boxShadowColor);
         opacity: 1;
         right: -10px;
@@ -2180,8 +2194,8 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     .swTicketRollText {
         text-shadow: 2px 2px 3px var(--textShadowColor);
     }
-    .swTicketRollRewardContainer {
-        border-radius: var(--borderRadius);
+    .swRhythmIcon {
+        z-index: 1;
     }
     #swTicketAvatarLockingContainerOuter {
         transition: top .2s linear;
@@ -2236,16 +2250,12 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         padding-top: 135px;
     }
     .swAvatarTile {
-        background-color: var(--avatarBackground);
-        border-radius: var(--borderRadius);
+        background-color: var(--avatarStoreAvatarBackground);
         width: 170px;
         margin: 10px;
     }
     .swAvatarTile:nth-of-type(4n) {
         margin-right: 10px;
-    }
-    .swAvatarTile > .avatarDisplay {
-        border-radius: var(--borderRadius);
     }
     .swAvatarTileType {
         background-color: var(--primaryColor);
@@ -2259,7 +2269,6 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     }
     .swAvatarTileFooter {
         background-color: var(--primaryColor);
-        border-radius: 0 0 var(--borderRadius) var(--borderRadius);
         opacity: .6;
     }
     .swAvatarTile:hover > .swAvatarTileFooter {
@@ -3398,5 +3407,10 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     /* Move avatar name/info down */
     /*.qpAvatarInfoBar {
         bottom: -30px;
+    }*/
+    
+    /* Disable animated avatars */
+    /*.avatarSpine {
+        display: none;
     }*/
 }
