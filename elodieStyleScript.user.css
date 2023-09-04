@@ -27,7 +27,7 @@ V10 rewrite by kempanator [July 2023]
   10.2
     - styled new log in page
     - game chat + other backgrounds now support images
-    - fixed missing answer color on animated avatars
+    - fixed border color on right/wrong answers
     - fixed readability on autocomplete dropdown
 
 
@@ -1612,10 +1612,10 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         background-color: var(--primaryColor);
         border-radius: 3px;
     }
-    .qpAvatarAnswerContainer:has(.qpAvatarAnswerText.rightAnswer) {
+    .qpAvatarContainerOuter.correct .qpAvatarAnswerContainer {
         box-shadow: inset 0 0 2px var(--correctAnswerColor), 0 0 5px var(--correctAnswerColor), 0 0 5px var(--correctAnswerColor), 0 0 5px var(--correctAnswerColor);
     }
-    .qpAvatarAnswerContainer:has(.qpAvatarAnswerText.wrongAnswer) {
+    .qpAvatarContainerOuter.wrong .qpAvatarAnswerContainer, .qpAvatarContainerOuter.noAnswer .qpAvatarAnswerContainer {
         box-shadow: inset 0 0 2px var(--wrongAnswerColor), 0 0 5px var(--wrongAnswerColor), 0 0 5px var(--wrongAnswerColor), 0 0 5px var(--wrongAnswerColor);
     }
     .qpAvatarAnswerText {
@@ -1700,14 +1700,14 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     .qpAvatarImageContainer {
         background-color: var(--avatarBackground);
     }
-    .qpAvatarContainer:has(.avatarImage[src*="Waiting."]) .qpAvatarBackgroundContainer {
+    .qpAvatarContainerOuter.wait .qpAvatarBackgroundContainer {
         box-shadow: inset 0 0 10px var(--waitingAnswerColor), 0 0 10px var(--waitingAnswerColor), 0 0 10px var(--waitingAnswerColor), 0 0 10px var(--waitingAnswerColor);
     }
-    .qpAvatarContainer:has(.qpAvatarAnswerText.rightAnswer) .qpAvatarBackgroundContainer {
+    .qpAvatarContainerOuter.correct .qpAvatarBackgroundContainer {
         background-color: var(--correctAnswerColorTransparent);
         box-shadow: inset 0 0 10px var(--correctAnswerColor), 0 0 10px var(--correctAnswerColor), 0 0 10px var(--correctAnswerColor), 0 0 10px var(--correctAnswerColor);
     }
-    .qpAvatarContainer:has(.qpAvatarAnswerText.wrongAnswer) .qpAvatarBackgroundContainer {
+    .qpAvatarContainerOuter.wrong .qpAvatarBackgroundContainer, .qpAvatarContainerOuter.noAnswer .qpAvatarBackgroundContainer {
         background-color: var(--wrongAnswerColorTransparent);
         box-shadow: inset 0 0 10px var(--wrongAnswerColor), 0 0 10px var(--wrongAnswerColor), 0 0 10px var(--wrongAnswerColor), 0 0 10px var(--wrongAnswerColor);
     }
@@ -2623,17 +2623,15 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     .nexusMapRewardArtifact:hover {
         box-shadow: 0 0 15px 5px var(--accentColor);
     }
-    .artifactHighlight {
-        color: var(--accentColorContrast);
-        text-shadow: 0 0 5px var(--textShadowColor);
-        font-weight: bold;
-    }
     .nexusVoteIcon {
         background-color: var(--primaryColor);
         box-shadow: 0 0 10px 1px var(--boxShadowColor);
     }
     .nexusMapRewardArtifactHighlightAvatarImage {
         box-shadow: 0 0 10px 1px var(--boxShadowColor);
+    }
+    .nexusMapRewardArtifactSelectedTarget {
+        box-shadow: 0 0 5px 1px var(--boxShadowColor);
     }
     .ncdwPartySlotPlayerContainer {
         background-color: var(--primaryColor);
@@ -3001,8 +2999,6 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         color: var(--textColor);
         text-shadow: 0 0 5px var(--textShadowColor);
     }
-
-    /* Nexus Quiz */
     #gameChatPage.nexusView #qpPauseButton {
         background-color: var(--primaryColor);
     }
@@ -3174,6 +3170,34 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     }
     .nexusMapRewardRuneModImg {
         box-shadow: 0 0 7px var(--boxShadowColor);
+    }
+    .nexusMapNextFloorAvatar {
+        background-color: var(--primaryColorTransparent);
+        box-shadow: 0 0 10px 1px var(--boxShadowColor);
+    }
+    .nexusMapNextFloorAvatarHealthBar {
+        background-color: var(--secondaryColor);
+        box-shadow: 0px 0px 7px 0px var(--boxShadowColor);
+        border: solid 1px var(--primaryColor);
+    }
+    .nexusMapNextFloorAvatarHealthBarFill {
+        background-color: var(--accentColor);
+        box-shadow: inset 0px 0px 6px 3px var(--accentColorLight);
+        opacity: 1;
+    }
+    .nexusMapNextFloorAvatarHealthBarText {
+        text-shadow: 0px 0px 6px var(--textShadowColor);
+    }
+    .nexusMapNextFloorAvatarButton {
+        background-color: var(--primaryColor);
+        box-shadow: 0 0 10px 1px var(--boxShadowColor);
+    }
+    .nexusMapNextFloorAvatarButton:hover {
+        box-shadow: 0 0 10px 1px var(--accentColor);
+    }
+    .nexusMapNextFloorAvatarArtifactContainer {
+        background-color: var(--primaryColorTransparent);
+        border: solid 2px var(--primaryColor);
     }
 
 
@@ -3385,19 +3409,6 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         display: block;
         line-height: initial;
     }*/
-
-
-    /* Darker Nexus City */
-    /*#nexusCitySkyCanvas {
-        filter: brightness(0);
-    }
-    #nexusCityCloudCanvas {
-        filter: brightness(0.1);
-    }
-    #nexusCityBackCanvas {
-        filter: hue-rotate(0deg) grayscale(.5) brightness(.5) contrast(3);
-    }*/
-
 
     /* Disable sliding animations */
     /*.fade, .menuBar .popOut, .modal.fade .modal-dialog, .modal.in .modal-dialog, #optionsContainer, #questContainer, #questContainer.open, .chatBoxContainer {
