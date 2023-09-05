@@ -539,6 +539,9 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         border-radius: var(--borderRadius);
         animation: none;
     }
+    .lpPlayButton.login {
+        background: var(--accentColorTransparent);
+    }
     .lpPlayButton:hover {
         box-shadow: 0 0 10px 2px var(--accentColor);
         transition: none;
@@ -2902,7 +2905,8 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         border: 2px solid var(--secondaryColor);
     }
     .nciwAvatarSkinSelectTextContainer {
-        text-shadow: 0 0 5px var(--textShadowColor), 0 0 5px var(--textShadowColor);
+        text-shadow: 0 1px 0 var(--colorMod), 1px 0 0 var(--colorMod), 0 -1px 0 var(--colorMod), -1px 0 0 var(--colorMod), 0 0 5px var(--textShadowColor);
+        z-index: 1;
     }
     .nciwAvatarSkinSelectLocked {
         color: var(--textColor);
