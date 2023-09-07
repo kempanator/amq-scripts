@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.22
+// @version      0.23
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -43,7 +43,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.22";
+const version = "0.23";
 const saveData = JSON.parse(localStorage.getItem("customSongListGame")) || {};
 let replacedAnswers = saveData.replacedAnswers || {};
 let fastSkip = false;
@@ -55,6 +55,7 @@ let currentAnswer = "";
 let score = 0;
 let songList = [];
 let songOrder = {}; //{song#: index#, ...}
+let mergedSongList = [];
 let startPointRange = [0, 100];
 let difficultyRange = [0, 100];
 let previousSongFinished = false;
@@ -84,6 +85,9 @@ $("#gameContainer").append($(`
                         </div>
                         <div id="cslgAnswerTab" class="tab clickAble">
                             <h5>Answers</h5>
+                        </div>
+                        <div id="cslgMergeTab" class="tab clickAble">
+                            <h5>Merge</h5>
                         </div>
                         <div id="cslgInfoTab" class="tab clickAble" style="width: 45px; margin-right: -10px; padding-right: 8px; float: right;">
                             <h5><i class="fa fa-info-circle" aria-hidden="true"></i></h5>
@@ -198,6 +202,17 @@ $("#gameContainer").append($(`
                         </div>
                         <p style="margin-top: 5px">Use this window to replace invalid answers from your imported song list with valid answers from AMQ's autocomplete.</p>
                     </div>
+                    <div id="cslgMergeContainer">
+                        <h4 style="text-align: center; margin-bottom: 20px;">Merge multiple song lists into 1 JSON file</h4>
+                        <div id="cslgMergeCurrentCount" style="font-size: 16px; font-weight: bold; margin-bottom: 15px;">Found 0 songs in the current song list</div>
+                        <span id="cslgMergeTotalCount" style="font-size: 16px; font-weight: bold;">Merged JSON file: 0 songs</span>
+                        <span style="float: right">
+                            <button id="cslgMergeButton" class="btn btn-default">Merge</button>
+                            <button id="cslgMergeClearButton" class="btn btn-warning">Clear</button>
+                            <button id="cslgMergeDownloadButton" class="btn btn-success">Download</button>
+                        </span>
+                        <p style="margin-top: 30px">1. Load some songs into the table in the song list tab<br>2. Come back to this tab<br>3. Click "merge" to add everything from that list to a new combined list<br>4. Repeat steps 1-3 as many times as you want<br>5. Click "download" to download the new json file<br>6. Upload the file in the song list tab and play</p>
+                    </div>
                     <div id="cslgInfoContainer" style="text-align: center; margin: 40px 0;">
                         <p>Created by: kempanator</p>
                         <p>Version: ${version}</p>
@@ -216,10 +231,31 @@ $("#gameContainer").append($(`
 
 $("#lobbyPage .topMenuBar").append(`<div id="lnCustomSongListButton" class="clickAble topMenuButton topMenuMediumButton"><h3>CSL</h3></div>`);
 $("#lnCustomSongListButton").click(() => { openSettingsModal() });
-$("#cslgSongListTab").click(() => { showSongListInterface() });
-$("#cslgQuizSettingsTab").click(() => { showSettingsInterface() });
-$("#cslgAnswerTab").click(() => { showAnswerInterface() });
-$("#cslgInfoTab").click(() => { showInfoInterface() });
+$("#cslgSongListTab").click(() => {
+    tabReset();
+    $("#cslgSongListTab").addClass("selected");
+    $("#cslgSongListContainer").show();
+});
+$("#cslgQuizSettingsTab").click(() => {
+    tabReset();
+    $("#cslgQuizSettingsTab").addClass("selected");
+    $("#cslgQuizSettingsContainer").show();
+});
+$("#cslgAnswerTab").click(() => {
+    tabReset();
+    $("#cslgAnswerTab").addClass("selected");
+    $("#cslgAnswerContainer").show();
+});
+$("#cslgMergeTab").click(() => {
+    tabReset();
+    $("#cslgMergeTab").addClass("selected");
+    $("#cslgMergeContainer").show();
+});
+$("#cslgInfoTab").click(() => {
+    tabReset();
+    $("#cslgInfoTab").addClass("selected");
+    $("#cslgInfoContainer").show();
+});
 $("#cslgAnisongdbSearchButtonGo").click(() => { anisongdbDataSearch() });
 $("#cslgAnisongdbQueryInput").keypress((event) => { if (event.which === 13) anisongdbDataSearch() });
 $("#cslgFileUpload").on("change", function() {
@@ -235,6 +271,28 @@ $("#cslgFileUpload").on("change", function() {
             createSongListTable();
             createAnswerTable();
         });
+    }
+});
+$("#cslgMergeButton").click(() => {
+    mergedSongList = Array.from(new Set(mergedSongList.concat(songList).map((x) => JSON.stringify(x)))).map((x) => JSON.parse(x));
+    $("#cslgMergeTotalCount").text(`Merged JSON file: ${mergedSongList.length} song${mergedSongList.length === 1 ? "" : "s"}`);
+});
+$("#cslgMergeClearButton").click(() => {
+    mergedSongList = [];
+    $("#cslgMergeTotalCount").text("Merged JSON file: 0 songs");
+});
+$("#cslgMergeDownloadButton").click(() => {
+    if (mergedSongList.length) {
+        let data = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(mergedSongList));
+        let element = document.createElement("a");
+        element.setAttribute("href", data);
+        element.setAttribute("download", "merged.json");
+        document.body.appendChild(element);
+        element.click();
+        element.remove();
+    }
+    else {
+        displayMessage("No songs", "add some songs to the merged song list");
     }
 });
 $("#cslgAutocompleteButton").click(() => {
@@ -341,7 +399,7 @@ $("#cslgAnswerButtonAdd").click(() => {
         localStorage.setItem("customSongListGame", JSON.stringify({replacedAnswers: replacedAnswers}));
         createAnswerTable();
     }
-    console.log(replacedAnswers);
+    //console.log(replacedAnswers);
 });
 $("#cslgAnswerTable").on("click", "i.fa-pencil", (event) => {
     let oldName = event.target.parentElement.parentElement.querySelector("td.oldName").innerText;
@@ -382,6 +440,7 @@ $("#cslgModeAnisongdbRadio").click(() => {
     $("#cslgSongListCount").text("Total Songs: 0");
     $("#cslgFileUploadRow input").val("");
     $("#cslgSongListTable tbody").empty();
+    $("#cslgMergeCurrentCount").text("Found 0 songs in the current song list");
 });
 $("#cslgModeFileUploadRadio").click(() => {
     songList = [];
@@ -390,8 +449,11 @@ $("#cslgModeFileUploadRadio").click(() => {
     $("#cslgSongListCount").text("Total Songs: 0");
     $("#cslgAnisongdbQueryInput").val("");
     $("#cslgSongListTable tbody").empty();
+    $("#cslgMergeCurrentCount").text("Found 0 songs in the current song list");
 });
-showSongListInterface();
+tabReset();
+$("#cslgSongListTab").addClass("selected");
+$("#cslgSongListContainer").show();
 
 // setup
 function setup() {
@@ -1056,9 +1118,9 @@ function handleData(data) {
                 animeTags: song.songInfo.animeTags,
                 animeGenre: song.songInfo.animeGenre,
                 startPoint: song.startPoint,
-                audio: song.videoUrl.endsWith(".mp3") ? song.videoUrl : null,
+                audio: String(song.videoUrl).endsWith(".mp3") ? song.videoUrl : null,
                 video480: null,
-                video720: song.videoUrl.endsWith(".webm") ? song.videoUrl : null,
+                video720: String(song.videoUrl).endsWith(".webm") ? song.videoUrl : null,
                 correctGuess: song.correctGuess,
                 incorrectGuess: song.wrongGuess
             });
@@ -1133,6 +1195,7 @@ function handleData(data) {
 // create song list table
 function createSongListTable() {
     $("#cslgSongListCount").text("Total Songs: " + songList.length);
+    $("#cslgMergeCurrentCount").text(`Found ${songList.length} song${songList.length === 1 ? "" : "s"} in the current song list`);
     let $tbody = $("#cslgSongListTable tbody");
     $tbody.empty();
     songList.forEach((result, i) => {
@@ -1180,52 +1243,18 @@ function createAnswerTable() {
     }
 }
 
-// click song list tab
-function showSongListInterface() {
-    $("#cslgQuizSettingsTab").removeClass("selected");
-    $("#cslgAnswerTab").removeClass("selected");
-    $("#cslgInfoTab").removeClass("selected");
-    $("#cslgSongListTab").addClass("selected");
-    $("#cslgQuizSettingsContainer").hide();
-    $("#cslgAnswerContainer").hide();
-    $("#cslgInfoContainer").hide();
-    $("#cslgSongListContainer").show();
-}
-
-// click settings tab
-function showSettingsInterface() {
-    $("#cslgSongListTab").removeClass("selected");
-    $("#cslgAnswerTab").removeClass("selected");
-    $("#cslgInfoTab").removeClass("selected");
-    $("#cslgQuizSettingsTab").addClass("selected");
-    $("#cslgSongListContainer").hide();
-    $("#cslgAnswerContainer").hide();
-    $("#cslgInfoContainer").hide();
-    $("#cslgQuizSettingsContainer").show();
-}
-
-// click answer tab
-function showAnswerInterface() {
-    $("#cslgSongListTab").removeClass("selected");
-    $("#cslgQuizSettingsTab").removeClass("selected");
-    $("#cslgInfoTab").removeClass("selected");
-    $("#cslgAnswerTab").addClass("selected");
-    $("#cslgSongListContainer").hide();
-    $("#cslgQuizSettingsContainer").hide();
-    $("#cslgInfoContainer").hide();
-    $("#cslgAnswerContainer").show();
-}
-
-// click info tab
-function showInfoInterface() {
+// reset all tabs
+function tabReset() {
     $("#cslgSongListTab").removeClass("selected");
     $("#cslgQuizSettingsTab").removeClass("selected");
     $("#cslgAnswerTab").removeClass("selected");
-    $("#cslgInfoTab").addClass("selected");
+    $("#cslgMergeTab").removeClass("selected");
+    $("#cslgInfoTab").removeClass("selected");
     $("#cslgSongListContainer").hide();
     $("#cslgQuizSettingsContainer").hide();
     $("#cslgAnswerContainer").hide();
-    $("#cslgInfoContainer").show();
+    $("#cslgMergeContainer").hide();
+    $("#cslgInfoContainer").hide();
 }
 
 // apply styles
