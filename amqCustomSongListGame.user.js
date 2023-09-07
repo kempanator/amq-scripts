@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.21
+// @version      0.22
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -43,7 +43,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.21";
+const version = "0.22";
 const saveData = JSON.parse(localStorage.getItem("customSongListGame")) || {};
 let replacedAnswers = saveData.replacedAnswers || {};
 let fastSkip = false;
@@ -571,9 +571,9 @@ function startQuiz() {
                 "id": null,
                 "videoMap": {
                     "catbox": {
-                        "0": song.audio,
-                        "480": song.MQ,
-                        "720": song.HQ
+                        "0": song.audio || undefined,
+                        "480": song.video480 || undefined,
+                        "720": song.video720 || undefined
                     }
                 },
                 "videoVolumeMap": {
@@ -660,9 +660,9 @@ function playSong(songNumber) {
                     "id": null,
                     "videoMap": {
                         "catbox": {
-                            "0": nextSong.audio,
-                            "480": nextSong.MQ,
-                            "720": nextSong.HQ
+                            "0": nextSong.audio || undefined,
+                            "480": nextSong.video480 || undefined,
+                            "720": nextSong.video720 || undefined
                         }
                     },
                     "videoVolumeMap": {
