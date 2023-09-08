@@ -17,7 +17,7 @@ You can pretty much change any element here. Feel free to message me if you want
 - MelodyElodie
 
 
-V10 rewrite by kempanator [July 2023]
+Changelog:
   10.0
     - more complete styling
     - midnight and twilight scripts merged
@@ -1618,7 +1618,8 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     .qpAvatarContainerOuter.correct .qpAvatarAnswerContainer {
         box-shadow: inset 0 0 2px var(--correctAnswerColor), 0 0 5px var(--correctAnswerColor), 0 0 5px var(--correctAnswerColor), 0 0 5px var(--correctAnswerColor);
     }
-    .qpAvatarContainerOuter.wrong .qpAvatarAnswerContainer, .qpAvatarContainerOuter.noAnswer .qpAvatarAnswerContainer {
+    .qpAvatarContainerOuter.wrong .qpAvatarAnswerContainer,
+    .qpAvatarContainerOuter.noAnswer .qpAvatarAnswerContainer {
         box-shadow: inset 0 0 2px var(--wrongAnswerColor), 0 0 5px var(--wrongAnswerColor), 0 0 5px var(--wrongAnswerColor), 0 0 5px var(--wrongAnswerColor);
     }
     .qpAvatarAnswerText {
@@ -1710,7 +1711,8 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         background-color: var(--correctAnswerColorTransparent);
         box-shadow: inset 0 0 10px var(--correctAnswerColor), 0 0 10px var(--correctAnswerColor), 0 0 10px var(--correctAnswerColor), 0 0 10px var(--correctAnswerColor);
     }
-    .qpAvatarContainerOuter.wrong .qpAvatarBackgroundContainer, .qpAvatarContainerOuter.noAnswer .qpAvatarBackgroundContainer {
+    .qpAvatarContainerOuter.wrong .qpAvatarBackgroundContainer,
+    .qpAvatarContainerOuter.noAnswer .qpAvatarBackgroundContainer {
         background-color: var(--wrongAnswerColorTransparent);
         box-shadow: inset 0 0 10px var(--wrongAnswerColor), 0 0 10px var(--wrongAnswerColor), 0 0 10px var(--wrongAnswerColor), 0 0 10px var(--wrongAnswerColor);
     }
@@ -2468,8 +2470,28 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         text-shadow: 0 0 10px #ffffff, 0 0 20px #ffffff, 0 0 30px #ffffff, 0 0 40px var(--accentColor), 0 0 70px var(--accentColor), 0 0 80px var(--accentColor), 0 0 100px var(--accentColor), 0 0 150px var(--accentColor);
     }
     #ctmMessageContainer {
-        background: var(--gameChatBackground);
-        background-size: cover;
+        background-color: var(--primaryColor);
+        border: 1px solid var(--secondaryColor);
+    }
+    #ctmMessageInputContainer {
+        background-color: var(--primaryColor);
+        border: 1px solid var(--secondaryColor);
+    }
+    #ctmModEntries > tbody {
+        border: 1px solid var(--secondaryColor);
+    }
+    #ctmModEntries > tbody > tr {
+        background-color: var(--primaryColorContrast);
+    }
+    #ctmModEntries > tbody > tr:first-child {
+        background-color: var(--primaryColor);
+    }
+    #ctmModEntries > tbody > tr:hover,
+    #ctmModEntries > tbody > tr.active {
+        background-color: var(--primaryColorContrast2);
+    }
+    #ctmModEntries > tbody > tr > td {
+        border-top: 1px solid var(--secondaryColor);
     }
 
 
@@ -2610,7 +2632,6 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     .ncwHideWindow {
         background-color: var(--primaryColor);
         box-shadow: 0 0 15px 5px var(--boxShadowColor);
-        border-radius: var(--borderRadius) var(--borderRadius) 0 0;
     }
     .nexusStorePrice {
         text-shadow: 0 0 6px var(--textShadowColor);
@@ -2625,6 +2646,9 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     }
     .nexusMapRewardArtifact:hover {
         box-shadow: 0 0 15px 5px var(--accentColor);
+    }
+    .objectHighlight {
+        filter: drop-shadow(0px 0px 3px black) drop-shadow(0px 0px 3px black);
     }
     .nexusVoteIcon {
         background-color: var(--primaryColor);
@@ -2801,7 +2825,6 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     .ncdwPartySlot {
         background-color: var(--primaryColor);
         box-shadow: 0 0 10px 1px var(--boxShadowColor);
-        border-radius: var(--borderRadius);
     }
     .ncdwPartySlot:hover {
         box-shadow: 0 0 10px 1px var(--accentColor);
@@ -3317,7 +3340,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         color: var(--textColor);
     }
     #gcGifContainer {
-        background-color: var(--gameChatBackground);
+        background-color: var(--primaryColorTransparent);
     }
 
 
