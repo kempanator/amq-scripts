@@ -26,6 +26,7 @@ Changelog:
     - added more variables
   10.2
     - styled new log in page
+    - styled new nexus features
     - game chat + other backgrounds now support images
     - fixed border color on right/wrong answers
     - fixed readability on autocomplete dropdown
@@ -3172,9 +3173,6 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     }
     #nexusCoopEmojiPickerContainer::before {
         background-color: var(--primaryColor);
-    }
-    .emojiPickerHeader {
-        border-bottom: none;
     }
 
 
