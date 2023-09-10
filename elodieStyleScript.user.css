@@ -1159,14 +1159,14 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         box-shadow: -1px -1px 10px var(--boxShadowColor);
     }
     #qpModFlaggedMessageCount {
-        color: var(--textColor);
+        color: var(--primaryColor);
         text-shadow: 2px 2px 3px var(--textShadowColor);
     }
     #qpModFlaggedMessageContainer {
         transition: none;
     }
     #qpModFlaggedMessageInnerContainer {
-        background-color: var(--primaryColor);
+        background-color: var(--containerBackground);
         box-shadow: -1px -1px 10px var(--boxShadowColor);
         visibility: hidden;
     }
@@ -1178,6 +1178,27 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     }
     #qpModFlaggedMessageClearAll:hover {
         background-color: var(--secondaryColor);
+    }
+    .qpModFlaggedMessageEntryTopBar {
+        background-color: var(--primaryColor);
+    }
+    .qpModFlaggedMessageEntry .close {
+        color: var(--textColor);
+        text-shadow: none;
+        opacity: 1;
+    }
+    .qpModFlaggedMessageEntry .close:hover {
+        opacity: .7;
+    }
+    .qpModFlaggedMessageButtonWarn,
+    .qpModFlaggedMessageButtonBan,
+    .qpModFlaggedMessageResult {
+        background-color: var(--secondaryColor);
+        box-shadow: -1px -1px 10px var(--boxShadowColor);
+    }
+    .qpModFlaggedMessageButtonWarn:hover,
+    .qpModFlaggedMessageButtonBan:hover {
+        background-color: var(--accentColor);
     }
 
 
@@ -3144,6 +3165,16 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     }
     .nexusCoopPlayer {
         border: none;
+    }
+    #nexusCoopEmojiPickerContainer {
+        background-color: var(--primaryColor);
+        box-shadow: 0 0 10px var(--boxShadowColor);
+    }
+    #nexusCoopEmojiPickerContainer::before {
+        background-color: var(--primaryColor);
+    }
+    .emojiPickerHeader {
+        border-bottom: none;
     }
 
 
