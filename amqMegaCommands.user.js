@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.96
+// @version      0.97
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -99,9 +99,9 @@ OTHER
 */
 
 "use strict";
-const version = "0.96";
+const version = "0.97";
 const saveData = JSON.parse(localStorage.getItem("megaCommands")) || {};
-let alertHidden = saveData.alertHidden ?? true;
+let alerts = saveData.alerts ?? {hiddenPlayers: true, serverStatus: true};
 let animeList;
 let animeAutoCompleteLowerCase = [];
 let autoAcceptInvite = saveData.autoAcceptInvite ?? false;
@@ -169,7 +169,8 @@ const scripts = {
     "customsonglistgame" : "https://github.com/kempanator/amq-scripts/raw/main/amqCustomSongListGame.user.js",
     "megacommands": "https://github.com/kempanator/amq-scripts/raw/main/amqMegaCommands.user.js",
     "newgamemodeui": "https://github.com/kempanator/amq-scripts/raw/main/amqNewGameModeUI.user.js",
-    "showroomplayers": "https://github.com/kempanator/amq-scripts/raw/main/amqShowRoomPlayers.user.js"
+    "showroomplayers": "https://github.com/kempanator/amq-scripts/raw/main/amqShowRoomPlayers.user.js",
+    "elodiestyle": "https://userstyles.world/style/1435"
 };
 const info = {
     "draw": "https://aggie.io",
@@ -540,7 +541,7 @@ function setup() {
         if (hidePlayers) setTimeout(() => { quizHidePlayers() }, 0);
     }).bindListener();
     new Listener("player hidden", (payload) => {
-        if (alertHidden) {
+        if (alerts.hiddenPlayers) {
             gameChat.systemMessage("Player Hidden: " + payload.name);
             popoutMessages.displayStandardMessage("Player Hidden", payload.name);
         }
@@ -634,6 +635,12 @@ function setup() {
             animeAutoCompleteLowerCase = quiz.answerInput.typingInput.autoCompleteController.list.map(x => x.toLowerCase());
         }, 10);
     }).bindListener();
+    new Listener("server state change", (payload) => {
+        if (alerts.serverStatus) {
+            sendSystemMessage(`${payload.name} ${payload.online ? "online" : "offline"}`);
+            popoutMessages.displayStandardMessage("Server Status", `${payload.name} ${payload.online ? "online" : "offline"}`);
+        }
+    });
     $("#qpAnswerInput").on("input", (event) => {
         if (autoKey) {
             socket.sendCommand({type: "quiz", command: "quiz answer", data: {answer: event.target.value || " ", isPlaying: true, volumeAtMax: false}});
@@ -1489,7 +1496,7 @@ async function parseCommand(content, type, target) {
         socket.sendCommand({type: "quiz", command: "start return lobby vote"});
     }
     else if (/^\/(v|volume)$/i.test(content)) {
-        sendMessage(volumeController.muted ? "🔇" : "🔉 " + Math.round(volumeController.volume * 100) + "%", type, target);
+        sendMessage(volumeController.muted ? "🔇" : `🔉 ${Math.round(volumeController.volume * 100)}%`, type, target);
     }
     else if (/^\/(v|volume) [0-9]+$/i.test(content)) {
         let option = parseFloat(/^\S+ ([0-9]+)$/.exec(content)[1]) / 100;
@@ -1737,6 +1744,18 @@ async function parseCommand(content, type, target) {
         applyStyles();
         saveSettings();
     }
+    else if (/^\/nexus auto$/i.test(content)) {
+        nexus.cityController.NIGHT_START_HOUR = 18;
+        nexus.cityController.NIGHT_END_HOUR = 6;
+    }
+    else if (/^\/nexus day$/i.test(content)) {
+        nexus.cityController.NIGHT_START_HOUR = 24;
+        nexus.cityController.NIGHT_END_HOUR = 0;
+    }
+    else if (/^\/nexus night$/i.test(content)) {
+        nexus.cityController.NIGHT_START_HOUR = 0;
+        nexus.cityController.NIGHT_END_HOUR = 0;
+    }
     else if (/^\/detect$/i.test(content)) {
         sendMessage(`invisible: ${playerDetection.invisible}`, type, target, true);
         sendMessage(`players: ${playerDetection.players.join(", ")}`, type, target, true);
@@ -1765,6 +1784,19 @@ async function parseCommand(content, type, target) {
     }
     else if (/^\/countfriends$/i.test(content)) {
         sendMessage(getAllFriends().length, type, target);
+    }
+    else if (/^\/countscripts$/i.test(content)) {
+        sendMessage($("#installedContainer h4").length, type, target);
+    }
+    else if (/^\/friendsin(lobby|quiz|game|room)$/i.test(content)) {
+        if (lobby.inLobby) {
+            let list = Object.values(lobby.players).map((player) => player._name).filter((player) => socialTab.isFriend(player));
+            sendMessage(list.length ? list.join(", ") : "(none)", type, target);
+        }
+        else if (quiz.inQuiz) {
+            let list = Object.values(quiz.players).map((player) => player._name).filter((player) => socialTab.isFriend(player));
+            sendMessage(list.length ? list.join(", ") : "(none)", type, target);
+        }
     }
     else if (/^\/startvote .+,.+$/i.test(content)) {
         if (type !== "chat") return;
@@ -1795,10 +1827,18 @@ async function parseCommand(content, type, target) {
         voteOptions = {};
         votes = {};
     }
-    else if (/^\/alert ?hidden$/i.test(content)) {
-        alertHidden = !alertHidden;
+    else if (/^\/alerts?$/i.test(content)) {
+        sendMessage(Object.keys(alerts).map((key) => `${key}: ${alerts[key]}`).join(", "), type, target, true);
+    }
+    else if (/^\/alerts? (hidden|hiddenplayers?)$/i.test(content)) {
+        alerts.hiddenPlayers = !alerts.hiddenPlayers;
         saveSettings();
-        sendMessage(`alert when players are hidden by moderator: ${alertHidden ? "enabled" : "disabled"}`, type, target, true);
+        sendMessage(`alert when players are hidden by moderator: ${alerts.hiddenPlayers ? "enabled" : "disabled"}`, type, target, true);
+    }
+    else if (/^\/alerts? (server|serverstatus)$/i.test(content)) {
+        alerts.serverStatus = !alerts.serverStatus;
+        saveSettings();
+        sendMessage(`alert on file host server status change: ${alerts.serverStatus ? "enabled" : "disabled"}`, type, target, true);
     }
     else if (/^\/print ?loot$/i.test(content)) {
         printLoot = !printLoot;
@@ -1946,7 +1986,7 @@ async function parseCommand(content, type, target) {
         let list = /^\S+ (.+)$/.exec(content)[1].split(",").map((x) => x.trim()).filter(Boolean);
         if (list.length) sendMessage(list.map((x) => idTranslator.tagNames[x]).filter(Boolean).join(", "), type, target);
     }
-    else if (/^\/(dq|daily|dailies|dailyquests?) detect$/i.test(content)) {
+    else if (/^\/(dq|daily|dailies|dailyquests?) (d|detect|auto)$/i.test(content)) {
         let genreDict = Object.assign({}, ...Object.entries(idTranslator.genreNames).map(([a, b]) => ({[b]: parseInt(a)})));
         let list = Object.values(qusetContainer.questMap).filter((x) => x.name.includes(" Fan") && x.state !== x.targetState).map((x) => genreDict[x.name.split(" Fan")[0]]);
         if (list.length) {
@@ -2158,10 +2198,10 @@ function parseIncomingDM(content, sender) {
  */
 function parseForceAll(content, type) {
     if (/^\/forceall version$/i.test(content)) {
-        sendMessage("0.96", type);
+        sendMessage("0.97", type);
     }
     else if (/^\/forceall roll [0-9]+$/i.test(content)) {
-        let number = parseInt(/^\S+ roll ([0-9]+)$/.exec(content)[1]);
+        let number = parseInt(/^\S+ \S+ ([0-9]+)$/.exec(content)[1]);
         sendMessage(Math.floor(Math.random() * number) + 1, type);
     }
     else if (/^\/forceall roll -?[0-9]+ -?[0-9]+$/i.test(content)) {
@@ -2169,8 +2209,8 @@ function parseForceAll(content, type) {
         let high = parseInt(/^\S+ \S+ -?[0-9]+ (-?[0-9]+)$/.exec(content)[1]);
         sendMessage("rolls " + (Math.floor(Math.random() * (high - low + 1)) + low), type);
     }
-    else if (/^\/forceall mute ?status$/i.test(content)) {
-        sendMessage(volumeController.muted ? "🔇" : "🔉 " + Math.round(volumeController.volume * 100) + "%", type);
+    else if (/^\/forceall volume$/i.test(content)) {
+        sendMessage(volumeController.muted ? "🔇" : `🔉 ${Math.round(volumeController.volume * 100)}%`, type);
     }
     else if (/^\/forceall (hide|hidden) ?status$/i.test(content)) {
         sendMessage(hidePlayers, type);
@@ -2905,7 +2945,7 @@ function applyStyles() {
 // save settings
 function saveSettings() {
     let settings = {};
-    settings.alertHidden = alertHidden;
+    settings.alerts = alerts;
     settings.autoAcceptInvite = autoAcceptInvite;
     //settings.autoCopy = autoCopy;
     //settings.autoDownloadSong = autoDownloadSong;
