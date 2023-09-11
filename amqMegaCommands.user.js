@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.97
+// @version      0.98
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -92,16 +92,15 @@ OTHER
 /background [url]         change the background
 /logout                   log out
 /relog                    log out, log in, and auto join the room you were in
-/printonline              print friend names in chat when they log in
-/printoffline             print friend names in chat when they log out
+/alerts [type]            toggle alerts
 /version                  check the version of this script
 /commands [on|off]        turn this script on or off
 */
 
 "use strict";
-const version = "0.97";
+const version = "0.98";
 const saveData = JSON.parse(localStorage.getItem("megaCommands")) || {};
-let alerts = saveData.alerts ?? {hiddenPlayers: true, serverStatus: true};
+let alerts = saveData.alerts ?? {hiddenPlayers: true, nameChange: true, onlineFriends: false, offlineFriends: false, serverStatus: true};
 let animeList;
 let animeAutoCompleteLowerCase = [];
 let autoAcceptInvite = saveData.autoAcceptInvite ?? false;
@@ -136,8 +135,6 @@ let muteSubmit = saveData.muteSubmit ?? false;
 let playbackSpeed = saveData.playbackSpeed ?? null;
 let playerDetection = saveData.playerDetection ?? {invisible: false, players: []};
 let printLoot = saveData.printLoot ?? false;
-let printOffline = saveData.printOffline ?? false;
-let printOnline = saveData.printOnline ?? false;
 let selfDM = saveData.selfDM ?? false;
 let tabSwitch = saveData.tabSwitch ?? 0; //0: off, 1: chat first, 2: answerbox first, 3: only chat, 4: only answerbox
 let voteOptions = {};
@@ -542,7 +539,7 @@ function setup() {
     }).bindListener();
     new Listener("player hidden", (payload) => {
         if (alerts.hiddenPlayers) {
-            gameChat.systemMessage("Player Hidden: " + payload.name);
+            sendSystemMessage("Player Hidden: " + payload.name);
             popoutMessages.displayStandardMessage("Player Hidden", payload.name);
         }
     }).bindListener();
@@ -579,11 +576,13 @@ function setup() {
             sendSystemMessage(payload.name + " online: auto inviting");
             setTimeout(() => { socket.sendCommand({type: "social", command: "invite to game", data: {target: payload.name}}) }, 1000);
         }
-        else if (printOnline && payload.online) {
+        else if (alerts.onlineFriends && payload.online) {
             sendSystemMessage(payload.name + " online");
+            popoutMessages.displayStandardMessage(payload.name + " online", "");
         }
-        else if (printOffline && !payload.online) {
+        else if (alerts.offlineFriends && !payload.online) {
             sendSystemMessage(payload.name + " offline");
+            popoutMessages.displayStandardMessage(payload.name + " offline", "");
         }
     }).bindListener();
     new Listener("New Rooms", (payload) => {
@@ -623,7 +622,10 @@ function setup() {
         setTimeout(() => { checkAutoHost() }, 1);
     }).bindListener();
     new Listener("friend name change", (payload) => {
-        if (gameChat.isShown()) sendSystemMessage(`friend name change: ${payload.oldName} => ${payload.newName}`);
+        if (alerts.nameChange) {
+            sendSystemMessage(`friend name change: ${payload.oldName} => ${payload.newName}`);
+            popoutMessages.displayStandardMessage("friend name change", payload.oldName + " => " + payload.newName);
+        }
     }).bindListener();
     new Listener("get all song names", () => {
         setTimeout(() => {
@@ -1495,20 +1497,20 @@ async function parseCommand(content, type, target) {
     else if (/^\/(lb|lobby|returntolobby)$/i.test(content)) {
         socket.sendCommand({type: "quiz", command: "start return lobby vote"});
     }
-    else if (/^\/(v|volume)$/i.test(content)) {
+    else if (/^\/(v|vol|volume)$/i.test(content)) {
         sendMessage(volumeController.muted ? "🔇" : `🔉 ${Math.round(volumeController.volume * 100)}%`, type, target);
     }
-    else if (/^\/(v|volume) [0-9]+$/i.test(content)) {
+    else if (/^\/(v|vol|volume) [0-9]+$/i.test(content)) {
         let option = parseFloat(/^\S+ ([0-9]+)$/.exec(content)[1]) / 100;
         volumeController.volume = option;
         volumeController.setMuted(false);
         volumeController.adjustVolume();
     }
-    else if (/^\/(v|volume) (m|mute)$/i.test(content)) {
+    else if (/^\/(v|vol|volume) (m|mute)$/i.test(content)) {
         volumeController.setMuted(true);
         volumeController.adjustVolume();
     }
-    else if (/^\/(v|volume) (u|unmute)$/i.test(content)) {
+    else if (/^\/(v|vol|volume) (u|unmute)$/i.test(content)) {
         volumeController.setMuted(false);
         volumeController.adjustVolume();
     }
@@ -1830,10 +1832,43 @@ async function parseCommand(content, type, target) {
     else if (/^\/alerts?$/i.test(content)) {
         sendMessage(Object.keys(alerts).map((key) => `${key}: ${alerts[key]}`).join(", "), type, target, true);
     }
+    else if (/^\/alerts? on$/i.test(content)) {
+        alerts.hiddenPlayers = true;
+        alerts.nameChange = true;
+        alerts.onlineFriends = true;
+        alerts.offlineFriends = true;
+        alerts.serverStatus = true;
+        saveSettings();
+        sendMessage("all alerts enabled", type, target, true);
+    }
+    else if (/^\/alerts? off$/i.test(content)) {
+        alerts.hiddenPlayers = false;
+        alerts.nameChange = false;
+        alerts.onlineFriends = false;
+        alerts.offlineFriends = false;
+        alerts.serverStatus = false;
+        saveSettings();
+        sendMessage("all alerts disabled", type, target, true);
+    }
     else if (/^\/alerts? (hidden|hiddenplayers?)$/i.test(content)) {
         alerts.hiddenPlayers = !alerts.hiddenPlayers;
         saveSettings();
         sendMessage(`alert when players are hidden by moderator: ${alerts.hiddenPlayers ? "enabled" : "disabled"}`, type, target, true);
+    }
+    else if (/^\/alerts? namechange$/i.test(content)) {
+        alerts.nameChange = !alerts.nameChange;
+        saveSettings();
+        sendMessage(`alert on friend name change: ${alerts.nameChange ? "enabled" : "disabled"}`, type, target, true);
+    }
+    else if (/^\/alerts? (online|onlinefriends?)$/i.test(content)) {
+        alerts.onlineFriends = !alerts.onlineFriends;
+        saveSettings();
+        sendMessage(`alert when friends go online: ${alerts.onlineFriends ? "enabled" : "disabled"}`, type, target, true);
+    }
+    else if (/^\/alerts? (offline|offlinefriends?)$/i.test(content)) {
+        alerts.offlineFriends = !alerts.offlineFriends;
+        saveSettings();
+        sendMessage(`alert when friends go offline: ${alerts.offlineFriends ? "enabled" : "disabled"}`, type, target, true);
     }
     else if (/^\/alerts? (server|serverstatus)$/i.test(content)) {
         alerts.serverStatus = !alerts.serverStatus;
@@ -1844,16 +1879,6 @@ async function parseCommand(content, type, target) {
         printLoot = !printLoot;
         saveSettings();
         sendMessage(`print loot ${printLoot ? "enabled" : "disabled"}`, type, target, true);
-    }
-    else if (/^\/print ?online$/i.test(content)) {
-        printOnline = !printOnline;
-        saveSettings();
-        sendMessage(`print when friends are online: ${printOnline ? "enabled" : "disabled"}`, type, target, true);
-    }
-    else if (/^\/print ?offline$/i.test(content)) {
-        printOffline = !printOffline;
-        saveSettings();
-        sendMessage(`print when friends are offline: ${printOffline ? "enabled" : "disabled"}`, type, target, true);
     }
     else if (/^\/selfdm$/i.test(content)) {
         selfDM = !selfDM;
@@ -2198,7 +2223,7 @@ function parseIncomingDM(content, sender) {
  */
 function parseForceAll(content, type) {
     if (/^\/forceall version$/i.test(content)) {
-        sendMessage("0.97", type);
+        sendMessage("0.98", type);
     }
     else if (/^\/forceall roll [0-9]+$/i.test(content)) {
         let number = parseInt(/^\S+ \S+ ([0-9]+)$/.exec(content)[1]);
@@ -2462,6 +2487,9 @@ function sendSystemMessage(message) {
     if (gameChat.open) {
         setTimeout(() => { gameChat.systemMessage(String(message)) }, 1);
     }
+    else if (nexus.inCoopLobby) {
+        setTimeout(() => { nexusCoopChat.displayServerMessage({message: String(message)}) }, 1);
+    }
 }
 
 // send a message in nexus chat
@@ -2471,11 +2499,6 @@ function sendNexusChatMessage(message) {
         command: "coop chat message",
         data: {message: String(message)}
     });
-}
-
-// send a client side message to game chat
-function sendNexusSystemMessage(message) {
-    setTimeout(() => { nexusCoopChat.displayServerMessage({message: String(message)}) }, 1);
 }
 
 // send a private message
@@ -2976,8 +2999,6 @@ function saveSettings() {
     //settings.playbackSpeed = playbackSpeed;
     settings.playerDetection = playerDetection;
     settings.printLoot = printLoot;
-    settings.printOffline = printOffline;
-    settings.printOnline = printOnline;
     settings.selfDM = selfDM;
     settings.tabSwitch = tabSwitch;
     localStorage.setItem("megaCommands", JSON.stringify(settings));
