@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.23
+// @version      0.24
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -43,7 +43,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.23";
+const version = "0.24";
 const saveData = JSON.parse(localStorage.getItem("customSongListGame")) || {};
 let replacedAnswers = saveData.replacedAnswers || {};
 let fastSkip = false;
@@ -56,6 +56,7 @@ let score = 0;
 let songList = [];
 let songOrder = {}; //{song#: index#, ...}
 let mergedSongList = [];
+let songOrderType = "random";
 let startPointRange = [0, 100];
 let difficultyRange = [0, 100];
 let previousSongFinished = false;
@@ -64,6 +65,7 @@ let nextVideoReadyInterval;
 let answerTimer;
 let extraGuessTimer;
 let endGuessTimer;
+let fileHostOverride = "";
 let autocomplete = []; //store lowercase version for faster compare speed
 let autocompleteInput;
 
@@ -148,7 +150,7 @@ $("#gameContainer").append($(`
                             <span style="font-size: 18px; font-weight: bold; margin: 0 10px 0 40px;">Guess Time:</span><input id="cslgSettingsGuessTime" type="text" style="width: 40px">
                             <span style="font-size: 18px; font-weight: bold; margin: 0 10px 0 40px;">Extra Time:</span><input id="cslgSettingsExtraGuessTime" type="text" style="width: 40px">
                         </div>
-                        <div>
+                        <div style="margin-top: 5px">
                             <span style="font-size: 18px; font-weight: bold; margin-right: 15px;">Song Types:</span>
                             <label class="clickAble">OP<input id="cslgSettingsOPCheckbox" type="checkbox"></label>
                             <label class="clickAble" style="margin-left: 10px">ED<input id="cslgSettingsEDCheckbox" type="checkbox"></label>
@@ -157,7 +159,7 @@ $("#gameContainer").append($(`
                             <label class="clickAble">Correct<input id="cslgSettingsCorrectGuessCheckbox" type="checkbox"></label>
                             <label class="clickAble" style="margin-left: 10px">Wrong<input id="cslgSettingsIncorrectGuessCheckbox" type="checkbox"></label>
                         </div>
-                        <div>
+                        <div style="margin-top: 5px">
                             <span style="font-size: 18px; font-weight: bold; margin-right: 15px;">Anime Types:</span>
                             <label class="clickAble">TV<input id="cslgSettingsTVCheckbox" type="checkbox"></label>
                             <label class="clickAble" style="margin-left: 10px">Movie<input id="cslgSettingsMovieCheckbox" type="checkbox"></label>
@@ -165,18 +167,27 @@ $("#gameContainer").append($(`
                             <label class="clickAble" style="margin-left: 10px">ONA<input id="cslgSettingsONACheckbox" type="checkbox"></label>
                             <label class="clickAble" style="margin-left: 10px">Special<input id="cslgSettingsSpecialCheckbox" type="checkbox"></label>
                         </div>
-                        <div>
-                            <span style="font-size: 18px; font-weight: bold; margin-right: 15px;">Song Order:</span>
-                            <label class="clickAble">Random<input id="cslgSettingsSongOrderRandomRadio" type="radio" name="cslgSongOrderMode"></label>
-                            <label class="clickAble" style="margin-left: 10px">Ascending<input id="cslgSettingsSongOrderAscendingRadio" type="radio" name="cslgSongOrderMode"></label>
-                            <label class="clickAble" style="margin-left: 10px">Descending<input id="cslgSettingsSongOrderDescendingRadio" type="radio" name="cslgSongOrderMode"></label>
-                        </div>
-                        <div>
+                        <div style="margin-top: 5px">
                             <span style="font-size: 18px; font-weight: bold; margin: 0 10px 0 0;">Sample:</span>
                             <input id="cslgSettingsStartPoint" type="text" style="width: 70px">
                             <span style="font-size: 18px; font-weight: bold; margin: 0 10px 0 40px;">Difficulty:</span>
                             <input id="cslgSettingsDifficulty" type="text" style="width: 70px">
                             <label class="clickAble" style="margin-left: 50px">Fast Skip<input id="cslgSettingsFastSkip" type="checkbox"></label>
+                        </div>
+                        <div style="margin-top: 5px">
+                            <span style="font-size: 18px; font-weight: bold; margin-right: 10px;">Song Order:</span>
+                            <select id="cslgSongOrderSelect" style="color: black; padding: 3px 0;">
+                                <option value="random">random</option>
+                                <option value="ascending">ascending</option>
+                                <option value="descending">descending</option>
+                            </select>
+                            <span style="font-size: 18px; font-weight: bold; margin: 0 10px 0 10px;">Override URL:</span>
+                            <select id="cslgHostOverrideSelect" style="color: black; padding: 3px 0;">
+                                <option value="">default</option>
+                                <option value="files.catbox.moe">files.catbox.moe</option>
+                                <option value="nl.catbox.moe">nl.catbox.moe</option>
+                                <option value="ladist1.catbox.video">ladist1.catbox.video</option>
+                            </select>
                         </div>
                         <p style="margin-top: 20px">Normal room settings are ignored. Only these settings will apply.</p>
                     </div>
@@ -272,6 +283,12 @@ $("#cslgFileUpload").on("change", function() {
             createAnswerTable();
         });
     }
+});
+$("#cslgSongOrderSelect").on("change", function() {
+    songOrderType = this.value;
+});
+$("#cslgHostOverrideSelect").on("change", function() {
+    fileHostOverride = this.value;
 });
 $("#cslgMergeButton").click(() => {
     mergedSongList = Array.from(new Set(mergedSongList.concat(songList).map((x) => JSON.stringify(x)))).map((x) => JSON.parse(x));
@@ -374,8 +391,8 @@ $("#cslgStartButton").click(() => {
         .filter((key) => animeTypeFilter(songList[key], tv, movie, ova, ona, special))
         .filter((key) => difficultyFilter(songList[key], difficultyRange[0], difficultyRange[1]))
         .filter((key) => guessTypeFilter(songList[key], correctGuesses, incorrectGuesses));
-    if ($("#cslgSettingsSongOrderRandomRadio").prop("checked")) shuffleArray(songKeys);
-    else if ($("#cslgSettingsSongOrderDescendingRadio").prop("checked")) songKeys.reverse();
+    if (songOrderType === "random") shuffleArray(songKeys);
+    else if (songOrderType === "descending") songKeys.reverse();
     songKeys.slice(0, numSongs).forEach((key, i) => { songOrder[i + 1] = parseInt(key) });
     if (Object.keys(songOrder).length === 0) {
         return displayMessage("Unable to start", "no songs");
@@ -428,7 +445,6 @@ $("#cslgSettingsMovieCheckbox").prop("checked", true);
 $("#cslgSettingsOVACheckbox").prop("checked", true);
 $("#cslgSettingsONACheckbox").prop("checked", true);
 $("#cslgSettingsSpecialCheckbox").prop("checked", true);
-$("#cslgSettingsSongOrderRandomRadio").prop("checked", true);
 $("#cslgSettingsStartPoint").val("0-100");
 $("#cslgSettingsDifficulty").val("0-100");
 $("#cslgSettingsFastSkip").prop("checked", false);
@@ -633,9 +649,9 @@ function startQuiz() {
                 "id": null,
                 "videoMap": {
                     "catbox": {
-                        "0": song.audio || undefined,
-                        "480": song.video480 || undefined,
-                        "720": song.video720 || undefined
+                        "0": getFileURL(song.audio),
+                        "480": getFileURL(song.video480),
+                        "720": getFileURL(song.video720)
                     }
                 },
                 "videoVolumeMap": {
@@ -722,9 +738,9 @@ function playSong(songNumber) {
                     "id": null,
                     "videoMap": {
                         "catbox": {
-                            "0": nextSong.audio || undefined,
-                            "480": nextSong.video480 || undefined,
-                            "720": nextSong.video720 || undefined
+                            "0": getFileURL(nextSong.audio),
+                            "480": getFileURL(nextSong.video480),
+                            "720": getFileURL(nextSong.video720)
                         }
                     },
                     "videoVolumeMap": {
@@ -1255,6 +1271,17 @@ function tabReset() {
     $("#cslgAnswerContainer").hide();
     $("#cslgMergeContainer").hide();
     $("#cslgInfoContainer").hide();
+}
+
+// modify the song url if necessary
+function getFileURL(url) {
+    if (url) {
+        if (fileHostOverride) {
+            return "https://" + fileHostOverride + "/" + url.split("/").slice(-1)[0];
+        }
+        return url;
+    }
+    return undefined;
 }
 
 // apply styles
