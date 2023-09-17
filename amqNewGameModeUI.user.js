@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ New Game Mode UI
 // @namespace    https://github.com/kempanator
-// @version      0.21
+// @version      0.22
 // @description  Adds a user interface to new game mode to keep track of guesses
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -17,12 +17,12 @@
 if (document.querySelector("#loginPage")) return;
 let loadInterval = setInterval(() => {
     if ($("#loadingScreen").hasClass("hidden")) {
-        setup();
         clearInterval(loadInterval);
+        setup();
     }
 }, 500);
 
-const version = "0.21";
+const version = "0.22";
 let ngmWindow;
 let initialGuessCount = []; //list of initial # guesses for your team [5, 5, 5, 5]
 let guessCounter = []; //list of current # guesses for your team [4, 2, 1, 3]

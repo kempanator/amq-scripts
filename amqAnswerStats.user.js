@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Answer Stats
 // @namespace    https://github.com/kempanator
-// @version      0.16
+// @version      0.17
 // @description  Adds a window to display quiz answer stats
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -25,15 +25,15 @@ Features:
 if (document.querySelector("#loginPage")) return;
 let loadInterval = setInterval(() => {
     if ($("#loadingScreen").hasClass("hidden")) {
-        setup();
         clearInterval(loadInterval);
+        setup();
     }
 }, 500);
 
-const version = "0.16";
+const version = "0.17";
 const regionDictionary = {E: "Eastern", C: "Central", W: "Western"};
-const saveData = JSON.parse(localStorage.getItem("answerStats")) || {};
-const saveData2 = JSON.parse(localStorage.getItem("highlightFriendsSettings")) || {};
+const saveData = validateLocalStorage("answerStats");
+const saveData2 = validateLocalStorage("highlightFriendsSettings");
 let showPlayerColor = saveData.showPlayerColor ?? true;
 let selfColor = saveData2.smColorSelfColor ?? "#80c7ff";
 let friendColor = saveData2.smColorFriendColor ?? "#80ff80";
@@ -1153,6 +1153,16 @@ function calculateCorrelation(id1, id2) {
         if (answer1 !== null && answer1 === answer2) count++;
     }
     return ((count / Object.keys(songHistory).length) * 100).toFixed(2);
+}
+
+// validate json data in local storage
+function validateLocalStorage(item) {
+    try {
+        return JSON.parse(localStorage.getItem(item)) || {};
+    }
+    catch {
+        return {};
+    }
 }
 
 // apply styles

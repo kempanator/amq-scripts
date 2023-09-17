@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.24
+// @version      0.25
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -38,13 +38,13 @@ Some considerations:
 if (document.querySelector("#loginPage")) return;
 let loadInterval = setInterval(() => {
     if ($("#loadingScreen").hasClass("hidden")) {
-        setup();
         clearInterval(loadInterval);
+        setup();
     }
 }, 500);
 
-const version = "0.24";
-const saveData = JSON.parse(localStorage.getItem("customSongListGame")) || {};
+const version = "0.25";
+const saveData = validateLocalStorage("customSongListGame");
 let replacedAnswers = saveData.replacedAnswers || {};
 let fastSkip = false;
 let nextVideoReady = false;
@@ -1282,6 +1282,16 @@ function getFileURL(url) {
         return url;
     }
     return undefined;
+}
+
+// validate json data in local storage
+function validateLocalStorage(item) {
+    try {
+        return JSON.parse(localStorage.getItem(item)) || {};
+    }
+    catch {
+        return {};
+    }
 }
 
 // apply styles

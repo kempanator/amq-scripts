@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Chat Plus
 // @namespace    https://github.com/kempanator
-// @version      0.25
+// @version      0.26
 // @description  Add new features to chat and messages
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -32,15 +32,15 @@ New chat/message features:
 if (document.querySelector("#loginPage")) return;
 let loadInterval = setInterval(() => {
     if ($("#loadingScreen").hasClass("hidden")) {
-        setup();
         clearInterval(loadInterval);
+        setup();
     }
 }, 500);
 
-const version = "0.25";
+const version = "0.26";
 const apiKey = "LIVDSRZULELA";
-const saveData = JSON.parse(localStorage.getItem("chatPlus")) || {};
-const saveData2 = JSON.parse(localStorage.getItem("highlightFriendsSettings")) || {};
+const saveData = validateLocalStorage("chatPlus");
+const saveData2 = validateLocalStorage("highlightFriendsSettings");
 const imageURLregex = /https?:\/\/\S+\.(?:png|jpe?g|gif|webp|bmp|tiff)/i;
 const audioURLregex = /https?:\/\/\S+\.(?:mp3|ogg|m4a|flac|wav)/i;
 const videoURLregex = /https?:\/\/\S+\.(?:webm|mp4|mkv|avi|mov)/i;
@@ -118,12 +118,12 @@ $("#settingsGraphicContainer").append(`
                 </div>
             </div>
             <div style="padding-top: 10px">
-                <span><b>Reformat XP/Notes</b></span>
+                <span><b>Reformat XP/Currency</b></span>
                 <div class="customCheckbox" style="vertical-align: middle">
                     <input type="checkbox" id="chatPlusReformatBottomBar">
                     <label for="chatPlusReformatBottomBar"><i class="fa fa-check" aria-hidden="true"></i></label>
                 </div>
-                <span id="chatPlusReformatBottomBarContainer" style="margin-left: 42px">
+                <span id="chatPlusReformatBottomBarContainer" style="margin-left: 19px">
                     <span>XP Bar Width</span>
                     <input id="chatPlusXPBarWidth" class="form-control" type="text" style="width: 40px">
                     <span style="margin-left: 20px"># Pixels From Right</span>
@@ -783,6 +783,16 @@ nexusCoopChat.resetDrag = function() {
     oldResetDrag.apply(this, arguments);
     if (resizeNexusChat) $("#nexusCoopMainContainer").removeAttr("style").css({"resize": "both", "overflow": "hidden", "min-width": "0", "max-width": "none"});
 };
+
+// validate json data in local storage
+function validateLocalStorage(item) {
+    try {
+        return JSON.parse(localStorage.getItem(item)) || {};
+    }
+    catch {
+        return {};
+    }
+}
 
 // apply styles
 function applyStyles() {

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Show Room Players
 // @namespace    https://github.com/kempanator
-// @version      0.16
+// @version      0.17
 // @description  Adds extra functionality to room tiles
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -24,13 +24,13 @@ New room tile features:
 if (document.querySelector("#loginPage")) return;
 let loadInterval = setInterval(() => {
     if ($("#loadingScreen").hasClass("hidden")) {
-        setup();
         clearInterval(loadInterval);
+        setup();
     }
 }, 500);
-const version = "0.16";
-//const saveData = JSON.parse(localStorage.getItem("showRoomPlayers")) || {};
-const saveData2 = JSON.parse(localStorage.getItem("highlightFriendsSettings")) || {};
+const version = "0.17";
+//const saveData = validateLocalStorage("showRoomPlayers");
+const saveData2 = validateLocalStorage("highlightFriendsSettings");
 let selfColor = saveData2.smColorSelfColor ?? "#80c7ff";
 let friendColor = saveData2.smColorFriendColor ?? "#80ff80";
 
@@ -208,6 +208,16 @@ RoomTile.prototype.updateAvatar = function(avatarInfo) {
         this.$tile
     );
 };
+
+// validate json data in local storage
+function validateLocalStorage(name) {
+    try {
+        return JSON.parse(localStorage.getItem(name)) || {};
+    }
+    catch {
+        return {};
+    }
+}
 
 // apply styles
 function applyStyles() {

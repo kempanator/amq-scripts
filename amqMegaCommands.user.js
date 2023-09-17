@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.98
+// @version      0.99
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -98,9 +98,10 @@ OTHER
 */
 
 "use strict";
-const version = "0.98";
-const saveData = JSON.parse(localStorage.getItem("megaCommands")) || {};
-let alerts = saveData.alerts ?? {hiddenPlayers: true, nameChange: true, onlineFriends: false, offlineFriends: false, serverStatus: true};
+const version = "0.99";
+const saveData = validateLocalStorage("megaCommands");
+//let alerts = saveData.alerts ?? {hiddenPlayers: true, nameChange: true, onlineFriends: false, offlineFriends: false, serverStatus: false};
+let alerts = {hiddenPlayers: true, nameChange: true, onlineFriends: false, offlineFriends: false, serverStatus: false};
 let animeList;
 let animeAutoCompleteLowerCase = [];
 let autoAcceptInvite = saveData.autoAcceptInvite ?? false;
@@ -225,15 +226,15 @@ const dqMap = {
 };
 
 if (document.querySelector("#loginPage")) {
-    if (autoJoinRoom.autoLogIn && document.querySelector(".loginMainForm h1").innerText === "Account Already Online") {
-        setTimeout(() => { document.querySelector(".loginMainForm a").click() }, 100);
+    if (autoJoinRoom.autoLogIn && $(".swal2-title").text() === "Account Already Online") {
+        setTimeout(() => { $(".swal2-confirm").trigger("click") }, 100);
     }
     return;
 }
 let loadInterval = setInterval(() => {
     if ($("#loadingScreen").hasClass("hidden")) {
-        setup();
         clearInterval(loadInterval);
+        setup();
     }
 }, 500);
 applyStyles();
@@ -642,7 +643,7 @@ function setup() {
             sendSystemMessage(`${payload.name} ${payload.online ? "online" : "offline"}`);
             popoutMessages.displayStandardMessage("Server Status", `${payload.name} ${payload.online ? "online" : "offline"}`);
         }
-    });
+    }).bindListener();
     $("#qpAnswerInput").on("input", (event) => {
         if (autoKey) {
             socket.sendCommand({type: "quiz", command: "quiz answer", data: {answer: event.target.value || " ", isPlaying: true, volumeAtMax: false}});
@@ -2223,7 +2224,7 @@ function parseIncomingDM(content, sender) {
  */
 function parseForceAll(content, type) {
     if (/^\/forceall version$/i.test(content)) {
-        sendMessage("0.98", type);
+        sendMessage("0.99", type);
     }
     else if (/^\/forceall roll [0-9]+$/i.test(content)) {
         let number = parseInt(/^\S+ \S+ ([0-9]+)$/.exec(content)[1]);
@@ -2936,6 +2937,16 @@ async function downloadSong(url) {
     document.body.appendChild(element);
     element.click();
     element.remove();
+}
+
+// validate json data in local storage
+function validateLocalStorage(item) {
+    try {
+        return JSON.parse(localStorage.getItem(item)) || {};
+    }
+    catch {
+        return {};
+    }
 }
 
 // apply styles

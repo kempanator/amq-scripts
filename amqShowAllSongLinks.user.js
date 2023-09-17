@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Show All Song Links
 // @namespace    https://github.com/kempanator
-// @version      0.2
+// @version      0.3
 // @description  Show all song links in the song info container
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -15,12 +15,12 @@
 if (document.querySelector("#loginPage")) return;
 let loadInterval = setInterval(() => {
     if ($("#loadingScreen").hasClass("hidden")) {
-        setup();
         clearInterval(loadInterval);
+        setup();
     }
 }, 500);
 
-const version = "0.2";
+const version = "0.3";
 
 function setup() {
     new Listener("answer results", (payload) => {
