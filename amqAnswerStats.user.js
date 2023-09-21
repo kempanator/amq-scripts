@@ -1,16 +1,16 @@
 // ==UserScript==
 // @name         AMQ Answer Stats
 // @namespace    https://github.com/kempanator
-// @version      0.17
+// @version      0.18
 // @description  Adds a window to display quiz answer stats
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
 // @grant        none
-// @require      https://raw.githubusercontent.com/TheJoseph98/AMQ-Scripts/master/common/amqScriptInfo.js
-// @require      https://raw.githubusercontent.com/TheJoseph98/AMQ-Scripts/master/common/amqWindows.js
+// @require      https://github.com/TheJoseph98/AMQ-Scripts/raw/master/common/amqScriptInfo.js
+// @require      https://github.com/TheJoseph98/AMQ-Scripts/raw/master/common/amqWindows.js
 // @require      https://github.com/amq-script-project/AMQ-Scripts/raw/master/gameplay/amqAnswerTimesUtility.user.js
-// @downloadURL  https://raw.githubusercontent.com/kempanator/amq-scripts/main/amqAnswerStats.user.js
-// @updateURL    https://raw.githubusercontent.com/kempanator/amq-scripts/main/amqAnswerStats.user.js
+// @downloadURL  https://github.com/kempanator/amq-scripts/raw/main/amqAnswerStats.user.js
+// @updateURL    https://github.com/kempanator/amq-scripts/raw/main/amqAnswerStats.user.js
 // ==/UserScript==
 
 /*
@@ -22,7 +22,7 @@ Features:
 */
 
 "use strict";
-if (document.querySelector("#loginPage")) return;
+if (typeof Listener === "undefined") return;
 let loadInterval = setInterval(() => {
     if ($("#loadingScreen").hasClass("hidden")) {
         clearInterval(loadInterval);
@@ -30,7 +30,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.17";
+const version = "0.18";
 const regionDictionary = {E: "Eastern", C: "Central", W: "Western"};
 const saveData = validateLocalStorage("answerStats");
 const saveData2 = validateLocalStorage("highlightFriendsSettings");
@@ -68,18 +68,6 @@ $("#qpOptionContainer > div").append($(`<div id="qpAnswerStats" class="clickAble
 );
 
 function setup() {
-    new Listener("game chat update", (payload) => {
-        for (let message of payload.messages) {
-            if (message.sender === selfName && message.message === "/version") {
-                setTimeout(() => { gameChat.systemMessage("Answer Stats - " + version) }, 1);
-            }
-        }
-    }).bindListener();
-    new Listener("Game Chat Message", (payload) => {
-        if (payload.sender === selfName && payload.message === "/version") {
-            setTimeout(() => { gameChat.systemMessage("Answer Stats - " + version) }, 1);
-        }
-    }).bindListener();
     new Listener("get all song names", () => {
         setTimeout(() => {
             listLowerCase = quiz.answerInput.typingInput.autoCompleteController.list.map(x => x.toLowerCase());
@@ -647,8 +635,9 @@ function setup() {
     AMQ_addScriptData({
         name: "Answer Stats",
         author: "kempanator",
+        version: version,
+        link: "https://github.com/kempanator/amq-scripts/raw/main/amqAnswerStats.user.js",
         description: `
-            <p>Version: ${version}</p>
             <p>Click the button in the options bar during quiz to open the answer stats window</p>
         `
     });

@@ -1,14 +1,14 @@
 // ==UserScript==
 // @name         AMQ Chat Plus
 // @namespace    https://github.com/kempanator
-// @version      0.26
+// @version      0.27
 // @description  Add new features to chat and messages
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
 // @grant        none
-// @require      https://raw.githubusercontent.com/TheJoseph98/AMQ-Scripts/master/common/amqScriptInfo.js
-// @downloadURL  https://raw.githubusercontent.com/kempanator/amq-scripts/main/amqChatPlus.user.js
-// @updateURL    https://raw.githubusercontent.com/kempanator/amq-scripts/main/amqChatPlus.user.js
+// @require      https://github.com/TheJoseph98/AMQ-Scripts/raw/master/common/amqScriptInfo.js
+// @downloadURL  https://github.com/kempanator/amq-scripts/raw/main/amqChatPlus.user.js
+// @updateURL    https://github.com/kempanator/amq-scripts/raw/main/amqChatPlus.user.js
 // ==/UserScript==
 
 /*
@@ -29,7 +29,7 @@ New chat/message features:
 */
 
 "use strict";
-if (document.querySelector("#loginPage")) return;
+if (typeof Listener === "undefined") return;
 let loadInterval = setInterval(() => {
     if ($("#loadingScreen").hasClass("hidden")) {
         clearInterval(loadInterval);
@@ -37,7 +37,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.26";
+const version = "0.27";
 const apiKey = "LIVDSRZULELA";
 const saveData = validateLocalStorage("chatPlus");
 const saveData2 = validateLocalStorage("highlightFriendsSettings");
@@ -466,19 +466,6 @@ function setup() {
     nexusCoopChat.MAX_CHAT_MESSAGES = ncMaxMessages;
     if (resizeNexusChat) $("#nexusCoopMainContainer").css({"resize": "both", "overflow": "hidden", "min-width": "0", "max-width": "none"});
 
-    new Listener("game chat update", (payload) => {
-        for (let message of payload.messages) {
-            if (message.sender === selfName && message.message === "/version") {
-                setTimeout(() => { gameChat.systemMessage("Chat Plus - " + version) }, 1);
-            }
-        }
-    }).bindListener();
-    new Listener("Game Chat Message", (payload) => {
-        if (payload.sender === selfName && payload.message === "/version") {
-            setTimeout(() => { gameChat.systemMessage("Chat Plus - " + version) }, 1);
-        }
-    }).bindListener();
-
     new MutationObserver((mutations) => {
         for (let mutation of mutations) {
             if (!mutation.addedNodes) return;
@@ -588,8 +575,9 @@ function setup() {
     AMQ_addScriptData({
         name: "Chat Plus",
         author: "kempanator",
+        version: version,
+        link: "https://github.com/kempanator/amq-scripts/raw/main/amqChatPlus.user.js",
         description: `
-            <p>Version: ${version}</p>
             <ul><b>New chat/message features:</b>
                 <li>1. Add timestamps to chat, dms, and nexus</li>
                 <li>2. Add color to usernames in dms and nexus</li>

@@ -1,15 +1,15 @@
 // ==UserScript==
 // @name         AMQ Anisongdb Search
 // @namespace    https://github.com/kempanator
-// @version      0.3
+// @version      0.4
 // @description  Adds a window to search anisongdb.com in game
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
 // @grant        none
-// @require      https://raw.githubusercontent.com/TheJoseph98/AMQ-Scripts/master/common/amqScriptInfo.js
-// @require      https://raw.githubusercontent.com/TheJoseph98/AMQ-Scripts/master/common/amqWindows.js
-// @downloadURL  https://raw.githubusercontent.com/kempanator/amq-scripts/main/amqAnisongdbSearch.user.js
-// @updateURL    https://raw.githubusercontent.com/kempanator/amq-scripts/main/amqAnisongdbSearch.user.js
+// @require      https://github.com/TheJoseph98/AMQ-Scripts/raw/master/common/amqScriptInfo.js
+// @require      https://github.com/TheJoseph98/AMQ-Scripts/raw/master/common/amqWindows.js
+// @downloadURL  https://github.com/kempanator/amq-scripts/raw/main/amqAnisongdbSearch.user.js
+// @updateURL    https://github.com/kempanator/amq-scripts/raw/main/amqAnisongdbSearch.user.js
 // ==/UserScript==
 
 /*
@@ -19,7 +19,7 @@ Features:
 */
 
 "use strict";
-if (document.querySelector("#loginPage")) return;
+if (typeof Listener === "undefined") return;
 let loadInterval = setInterval(() => {
     if ($("#loadingScreen").hasClass("hidden")) {
         clearInterval(loadInterval);
@@ -27,7 +27,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.3";
+const version = "0.4";
 let anisongdbWindow;
 let injectSearchButtons = true;
 let anisongdbSort = {animeSortAscending: false, artistSortAscending: false, songSortAscending: false, typeSortAscending: false, vintageSortAscending: false};
@@ -118,8 +118,9 @@ function setup() {
     AMQ_addScriptData({
         name: "Anisongdb Search",
         author: "kempanator",
+        version: version,
+        link: "https://github.com/kempanator/amq-scripts/raw/main/amqAnisongdbSearch.user.js",
         description: `
-            <p>Version: ${version}</p>
             <p>Add a window to search anisongdb.com</p>
             <p>Add buttons to song info container for quick search</p>
         `

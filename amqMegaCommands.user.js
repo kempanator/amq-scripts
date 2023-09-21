@@ -1,16 +1,16 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.99
+// @version      0.100
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
 // @grant        unsafeWindow
 // @grant        GM_xmlhttpRequest
 // @connect      myanimelist.net
-// @require      https://raw.githubusercontent.com/TheJoseph98/AMQ-Scripts/master/common/amqScriptInfo.js
-// @downloadURL  https://raw.githubusercontent.com/kempanator/amq-scripts/main/amqMegaCommands.user.js
-// @updateURL    https://raw.githubusercontent.com/kempanator/amq-scripts/main/amqMegaCommands.user.js
+// @require      https://github.com/TheJoseph98/AMQ-Scripts/raw/master/common/amqScriptInfo.js
+// @downloadURL  https://github.com/kempanator/amq-scripts/raw/main/amqMegaCommands.user.js
+// @updateURL    https://github.com/kempanator/amq-scripts/raw/main/amqMegaCommands.user.js
 // ==/UserScript==
 
 /*
@@ -98,10 +98,10 @@ OTHER
 */
 
 "use strict";
-const version = "0.99";
+if (typeof Listener === "undefined") return;
+const version = "0.100";
 const saveData = validateLocalStorage("megaCommands");
-//let alerts = saveData.alerts ?? {hiddenPlayers: true, nameChange: true, onlineFriends: false, offlineFriends: false, serverStatus: false};
-let alerts = {hiddenPlayers: true, nameChange: true, onlineFriends: false, offlineFriends: false, serverStatus: false};
+let alerts = saveData.alerts ?? {hiddenPlayers: true, nameChange: true, onlineFriends: false, offlineFriends: false, serverStatus: false};
 let animeList;
 let animeAutoCompleteLowerCase = [];
 let autoAcceptInvite = saveData.autoAcceptInvite ?? false;
@@ -229,6 +229,9 @@ if (document.querySelector("#loginPage")) {
     if (autoJoinRoom.autoLogIn && $(".swal2-title").text() === "Account Already Online") {
         setTimeout(() => { $(".swal2-confirm").trigger("click") }, 100);
     }
+    return;
+}
+else if (typeof Listener === "undefined") {
     return;
 }
 let loadInterval = setInterval(() => {
@@ -719,8 +722,9 @@ function setup() {
     AMQ_addScriptData({
         name: "Mega Commands",
         author: "kempanator",
+        version: version,
+        link: "https://github.com/kempanator/amq-scripts/raw/main/amqMegaCommands.user.js",
         description: `
-            <p>Version: ${version}</p>
             <p>Command List: <a href="https://kempanator.github.io/amq-mega-commands" target="_blank">https://kempanator.github.io/amq-mega-commands</a></p>
         `
     });
@@ -1785,11 +1789,11 @@ async function parseCommand(content, type, target) {
         }
         saveSettings();
     }
-    else if (/^\/countfriends$/i.test(content)) {
+    else if (/^\/count ?friends$/i.test(content)) {
         sendMessage(getAllFriends().length, type, target);
     }
-    else if (/^\/countscripts$/i.test(content)) {
-        sendMessage($("#installedContainer h4").length, type, target);
+    else if (/^\/count ?scripts$/i.test(content)) {
+        sendMessage($("#installedListContainer h4").length, type, target);
     }
     else if (/^\/friendsin(lobby|quiz|game|room)$/i.test(content)) {
         if (lobby.inLobby) {
@@ -1978,7 +1982,7 @@ async function parseCommand(content, type, target) {
         sendMessage("https://kempanator.github.io/amq-mega-commands", type, target);
     }
     else if (/^\/commands link$/i.test(content)) {
-        sendMessage("https://raw.githubusercontent.com/kempanator/amq-scripts/main/amqMegaCommands.user.js", type, target);
+        sendMessage("https://github.com/kempanator/amq-scripts/raw/main/amqMegaCommands.user.js", type, target);
     }
     else if (/^\/commands version$/i.test(content)) {
         sendMessage(version, type, target);
@@ -1992,6 +1996,10 @@ async function parseCommand(content, type, target) {
     }
     else if (/^\/version$/i.test(content)) {
         sendMessage("Mega Commands - " + version, type, target, true);
+    }
+    else if (/^\/version .+$/i.test(content)) {
+        let option = /^\S+ (.+)$/.exec(content)[1];
+        sendMessage(getScriptVersion(option), type, target);
     }
     else if (/^\/remove ?(popups?|popovers?)$/i.test(content)) {
         $(".popover").hide();
@@ -2190,6 +2198,10 @@ function parseIncomingDM(content, sender) {
         if (/^\/(fv|forceversion)$/i.test(content)) {
             sendMessage(version, "dm", sender);
         }
+        else if (/^\/(fv|forceversion) .+$/i.test(content)) {
+            let option = /^\S+ (.+)$/.exec(content)[1];
+            sendMessage(getScriptVersion(option), "dm", sender);
+        }
         else if (/^\/whereis \w+$/i.test(content)) {
             if (Object.keys(roomBrowser.activeRooms).length === 0) return;
             let name = /^\S+ (\w+)$/.exec(content)[1];
@@ -2223,33 +2235,39 @@ function parseIncomingDM(content, sender) {
  * @param {String} type dm, chat, teamchat, nexus
  */
 function parseForceAll(content, type) {
-    if (/^\/forceall version$/i.test(content)) {
-        sendMessage("0.99", type);
-    }
-    else if (/^\/forceall roll [0-9]+$/i.test(content)) {
-        let number = parseInt(/^\S+ \S+ ([0-9]+)$/.exec(content)[1]);
-        sendMessage(Math.floor(Math.random() * number) + 1, type);
-    }
-    else if (/^\/forceall roll -?[0-9]+ -?[0-9]+$/i.test(content)) {
-        let low = parseInt(/^\S+ \S+ (-?[0-9]+) -?[0-9]+$/.exec(content)[1]);
-        let high = parseInt(/^\S+ \S+ -?[0-9]+ (-?[0-9]+)$/.exec(content)[1]);
-        sendMessage("rolls " + (Math.floor(Math.random() * (high - low + 1)) + low), type);
-    }
-    else if (/^\/forceall volume$/i.test(content)) {
-        sendMessage(volumeController.muted ? "🔇" : `🔉 ${Math.round(volumeController.volume * 100)}%`, type);
-    }
-    else if (/^\/forceall (hide|hidden) ?status$/i.test(content)) {
-        sendMessage(hidePlayers, type);
-    }
-    else if (/^\/forceall speed$/i.test(content)) {
-        if (playbackSpeed === null) sendMessage("speed: default", type);
-        else sendMessage("speed: " + (Array.isArray(playbackSpeed) ? `random ${playbackSpeed[0]}x - ${playbackSpeed[1]}x` : `${playbackSpeed}x`), type);
-    }
-    else if (/^\/forceall skip$/i.test(content)) {
-        if (!quiz.skipController._toggled) quiz.skipClicked();
-    }
-    else if (/^\/forceall share ?entries$/i.test(content)) {
-        sendMessage(options.$MAl_SHARE_CHECKBOX.prop("checked"), type);
+    if (commands) {
+        if (/^\/forceall version$/i.test(content)) {
+            sendMessage("0.100", type);
+        }
+        else if (/^\/forceall version .+$/i.test(content)) {
+            let option = /^\S+ \S+ (.+)$/.exec(content)[1];
+            sendMessage(getScriptVersion(option), type);
+        }
+        else if (/^\/forceall roll [0-9]+$/i.test(content)) {
+            let number = parseInt(/^\S+ \S+ ([0-9]+)$/.exec(content)[1]);
+            sendMessage(Math.floor(Math.random() * number) + 1, type);
+        }
+        else if (/^\/forceall roll -?[0-9]+ -?[0-9]+$/i.test(content)) {
+            let low = parseInt(/^\S+ \S+ (-?[0-9]+) -?[0-9]+$/.exec(content)[1]);
+            let high = parseInt(/^\S+ \S+ -?[0-9]+ (-?[0-9]+)$/.exec(content)[1]);
+            sendMessage("rolls " + (Math.floor(Math.random() * (high - low + 1)) + low), type);
+        }
+        else if (/^\/forceall volume$/i.test(content)) {
+            sendMessage(volumeController.muted ? "🔇" : `🔉 ${Math.round(volumeController.volume * 100)}%`, type);
+        }
+        else if (/^\/forceall (hide|hidden) ?status$/i.test(content)) {
+            sendMessage(hidePlayers, type);
+        }
+        else if (/^\/forceall speed$/i.test(content)) {
+            if (playbackSpeed === null) sendMessage("speed: default", type);
+            else sendMessage("speed: " + (Array.isArray(playbackSpeed) ? `random ${playbackSpeed[0]}x - ${playbackSpeed[1]}x` : `${playbackSpeed}x`), type);
+        }
+        else if (/^\/forceall skip$/i.test(content)) {
+            if (!quiz.skipController._toggled) quiz.skipClicked();
+        }
+        else if (/^\/forceall share ?entries$/i.test(content)) {
+            sendMessage(options.$MAl_SHARE_CHECKBOX.prop("checked"), type);
+        }
     }
 }
 
@@ -2663,6 +2681,20 @@ function autoList() {
     if (autoJoinRoom) list.push("Auto Join Room: " + autoJoinRoom.id);
     if (autoDownloadSong.length) list.push("Auto Download Song: " + autoDownloadSong.join(", "));
     return list;
+}
+
+// get the version of any script that uses joseph's script info
+function getScriptVersion(input) {
+    input = input.toLowerCase();
+    let $items = $("#installedListContainer h4");
+    for (let item of $items) {
+        let scriptName = $(item).find(".name").text().toLowerCase();
+        if (input === scriptName) {
+            let scriptVersion = $(item).find(".version").text();
+            return scriptVersion ? scriptVersion : "installed, unknown version";
+        }
+    }
+    return "not found";
 }
 
 // calculate a math expression

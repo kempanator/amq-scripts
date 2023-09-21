@@ -1,18 +1,18 @@
 // ==UserScript==
 // @name         AMQ Show All Song Links
 // @namespace    https://github.com/kempanator
-// @version      0.3
+// @version      0.4
 // @description  Show all song links in the song info container
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
 // @grant        none
-// @require      https://raw.githubusercontent.com/TheJoseph98/AMQ-Scripts/master/common/amqScriptInfo.js
-// @downloadURL  https://raw.githubusercontent.com/kempanator/amq-scripts/main/amqShowAllSongLinks.user.js
-// @updateURL    https://raw.githubusercontent.com/kempanator/amq-scripts/main/amqShowAllSongLinks.user.js
+// @require      https://github.com/TheJoseph98/AMQ-Scripts/raw/master/common/amqScriptInfo.js
+// @downloadURL  https://github.com/kempanator/amq-scripts/raw/main/amqShowAllSongLinks.user.js
+// @updateURL    https://github.com/kempanator/amq-scripts/raw/main/amqShowAllSongLinks.user.js
 // ==/UserScript==
 
 "use strict";
-if (document.querySelector("#loginPage")) return;
+if (typeof Listener === "undefined") return;
 let loadInterval = setInterval(() => {
     if ($("#loadingScreen").hasClass("hidden")) {
         clearInterval(loadInterval);
@@ -20,7 +20,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.3";
+const version = "0.4";
 
 function setup() {
     new Listener("answer results", (payload) => {
@@ -50,8 +50,9 @@ function setup() {
     AMQ_addScriptData({
         name: "Show All Song Links",
         author: "kempanator",
+        version: version,
+        link: "https://github.com/kempanator/amq-scripts/raw/main/amqShowAllSongLinks.user.js",
         description: `
-            <p>Version: ${version}</p>
             <p>Show all song links in the song info container</p>
         `
     });

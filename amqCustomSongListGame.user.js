@@ -1,14 +1,14 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.25
+// @version      0.26
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
 // @grant        none
-// @require      https://raw.githubusercontent.com/TheJoseph98/AMQ-Scripts/master/common/amqScriptInfo.js
-// @downloadURL  https://raw.githubusercontent.com/kempanator/amq-scripts/main/amqCustomSongListGame.user.js
-// @updateURL    https://raw.githubusercontent.com/kempanator/amq-scripts/main/amqCustomSongListGame.user.js
+// @require      https://github.com/TheJoseph98/AMQ-Scripts/raw/master/common/amqScriptInfo.js
+// @downloadURL  https://github.com/kempanator/amq-scripts/raw/main/amqCustomSongListGame.user.js
+// @updateURL    https://github.com/kempanator/amq-scripts/raw/main/amqCustomSongListGame.user.js
 // ==/UserScript==
 
 /*
@@ -35,7 +35,7 @@ Some considerations:
 */
 
 "use strict";
-if (document.querySelector("#loginPage")) return;
+if (typeof Listener === "undefined") return;
 let loadInterval = setInterval(() => {
     if ($("#loadingScreen").hasClass("hidden")) {
         clearInterval(loadInterval);
@@ -43,7 +43,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.25";
+const version = "0.26";
 const saveData = validateLocalStorage("customSongListGame");
 let replacedAnswers = saveData.replacedAnswers || {};
 let fastSkip = false;
@@ -473,18 +473,6 @@ $("#cslgSongListContainer").show();
 
 // setup
 function setup() {
-    new Listener("game chat update", (payload) => {
-        for (let message of payload.messages) {
-            if (message.sender === selfName && message.message === "/version") {
-                setTimeout(() => { gameChat.systemMessage("Custom Song List Game - " + version) }, 1);
-            }
-        }
-    }).bindListener();
-    new Listener("Game Chat Message", (payload) => {
-        if (payload.sender === selfName && payload.message === "/version") {
-            setTimeout(() => { gameChat.systemMessage("Custom Song List Game - " + version) }, 1);
-        }
-    }).bindListener();
     new Listener("Game Starting", (payload) => {
         clearTimeEvents();
     }).bindListener();
@@ -606,8 +594,9 @@ function setup() {
     AMQ_addScriptData({
         name: "Custom Song List Game",
         author: "kempanator",
+        version: version,
+        link: "https://github.com/kempanator/amq-scripts/raw/main/amqCustomSongListGame.user.js",
         description: `
-            <p>Version: ${version}</p>
             </ul><b>How to start a custom song list game:</b>
                 <li>create a solo lobby</li>
                 <li>click the CSL button in the top right</li>

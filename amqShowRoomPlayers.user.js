@@ -1,14 +1,14 @@
 // ==UserScript==
 // @name         AMQ Show Room Players
 // @namespace    https://github.com/kempanator
-// @version      0.17
+// @version      0.18
 // @description  Adds extra functionality to room tiles
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
 // @grant        none
-// @require      https://raw.githubusercontent.com/TheJoseph98/AMQ-Scripts/master/common/amqScriptInfo.js
-// @downloadURL  https://raw.githubusercontent.com/kempanator/amq-scripts/main/amqShowRoomPlayers.user.js
-// @updateURL    https://raw.githubusercontent.com/kempanator/amq-scripts/main/amqShowRoomPlayers.user.js
+// @require      https://github.com/TheJoseph98/AMQ-Scripts/raw/master/common/amqScriptInfo.js
+// @downloadURL  https://github.com/kempanator/amq-scripts/raw/main/amqShowRoomPlayers.user.js
+// @updateURL    https://github.com/kempanator/amq-scripts/raw/main/amqShowRoomPlayers.user.js
 // ==/UserScript==
 
 /*
@@ -21,32 +21,20 @@ New room tile features:
 */
 
 "use strict";
-if (document.querySelector("#loginPage")) return;
+if (typeof Listener === "undefined") return;
 let loadInterval = setInterval(() => {
     if ($("#loadingScreen").hasClass("hidden")) {
         clearInterval(loadInterval);
         setup();
     }
 }, 500);
-const version = "0.17";
+const version = "0.18";
 //const saveData = validateLocalStorage("showRoomPlayers");
 const saveData2 = validateLocalStorage("highlightFriendsSettings");
 let selfColor = saveData2.smColorSelfColor ?? "#80c7ff";
 let friendColor = saveData2.smColorFriendColor ?? "#80ff80";
 
 function setup() {
-    new Listener("game chat update", (payload) => {
-        for (let message of payload.messages) {
-            if (message.sender === selfName && message.message === "/version") {
-                setTimeout(() => { gameChat.systemMessage("Show Room Players - " + version) }, 1);
-            }
-        }
-    }).bindListener();
-    new Listener("Game Chat Message", (payload) => {
-        if (payload.sender === selfName && payload.message === "/version") {
-            setTimeout(() => { gameChat.systemMessage("Show Room Players - " + version) }, 1);
-        }
-    }).bindListener();
     new Listener("New Rooms", (payload) => {
         payload.forEach((item) => {
             setTimeout(() => {
@@ -76,8 +64,9 @@ function setup() {
     AMQ_addScriptData({
         name: "Show Room Players",
         author: "kempanator",
+        version: version,
+        link: "https://github.com/kempanator/amq-scripts/raw/main/amqShowRoomPlayers.user.js",
         description: `
-            <p>Version: ${version}</p>
             <ul><b>New room tile features:</b>
                 <li>1. Mouse over players bar to show full player list (friends have color)</li>
                 <li>2. Click name in player list to open profile</li>

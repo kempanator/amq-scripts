@@ -1,18 +1,18 @@
 // ==UserScript==
 // @name         AMQ Play Button Shortcuts
 // @namespace    https://github.com/kempanator
-// @version      0.3
+// @version      0.4
 // @description  Add Solo, Multiplayer, Nexus shortcuts to the play button
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
 // @grant        none
-// @require      https://raw.githubusercontent.com/TheJoseph98/AMQ-Scripts/master/common/amqScriptInfo.js
-// @downloadURL  https://raw.githubusercontent.com/kempanator/amq-scripts/main/amqPlayButtonShortcuts.user.js
-// @updateURL    https://raw.githubusercontent.com/kempanator/amq-scripts/main/amqPlayButtonShortcuts.user.js
+// @require      https://github.com/TheJoseph98/AMQ-Scripts/raw/master/common/amqScriptInfo.js
+// @downloadURL  https://github.com/kempanator/amq-scripts/raw/main/amqPlayButtonShortcuts.user.js
+// @updateURL    https://github.com/kempanator/amq-scripts/raw/main/amqPlayButtonShortcuts.user.js
 // ==/UserScript==
 
 "use strict";
-if (document.querySelector("#loginPage")) return;
+if (typeof Listener === "undefined") return;
 let loadInterval = setInterval(() => {
     if ($("#loadingScreen").hasClass("hidden")) {
         clearInterval(loadInterval);
@@ -20,7 +20,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.3";
+const version = "0.4";
 $("#mpPlayButton").removeAttr("data-toggle data-target").empty().append(`
     <div id="mpPlayButtonPlay" data-toggle="modal" data-target="#gameModeSelector">Play</div>
     <ul>
@@ -35,8 +35,9 @@ function setup() {
     AMQ_addScriptData({
         name: "Play Button Shortcuts",
         author: "kempanator",
+        version: version,
+        link: "https://github.com/kempanator/amq-scripts/raw/main/amqPlayButtonShortcuts.user.js",
         description: `
-            <p>Version: ${version}</p>
             <p>Add Solo, Multiplayer, Nexus shortcuts to the play button</p>
         `
     });

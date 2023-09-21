@@ -1,20 +1,20 @@
 // ==UserScript==
 // @name         AMQ New Game Mode UI
 // @namespace    https://github.com/kempanator
-// @version      0.22
+// @version      0.23
 // @description  Adds a user interface to new game mode to keep track of guesses
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
 // @grant        none
-// @require      https://raw.githubusercontent.com/TheJoseph98/AMQ-Scripts/master/common/amqScriptInfo.js
-// @require      https://raw.githubusercontent.com/TheJoseph98/AMQ-Scripts/master/common/amqWindows.js
+// @require      https://github.com/TheJoseph98/AMQ-Scripts/raw/master/common/amqScriptInfo.js
+// @require      https://github.com/TheJoseph98/AMQ-Scripts/raw/master/common/amqWindows.js
 // @require      https://github.com/amq-script-project/AMQ-Scripts/raw/master/gameplay/amqAnswerTimesUtility.user.js
-// @downloadURL  https://raw.githubusercontent.com/kempanator/amq-scripts/main/amqNewGameModeUI.user.js
-// @updateURL    https://raw.githubusercontent.com/kempanator/amq-scripts/main/amqNewGameModeUI.user.js
+// @downloadURL  https://github.com/kempanator/amq-scripts/raw/main/amqNewGameModeUI.user.js
+// @updateURL    https://github.com/kempanator/amq-scripts/raw/main/amqNewGameModeUI.user.js
 // ==/UserScript==
 
 "use strict";
-if (document.querySelector("#loginPage")) return;
+if (typeof Listener === "undefined") return;
 let loadInterval = setInterval(() => {
     if ($("#loadingScreen").hasClass("hidden")) {
         clearInterval(loadInterval);
@@ -22,7 +22,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.22";
+const version = "0.23";
 let ngmWindow;
 let initialGuessCount = []; //list of initial # guesses for your team [5, 5, 5, 5]
 let guessCounter = []; //list of current # guesses for your team [4, 2, 1, 3]
@@ -216,8 +216,9 @@ function setup() {
     AMQ_addScriptData({
         name: "New Game Mode UI",
         author: "kempanator",
+        version: version,
+        link: "https://github.com/kempanator/amq-scripts/raw/main/amqNewGameModeUI.user.js",
         description: `
-            <p>Version: ${version}</p>
             <p>Click the button in the options bar during quiz to open the new game mode user interface</p>
         `
     });
@@ -226,10 +227,7 @@ function setup() {
 
 // parse message
 function parseMessage(content) {
-    if (content === "/version") {
-        setTimeout(() => { gameChat.systemMessage("New Game Mode UI - " + version) }, 1);
-    }
-    else if (content === "/ngm") {
+    if (content === "/ngm") {
         ngmWindow.isVisible() ? ngmWindow.close() : ngmWindow.open();
     }
 }
