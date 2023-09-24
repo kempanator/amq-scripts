@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.26
+// @version      0.27
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -43,7 +43,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.26";
+const version = "0.27";
 const saveData = validateLocalStorage("customSongListGame");
 let replacedAnswers = saveData.replacedAnswers || {};
 let fastSkip = false;
@@ -338,7 +338,7 @@ $("#cslgStartButton").click(() => {
     if (!songList || !songList.length) {
         return displayMessage("Unable to start", "no songs");
     }
-    if (quiz.answerInput.typingInput.autoCompleteController.list.length === 0) {
+    if (autocomplete.length === 0) {
         return displayMessage("Unable to start", "autocomplete list empty");
     }
     let numSongs = parseInt($("#cslgSettingsSongs").val());
@@ -488,16 +488,20 @@ function setup() {
     }).bindListener();
     new Listener("get all song names", () => {
         setTimeout(() => {
-            autocomplete = quiz.answerInput.typingInput.autoCompleteController.list.map(x => x.toLowerCase());
-            autocompleteInput = new AmqAwesomeplete(document.querySelector("#cslgNewAnswerInput"), {
-                list: quiz.answerInput.typingInput.autoCompleteController.list
-            }, true);
+            let list = quiz.answerInput.typingInput.autoCompleteController.list;
+            if (list.length) {
+                autocomplete = list.map(x => x.toLowerCase());
+                autocompleteInput = new AmqAwesomeplete(document.querySelector("#cslgNewAnswerInput"), {list: list}, true);
+            }
         }, 10);
     }).bindListener();
     new Listener("update all song names", () => {
         setTimeout(() => {
-            autocomplete = quiz.answerInput.typingInput.autoCompleteController.list.map(x => x.toLowerCase());
-            autocompleteInput.list = quiz.answerInput.typingInput.autoCompleteController.list;
+            let list = quiz.answerInput.typingInput.autoCompleteController.list;
+            if (list.length) {
+                autocomplete = list.map(x => x.toLowerCase());
+                autocompleteInput.list = list;
+            }
         }, 10);
     }).bindListener();
 
@@ -866,8 +870,11 @@ function fireListener(type, data) {
             listener.fire(data);
         }
     }
-    catch {
+    catch (error) {
         gameChat.systemMessage(`CSL Error: "${type}" listener failed`);
+        console.error(error);
+        console.log(type);
+        console.log(data);
     }
 }
 
@@ -983,7 +990,7 @@ function quizOver() {
 // open custom song list settings modal
 function openSettingsModal() {
     if (lobby.inLobby && lobby.soloMode) {
-        if ((quiz.answerInput.typingInput.autoCompleteController.list.length)) {
+        if (autocomplete.length) {
             $("#cslgAutocompleteButton").removeClass("btn-danger").addClass("btn-success disabled");
         }
         $("#cslgSettingsModal").modal("show");
@@ -1011,7 +1018,7 @@ function anisongdbDataSearch() {
 
 // send anisongdb request
 function getAnisongdbData(mode, query, ops, eds, ins, partial, ignoreDuplicates, maxOtherPeople, minGroupMembers) {
-    $("#cslgSongListCount").text("Loading");
+    $("#cslgSongListCount").text("Loading...");
     $("#cslgSongListTable tbody").empty();
     let json = {
         and_logic: false,
