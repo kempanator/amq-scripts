@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.100
+// @version      0.101
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -19,6 +19,7 @@ IMPORTANT: disable these scripts before installing
 - chat commands by nyamu
 - auto ready by nyamu
 - auto answer on keypress by (unknown)
+- no dropdown by juvian
 
 GAME SETTINGS
 /size [2-40]              change room size
@@ -99,7 +100,7 @@ OTHER
 
 "use strict";
 if (typeof Listener === "undefined") return;
-const version = "0.100";
+const version = "0.101";
 const saveData = validateLocalStorage("megaCommands");
 let alerts = saveData.alerts ?? {hiddenPlayers: true, nameChange: true, onlineFriends: false, offlineFriends: false, serverStatus: false};
 let animeList;
@@ -1967,6 +1968,56 @@ async function parseCommand(content, type, target) {
         applyStyles();
         sendMessage(`all players are now ${hidePlayers ? "hidden" : "shown"}`, type, target, true);
     }
+    else if (/^\/(ls|localstorage)$/i.test(content)) {
+        if (gameChat.open) {
+            setTimeout(() => {
+                gameChat.systemMessage(`localStorage: ${Object.keys(localStorage).length} items`, Object.keys(localStorage).join("<br>"));
+            }, 1);
+        }
+    }
+    else if (/^\/(ls|localstorage) (download|save)$/i.test(content)) {
+        let storage = {};
+        for (let key of Object.keys(localStorage)) {
+            storage[key] = localStorage[key];
+        }
+        delete storage["__paypal_storage__"];
+        let data = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(storage));
+        let $element = $("<a></a>").attr("href", data).attr("download", "amq local storage backup.json");
+        $("body").append($element);
+        $element.trigger("click").remove();
+    }
+    else if (/^\/(ls|localstorage) (upload|load)$/i.test(content)) {
+        $("body").remove("#uploadLocalStorageInput").append($(`<input type="file" id="uploadLocalStorageInput" style="display: none"></input>`).on("change", function() {
+            if (this.files.length) {
+                this.files[0].text().then((data) => {
+                    try {
+                        let json = JSON.parse(data);
+                        if (typeof json !== "object" || !Object.values(json).every((x) => typeof x === "string")) {
+                            displayMessage("Upload Error");
+                        }
+                        else {
+                            let keys = Object.keys(json);
+                            for (let key of keys) {
+                                localStorage.setItem(key, json[key]);
+                            }
+                            sendMessage(`${keys.length} item${keys.length === 1 ? "" :"s"} loaded into localStorage`, type, target, true);
+                        }
+                    }
+                    catch {
+                        displayMessage("Upload Error");
+                    }
+                    finally {
+                        $(this).remove();
+                    }
+                });
+            }
+        }));
+        $("#uploadLocalStorageInput").trigger("click");
+    }
+    else if (/^\/(ls|localstorage) (clear|delete)$/i.test(content)) {
+        localStorage.clear();
+        sendMessage("all local storage cleared", type, target, true);
+    }
     else if (/^\/commands$/i.test(content)) {
         sendMessage("Options: on, off, help, link, version, clear, auto", type, target, true);
     }
@@ -2237,7 +2288,7 @@ function parseIncomingDM(content, sender) {
 function parseForceAll(content, type) {
     if (commands) {
         if (/^\/forceall version$/i.test(content)) {
-            sendMessage("0.100", type);
+            sendMessage("0.101", type);
         }
         else if (/^\/forceall version .+$/i.test(content)) {
             let option = /^\S+ \S+ (.+)$/.exec(content)[1];
