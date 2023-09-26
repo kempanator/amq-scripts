@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.27
+// @version      0.28
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -43,7 +43,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.27";
+const version = "0.28";
 const saveData = validateLocalStorage("customSongListGame");
 let replacedAnswers = saveData.replacedAnswers || {};
 let fastSkip = false;
@@ -142,6 +142,7 @@ $("#gameContainer").append($(`
                                 <tbody>
                                 </tbody>
                             </table>
+                            <div id="cslgSongListWarning"></div>
                         </div>
                     </div>
                     <div id="cslgQuizSettingsContainer" style="margin-top: 10px">
@@ -1060,7 +1061,15 @@ function getAnisongdbData(mode, query, ops, eds, ins, partial, ignoreDuplicates,
         body: JSON.stringify(json)
     }).then(res => res.json()).then(json => {
         handleData(json);
-        createSongListTable();
+        if (songList.length === 0 && ranked.currentState === 2) {
+            $("#cslgSongListCount").text("Total Songs: 0");
+            $("#cslgMergeCurrentCount").text("Found 0 songs in the current song list");
+            $("#cslgSongListTable tbody").empty();
+            $("#cslgSongListWarning").text("anisongdb is not available during ranked");
+        }
+        else {
+            createSongListTable();
+        }
         createAnswerTable();
     });
 }
@@ -1208,6 +1217,7 @@ function handleData(data) {
 function createSongListTable() {
     $("#cslgSongListCount").text("Total Songs: " + songList.length);
     $("#cslgMergeCurrentCount").text(`Found ${songList.length} song${songList.length === 1 ? "" : "s"} in the current song list`);
+    $("#cslgSongListWarning").text("");
     let $tbody = $("#cslgSongListTable tbody");
     $tbody.empty();
     songList.forEach((result, i) => {
