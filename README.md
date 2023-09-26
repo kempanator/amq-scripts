@@ -1,4 +1,5 @@
 # amq-scripts
+click on a script name below to install
 
 ### [AMQ Anisongdb Search](https://github.com/kempanator/amq-scripts/raw/main/amqAnisongdbSearch.user.js)
 - AnisongDB search in game https://imgur.com/a/TmqtE5K
