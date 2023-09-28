@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Quick Load Lists
 // @namespace    https://github.com/kempanator
-// @version      0.1
+// @version      0.2
 // @description  Adds a window for saving and quick loading anime lists
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -13,7 +13,7 @@
 // ==/UserScript==
 
 /*
-Opening the window:
+How to open the window:
     bottom right gear icon > click "Load Lists"
 */
 
@@ -26,7 +26,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.1";
+const version = "0.2";
 const saveData = validateLocalStorage("quickLoadLists");
 let savedLists = saveData.savedLists ?? [];
 let windowHotKey = saveData.windowHotKey ?? {key: "q", altKey: true, ctrlKey: false};
@@ -177,6 +177,64 @@ function setup() {
                     selectedColor = this.value;
                     saveSettings();
                     applyStyles();
+                }))
+            )
+            .append($(`<div></div>`)
+                .append($(`<label class="btn btn-default">Import</label>`)
+                    .append($(`<input type="file" style="display: none">`).on("change", function() {
+                        if (this.files.length) {
+                            this.files[0].text().then((data) => {
+                                try {
+                                    let json = JSON.parse(data);
+                                    if (Array.isArray(json) && json.every((x) => x.username !== undefined && x.type !== undefined)) {
+                                        $(this).val("");
+                                        swal({
+                                            title: "Select Import Method",
+                                            input: "select",
+                                            inputPlaceholder: " ",
+                                            inputOptions: {1: "Replace all lists", 2: "Append to current lists"},
+                                            showCancelButton: true,
+                                            cancelButtonText: "Cancel",
+                                            allowOutsideClick: true
+                                        }).then((result) => {
+                                            if (result.value) {
+                                                if (result.value === "1") {
+                                                    savedLists = json;
+                                                }
+                                                else if (result.value === "2") {
+                                                    savedLists = savedLists.concat(json);
+                                                }
+                                                createListTable();
+                                                createEditTable();
+                                                saveSettings();
+                                                displayMessage(`Imported ${json.length} list${json.length === 1 ? "" : "s"}`);
+                                            }
+                                        });
+                                    }
+                                    else {
+                                        displayMessage("Upload Error");
+                                    }
+                                }
+                                catch {
+                                    displayMessage("Upload Error");
+                                }
+                            });
+                        }
+                    }))
+                )
+                .append($(`<button class="btn btn-default" style="margin-left: 5px">Export</button>`).click(function() {
+                    if (savedLists.length) {
+                        let data = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(savedLists));
+                        let element = document.createElement("a");
+                        element.setAttribute("href", data);
+                        element.setAttribute("download", "amq lists backup.json");
+                        document.body.appendChild(element);
+                        element.click();
+                        element.remove();
+                    }
+                    else {
+                        displayMessage("Nothing to export");
+                    }
                 }))
             )
         );
@@ -550,7 +608,7 @@ function applyStyles() {
             padding-left: 15px;
         }
         #qllTable i.fa-spinner {
-            padding-left: 10px;
+            margin-left: 10px;
         }
         #qllEditTable .qllEditRow {
             margin: 4px;
