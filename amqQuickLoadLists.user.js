@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Quick Load Lists
 // @namespace    https://github.com/kempanator
-// @version      0.2
+// @version      0.3
 // @description  Adds a window for saving and quick loading anime lists
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -26,12 +26,12 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.2";
+const version = "0.3";
 const saveData = validateLocalStorage("quickLoadLists");
 let savedLists = saveData.savedLists ?? [];
 let windowHotKey = saveData.windowHotKey ?? {key: "q", altKey: true, ctrlKey: false};
 let animeListModalHotKey = saveData.animeListModalHotKey ?? {key: "", altKey: true, ctrlKey: false};
-let clearListHotKey = saveData.clearListHotKey ?? {key: "", altKey: true, ctrlKey: false};
+let removeListHotKey = saveData.removeListHotKey ?? {key: "", altKey: true, ctrlKey: false};
 let selectedColor = saveData.selectedColor ?? "#4497ea";
 let quickLoadListsWindow;
 
@@ -119,7 +119,7 @@ function setup() {
         .append($(`<div id="qllSettingsContainer"></div>`)
             .append($(`<div></div>`)
                 .append($(`<span>Open This Window Hotkey:</span>`))
-                .append($(`<select class="form-control"><option value="alt">ALT</option><option value="ctrl">CTRL</option></select>`).on("change", function() {
+                .append($(`<select id="qllSettingsWindowHotkeyModifier" class="form-control"><option value="alt">ALT</option><option value="ctrl">CTRL</option></select>`).on("change", function() {
                     if (this.value === "alt") {
                         windowHotKey.altKey = true;
                         windowHotKey.ctrlKey = false;
@@ -130,14 +130,14 @@ function setup() {
                     }
                     saveSettings();
                 }))
-                .append($(`<input class="form-control key" type="text" maxlength="1" value="${windowHotKey.key}">`).blur(function() {
+                .append($(`<input id="qllSettingsWindowHotkeyKey" class="form-control key" type="text" maxlength="1" value="${windowHotKey.key}">`).blur(function() {
                     windowHotKey.key = this.value.toLowerCase();
                     saveSettings();
                 }))
             )
             .append($(`<div></div>`)
                 .append($(`<span>Open Anime List Modal Hotkey:</span>`))
-                .append($(`<select class="form-control"><option value="alt">ALT</option><option value="ctrl">CTRL</option></select>`).on("change", function() {
+                .append($(`<select id="qllSettingsAnimeListModalHotkeyModifier" class="form-control"><option value="alt">ALT</option><option value="ctrl">CTRL</option></select>`).on("change", function() {
                     if (this.value === "alt") {
                         animeListModalHotKey.altKey = true;
                         animeListModalHotKey.ctrlKey = false;
@@ -148,32 +148,32 @@ function setup() {
                     }
                     saveSettings();
                 }))
-                .append($(`<input class="form-control key" type="text" maxlength="1" value="${animeListModalHotKey.key}">`).blur(function() {
+                .append($(`<input id="qllSettingsAnimeListModalHotkeyKey" class="form-control key" type="text" maxlength="1" value="${animeListModalHotKey.key}">`).blur(function() {
                     animeListModalHotKey.key = this.value.toLowerCase();
                     saveSettings();
                 }))
             )
             .append($(`<div></div>`)
                 .append($(`<span>Remove List Hotkey:</span>`))
-                .append($(`<select class="form-control"><option value="alt">ALT</option><option value="ctrl">CTRL</option></select>`).on("change", function() {
+                .append($(`<select id="qllSettingsRemoveListHotkeyModifier" class="form-control"><option value="alt">ALT</option><option value="ctrl">CTRL</option></select>`).on("change", function() {
                     if (this.value === "alt") {
-                        clearListHotKey.altKey = true;
-                        clearListHotKey.ctrlKey = false;
+                        removeListHotKey.altKey = true;
+                        removeListHotKey.ctrlKey = false;
                     }
                     else if (this.value === "ctrl") {
-                        clearListHotKey.altKey = false;
-                        clearListHotKey.ctrlKey = true;
+                        removeListHotKey.altKey = false;
+                        removeListHotKey.ctrlKey = true;
                     }
                     saveSettings();
                 }))
-                .append($(`<input class="form-control key" type="text" maxlength="1" value="${clearListHotKey.key}">`).blur(function() {
-                    clearListHotKey.key = this.value.toLowerCase();
+                .append($(`<input id="qllSettingsRemoveListHotkeyKey" class="form-control key" type="text" maxlength="1" value="${removeListHotKey.key}">`).blur(function() {
+                    removeListHotKey.key = this.value.toLowerCase();
                     saveSettings();
                 }))
             )
             .append($(`<div></div>`)
                 .append($(`<span>Selected Color:</span>`))
-                .append($(`<input class="form-control color" type="color" value="${selectedColor}">`).blur(function() {
+                .append($(`<input id="qllSettingsSelectedColor" class="form-control color" type="color" value="${selectedColor}">`).blur(function() {
                     selectedColor = this.value;
                     saveSettings();
                     applyStyles();
@@ -186,28 +186,37 @@ function setup() {
                             this.files[0].text().then((data) => {
                                 try {
                                     let json = JSON.parse(data);
-                                    if (Array.isArray(json) && json.every((x) => x.username !== undefined && x.type !== undefined)) {
+                                    if (Array.isArray(json.savedLists) && json.savedLists.every((x) => x.username !== undefined && x.type !== undefined)) {
                                         $(this).val("");
                                         swal({
                                             title: "Select Import Method",
                                             input: "select",
                                             inputPlaceholder: " ",
-                                            inputOptions: {1: "Replace all lists", 2: "Append to current lists"},
+                                            inputOptions: {1: "Append to current lists", 2: "Replace all lists", 3: "Replace lists & settings"},
                                             showCancelButton: true,
                                             cancelButtonText: "Cancel",
                                             allowOutsideClick: true
                                         }).then((result) => {
                                             if (result.value) {
                                                 if (result.value === "1") {
-                                                    savedLists = json;
+                                                    savedLists = savedLists.concat(json.savedLists);  
                                                 }
                                                 else if (result.value === "2") {
-                                                    savedLists = savedLists.concat(json);
+                                                    savedLists = json.savedLists;
+                                                }
+                                                else if (result.value === "3") {
+                                                    savedLists = json.savedLists ?? [];
+                                                    windowHotKey = json.windowHotKey ?? {key: "", altKey: true, ctrlKey: false};
+                                                    animeListModalHotKey = json.animeListModalHotKey ?? {key: "", altKey: true, ctrlKey: false};
+                                                    removeListHotKey = json.removeListHotKey ?? {key: "", altKey: true, ctrlKey: false};
+                                                    selectedColor = json.selectedColor ?? "#4497ea";
+                                                    updateSettings();
+                                                    applyStyles();
                                                 }
                                                 createListTable();
                                                 createEditTable();
                                                 saveSettings();
-                                                displayMessage(`Imported ${json.length} list${json.length === 1 ? "" : "s"}`);
+                                                displayMessage(`Imported ${json.savedLists.length} list${json.savedLists.length === 1 ? "" : "s"}`);
                                             }
                                         });
                                     }
@@ -224,10 +233,17 @@ function setup() {
                 )
                 .append($(`<button class="btn btn-default" style="margin-left: 5px">Export</button>`).click(function() {
                     if (savedLists.length) {
-                        let data = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(savedLists));
+                        let settings = {
+                            savedLists: savedLists,
+                            windowHotKey: windowHotKey,
+                            animeListModalHotKey: animeListModalHotKey,
+                            removeListHotKey: removeListHotKey,
+                            selectedColor: selectedColor
+                        };
+                        let data = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(settings));
                         let element = document.createElement("a");
                         element.setAttribute("href", data);
-                        element.setAttribute("download", "amq lists backup.json");
+                        element.setAttribute("download", "amq quick load lists backup.json");
                         document.body.appendChild(element);
                         element.click();
                         element.remove();
@@ -254,7 +270,7 @@ function setup() {
             $("#settingModal").modal("show");
             options.selectTab("settingsAnimeListContainer", $("#smAnimeListTab"));
         }
-        if (event.key === clearListHotKey.key && event.altKey === clearListHotKey.altKey && event.ctrlKey === clearListHotKey.ctrlKey) {
+        if (event.key === removeListHotKey.key && event.altKey === removeListHotKey.altKey && event.ctrlKey === removeListHotKey.ctrlKey) {
             removeAllLists();
         }
     });
@@ -499,6 +515,20 @@ function createEditRow($table, username, type, watching, completed, hold, droppe
     $table.append($row);
 }
 
+// update settings window with new imported settings
+function updateSettings() {
+    if (windowHotKey.altKey) $("#qllSettingsWindowHotkeyModifier").val("alt");
+    else if (windowHotKey.ctrlKey) $("#qllSettingsWindowHotkeyModifier").val("ctrl");
+    $("#qllSettingsWindowHotkeyKey").val(windowHotKey.key);
+    if (animeListModalHotKey.altKey) $("#qllSettingsAnimeListModalHotkeyModifier").val("alt");
+    else if (animeListModalHotKey.ctrlKey) $("#qllSettingsAnimeListModalHotkeyModifier").val("ctrl");
+    $("#qllSettingsAnimeListModalHotkeyKey").val(animeListModalHotKey.key);
+    if (removeListHotKey.altKey) $("#qllSettingsRemoveListHotkeyModifier").val("alt");
+    else if (removeListHotKey.ctrlKey) $("#qllSettingsRemoveListHotkeyModifier").val("ctrl");
+    $("#qllSettingsRemoveListHotkeyKey").val(removeListHotKey.key);
+    $("#qllSettingsSelectedColor").val(selectedColor);
+}
+
 // save edit table
 function saveEditTable() {
     savedLists = [];
@@ -521,7 +551,8 @@ function saveSettings() {
         savedLists: savedLists,
         windowHotKey: windowHotKey,
         animeListModalHotKey: animeListModalHotKey,
-        clearListHotKey: clearListHotKey
+        removeListHotKey: removeListHotKey,
+        selectedColor: selectedColor
     };
     localStorage.setItem("quickLoadLists", JSON.stringify(settings));
 }
