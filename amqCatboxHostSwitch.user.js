@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Catbox Host Switch
 // @namespace    https://github.com/kempanator
-// @version      0.1
+// @version      0.2
 // @description  Switch your catbox host
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -28,7 +28,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.1";
+const version = "0.2";
 const saveData = validateLocalStorage("catboxHostSwitch");
 const catboxHostDict = {0: "lb1.catbox.moe", 1: "files.catbox.moe", 2: "nl.catbox.moe", 3: "ladist1.catbox.video"};
 let catboxHost = saveData.catboxHost ?? "0"; //0: default link, 1: files.catbox, 2: nl.catbox, 3: ladist1.catbox
@@ -44,10 +44,12 @@ function setup() {
     }));
 
     QuizVideoController.prototype.nextVideoInfo = function(songInfo, playLength, startPoint, firstVideo, startTime, playbackSpeed) {
-        if (songInfo.videoMap.catbox && catboxHost !== "0") {
-            for (let key of Object.keys(songInfo.videoMap.catbox)) {
-                let url = String(songInfo.videoMap.catbox[key]);
-                songInfo.videoMap.catbox[key] = url.replace(/^https:\/\/[a-zA-Z0-9]+\.catbox\.[a-zA-Z0-9]+/, "https://" + catboxHostDict[catboxHost]);
+        if (songInfo.videoMap.catbox) {
+            if (catboxHost !== "0") {
+                for (let key of Object.keys(songInfo.videoMap.catbox)) {
+                    let url = String(songInfo.videoMap.catbox[key]);
+                    songInfo.videoMap.catbox[key] = url.replace(/^https:\/\/[a-zA-Z0-9]+\.catbox\.[a-zA-Z0-9]+/, "https://" + catboxHostDict[catboxHost]);
+                }
             }
         }
         else if (songInfo.videoMap.openingsmoe) {
