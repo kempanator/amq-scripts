@@ -199,7 +199,7 @@ function setup() {
                                         }).then((result) => {
                                             if (result.value) {
                                                 if (result.value === "1") {
-                                                    savedLists = savedLists.concat(json.savedLists);  
+                                                    savedLists = savedLists.concat(json.savedLists);
                                                 }
                                                 else if (result.value === "2") {
                                                     savedLists = json.savedLists;
