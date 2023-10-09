@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.28
+// @version      0.29
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -43,7 +43,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.28";
+const version = "0.29";
 const saveData = validateLocalStorage("customSongListGame");
 let replacedAnswers = saveData.replacedAnswers || {};
 let fastSkip = false;
@@ -1061,7 +1061,7 @@ function getAnisongdbData(mode, query, ops, eds, ins, partial, ignoreDuplicates,
         body: JSON.stringify(json)
     }).then(res => res.json()).then(json => {
         handleData(json);
-        if (songList.length === 0 && ranked.currentState === 2) {
+        if (songList.length === 0 && (ranked.currentState === ranked.RANKED_STATE_IDS.RUNNING || ranked.currentState === ranked.RANKED_STATE_IDS.CHAMP_RUNNING)) {
             $("#cslgSongListCount").text("Total Songs: 0");
             $("#cslgMergeCurrentCount").text("Found 0 songs in the current song list");
             $("#cslgSongListTable tbody").empty();
