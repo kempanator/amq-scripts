@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.102
+// @version      0.103
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -100,7 +100,7 @@ OTHER
 
 "use strict";
 if (typeof Listener === "undefined") return;
-const version = "0.102";
+const version = "0.103";
 const saveData = validateLocalStorage("megaCommands");
 let alerts = saveData.alerts ?? {hiddenPlayers: true, nameChange: true, onlineFriends: false, offlineFriends: false, serverStatus: false};
 let animeList;
@@ -457,18 +457,18 @@ function setup() {
         }
         if (autoDownloadSong.length) {
             if (autoDownloadSong.includes("video")) {
-                downloadSong(payload.songInfo.videoTargetMap.catbox?.[720] || payload.songInfo.videoTargetMap.catbox?.[480]);
+                downloadSong(formatURL(payload.songInfo.videoTargetMap.catbox?.[720] || payload.songInfo.videoTargetMap.catbox?.[480]));
             }
             else {
                 if (autoDownloadSong.includes("720")) {
-                    downloadSong(payload.songInfo.videoTargetMap.catbox?.[720]);
+                    downloadSong(formatURL(payload.songInfo.videoTargetMap.catbox?.[720]));
                 }
                 if (autoDownloadSong.includes("480")) {
-                    downloadSong(payload.songInfo.videoTargetMap.catbox?.[480]);
+                    downloadSong(formatURL(payload.songInfo.videoTargetMap.catbox?.[480]));
                 }
             }
             if (autoDownloadSong.includes("mp3")) {
-                downloadSong(payload.songInfo.videoTargetMap.catbox?.[0]);
+                downloadSong(formatURL(payload.songInfo.videoTargetMap.catbox?.[0]));
             }
         }
     }).bindListener();
@@ -2290,7 +2290,7 @@ function parseIncomingDM(content, sender) {
 function parseForceAll(content, type) {
     if (commands) {
         if (/^\/forceall version$/i.test(content)) {
-            sendMessage("0.102", type);
+            sendMessage("0.103", type);
         }
         else if (/^\/forceall version .+$/i.test(content)) {
             let option = /^\S+ \S+ (.+)$/.exec(content)[1];
@@ -3009,6 +3009,21 @@ async function getMALAnimeList(username) {
         nextPage = result.paging.next;
     }
     return list;
+}
+
+// format song url, handle bad data
+function formatURL(url) {
+    if (url) {
+        if (url.startsWith("http")) {
+            return url;
+        }
+        else {
+            return videoResolver.formatUrl(url);
+        }
+    }
+    else {
+        return "";
+    }
 }
 
 // download audio/video file from url

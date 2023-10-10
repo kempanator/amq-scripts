@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.30
+// @version      0.31
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -43,7 +43,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.30";
+const version = "0.31";
 const saveData = validateLocalStorage("customSongListGame");
 let replacedAnswers = saveData.replacedAnswers || {};
 let fastSkip = false;
@@ -788,9 +788,9 @@ function endGuessPhase(songNumber) {
                     "songName": song.songName,
                     "videoTargetMap": {
                         "catbox": {
-                            "0": song.audio,
-                            "480": song.video480,
-                            "720": song.video720
+                            "0": formatTargetUrl(song.audio),
+                            "480": formatTargetUrl(song.video480),
+                            "720": formatTargetUrl(song.video720)
                         }
                     },
                     "type": song.songType,
@@ -1277,6 +1277,14 @@ function tabReset() {
     $("#cslgAnswerContainer").hide();
     $("#cslgMergeContainer").hide();
     $("#cslgInfoContainer").hide();
+}
+
+// convert full url to target data
+function formatTargetUrl(url) {
+    if (url && url.startsWith("http")) {
+        return url.split("/").slice(-1)[0];
+    }
+    return url;
 }
 
 // modify the song url if necessary
