@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Show All Song Links
 // @namespace    https://github.com/kempanator
-// @version      0.4
+// @version      0.5
 // @description  Show all song links in the song info container
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -20,7 +20,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.4";
+const version = "0.5";
 
 function setup() {
     new Listener("answer results", (payload) => {
@@ -30,9 +30,9 @@ function setup() {
             let urlKit = payload.songInfo.siteIds.kitsuId ? "https://kitsu.io/anime/" + payload.songInfo.siteIds.kitsuId : "";
             let urlMal = payload.songInfo.siteIds.malId ? "https://myanimelist.net/anime/" + payload.songInfo.siteIds.malId : "";
             let urlAnn = payload.songInfo.siteIds.annId ? "https://www.animenewsnetwork.com/encyclopedia/anime.php?id=" + payload.songInfo.siteIds.annId : "";
-            let url720 = payload.songInfo.urlMap.catbox?.[720] ?? payload.songInfo.urlMap.openingsmoe?.[720] ?? "";
-            let url480 = payload.songInfo.urlMap.catbox?.[480] ?? payload.songInfo.urlMap.openingsmoe?.[480] ?? "";
-            let urlmp3 = payload.songInfo.urlMap.catbox?.[0] ?? payload.songInfo.urlMap.openingsmoe?.[0] ?? "";
+            let url720 = payload.songInfo.videoTargetMap.catbox?.[720] ?? payload.songInfo.videoTargetMap.openingsmoe?.[720] ?? "";
+            let url480 = payload.songInfo.videoTargetMap.catbox?.[480] ?? payload.songInfo.videoTargetMap.openingsmoe?.[480] ?? "";
+            let urlmp3 = payload.songInfo.videoTargetMap.catbox?.[0] ?? payload.songInfo.videoTargetMap.openingsmoe?.[0] ?? "";
             let $b = $(`<b></b>`);
             $b.append($("<a></a>").attr({href: urlAni, target: "_blank"}).addClass(urlAni ? "" : "disabled").text("ANI"));
             $b.append($("<a></a>").attr({href: urlKit, target: "_blank"}).addClass(urlKit ? "" : "disabled").text("KIT"));

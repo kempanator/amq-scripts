@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.101
+// @version      0.102
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -100,7 +100,7 @@ OTHER
 
 "use strict";
 if (typeof Listener === "undefined") return;
-const version = "0.101";
+const version = "0.102";
 const saveData = validateLocalStorage("megaCommands");
 let alerts = saveData.alerts ?? {hiddenPlayers: true, nameChange: true, onlineFriends: false, offlineFriends: false, serverStatus: false};
 let animeList;
@@ -179,7 +179,7 @@ const info = {
 const dqMap = {
     "Naruto": {genre: [1, 2, 3, 4, 6, 17], years: [2002, 2002], seasons: [3, 3]},
     "Neon Genesis Evangelion": {genre: [1, 4, 9, 11, 12, 14], years: [1995, 1995], seasons: [3, 3]},
-    "Gintama": {genre: [1, 3, 4, 14], years: [2006, 2006], seasons: [1, 1]},
+    "Gintama": {genre: [1, 3, 4, 14], tags: [39], years: [2006, 2006], seasons: [1, 1]},
     "Detective Conan": {genre: [2, 3, 11, 12], years: [1996, 1996], seasons: [0, 0]},
     "BECK: Mongolian Chop Squad": {genre: [3, 4, 10, 15], years: [2004, 2004], seasons: [3, 3]},
     "Initial D": {genre: [1, 4, 16], years: [1998, 1998], seasons: [1, 1]},
@@ -457,18 +457,18 @@ function setup() {
         }
         if (autoDownloadSong.length) {
             if (autoDownloadSong.includes("video")) {
-                downloadSong(payload.songInfo.urlMap.catbox?.[720] || payload.songInfo.urlMap.catbox?.[480]);
+                downloadSong(payload.songInfo.videoTargetMap.catbox?.[720] || payload.songInfo.videoTargetMap.catbox?.[480]);
             }
             else {
                 if (autoDownloadSong.includes("720")) {
-                    downloadSong(payload.songInfo.urlMap.catbox?.[720]);
+                    downloadSong(payload.songInfo.videoTargetMap.catbox?.[720]);
                 }
                 if (autoDownloadSong.includes("480")) {
-                    downloadSong(payload.songInfo.urlMap.catbox?.[480]);
+                    downloadSong(payload.songInfo.videoTargetMap.catbox?.[480]);
                 }
             }
             if (autoDownloadSong.includes("mp3")) {
-                downloadSong(payload.songInfo.urlMap.catbox?.[0]);
+                downloadSong(payload.songInfo.videoTargetMap.catbox?.[0]);
             }
         }
     }).bindListener();
@@ -2064,12 +2064,14 @@ async function parseCommand(content, type, target) {
         if (data) sendMessage(data.smColorFriendColor, type, target);
     }
     else if (/^\/genreid .+$/i.test(content)) {
-        let list = /^\S+ (.+)$/.exec(content)[1].split(",").map((x) => x.trim()).filter(Boolean);
-        if (list.length) sendMessage(list.map((x) => idTranslator.genreNames[x]).filter(Boolean).join(", "), type, target);
+        let list = /^\S+ (.+)$/.exec(content)[1].toLowerCase().split(",").map((x) => x.trim()).filter(Boolean);
+        let genreDict = Object.assign({}, ...Object.entries(idTranslator.genreNames).map(([a, b]) => ({[b.toLowerCase()]: a})));
+        sendMessage(list.map((x) => isNaN(parseInt(x)) ? genreDict[x] : idTranslator.genreNames[x]).filter(Boolean).join(", "), type, target);
     }
     else if (/^\/tagid .+$/i.test(content)) {
-        let list = /^\S+ (.+)$/.exec(content)[1].split(",").map((x) => x.trim()).filter(Boolean);
-        if (list.length) sendMessage(list.map((x) => idTranslator.tagNames[x]).filter(Boolean).join(", "), type, target);
+        let list = /^\S+ (.+)$/.exec(content)[1].toLowerCase().split(",").map((x) => x.trim()).filter(Boolean);
+        let tagDict = Object.assign({}, ...Object.entries(idTranslator.tagNames).map(([a, b]) => ({[b.toLowerCase()]: a})));
+        sendMessage(list.map((x) => isNaN(parseInt(x)) ? tagDict[x] : idTranslator.tagNames[x]).filter(Boolean).join(", "), type, target);
     }
     else if (/^\/(dq|daily|dailies|dailyquests?) (d|detect|auto)$/i.test(content)) {
         let genreDict = Object.assign({}, ...Object.entries(idTranslator.genreNames).map(([a, b]) => ({[b]: parseInt(a)})));
@@ -2288,7 +2290,7 @@ function parseIncomingDM(content, sender) {
 function parseForceAll(content, type) {
     if (commands) {
         if (/^\/forceall version$/i.test(content)) {
-            sendMessage("0.101", type);
+            sendMessage("0.102", type);
         }
         else if (/^\/forceall version .+$/i.test(content)) {
             let option = /^\S+ \S+ (.+)$/.exec(content)[1];
