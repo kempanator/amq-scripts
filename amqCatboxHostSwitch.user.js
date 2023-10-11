@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Catbox Host Switch
 // @namespace    https://github.com/kempanator
-// @version      0.2
+// @version      0.3
 // @description  Switch your catbox host
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -12,7 +12,7 @@
 // ==/UserScript==
 
 /*
-Settings are located in: bottom right gear icon > video hosts > catbox link
+Settings are located in: bottom right gear icon > settings > video hosts > catbox link
 
 Features:
  - Modify all incoming catbox song links
@@ -28,27 +28,35 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.2";
+const version = "0.3";
 const saveData = validateLocalStorage("catboxHostSwitch");
-const catboxHostDict = {0: "lb1.catbox.moe", 1: "files.catbox.moe", 2: "nl.catbox.moe", 3: "ladist1.catbox.video"};
-let catboxHost = saveData.catboxHost ?? "0"; //0: default link, 1: files.catbox, 2: nl.catbox, 3: ladist1.catbox
+const catboxHostDict = {0: "lb1.catbox.moe", 1: "files.catbox.moe", 2: "nl.catbox.moe", 3: "ladist1.catbox.video", 4: "abdist1.catbox.video", 5: "nl.catbox.video"};
+let catboxHost = saveData.catboxHost ?? "0"; //0: default link, 1: files.catbox.moe, 2: nl.catbox.moe, 3: ladist1.catbox, 4: abdist1.catbox.video, 5: nl.catbox.video
 let catboxDownFlagRaised = false;
 
 //setup
 function setup() {
     $("#settingsVideoHostsContainer .col-xs-6").first()
     .append($(`<h4>Catbox Link</h4>`))
-    .append($(`<select id="chsSelect" class="form-control"><option value="0">default link</option><option value="1">files.catbox.moe</option><option value="2">nl.catbox.moe</option><option value="3">ladist1.catbox.video</option></select>`).val(catboxHost).on("change", function() {
+    .append($(`<select id="chsSelect" class="form-control"><option value="0">default link</option><option value="1">files.catbox.moe</option><option value="2">nl.catbox.moe</option><option value="3">ladist1.catbox.video</option><option value="4">abdist1.catbox.video</option><option value="5">nl.catbox.video</option></select>`).val(catboxHost).on("change", function() {
         catboxHost = this.value;
         saveSettings();
     }));
 
-    QuizVideoController.prototype.nextVideoInfo = function(songInfo, playLength, startPoint, firstVideo, startTime, playbackSpeed) {
+    QuizVideoController.prototype.nextVideoInfo = function(songInfo, playLength, startPoint, firstVideo, startTime, playbackSpeed, fullSongRange) {
+        console.log({songInfo, playLength, startPoint, firstVideo, startTime, playbackSpeed, fullSongRange})
         if (songInfo.videoMap.catbox) {
             if (catboxHost !== "0") {
                 for (let key of Object.keys(songInfo.videoMap.catbox)) {
-                    let url = String(songInfo.videoMap.catbox[key]);
-                    songInfo.videoMap.catbox[key] = url.replace(/^https:\/\/[a-zA-Z0-9]+\.catbox\.[a-zA-Z0-9]+/, "https://" + catboxHostDict[catboxHost]);
+                    let url = songInfo.videoMap.catbox[key];
+                    if (url) {
+                        if (url.startsWith("http")) {
+                            songInfo.videoMap.catbox[key] = url.replace(/^https:\/\/[a-zA-Z0-9]+\.catbox\.[a-zA-Z0-9]+/, "https://" + catboxHostDict[catboxHost]);
+                        }
+                        else {
+                            songInfo.videoMap.catbox[key] = `https://${catboxHostDict[catboxHost]}/${url}`;
+                        }
+                    }
                 }
             }
         }
@@ -64,7 +72,8 @@ function setup() {
             startPoint: startPoint,
             playbackSpeed: playbackSpeed,
             firstVideo: firstVideo,
-            startTime: startTime
+            startTime: startTime,
+            fullSongRange: fullSongRange
         };
         if (firstVideo) {
             this.readyToBufferNextVideo = false;
@@ -83,7 +92,7 @@ function setup() {
         description: `
             <p>Modify all incoming catbox song links</p>
             <p>Alert when openingsmoe link is given instead of catbox</p>
-            <p>Settings are located in: bottom right gear icon > video hosts > catbox link</p>
+            <p>Settings are located in: bottom right gear icon > settings > video hosts > catbox link</p>
         `
     });
 }
