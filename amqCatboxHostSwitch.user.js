@@ -44,7 +44,7 @@ function setup() {
     }));
 
     QuizVideoController.prototype.nextVideoInfo = function(songInfo, playLength, startPoint, firstVideo, startTime, playbackSpeed, fullSongRange) {
-        console.log({songInfo, playLength, startPoint, firstVideo, startTime, playbackSpeed, fullSongRange})
+        //console.log({songInfo, playLength, startPoint, firstVideo, startTime, playbackSpeed, fullSongRange})
         if (songInfo.videoMap.catbox) {
             if (catboxHost !== "0") {
                 for (let key of Object.keys(songInfo.videoMap.catbox)) {
