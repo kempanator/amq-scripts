@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.31
+// @version      0.32
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -43,8 +43,9 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.31";
+const version = "0.32";
 const saveData = validateLocalStorage("customSongListGame");
+const catboxHostDict = {1: "files.catbox.moe", 2: "nl.catbox.moe", 3: "ladist1.catbox.video", 4: "abdist1.catbox.video", 5: "nl.catbox.video"};
 let replacedAnswers = saveData.replacedAnswers || {};
 let fastSkip = false;
 let nextVideoReady = false;
@@ -65,7 +66,7 @@ let nextVideoReadyInterval;
 let answerTimer;
 let extraGuessTimer;
 let endGuessTimer;
-let fileHostOverride = "";
+let fileHostOverride = "0";
 let autocomplete = []; //store lowercase version for faster compare speed
 let autocompleteInput;
 
@@ -184,10 +185,12 @@ $("#gameContainer").append($(`
                             </select>
                             <span style="font-size: 18px; font-weight: bold; margin: 0 10px 0 10px;">Override URL:</span>
                             <select id="cslgHostOverrideSelect" style="color: black; padding: 3px 0;">
-                                <option value="">default</option>
-                                <option value="files.catbox.moe">files.catbox.moe</option>
-                                <option value="nl.catbox.moe">nl.catbox.moe</option>
-                                <option value="ladist1.catbox.video">ladist1.catbox.video</option>
+                                <option value="0">default</option>
+                                <option value="1">files.catbox.moe</option>
+                                <option value="2">nl.catbox.moe</option>
+                                <option value="3">ladist1.catbox.video</option>
+                                <option value="4">abdist1.catbox.video</option>
+                                <option value="5">nl.catbox.video</option>
                             </select>
                         </div>
                         <p style="margin-top: 20px">Normal room settings are ignored. Only these settings will apply.</p>
@@ -1290,8 +1293,8 @@ function formatTargetUrl(url) {
 // modify the song url if necessary
 function getFileURL(url) {
     if (url) {
-        if (fileHostOverride) {
-            return "https://" + fileHostOverride + "/" + url.split("/").slice(-1)[0];
+        if (fileHostOverride !== "0") {
+            return "https://" + catboxHostDict[fileHostOverride] + "/" + url.split("/").slice(-1)[0];
         }
         return url;
     }

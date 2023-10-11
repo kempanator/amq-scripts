@@ -30,7 +30,7 @@ let loadInterval = setInterval(() => {
 
 const version = "0.3";
 const saveData = validateLocalStorage("catboxHostSwitch");
-const catboxHostDict = {0: "lb1.catbox.moe", 1: "files.catbox.moe", 2: "nl.catbox.moe", 3: "ladist1.catbox.video", 4: "abdist1.catbox.video", 5: "nl.catbox.video"};
+const catboxHostDict = {1: "files.catbox.moe", 2: "nl.catbox.moe", 3: "ladist1.catbox.video", 4: "abdist1.catbox.video", 5: "nl.catbox.video"};
 let catboxHost = saveData.catboxHost ?? "0"; //0: default link, 1: files.catbox.moe, 2: nl.catbox.moe, 3: ladist1.catbox, 4: abdist1.catbox.video, 5: nl.catbox.video
 let catboxDownFlagRaised = false;
 
