@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.32
+// @version      0.33
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -43,7 +43,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.32";
+const version = "0.33";
 const saveData = validateLocalStorage("customSongListGame");
 const catboxHostDict = {1: "files.catbox.moe", 2: "nl.catbox.moe", 3: "ladist1.catbox.video", 4: "abdist1.catbox.video", 5: "nl.catbox.video"};
 let replacedAnswers = saveData.replacedAnswers || {};
@@ -645,11 +645,7 @@ function startQuiz() {
             "videoInfo": {
                 "id": null,
                 "videoMap": {
-                    "catbox": {
-                        "0": getFileURL(song.audio),
-                        "480": getFileURL(song.video480),
-                        "720": getFileURL(song.video720)
-                    }
+                    "catbox": createCatboxLinkObject(song.audio, song.video480, song.video720)
                 },
                 "videoVolumeMap": {
                     "catbox": {
@@ -734,11 +730,7 @@ function playSong(songNumber) {
                 "videoInfo": {
                     "id": null,
                     "videoMap": {
-                        "catbox": {
-                            "0": getFileURL(nextSong.audio),
-                            "480": getFileURL(nextSong.video480),
-                            "720": getFileURL(nextSong.video720)
-                        }
+                        "catbox": createCatboxLinkObject(nextSong.audio, nextSong.video480, nextSong.video720)
                     },
                     "videoVolumeMap": {
                         "catbox": {
@@ -1290,15 +1282,20 @@ function formatTargetUrl(url) {
     return url;
 }
 
-// modify the song url if necessary
-function getFileURL(url) {
-    if (url) {
-        if (fileHostOverride !== "0") {
-            return "https://" + catboxHostDict[fileHostOverride] + "/" + url.split("/").slice(-1)[0];
-        }
-        return url;
+// input 3 links, return formatted catbox link object
+function createCatboxLinkObject(audio, video480, video720) {
+    let links = {};
+    if (fileHostOverride === "0") {
+        if (audio) links["0"] = audio;
+        if (video480) links["480"] = video480;
+        if (video720) links["720"] = video720;
     }
-    return undefined;
+    else {
+        if (audio) links["0"] = "https://" + catboxHostDict[fileHostOverride] + "/" + audio.split("/").slice(-1)[0];
+        if (video480) links["480"] = "https://" + catboxHostDict[fileHostOverride] + "/" + video480.split("/").slice(-1)[0];
+        if (video720) links["720"] = "https://" + catboxHostDict[fileHostOverride] + "/" + video720.split("/").slice(-1)[0];
+    }
+    return links;
 }
 
 // validate json data in local storage
