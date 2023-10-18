@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.103
+// @version      0.104
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -100,7 +100,7 @@ OTHER
 
 "use strict";
 if (typeof Listener === "undefined") return;
-const version = "0.103";
+const version = "0.104";
 const saveData = validateLocalStorage("megaCommands");
 let alerts = saveData.alerts ?? {hiddenPlayers: true, nameChange: true, onlineFriends: false, offlineFriends: false, serverStatus: false};
 let animeList;
@@ -644,7 +644,7 @@ function setup() {
     }).bindListener();
     new Listener("server state change", (payload) => {
         if (alerts.serverStatus) {
-            sendSystemMessage(`${payload.name} ${payload.online ? "online" : "offline"}`);
+            sendSystemMessage(`Server Status: ${payload.name} ${payload.online ? "online" : "offline"}`);
             popoutMessages.displayStandardMessage("Server Status", `${payload.name} ${payload.online ? "online" : "offline"}`);
         }
     }).bindListener();
@@ -2290,7 +2290,7 @@ function parseIncomingDM(content, sender) {
 function parseForceAll(content, type) {
     if (commands) {
         if (/^\/forceall version$/i.test(content)) {
-            sendMessage("0.103", type);
+            sendMessage("0.104", type);
         }
         else if (/^\/forceall version .+$/i.test(content)) {
             let option = /^\S+ \S+ (.+)$/.exec(content)[1];
@@ -2661,9 +2661,25 @@ function checkAutoHost() {
 
 // input number of milliseconds of delay, leave and rejoin the room you were in
 function rejoinRoom(time) {
-    if (isSoloMode() || isRankedMode()) return;
     setTimeout(() => {
-        if (lobby.inLobby) {
+        if (isSoloMode()) {
+            viewChanger.changeView("main");
+            setTimeout(() => { hostModal.displayHostSolo() }, time);
+            setTimeout(() => { roomBrowser.host() }, time + 100);
+        }
+        else if (isRankedMode()) {
+            let type = hostModal.$roomName.val().split(" ")[1].toUpperCase();
+            viewChanger.changeView("main");
+            setTimeout(() => {
+                if (ranked.currentState === ranked.RANKED_STATE_IDS.LOBBY || ranked.currentState === ranked.RANKED_STATE_IDS.CHAMP_LOBBY) {
+                    ranked.joinRankedLobby(ranked.RANKED_TYPE_IDS[type]);
+                }
+                else if (ranked.currentState === ranked.RANKED_STATE_IDS.RUNNING || ranked.currentState === ranked.RANKED_STATE_IDS.CHAMP_RUNNING) {
+                    ranked.joinRankedGame(ranked.RANKED_TYPE_IDS[type]);
+                }
+            }, time);
+        }
+        else if (lobby.inLobby) {
             let id = lobby.gameId;
             let password = hostModal.$passwordInput.val();
             let spec = gameChat.spectators.includes(selfName);
