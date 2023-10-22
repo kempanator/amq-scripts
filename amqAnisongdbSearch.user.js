@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Anisongdb Search
 // @namespace    https://github.com/kempanator
-// @version      0.4
+// @version      0.5
 // @description  Adds a window to search anisongdb.com in game
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -27,7 +27,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.4";
+const version = "0.5";
 let anisongdbWindow;
 let injectSearchButtons = true;
 let anisongdbSort = {animeSortAscending: false, artistSortAscending: false, songSortAscending: false, typeSortAscending: false, vintageSortAscending: false};
@@ -91,7 +91,7 @@ function setup() {
         let query = $("#anisongdbSearchInput").val();
         let partial = $("#anisongdbSearchPartialCheckbox").prop("checked");
         if (query.trim() === "") {
-            $("#anisongdbLoading").remove();
+            $("#anisongdbInfoText").remove();
             $("#anisongdbTable").remove();
         }
         else {
@@ -104,7 +104,7 @@ function setup() {
             let query = $("#anisongdbSearchInput").val();
             let partial = $("#anisongdbSearchPartialCheckbox").prop("checked");
             if (query.trim() === "") {
-                $("#anisongdbLoading").remove();
+                $("#anisongdbInfoText").remove();
                 $("#anisongdbTable").remove();
             }
             else {
@@ -129,8 +129,8 @@ function setup() {
 
 // send anisongdb request
 function getAnisongdbData(mode, query, partial) {
-    $("#anisongdbTable").remove();
-    anisongdbWindow.panels[0].panel.append(`<p id="anisongdbLoading">loading...</p>`);
+    $("#anisongdbInfoText, #anisongdbTable").remove();
+    anisongdbWindow.panels[0].panel.append(`<p id="anisongdbInfoText">loading...</p>`);
     let json = {};
     json.and_logic = false;
     json.ignore_duplicate = false;
@@ -146,83 +146,97 @@ function getAnisongdbData(mode, query, partial) {
         headers: {"Accept": "application/json", "Content-Type": "application/json"},
         body: JSON.stringify(json)
     }).then(res => res.json()).then(json => {
-        anisongdbSort = {animeSortAscending: false, artistSortAscending: false, songSortAscending: false, typeSortAscending: false, vintageSortAscending: false};
-        $("#anisongdbLoading").remove();
-        let $table = $(`<table id="anisongdbTable"></table>`);
-        let $thead = $("<thead></thead>");
-        let $tbody = $("<tbody></tbody>");
-        let $row = $("<tr></tr>");
-        $row.append($("<th></th>").addClass("anime").text("Anime"));
-        $row.append($("<th></th>").addClass("artist").text("Artist"));
-        $row.append($("<th></th>").addClass("song").text("Song"));
-        $row.append($("<th></th>").addClass("type").text("Type"));
-        $row.append($("<th></th>").addClass("vintage").text("Vintage"));
-        $thead.append($row);
-        for (let result of json) {
-            let $row = $("<tr></tr>");
-            $row.append($("<td></td>").addClass("anime").text(options.useRomajiNames ? result.animeJPName : result.animeENName));
-            $row.append($("<td></td>").addClass("artist").text(result.songArtist));
-            $row.append($("<td></td>").addClass("song").text(result.songName));
-            $row.append($("<td></td>").addClass("type").text(shortenType(result.songType)));
-            $row.append($("<td></td>").addClass("vintage").text(result.animeVintage));
-            $tbody.append($row);
+        if (json.length === 0 && (ranked.currentState === ranked.RANKED_STATE_IDS.RUNNING || ranked.currentState === ranked.RANKED_STATE_IDS.CHAMP_RUNNING)) {
+            $("#anisongdbInfoText").remove();
+            anisongdbWindow.panels[0].panel.append(`<p id="anisongdbInfoText">AnisongDB is not available during ranked</p>`);
         }
-        $thead.on("click", "th", (event) => {
-            if (event.target.classList.contains("anime")) {
-                sortAnisongdbTableEntries($tbody, "anime", anisongdbSort.animeSortAscending);
-                anisongdbSort.animeSortAscending = !anisongdbSort.animeSortAscending;
-                anisongdbSort.artistSortAscending = false;
-                anisongdbSort.songSortAscending = false;
-                anisongdbSort.typeSortAscending = false;
-                anisongdbSort.vintageSortAscending = false;
-            }
-            else if (event.target.classList.contains("artist")) {
-                sortAnisongdbTableEntries($tbody, "artist", anisongdbSort.artistSortAscending);
-                anisongdbSort.animeSortAscending = false;
-                anisongdbSort.artistSortAscending = !anisongdbSort.artistSortAscending;
-                anisongdbSort.songSortAscending = false;
-                anisongdbSort.typeSortAscending = false;
-                anisongdbSort.vintageSortAscending = false;
-            }
-            else if (event.target.classList.contains("song")) {
-                sortAnisongdbTableEntries($tbody, "song", anisongdbSort.songSortAscending);
-                anisongdbSort.animeSortAscending = false;
-                anisongdbSort.artistSortAscending = false;
-                anisongdbSort.songSortAscending = !anisongdbSort.songSortAscending;
-                anisongdbSort.typeSortAscending = false;
-                anisongdbSort.vintageSortAscending = false;
-            }
-            else if (event.target.classList.contains("type")) {
-                sortAnisongdbTableEntries($tbody, "type", anisongdbSort.typeSortAscending);
-                anisongdbSort.animeSortAscending = false;
-                anisongdbSort.artistSortAscending = false;
-                anisongdbSort.songSortAscending = false;
-                anisongdbSort.typeSortAscending = !anisongdbSort.typeSortAscending;
-                anisongdbSort.vintageSortAscending = false;
-            }
-            else if (event.target.classList.contains("vintage")) {
-                sortAnisongdbTableEntries($tbody, "vintage", anisongdbSort.vintageSortAscending);
-                anisongdbSort.animeSortAscending = false;
-                anisongdbSort.artistSortAscending = false;
-                anisongdbSort.songSortAscending = false;
-                anisongdbSort.typeSortAscending = false;
-                anisongdbSort.vintageSortAscending = !anisongdbSort.vintageSortAscending;
-            }
-        });
-        $tbody.on("click", "td", (event) => {
-            if (event.target.classList.contains("anime")) {
-                getAnisongdbData("anime", event.target.innerText);
-            }
-            else if (event.target.classList.contains("artist")) {
-                getAnisongdbData("artist", event.target.innerText);
-            }
-            else if (event.target.classList.contains("song")) {
-                getAnisongdbData("song", event.target.innerText);
-            }
-        });
-        $table.append($thead).append($tbody);
-        anisongdbWindow.panels[0].panel.append($table);
+        else {
+            createTable(json);
+        }
+    }).catch(res => {
+        $("#anisongdbInfoText").remove();
+        anisongdbWindow.panels[0].panel.append($(`<p id="anisongdbInfoText"></p>`).text(res.toString()));
+    })
+}
+
+// create table
+function createTable(json) {
+    anisongdbSort = {animeSortAscending: false, artistSortAscending: false, songSortAscending: false, typeSortAscending: false, vintageSortAscending: false};
+    $("#anisongdbInfoText").remove();
+    let $table = $(`<table id="anisongdbTable"></table>`);
+    let $thead = $("<thead></thead>");
+    let $tbody = $("<tbody></tbody>");
+    let $row = $("<tr></tr>");
+    $row.append($("<th></th>").addClass("anime").text("Anime"));
+    $row.append($("<th></th>").addClass("artist").text("Artist"));
+    $row.append($("<th></th>").addClass("song").text("Song"));
+    $row.append($("<th></th>").addClass("type").text("Type"));
+    $row.append($("<th></th>").addClass("vintage").text("Vintage"));
+    $thead.append($row);
+    for (let result of json) {
+        let $row = $("<tr></tr>");
+        $row.append($("<td></td>").addClass("anime").text(options.useRomajiNames ? result.animeJPName : result.animeENName));
+        $row.append($("<td></td>").addClass("artist").text(result.songArtist));
+        $row.append($("<td></td>").addClass("song").text(result.songName));
+        $row.append($("<td></td>").addClass("type").text(shortenType(result.songType)));
+        $row.append($("<td></td>").addClass("vintage").text(result.animeVintage));
+        $tbody.append($row);
+    }
+    $thead.on("click", "th", (event) => {
+        if (event.target.classList.contains("anime")) {
+            sortAnisongdbTableEntries($tbody, "anime", anisongdbSort.animeSortAscending);
+            anisongdbSort.animeSortAscending = !anisongdbSort.animeSortAscending;
+            anisongdbSort.artistSortAscending = false;
+            anisongdbSort.songSortAscending = false;
+            anisongdbSort.typeSortAscending = false;
+            anisongdbSort.vintageSortAscending = false;
+        }
+        else if (event.target.classList.contains("artist")) {
+            sortAnisongdbTableEntries($tbody, "artist", anisongdbSort.artistSortAscending);
+            anisongdbSort.animeSortAscending = false;
+            anisongdbSort.artistSortAscending = !anisongdbSort.artistSortAscending;
+            anisongdbSort.songSortAscending = false;
+            anisongdbSort.typeSortAscending = false;
+            anisongdbSort.vintageSortAscending = false;
+        }
+        else if (event.target.classList.contains("song")) {
+            sortAnisongdbTableEntries($tbody, "song", anisongdbSort.songSortAscending);
+            anisongdbSort.animeSortAscending = false;
+            anisongdbSort.artistSortAscending = false;
+            anisongdbSort.songSortAscending = !anisongdbSort.songSortAscending;
+            anisongdbSort.typeSortAscending = false;
+            anisongdbSort.vintageSortAscending = false;
+        }
+        else if (event.target.classList.contains("type")) {
+            sortAnisongdbTableEntries($tbody, "type", anisongdbSort.typeSortAscending);
+            anisongdbSort.animeSortAscending = false;
+            anisongdbSort.artistSortAscending = false;
+            anisongdbSort.songSortAscending = false;
+            anisongdbSort.typeSortAscending = !anisongdbSort.typeSortAscending;
+            anisongdbSort.vintageSortAscending = false;
+        }
+        else if (event.target.classList.contains("vintage")) {
+            sortAnisongdbTableEntries($tbody, "vintage", anisongdbSort.vintageSortAscending);
+            anisongdbSort.animeSortAscending = false;
+            anisongdbSort.artistSortAscending = false;
+            anisongdbSort.songSortAscending = false;
+            anisongdbSort.typeSortAscending = false;
+            anisongdbSort.vintageSortAscending = !anisongdbSort.vintageSortAscending;
+        }
     });
+    $tbody.on("click", "td", (event) => {
+        if (event.target.classList.contains("anime")) {
+            getAnisongdbData("anime", event.target.innerText);
+        }
+        else if (event.target.classList.contains("artist")) {
+            getAnisongdbData("artist", event.target.innerText);
+        }
+        else if (event.target.classList.contains("song")) {
+            getAnisongdbData("song", event.target.innerText);
+        }
+    });
+    $table.append($thead).append($tbody);
+    anisongdbWindow.panels[0].panel.append($table);
 }
 
 // input table body element, column name, and sort ascending boolean

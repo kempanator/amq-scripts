@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.33
+// @version      0.34
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -43,7 +43,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.33";
+const version = "0.34";
 const saveData = validateLocalStorage("customSongListGame");
 const catboxHostDict = {1: "files.catbox.moe", 2: "nl.catbox.moe", 3: "ladist1.catbox.video", 4: "abdist1.catbox.video", 5: "nl.catbox.video"};
 let replacedAnswers = saveData.replacedAnswers || {};
@@ -1060,12 +1060,18 @@ function getAnisongdbData(mode, query, ops, eds, ins, partial, ignoreDuplicates,
             $("#cslgSongListCount").text("Total Songs: 0");
             $("#cslgMergeCurrentCount").text("Found 0 songs in the current song list");
             $("#cslgSongListTable tbody").empty();
-            $("#cslgSongListWarning").text("anisongdb is not available during ranked");
+            $("#cslgSongListWarning").text("AnisongDB is not available during ranked");
         }
         else {
             createSongListTable();
         }
         createAnswerTable();
+    }).catch(res => {
+        songList = [];
+        $("#cslgSongListCount").text("Total Songs: 0");
+        $("#cslgMergeCurrentCount").text("Found 0 songs in the current song list");
+        $("#cslgSongListTable tbody").empty();
+        $("#cslgSongListWarning").text(res.toString());
     });
 }
 
