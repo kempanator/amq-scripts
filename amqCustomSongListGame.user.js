@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.34
+// @version      0.35
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -43,17 +43,19 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.34";
+const version = "0.35";
 const saveData = validateLocalStorage("customSongListGame");
 const catboxHostDict = {1: "files.catbox.moe", 2: "nl.catbox.moe", 3: "ladist1.catbox.video", 4: "abdist1.catbox.video", 5: "nl.catbox.video"};
 let replacedAnswers = saveData.replacedAnswers || {};
 let fastSkip = false;
 let nextVideoReady = false;
+let showSelection = 1;
 let guessTime = 20;
 let extraGuessTime = 0;
 let currentSong = 0;
-let currentAnswer = "";
-let score = 0;
+let totalSongs = 0;
+let currentAnswers = {};
+let score = {};
 let songList = [];
 let songOrder = {}; //{song#: index#, ...}
 let mergedSongList = [];
@@ -69,6 +71,7 @@ let endGuessTimer;
 let fileHostOverride = "0";
 let autocomplete = []; //store lowercase version for faster compare speed
 let autocompleteInput;
+let cslMultiplayer = {host: "", songInfo: {}};
 
 $("#gameContainer").append($(`
     <div class="modal fade tab-modal" id="cslgSettingsModal" tabindex="-1" role="dialog">
@@ -304,7 +307,7 @@ $("#cslgMergeClearButton").click(() => {
 });
 $("#cslgMergeDownloadButton").click(() => {
     if (mergedSongList.length) {
-        let data = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(mergedSongList));
+        let data = "data:text/json;charset=utf-8," + encodeURI(JSON.stringify(mergedSongList));
         let element = document.createElement("a");
         element.setAttribute("href", data);
         element.setAttribute("download", "merged.json");
@@ -317,28 +320,39 @@ $("#cslgMergeDownloadButton").click(() => {
     }
 });
 $("#cslgAutocompleteButton").click(() => {
-    $("#cslgSettingsModal").modal("hide");
-    socket.sendCommand({type: "lobby", command: "start game"});
-    let autocompleteListener = new Listener("get all song names", () => {
-        autocompleteListener.unbindListener();
-        viewChanger.changeView("main");
-        setTimeout(() => {
-            hostModal.displayHostSolo();
-        }, 200);
-        setTimeout(() => {
-            let returnListener = new Listener("Host Game", (payload) => {
-                returnListener.unbindListener();
-                if (songList.length) createAnswerTable();
-                setTimeout(() => { openSettingsModal() }, 10);
-            });
-            returnListener.bindListener();
-            roomBrowser.host();
-        }, 400);
-    });
-    autocompleteListener.bindListener();
+    if (lobby.soloMode) {
+        $("#cslgSettingsModal").modal("hide");
+        socket.sendCommand({type: "lobby", command: "start game"});
+        let autocompleteListener = new Listener("get all song names", () => {
+            autocompleteListener.unbindListener();
+            viewChanger.changeView("main");
+            setTimeout(() => {
+                hostModal.displayHostSolo();
+            }, 200);
+            setTimeout(() => {
+                let returnListener = new Listener("Host Game", (payload) => {
+                    returnListener.unbindListener();
+                    if (songList.length) createAnswerTable();
+                    setTimeout(() => { openSettingsModal() }, 10);
+                });
+                returnListener.bindListener();
+                roomBrowser.host();
+            }, 400);
+        });
+        autocompleteListener.bindListener();
+    }
+    else {
+        displayMessage("Autocomplete", "For multiplayer, just start the quiz normally and immediately lobby");
+    }
 });
 $("#cslgStartButton").click(() => {
     songOrder = {};
+    if (!lobby.isHost) {
+        return displayMessage("Unable to start", "must be host");
+    }
+    if (lobby.numberOfPlayers !== lobby.numberOfPlayersReady) {
+        return displayMessage("Unable to start", "all players must be ready");
+    }
     if (!songList || !songList.length) {
         return displayMessage("Unable to start", "no songs");
     }
@@ -398,13 +412,22 @@ $("#cslgStartButton").click(() => {
     if (songOrderType === "random") shuffleArray(songKeys);
     else if (songOrderType === "descending") songKeys.reverse();
     songKeys.slice(0, numSongs).forEach((key, i) => { songOrder[i + 1] = parseInt(key) });
-    if (Object.keys(songOrder).length === 0) {
+    totalSongs = Object.keys(songOrder).length;
+    if (totalSongs === 0) {
         return displayMessage("Unable to start", "no songs");
     }
     fastSkip = $("#cslgSettingsFastSkip").prop("checked");
     $("#cslgSettingsModal").modal("hide");
     //console.log(songOrder);
-    startQuiz();
+    if (lobby.soloMode) {
+        startQuiz();
+    }
+    else if (lobby.isHost) {
+        cslMessage("§CSL0" + btoa(encodeURI(`${showSelection}-${totalSongs}-${guessTime}-${extraGuessTime}-${fastSkip ? "1" : "0"}`)));
+    }
+    else {
+        displayMessage("Unable to start", "must be host");
+    }
 });
 $("#cslgSongListTable").on("click", "i.fa-trash", (event) => {
     let index = parseInt(event.target.parentElement.parentElement.querySelector("td.number").innerText) - 1;
@@ -477,6 +500,22 @@ $("#cslgSongListContainer").show();
 
 // setup
 function setup() {
+    new Listener("game chat update", (payload) => {
+        for (let message of payload.messages) {
+            if (message.message.startsWith("§CSL")) {
+                parseMessage(message.message, message.sender);
+            }
+            else if (message.sender === selfName && message.message.startsWith("/csl")) {
+                try { cslMessage(JSON.stringify(eval(message.message.slice(5)))) }
+                catch { cslMessage("ERROR") }
+            }
+        }
+    }).bindListener();
+    new Listener("Game Chat Message", (payload) => {
+        if (payload.message.startsWith("§CSL")) {
+            parseMessage(message.message, message.sender);
+        }
+    }).bindListener();
     new Listener("Game Starting", (payload) => {
         clearTimeEvents();
     }).bindListener();
@@ -511,20 +550,30 @@ function setup() {
 
     quiz.pauseButton.$button.off("click").click(() => {
         if (quiz.cslActive) {
-            if (quiz.pauseButton.pauseOn) {
-                fireListener("quiz unpause triggered", {
-                    "playerName": selfName
-                });
-                /*fireListener("quiz unpause triggered", {
-                    "playerName": selfName,
-                    "doCountDown": true,
-                    "countDownLength": 3000
-                });*/
+            if (quiz.soloMode) {
+                if (quiz.pauseButton.pauseOn) {
+                    fireListener("quiz unpause triggered", {
+                        "playerName": selfName
+                    });
+                    /*fireListener("quiz unpause triggered", {
+                        "playerName": selfName,
+                        "doCountDown": true,
+                        "countDownLength": 3000
+                    });*/
+                }
+                else {
+                    fireListener("quiz pause triggered", {
+                        "playerName": selfName
+                    });
+                }
             }
             else {
-                fireListener("quiz pause triggered", {
-                    "playerName": selfName
-                });
+                if (quiz.pauseButton.pauseOn) {
+                    cslMessage("§CSL82");
+                }
+                else {
+                    cslMessage("§CSL81");
+                }
             }
         }
         else {
@@ -550,8 +599,13 @@ function setup() {
 
     const oldStartReturnLobbyVote = quiz.startReturnLobbyVote;
     quiz.startReturnLobbyVote = function() {
-        if (quiz.cslActive) {
-            quizOver();
+        if (quiz.cslActive && quiz.inQuiz) {
+            if (quiz.soloMode) {
+                quizOver();
+            }
+            else if (quiz.isHost) {
+                cslMessage("§CSL1");
+            }
         }
         else {
             oldStartReturnLobbyVote.apply(this, arguments);
@@ -561,16 +615,21 @@ function setup() {
     const oldSubmitAnswer = QuizTypeAnswerInputController.prototype.submitAnswer;
     QuizTypeAnswerInputController.prototype.submitAnswer = function(answer) {
         if (quiz.cslActive) {
-            currentAnswer = answer;
+            currentAnswers[quiz.ownGamePlayerId] = answer;
+            this.skipController.highlight = true;
             fireListener("quiz answer", {
                 "answer": answer,
                 "success": true
             });
-            fireListener("player answered", [0]);
-            this.skipController.highlight = true;
-            if (options.autoVoteSkipGuess) {
-                this.skipController.voteSkip();
-                fireListener("quiz overlay message", "Skipping to Answers");
+            if (quiz.soloMode) {
+                fireListener("player answered", [0]);
+                if (options.autoVoteSkipGuess) {
+                    this.skipController.voteSkip();
+                    fireListener("quiz overlay message", "Skipping to Answers");
+                }
+            }
+            else {
+                cslMessage("§CSL5");
             }
         }
         else {
@@ -580,6 +639,7 @@ function setup() {
 
     const oldVideoReady = quiz.videoReady;
     quiz.videoReady = function(songId) {
+        //console.log("videoReady event fired");
         if (quiz.cslActive && this.inQuiz) {
             nextVideoReady = true;
         }
@@ -621,66 +681,92 @@ function setup() {
 
 // start quiz and load first song
 function startQuiz() {
-    if (!lobby.inLobby || !lobby.soloMode || !songList.length) return;
+    if (!lobby.inLobby) return;
+    if (lobby.soloMode) {
+        if (!songList.length) return;
+    }
+    else {
+        cslMultiplayer.host = lobby.hostName;
+    }
+    //console.log({showSelection, totalSongs, guessTime, extraGuessTime, fastSkip});
     quiz.cslActive = true;
+    for (let player of Object.values(lobby.players)) {
+        score[player.gamePlayerId] = 0;
+    }
     let song = songList[songOrder[1]];
     let date = new Date().toISOString();
     fireListener("Game Starting", {
-        "gameMode": "Solo",
-        "showSelection": 1,
-        "groupSlotMap": {1: [0]},
+        "gameMode": lobby.soloMode ? "Solo" : "Multiplayer",
+        "showSelection": showSelection,
+        "groupSlotMap": createGroupSlotMap(Object.keys(lobby.players)),
         "players": Object.values(lobby.players),
         "multipleChoice": false,
         "quizDescription": {
             "quizId": "",
             "startTime": date,
-            "roomName": "Solo"
+            "roomName": hostModal.$roomName.val()
         }
     });
     setTimeout(() => {
-        fireListener("quiz next video info", {
-            "playLength": guessTime,
-            "playbackSpeed": 1,
-            "startPont": getStartPoint(),
-            "videoInfo": {
-                "id": null,
-                "videoMap": {
-                    "catbox": createCatboxLinkObject(song.audio, song.video480, song.video720)
-                },
-                "videoVolumeMap": {
-                    "catbox": {
-                        "0": -20,
-                        "480": -20,
-                        "720": -20
+        if (quiz.soloMode) {
+            fireListener("quiz next video info", {
+                "playLength": guessTime,
+                "playbackSpeed": 1,
+                "startPont": getStartPoint(),
+                "videoInfo": {
+                    "id": null,
+                    "videoMap": {
+                        "catbox": createCatboxLinkObject(song.audio, song.video480, song.video720)
+                    },
+                    "videoVolumeMap": {
+                        "catbox": {
+                            "0": -20,
+                            "480": -20,
+                            "720": -20
+                        }
                     }
                 }
+            });
+        }
+        else {
+            if (quiz.isHost) {
+                cslMessage("§CSL3" + btoa(`${song.audio || ""}-${/*song.video480 || */""}-${/*song.video720 || */""}-${getStartPoint()}`));
             }
-        });
+        }
     }, 100);
-    setTimeout(() => {
-        fireListener("quiz ready", {
-            "numberOfSongs": Object.keys(songOrder).length
-        });
-    }, 200);
-    setTimeout(() => {
-        fireListener("quiz waiting buffering", {
-            "firstSong": true
-        });
-    }, 300);
-    setTimeout(() => {
-        previousSongFinished = true;
-        readySong(1);
-    }, 400);
+    if (quiz.soloMode) {
+        setTimeout(() => {
+            fireListener("quiz ready", {
+                "numberOfSongs": totalSongs
+            });
+        }, 200);
+        setTimeout(() => {
+            fireListener("quiz waiting buffering", {
+                "firstSong": true
+            });
+        }, 300);
+        setTimeout(() => {
+            previousSongFinished = true;
+            readySong(1);
+        }, 400);
+    }
 }
 
 // check if all conditions are met to go to next song
 function readySong(songNumber) {
+    //console.log("Ready song: " + songNumber);
     nextVideoReadyInterval = setInterval(() => {
+        //console.log({nextVideoReady, previousSongFinished});
         if (nextVideoReady && !quiz.pauseButton.pauseOn && previousSongFinished) {
             clearInterval(nextVideoReadyInterval);
             nextVideoReady = false;
             previousSongFinished = false;
-            playSong(songNumber);
+            if (quiz.soloMode) {
+                playSong(songNumber);
+            }
+            else if (quiz.isHost) {
+                cslMessage("§CSL4" + btoa(songNumber));
+            }
         }
     }, 100);
 }
@@ -688,13 +774,15 @@ function readySong(songNumber) {
 // play a song
 function playSong(songNumber) {
     if (!quiz.cslActive || !quiz.inQuiz) return reset();
+    Object.keys(quiz.players).forEach((key) => { currentAnswers[key] = "" });
+    cslMultiplayer.songInfo = {};
     currentSong = songNumber;
     fireListener("play next song", {
         "time": guessTime,
         "extraGuessTime": extraGuessTime,
         "songNumber": songNumber,
         "progressBarState": {"length": guessTime, "played": 0},
-        "onLastSong": songNumber === Object.keys(songOrder).length,
+        "onLastSong": songNumber === totalSongs,
         "multipleChoiceNames": null
     });
     if (extraGuessTime) {
@@ -720,27 +808,33 @@ function playSong(songNumber) {
         }
     }, 100);
     setTimeout(() => {
-        if (songNumber < Object.keys(songOrder).length) {
-            readySong(songNumber + 1);
-            let nextSong = songList[songOrder[songNumber + 1]];
-            fireListener("quiz next video info", {
-                "playLength": guessTime,
-                "playbackSpeed": 1,
-                "startPont": getStartPoint(),
-                "videoInfo": {
-                    "id": null,
-                    "videoMap": {
-                        "catbox": createCatboxLinkObject(nextSong.audio, nextSong.video480, nextSong.video720)
-                    },
-                    "videoVolumeMap": {
-                        "catbox": {
-                            "0": -20,
-                            "480": -20,
-                            "720": -20
+        if (songNumber < totalSongs) {
+            if (quiz.soloMode) {
+                readySong(songNumber + 1);
+                let nextSong = songList[songOrder[songNumber + 1]];
+                fireListener("quiz next video info", {
+                    "playLength": guessTime,
+                    "playbackSpeed": 1,
+                    "startPont": getStartPoint(),
+                    "videoInfo": {
+                        "id": null,
+                        "videoMap": {
+                            "catbox": createCatboxLinkObject(nextSong.audio, nextSong.video480, nextSong.video720)
+                        },
+                        "videoVolumeMap": {
+                            "catbox": {
+                                "0": -20,
+                                "480": -20,
+                                "720": -20
+                            }
                         }
                     }
-                }
-            });
+                });
+            }
+            else if (quiz.isHost) {
+                let nextSong = songList[songOrder[songNumber + 1]];
+                cslMessage("§CSL3" + btoa(`${nextSong.audio || ""}-${nextSong.video480 || ""}-${nextSong.video720 || ""}-${getStartPoint()}`));
+            }
         }
     }, 100);
 }
@@ -748,74 +842,111 @@ function playSong(songNumber) {
 // end guess phase and display answer
 function endGuessPhase(songNumber) {
     if (!quiz.cslActive || !quiz.inQuiz) return reset();
+    if (quiz.soloMode) {
+
+    }
     let song = songList[songOrder[songNumber]];
     fireListener("guess phase over");
+    if (!quiz.soloMode) {
+        cslMessage("§CSL6" + btoa(currentAnswers[quiz.ownGamePlayerId]));
+    }
     answerTimer = setTimeout(() => {
         if (!quiz.cslActive || !quiz.inQuiz) return reset();
-        fireListener("player answers", {
-            "answers": [{"gamePlayerId": 0, "pose": 3, "answer": currentAnswer}],
+        let data = {
+            "answers": [],
             "progressBarState": null
-        });
+        };
+        for (let player of Object.values(quiz.players)) {
+            data.answers.push({
+                "gamePlayerId": player.gamePlayerId,
+                "pose": 3,
+                "answer": currentAnswers[player.gamePlayerId] || ""
+            });
+        }
+        fireListener("player answers", data);
+        if (!quiz.soloMode && quiz.isHost) {
+            cslMessage("§CSLa" + btoa(encodeURI(song.animeRomajiName || "")));
+            cslMessage("§CSLb" + btoa(encodeURI(song.animeEnglishName || "")));
+            cslMessage("§CSLc" + btoa(encodeURI(song.songArtist || "")));
+            cslMessage("§CSLd" + btoa(encodeURI(song.songName || "")));
+            cslMessage("§CSLe" + btoa(`${song.songType || ""}-${song.songTypeNumber || ""}-${song.songDifficulty || ""}-${song.animeType || ""}-${song.animeVintage || ""}-${song.annId || ""}-${song.malId || ""}-${song.kitsuId || ""}-${song.aniListId || ""}`));
+            cslMessage("§CSLf" + btoa(encodeURI(song.audio || "")));
+        }
         answerTimer = setTimeout(() => {
             if (!quiz.cslActive || !quiz.inQuiz) return reset();
-            let correct = isCorrectAnswer(songNumber, currentAnswer);
-            let pose = currentAnswer ? (correct ? 5 : 4) : 6;
-            if (correct) score++;
-            currentAnswer = "";
-            fireListener("answer results", {
-                "players": [{
-                    "gamePlayerId": 0,
-                    "pose": pose,
-                    "level": quiz.players[0].level,
-                    "correct": correct,
-                    "score": score,
-                    "listStatus": null,
-                    "showScore": null,
-                    "position": 1,
-                    "positionSlot": 0
-                }],
-                "songInfo": {
-                    "animeNames": {
-                        "english": song.animeEnglishName,
-                        "romaji": song.animeRomajiName
-                    },
-                    "artist": song.songArtist,
-                    "songName": song.songName,
-                    "videoTargetMap": {
-                        "catbox": {
-                            "0": formatTargetUrl(song.audio),
-                            "480": formatTargetUrl(song.video480),
-                            "720": formatTargetUrl(song.video720)
+            let correct = {};
+            let pose = {};
+            for (let player of Object.values(quiz.players)) {
+                let isCorrect = isCorrectAnswer(songNumber, currentAnswers[player.gamePlayerId]);
+                correct[player.gamePlayerId] = isCorrect;
+                pose[player.gamePlayerId] = currentAnswers[player.gamePlayerId] ? (isCorrect ? 5 : 4) : 6;
+                if (isCorrect) score[player.gamePlayerId]++;
+            }
+            if (quiz.soloMode) {
+                let data = {
+                    "players": [],
+                    "songInfo": {
+                        "animeNames": {
+                            "english": song.animeEnglishName,
+                            "romaji": song.animeRomajiName
+                        },
+                        "artist": song.songArtist,
+                        "songName": song.songName,
+                        "videoTargetMap": {
+                            "catbox": {
+                                "0": formatTargetUrl(song.audio),
+                                "480": formatTargetUrl(song.video480),
+                                "720": formatTargetUrl(song.video720)
+                            }
+                        },
+                        "type": song.songType,
+                        "typeNumber": song.songTypeNumber,
+                        "annId": song.annId,
+                        "highRisk": 0,
+                        "animeScore": null,
+                        "animeType": song.animeType,
+                        "vintage": song.animeVintage,
+                        "animeDifficulty": song.songDifficulty,
+                        "animeTags": song.animeTags,
+                        "animeGenre": song.animeGenre,
+                        "altAnimeNames": song.altAnimeNames,
+                        "altAnimeNamesAnswers": song.altAnimeNamesAnswers,
+                        "siteIds": {
+                            "annId": song.annId,
+                            "malId": song.malId,
+                            "kitsuId": song.kitsuId,
+                            "aniListId": song.aniListId
                         }
                     },
-                    "type": song.songType,
-                    "typeNumber": song.songTypeNumber,
-                    "annId": song.annId,
-                    "highRisk": 0,
-                    "animeScore": null,
-                    "animeType": song.animeType,
-                    "vintage": song.animeVintage,
-                    "animeDifficulty": song.songDifficulty,
-                    "animeTags": song.animeTags,
-                    "animeGenre": song.animeGenre,
-                    "altAnimeNames": song.altAnimeNames,
-                    "altAnimeNamesAnswers": song.altAnimeNamesAnswers,
-                    "siteIds": {
-                        "annId": song.annId,
-                        "malId": song.malId,
-                        "kitsuId": song.kitsuId,
-                        "aniListId": song.aniListId
-                    }
-                },
-                "progressBarState": {
-                    "length": 25,
-                    "played": 0
-                },
-                "groupMap": {
-                    "1": [0]
-                },
-                "watched": false
-            });
+                    "progressBarState": {
+                        "length": 25,
+                        "played": 0
+                    },
+                    "groupMap": createGroupSlotMap(Object.keys(quiz.players)),
+                    "watched": false
+                };
+                for (let player of Object.values(quiz.players)) {
+                    data.players.push({
+                        "gamePlayerId": player.gamePlayerId,
+                        "pose": pose[player.gamePlayerId],
+                        "level": quiz.players[player.gamePlayerId].level,
+                        "correct": correct[player.gamePlayerId],
+                        "score": score[player.gamePlayerId],
+                        "listStatus": null,
+                        "showScore": null,
+                        "position": Math.floor(player.gamePlayerId / 8) + 1,
+                        "positionSlot": player.gamePlayerId % 8
+                    });
+                }
+                fireListener("answer results", data);
+            }
+            else if (quiz.isHost) {
+                let list = []
+                for (let id of Object.keys(correct)) {
+                    list.push(`${id},${correct[id] ? "1" : "0"},${pose[id]},${score[id]}`);
+                }
+                cslMessage("§CSL7" + btoa(list.join("-")));
+            }            
             setTimeout(() => {
                 if (!quiz.cslActive || !quiz.inQuiz) return reset();
                 skipInterval = setInterval(() => {
@@ -832,7 +963,8 @@ function endGuessPhase(songNumber) {
 // end replay phase
 function endReplayPhase(songNumber) {
     if (!quiz.cslActive || !quiz.inQuiz) return reset();
-    if (songNumber < Object.keys(songOrder).length) {
+    //console.log({songNumber, totalSongs});
+    if (songNumber < totalSongs) {
         fireListener("quiz overlay message", "Skipping to Next Song");
         setTimeout(() => {
             previousSongFinished = true;
@@ -841,17 +973,21 @@ function endReplayPhase(songNumber) {
     else {
         fireListener("quiz overlay message", "Skipping to Final Standings");
         setTimeout(() => {
-            fireListener("quiz end result", {
-                "resultStates": [{
-                    "gamePlayerId": 0,
-                    "pose": 1,
-                    "endPosition": 1
-                }]
-            });
+            let data = {
+                "resultStates": []
+            };
             /*"progressBarState": {
                 "length": 26.484,
                 "played": 6.484
             }*/
+            for (let player of Object.values(quiz.players)) {
+                data.resultStates.push({
+                    "gamePlayerId": player.gamePlayerId,
+                    "pose": 1,
+                    "endPosition": 1
+                });
+            }
+            fireListener("quiz end result", data);
         }, fastSkip ? 2000 : 5000);
         setTimeout(() => {
             quizOver();
@@ -872,6 +1008,254 @@ function fireListener(type, data) {
         console.log(type);
         console.log(data);
     }
+}
+
+// send csl chat message
+function cslMessage(text) {
+    if (!isRankedMode()) {
+        socket.sendCommand({type: "lobby", command: "game chat message", data: {msg: String(text), teamMessage: false}});
+    }
+}
+
+// send a client side message to game chat
+function sendSystemMessage(message) {
+    if (gameChat.open) {
+        setTimeout(() => { gameChat.systemMessage(String(message)) }, 1);
+    }
+}
+
+// parse message
+function parseMessage(content, sender) {
+    if (isRankedMode()) return;
+    let player;
+    if (lobby.inLobby) player = Object.values(lobby.players).find((x) => x._name === sender);
+    else if (quiz.inQuiz) player = Object.values(quiz.players).find((x) => x._name === sender);
+    let isHost = sender === cslMultiplayer.host;
+    //quiz.cslMultiplayer
+    if (content.startsWith("§CSL0")) { //start quiz
+        if (sender === lobby.hostName && !quiz.cslActive) {
+            let split = decodeURI(atob(content.slice(5))).split("-");
+            if (split.length === 5) {
+                //mode = parseInt(split[0]);
+                totalSongs = parseInt(split[1]);
+                guessTime = parseInt(split[2]);
+                extraGuessTime = parseInt(split[3]);
+                fastSkip = Boolean(parseInt(split[4]));
+                startQuiz();
+            }
+        }
+    }
+    else if (quiz.cslActive && quiz.inQuiz && cslMultiplayer.host !== lobby.hostName) {
+        sendSystemMessage("client out of sync, quitting CSL");
+        quizOver();
+    }
+    else if (content.startsWith("§CSL1")) { //return to lobby
+        if (quiz.cslActive && quiz.inQuiz && isHost) {
+            quizOver();
+        }
+    }
+    else if (content.startsWith("§CSL2")) { //has autocomplete
+        cslMessage(Boolean(autocomplete.length));
+    }
+    else if (content.startsWith("§CSL3")) { //next song link
+        if (quiz.cslActive && isHost) {
+            let split = atob(content.slice(5)).split("-");
+            //console.log(split)
+            if (split.length === 4) {
+                fireListener("quiz next video info", {
+                    "playLength": guessTime,
+                    "playbackSpeed": 1,
+                    "startPont": parseInt(split[3]),
+                    "videoInfo": {
+                        "id": null,
+                        "videoMap": {
+                            "catbox": createCatboxLinkObject(split[0], split[1], split[2])
+                        },
+                        "videoVolumeMap": {
+                            "catbox": {
+                                "0": -20,
+                                "480": -20,
+                                "720": -20
+                            }
+                        }
+                    }
+                });
+                if (currentSong === 0) {
+                    setTimeout(() => {
+                        fireListener("quiz ready", {
+                            "numberOfSongs": totalSongs
+                        });
+                    }, 200);
+                    setTimeout(() => {
+                        fireListener("quiz waiting buffering", {
+                            "firstSong": true
+                        });
+                    }, 300);
+                    setTimeout(() => {
+                        previousSongFinished = true;
+                        readySong(currentSong + 1);
+                    }, 400);
+                }
+                else {
+                    readySong(currentSong + 1);
+                }
+            }
+        }
+    }
+    else if (content.startsWith("§CSL4")) { //play song
+        if (quiz.cslActive && isHost) {
+            let number = parseInt(atob(content.slice(5)));
+            //console.log("Play song: " + number);
+            if (currentSong !== totalSongs) {
+                playSong(currentSong + 1);
+            }
+        }
+    }
+    else if (content.startsWith("§CSL5")) { //player submission
+        if (quiz.cslActive && player) {
+            fireListener("player answered", [player.gamePlayerId]);
+        }
+    }
+    else if (content.startsWith("§CSL6")) { //player final answer
+        if (quiz.cslActive && player) {
+            currentAnswers[player.gamePlayerId] = decodeURI(atob(content.slice(5)));
+        }
+    }
+    else if (content.startsWith("§CSL7")) { //answer results
+        if (quiz.cslActive && isHost) {
+            let split = atob(content.slice(5)).split("-");
+            //console.log("Answer results: " + atob(content.slice(5)));
+            let data = {
+                "players": [],
+                "songInfo": {
+                    "animeNames": {
+                        "english": cslMultiplayer.songInfo.animeEnglishName,
+                        "romaji": cslMultiplayer.songInfo.animeRomajiName
+                    },
+                    "artist": cslMultiplayer.songInfo.songArtist,
+                    "songName": cslMultiplayer.songInfo.songName,
+                    "videoTargetMap": {
+                        "catbox": {
+                            "0": formatTargetUrl(cslMultiplayer.songInfo.audio) || "",
+                            "480": formatTargetUrl(cslMultiplayer.songInfo.video480) || "",
+                            "720": formatTargetUrl(cslMultiplayer.songInfo.video720) || ""
+                        }
+                    },
+                    "type": cslMultiplayer.songInfo.songType,
+                    "typeNumber": cslMultiplayer.songInfo.songTypeNumber,
+                    "annId": cslMultiplayer.songInfo.annId,
+                    "highRisk": 0,
+                    "animeScore": null,
+                    "animeType": cslMultiplayer.songInfo.animeType,
+                    "vintage": cslMultiplayer.songInfo.animeVintage,
+                    "animeDifficulty": cslMultiplayer.songInfo.songDifficulty || 0,
+                    "animeTags": cslMultiplayer.songInfo.animeTags || [],
+                    "animeGenre": cslMultiplayer.songInfo.animeGenre || [],
+                    "altAnimeNames": cslMultiplayer.songInfo.altAnimeNames || [],
+                    "altAnimeNamesAnswers": cslMultiplayer.songInfo.altAnimeNamesAnswers || [],
+                    "siteIds": {
+                        "annId": cslMultiplayer.songInfo.annId,
+                        "malId": cslMultiplayer.songInfo.malId,
+                        "kitsuId": cslMultiplayer.songInfo.kitsuId,
+                        "aniListId": cslMultiplayer.songInfo.aniListId
+                    }
+                },
+                "progressBarState": {
+                    "length": 25,
+                    "played": 0
+                },
+                "groupMap": createGroupSlotMap(Object.keys(quiz.players)),
+                "watched": false
+            };
+            for (player of split) {
+                let split2 = player.split(",");
+                let id = parseInt(split2[0]);
+                data.players.push({
+                    "gamePlayerId": id,
+                    "pose": parseInt(split2[2]),
+                    "level": quiz.players[id].level,
+                    "correct": Boolean(parseInt(split2[1])),
+                    "score": parseInt(split2[3]),
+                    "listStatus": null,
+                    "showScore": null,
+                    "position": Math.floor(id / 8) + 1,
+                    "positionSlot": id % 8
+                });
+            }
+            fireListener("answer results", data);
+        }
+    }
+    else if (content === "§CSL81") { //pause
+        if (isHost) {
+            fireListener("quiz pause triggered", {
+                "playerName": sender
+            });
+        }
+    }
+    else if (content === "§CSL82") { //unpause
+        if (isHost) {
+            fireListener("quiz unpause triggered", {
+                "playerName": sender
+            });
+        }
+    }
+    else if (content.startsWith("§CSL9")) { //version
+        if (isHost) {
+            cslMessage(version);
+        }
+    }
+    else if (content.startsWith("§CSLa")) { //animeRomajiName
+        if (isHost) {
+            cslMultiplayer.songInfo.animeRomajiName = decodeURI(atob(content.slice(5)));
+        }
+    }
+    else if (content.startsWith("§CSLb")) { //animeEnglishName
+        if (isHost) {
+            cslMultiplayer.songInfo.animeEnglishName = decodeURI(atob(content.slice(5)));
+        }
+    }
+    else if (content.startsWith("§CSLc")) { //songArtist
+        if (isHost) {
+            cslMultiplayer.songInfo.songArtist = decodeURI(atob(content.slice(5)));
+        }
+    }
+    else if (content.startsWith("§CSLd")) { //songName
+        if (isHost) {
+            cslMultiplayer.songInfo.songName = decodeURI(atob(content.slice(5)));
+        }
+    }
+    else if (content.startsWith("§CSLe")) { //songType songTypeNumber songDifficulty animeType animeVintage
+        if (quiz.cslActive && isHost) {
+            let split = atob(content.slice(5)).split("-");
+            //console.log(split);
+            cslMultiplayer.songInfo.songType = parseInt(split[0]) || null;
+            cslMultiplayer.songInfo.songTypeNumber = parseInt(split[1]) || null;
+            cslMultiplayer.songInfo.songDifficulty = parseFloat(split[2]) || null;
+            cslMultiplayer.songInfo.animeType = parseInt(split[3]) || null;
+            cslMultiplayer.songInfo.animeVintage = split[4];
+            cslMultiplayer.songInfo.annId = parseInt(split[5]) || null;
+            cslMultiplayer.songInfo.malId = parseInt(split[6]) || null;
+            cslMultiplayer.songInfo.kitsuId = parseInt(split[7]) || null;
+            cslMultiplayer.songInfo.aniListId = parseInt(split[8]) || null;
+        }
+    }
+    else if (content.startsWith("§CSLf")) { //audio
+        if (isHost) {
+            cslMultiplayer.songInfo.audio = decodeURI(atob(content.slice(5)));
+        }
+    }
+}
+
+// input list of player keys, return group slot map
+function createGroupSlotMap(players) {
+    players = players.map(Number);
+    let map = {};
+    let group = 1;
+    for (let i = 0; i < players.length; i += 8) {
+        map[group] = players.slice(i, i + 8);
+        group++;
+    }
+    return map;
 }
 
 // check if the player's answer is correct
@@ -948,9 +1332,10 @@ function clearTimeEvents() {
 function reset() {
     clearTimeEvents();
     quiz.cslActive = false;
+    cslMultiplayer = {host: "", songInfo: {}};
     currentSong = 0;
-    currentAnswer = "";
-    score = 0;
+    currentAnswers = {};
+    score = {};
     previousSongFinished = false;
     fastSkip = false;
 }
@@ -961,23 +1346,26 @@ function quizOver() {
         "spectators": [],
         "inLobby": true,
         "settings": hostModal.getSettings(),
-        "soloMode": true,
+        "soloMode": quiz.soloMode,
         "inQueue": [],
-        "hostName": selfName,
+        "hostName": lobby.hostName,
         "gameId": lobby.gameId,
-        "players": [{
-            "name": selfName,
-            "gamePlayerId": 0,
-            "level": quiz.players[0].level,
-            "avatar": quiz.players[0].avatarInfo,
+        "players": [],
+        "numberOfTeams": 0,
+        "teamFullMap": {}
+    };
+    for (let player of Object.values(quiz.players)) {
+        data.players.push({
+            "name": player._name,
+            "gamePlayerId": player.gamePlayerId,
+            "level": player.level,
+            "avatar": player.avatarInfo,
             "ready": true,
             "inGame": true,
             "teamNumber": null,
             "multipleChoice": false
-        }],
-        "numberOfTeams": 0,
-        "teamFullMap": {}
-    };
+        });
+    }
     reset();
     lobby.setupLobby(data, quiz.isSpectator);
     viewChanger.changeView("lobby", {supressServerMsg: true, keepChatOpen: true});
@@ -985,14 +1373,11 @@ function quizOver() {
 
 // open custom song list settings modal
 function openSettingsModal() {
-    if (lobby.inLobby && lobby.soloMode) {
+    if (lobby.inLobby) {
         if (autocomplete.length) {
             $("#cslgAutocompleteButton").removeClass("btn-danger").addClass("btn-success disabled");
         }
         $("#cslgSettingsModal").modal("show");
-    }
-    else {
-        displayMessage("Error", "must be in solo lobby");
     }
 }
 
@@ -1302,6 +1687,11 @@ function createCatboxLinkObject(audio, video480, video720) {
         if (video720) links["720"] = "https://" + catboxHostDict[fileHostOverride] + "/" + video720.split("/").slice(-1)[0];
     }
     return links;
+}
+
+// return true if you are in a ranked lobby or quiz
+function isRankedMode() {
+    return (lobby.inLobby && lobby.settings.gameMode === "Ranked") || (quiz.inQuiz && quiz.gameMode === "Ranked");
 }
 
 // validate json data in local storage
