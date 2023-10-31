@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.36
+// @version      0.37
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -43,9 +43,10 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.35";
+const version = "0.37";
 const saveData = validateLocalStorage("customSongListGame");
 const catboxHostDict = {1: "files.catbox.moe", 2: "nl.catbox.moe", 3: "ladist1.catbox.video", 4: "abdist1.catbox.video", 5: "nl.catbox.video"};
+let CSLButtonCSS = saveData.CSLButtonCSS || "calc(25% - 250px)";
 let replacedAnswers = saveData.replacedAnswers || {};
 let fastSkip = false;
 let nextVideoReady = false;
@@ -72,6 +73,8 @@ let fileHostOverride = "0";
 let autocomplete = []; //store lowercase version for faster compare speed
 let autocompleteInput;
 let cslMultiplayer = {host: "", songInfo: {}, voteSkip: {}};
+let cslState = 0; //0: none, 1: guessing phase, 2: answer phase
+let skipping = false;
 
 $("#gameContainer").append($(`
     <div class="modal fade tab-modal" id="cslgSettingsModal" tabindex="-1" role="dialog">
@@ -231,10 +234,14 @@ $("#gameContainer").append($(`
                         </span>
                         <p style="margin-top: 30px">1. Load some songs into the table in the song list tab<br>2. Come back to this tab<br>3. Click "merge" to add everything from that list to a new combined list<br>4. Repeat steps 1-3 as many times as you want<br>5. Click "download" to download the new json file<br>6. Upload the file in the song list tab and play</p>
                     </div>
-                    <div id="cslgInfoContainer" style="text-align: center; margin: 40px 0;">
-                        <p>Created by: kempanator</p>
-                        <p>Version: ${version}</p>
-                        <p><a href="https://github.com/kempanator/amq-scripts/raw/main/amqCustomSongListGame.user.js" target="blank">Link</a></p>
+                    <div id="cslgInfoContainer" style="text-align: center; margin: 10px 0;">
+                        <h4>Script Info</h4>
+                        <div>Created by: kempanator</div>
+                        <div>Version: ${version}</div>
+                        <div><a href="https://github.com/kempanator/amq-scripts/raw/main/amqCustomSongListGame.user.js" target="blank">Link</a></div>
+                        <h4 style="margin-top: 20px;">Custom CSS</h4>
+                        <div><span style="font-size: 17px; margin-right: 17px;">#lnCustomSongListButton </span>right: <input id="cslgCSLButtonCSSInput" type="text" style="width: 150px; color: black;"></div>
+                        <div style="margin-top: 10px"><button id="cslgResetCSSButton" style="color: black; margin-right: 10px;">Reset</button><button id="cslgApplyCSSButton" style="color: black;">Save</button></div>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -440,7 +447,7 @@ $("#cslgAnswerButtonAdd").click(() => {
     let newName = $("#cslgNewAnswerInput").val().trim();
     if (oldName) {
         newName ? replacedAnswers[oldName] = newName : delete replacedAnswers[oldName];
-        localStorage.setItem("customSongListGame", JSON.stringify({replacedAnswers: replacedAnswers}));
+        saveSettings();
         createAnswerTable();
     }
     //console.log(replacedAnswers);
@@ -497,6 +504,22 @@ $("#cslgModeFileUploadRadio").click(() => {
 tabReset();
 $("#cslgSongListTab").addClass("selected");
 $("#cslgSongListContainer").show();
+$("#cslgCSLButtonCSSInput").val(CSLButtonCSS);
+$("#cslgResetCSSButton").click(() => {
+    CSLButtonCSS = "calc(25% - 250px)";
+    $("#cslgCSLButtonCSSInput").val(CSLButtonCSS);
+});
+$("#cslgApplyCSSButton").click(() => {
+    let val = $("#cslgCSLButtonCSSInput").val();
+    if (val) {
+        CSLButtonCSS = val;
+        saveSettings();
+        applyStyles();
+    }
+    else {
+        displayMessage("Error");
+    }
+});
 
 // setup
 function setup() {
@@ -696,13 +719,17 @@ function startQuiz() {
     else {
         cslMultiplayer.host = lobby.hostName;
     }
-    //console.log({showSelection, totalSongs, guessTime, extraGuessTime, fastSkip});
+    let song;
+    if (lobby.isHost) {
+        song = songList[songOrder[1]];
+    }
+    skipping = false;
     quiz.cslActive = true;
+    let date = new Date().toISOString();
     for (let player of Object.values(lobby.players)) {
         score[player.gamePlayerId] = 0;
     }
-    let song = songList[songOrder[1]];
-    let date = new Date().toISOString();
+    //console.log({showSelection, totalSongs, guessTime, extraGuessTime, fastSkip});
     fireListener("Game Starting", {
         "gameMode": lobby.soloMode ? "Solo" : "Multiplayer",
         "showSelection": showSelection,
@@ -762,7 +789,8 @@ function startQuiz() {
 
 // check if all conditions are met to go to next song
 function readySong(songNumber) {
-    //console.log("Ready song: " + songNumber);
+    if (songNumber === currentSong) return;
+    console.log("Ready song: " + songNumber);
     nextVideoReadyInterval = setInterval(() => {
         //console.log({nextVideoReady, previousSongFinished});
         if (nextVideoReady && !quiz.pauseButton.pauseOn && previousSongFinished) {
@@ -782,10 +810,14 @@ function readySong(songNumber) {
 // play a song
 function playSong(songNumber) {
     if (!quiz.cslActive || !quiz.inQuiz) return reset();
-    Object.keys(quiz.players).forEach((key) => { currentAnswers[key] = "" });
+    for (let key of Object.keys(quiz.players)) {
+        currentAnswers[key] = "";
+        cslMultiplayer.voteSkip[key] = false;
+    }
     cslMultiplayer.songInfo = {};
-    cslMultiplayer.voteSkip = {};
     currentSong = songNumber;
+    cslState = 1;
+    skipping = false;
     fireListener("play next song", {
         "time": guessTime,
         "extraGuessTime": extraGuessTime,
@@ -800,22 +832,29 @@ function playSong(songNumber) {
         }, guessTime * 1000);
     }
     endGuessTimer = setTimeout(() => {
-        clearInterval(skipInterval);
-        clearTimeout(endGuessTimer);
-        clearTimeout(extraGuessTimer);
-        endGuessPhase(songNumber);
-    }, (guessTime + extraGuessTime) * 1000);
-    skipInterval = setInterval(() => {
-        if (quiz.skipController._toggled) {
-            fireListener("quiz overlay message", "Skipping to Answers");
+        if (quiz.soloMode) {
             clearInterval(skipInterval);
             clearTimeout(endGuessTimer);
             clearTimeout(extraGuessTimer);
-            setTimeout(() => {
-                endGuessPhase(songNumber);
-            }, fastSkip ? 1000 : 3000);
+            endGuessPhase(songNumber);
         }
-    }, 100);
+        else if (quiz.isHost) {
+            cslMessage("§CSL92");
+        }
+    }, (guessTime + extraGuessTime) * 1000);
+    if (quiz.soloMode) {
+        skipInterval = setInterval(() => {
+            if (quiz.skipController._toggled) {
+                fireListener("quiz overlay message", "Skipping to Answers");
+                clearInterval(skipInterval);
+                clearTimeout(endGuessTimer);
+                clearTimeout(extraGuessTimer);
+                setTimeout(() => {
+                    endGuessPhase(songNumber);
+                }, fastSkip ? 1000 : 3000);
+            }
+        }, 100);
+    }
     setTimeout(() => {
         if (songNumber < totalSongs) {
             if (quiz.soloMode) {
@@ -851,16 +890,21 @@ function playSong(songNumber) {
 // end guess phase and display answer
 function endGuessPhase(songNumber) {
     if (!quiz.cslActive || !quiz.inQuiz) return reset();
-    if (quiz.soloMode) {
-
+    let song;
+    if (quiz.isHost) {
+        song = songList[songOrder[songNumber]];
     }
-    let song = songList[songOrder[songNumber]];
     fireListener("guess phase over");
-    if (!quiz.soloMode) {
+    if (!quiz.soloMode && quiz.inQuiz) {
         cslMessage("§CSL6" + btoa(currentAnswers[quiz.ownGamePlayerId]));
     }
     answerTimer = setTimeout(() => {
         if (!quiz.cslActive || !quiz.inQuiz) return reset();
+        cslState = 2;
+        skipping = false;
+        for (let key of Object.keys(quiz.players)) {
+            cslMultiplayer.voteSkip[key] = false;
+        }
         let data = {
             "answers": [],
             "progressBarState": null
@@ -955,15 +999,17 @@ function endGuessPhase(songNumber) {
                     list.push(`${id},${correct[id] ? "1" : "0"},${pose[id]},${score[id]}`);
                 }
                 cslMessage("§CSL7" + btoa(list.join("-")));
-            }            
+            }
             setTimeout(() => {
                 if (!quiz.cslActive || !quiz.inQuiz) return reset();
-                skipInterval = setInterval(() => {
-                    if (quiz.skipController._toggled) {
-                        clearInterval(skipInterval);
-                        endReplayPhase(songNumber);
-                    }
-                }, 100);
+                if (quiz.soloMode) {
+                    skipInterval = setInterval(() => {
+                        if (quiz.skipController._toggled) {
+                            clearInterval(skipInterval);
+                            endReplayPhase(songNumber);
+                        }
+                    }, 100);
+                }
             }, fastSkip ? 1000 : 2000);
         }, fastSkip ? 200 : 3000);
     }, fastSkip ? 100: 400);
@@ -972,7 +1018,7 @@ function endGuessPhase(songNumber) {
 // end replay phase
 function endReplayPhase(songNumber) {
     if (!quiz.cslActive || !quiz.inQuiz) return reset();
-    //console.log({songNumber, totalSongs});
+    console.log(`end replay phase (${songNumber})`);
     if (songNumber < totalSongs) {
         fireListener("quiz overlay message", "Skipping to Next Song");
         setTimeout(() => {
@@ -999,7 +1045,12 @@ function endReplayPhase(songNumber) {
             fireListener("quiz end result", data);
         }, fastSkip ? 2000 : 5000);
         setTimeout(() => {
-            quizOver();
+            if (quiz.soloMode) {
+                quizOver();
+            }
+            else if (quiz.isHost) {
+                cslMessage("§CSL1");
+            }
         }, fastSkip ? 5000 : 12000);
     }
 }
@@ -1012,7 +1063,7 @@ function fireListener(type, data) {
         }
     }
     catch (error) {
-        gameChat.systemMessage(`CSL Error: "${type}" listener failed`);
+        sendSystemMessage(`CSL Error: "${type}" listener failed`);
         console.error(error);
         console.log(type);
         console.log(data);
@@ -1071,7 +1122,7 @@ function parseMessage(content, sender) {
     else if (content.startsWith("§CSL3")) { //next song link
         if (quiz.cslActive && isHost) {
             let split = atob(content.slice(5)).split("-");
-            //console.log(split)
+            console.log(split);
             if (split.length === 4) {
                 fireListener("quiz next video info", {
                     "playLength": guessTime,
@@ -1112,7 +1163,7 @@ function parseMessage(content, sender) {
                 }
             }
             else {
-                gameChat.systemMessage(`CSL Multiplayer Error: next song link decode failed`);
+                sendSystemMessage(`CSL Multiplayer Error: next song link decode failed`);
             }
         }
     }
@@ -1121,7 +1172,7 @@ function parseMessage(content, sender) {
             let number = parseInt(atob(content.slice(5)));
             //console.log("Play song: " + number);
             if (currentSong !== totalSongs) {
-                playSong(currentSong + 1);
+                playSong(number);
             }
         }
     }
@@ -1216,15 +1267,31 @@ function parseMessage(content, sender) {
     else if (content === "§CSL91") { //vote skip
         if (quiz.isHost && player) {
             cslMultiplayer.voteSkip[player.gamePlayerId] = true;
-            if (Object.values(cslMultiplayer.voteSkip).every(Boolean)) {
-                cslMessage("§CSL92");
+            if (!skipping && Object.values(cslMultiplayer.voteSkip).every(Boolean)) {
+                skipping = true;
+                if (cslState === 1) {
+                    cslMessage("§CSL92");
+                }
+                else if (cslState === 2) {
+                    cslMessage("§CSL93");
+                }
             }
         }
     }
-    else if (content === "§CSL92") { //do skip
+    else if (content === "§CSL92") { //skip guessing phase
         if (isHost) {
             fireListener("quiz overlay message", "Skipping to Answers");
-            //quiz.skipClicked();
+            clearInterval(skipInterval);
+            clearTimeout(endGuessTimer);
+            clearTimeout(extraGuessTimer);
+            setTimeout(() => {
+                endGuessPhase(currentSong);
+            }, fastSkip ? 1000 : 3000);
+        }
+    }
+    else if (content === "§CSL93") { //skip replay phase
+        if (isHost) {
+            endReplayPhase(currentSong);
         }
     }
     else if (content.startsWith("§CSLa")) { //animeRomajiName
@@ -1356,6 +1423,7 @@ function reset() {
     clearTimeEvents();
     quiz.cslActive = false;
     cslMultiplayer = {host: "", songInfo: {}, voteSkip: {}};
+    cslState = 0;
     currentSong = 0;
     currentAnswers = {};
     score = {};
@@ -1378,19 +1446,27 @@ function quizOver() {
         "teamFullMap": {}
     };
     for (let player of Object.values(quiz.players)) {
-        data.players.push({
-            "name": player._name,
-            "gamePlayerId": player.gamePlayerId,
-            "level": player.level,
-            "avatar": player.avatarInfo,
-            "ready": true,
-            "inGame": true,
-            "teamNumber": null,
-            "multipleChoice": false
-        });
+        if (gameChat.spectators.some((spectator) => spectator.name === player._name)) {
+            data.spectators.push({
+                "name": player._name,
+                "gamePlayerId": null
+            });
+        }
+        else {
+            data.players.push({
+                "name": player._name,
+                "gamePlayerId": player.gamePlayerId,
+                "level": player.level,
+                "avatar": player.avatarInfo,
+                "ready": true,
+                "inGame": true,
+                "teamNumber": null,
+                "multipleChoice": false
+            });
+        }
     }
     reset();
-    lobby.setupLobby(data, quiz.isSpectator);
+    lobby.setupLobby(data, gameChat.spectators.some((spectator) => spectator.name === selfName));
     viewChanger.changeView("lobby", {supressServerMsg: true, keepChatOpen: true});
 }
 
@@ -1727,15 +1803,23 @@ function validateLocalStorage(item) {
     }
 }
 
+// save settings
+function saveSettings() {
+    localStorage.setItem("customSongListGame", JSON.stringify({
+        replacedAnswers: replacedAnswers,
+        CSLButtonCSS: CSLButtonCSS
+    }));
+}
+
 // apply styles
 function applyStyles() {
-    //$("#customSongListStyle").remove();
+    $("#customSongListStyle").remove();
     let style = document.createElement("style");
     style.type = "text/css";
     style.id = "customSongListStyle";
     let text = `
         #lnCustomSongListButton {
-            right: calc(25% - 250px);
+            right: ${CSLButtonCSS};
             width: 80px;
         }
         #cslgSongListContainer input[type="radio"] {
