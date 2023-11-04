@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Catbox Host Switch
 // @namespace    https://github.com/kempanator
-// @version      0.4
+// @version      0.5
 // @description  Switch your catbox host
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -28,7 +28,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.4";
+const version = "0.5";
 const saveData = validateLocalStorage("catboxHostSwitch");
 const catboxHostDict = {1: "files.catbox.moe", 2: "nl.catbox.moe", 3: "ladist1.catbox.video", 4: "abdist1.catbox.video", 5: "nl.catbox.video"};
 let catboxHost = saveData.catboxHost ?? "0"; //0: default link, 1: files.catbox.moe, 2: nl.catbox.moe, 3: ladist1.catbox, 4: abdist1.catbox.video, 5: nl.catbox.video
@@ -44,7 +44,6 @@ function setup() {
     }));
 
     QuizVideoController.prototype.nextVideoInfo = function(songInfo, playLength, startPoint, firstVideo, startTime, playbackSpeed, fullSongRange) {
-        //console.log({songInfo, playLength, startPoint, firstVideo, startTime, playbackSpeed, fullSongRange})
         if (songInfo.videoMap.catbox) {
             if (catboxHost !== "0") {
                 for (let key of Object.keys(songInfo.videoMap.catbox)) {
@@ -53,12 +52,22 @@ function setup() {
                         if (url.startsWith("http")) {
                             songInfo.videoMap.catbox[key] = url.replace(/^https:\/\/[a-zA-Z0-9]+\.catbox\.[a-zA-Z0-9]+/, "https://" + catboxHostDict[catboxHost]);
                         }
-                        else if (/[a-z0-9]+\.(mp3|webm|mp4|avi|ogg|flac|wav)/i.test(url)) {
+                        else if (/[a-z0-9]+\.(mp3|webm|mp4|avi|ogg|flac|wav)/i.test(url)) { //normal quiz
                             songInfo.videoMap.catbox[key] = `https://${catboxHostDict[catboxHost]}/${url}`;
                         }
-                        else if (/[a-z0-9]+:[a-z0-9]+/i.test(url)) {
-                            //use default link for ranked
-                            //songInfo.videoMap.catbox[key] = `https://${catboxHostDict[catboxHost]}/internals/dist.php?enc=${url}`;
+                        else if (/[a-z0-9]+:[a-z0-9]+/i.test(url)) { //ranked
+                            if (catboxHost === "2") {
+                                songInfo.videoMap.catbox[key] = `https://nl.catbox.moe/internals/dist.php?enc=${url}`;
+                            }
+                            else if (catboxHost === "3") {
+                                songInfo.videoMap.catbox[key] = `https://ladist1.catbox.video/internals/dist.php?enc=${url}`;
+                            }
+                            else if (catboxHost === "4") {
+                                songInfo.videoMap.catbox[key] = `https://abdist1.catbox.video/internals/dist.php?enc=${url}`;
+                            }
+                            else if (catboxHost === "5") {
+                                songInfo.videoMap.catbox[key] = `https://nl.catbox.moe/internals/dist.php?enc=${url}`;
+                            }
                         }
                         else {
                             popoutMessages.displayStandardMessage("Catbox Host Switch", "weird url detected, using default link");
