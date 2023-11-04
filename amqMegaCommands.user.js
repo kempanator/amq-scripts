@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.104
+// @version      0.105
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -100,7 +100,7 @@ OTHER
 
 "use strict";
 if (typeof Listener === "undefined") return;
-const version = "0.104";
+const version = "0.105";
 const saveData = validateLocalStorage("megaCommands");
 let alerts = saveData.alerts ?? {hiddenPlayers: true, nameChange: true, onlineFriends: false, offlineFriends: false, serverStatus: false};
 let animeList;
@@ -2255,6 +2255,9 @@ function parseIncomingDM(content, sender) {
             let option = /^\S+ (.+)$/.exec(content)[1];
             sendMessage(getScriptVersion(option), "dm", sender);
         }
+        else if (/^\/(fcs|forcecountscripts)$/i.test(content)) {
+            sendMessage($("#installedListContainer h4").length, "dm", sender);
+        }
         else if (/^\/whereis \w+$/i.test(content)) {
             if (Object.keys(roomBrowser.activeRooms).length === 0) return;
             let name = /^\S+ (\w+)$/.exec(content)[1];
@@ -2290,11 +2293,14 @@ function parseIncomingDM(content, sender) {
 function parseForceAll(content, type) {
     if (commands) {
         if (/^\/forceall version$/i.test(content)) {
-            sendMessage("0.104", type);
+            sendMessage("0.105", type);
         }
         else if (/^\/forceall version .+$/i.test(content)) {
             let option = /^\S+ \S+ (.+)$/.exec(content)[1];
             sendMessage(getScriptVersion(option), type);
+        }
+        else if (/^\/forceall count ?scripts$/i.test(content)) {
+            sendMessage($("#installedListContainer h4").length, type);
         }
         else if (/^\/forceall roll [0-9]+$/i.test(content)) {
             let number = parseInt(/^\S+ \S+ ([0-9]+)$/.exec(content)[1]);
