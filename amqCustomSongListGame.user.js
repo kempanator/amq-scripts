@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.38
+// @version      0.39
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -43,7 +43,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.38";
+const version = "0.39";
 const saveData = validateLocalStorage("customSongListGame");
 const catboxHostDict = {1: "files.catbox.moe", 2: "nl.catbox.moe", 3: "ladist1.catbox.video", 4: "abdist1.catbox.video", 5: "nl.catbox.video"};
 let CSLButtonCSS = saveData.CSLButtonCSS || "calc(25% - 250px)";
@@ -558,7 +558,7 @@ function setup() {
         }
     }).bindListener();
     new Listener("Player Left", (payload) => {
-        if (quiz.cslActive && quiz.inQuiz && payload.name === cslMultiplayer.host) {
+        if (quiz.cslActive && quiz.inQuiz && payload.player.name === cslMultiplayer.host) {
             sendSystemMessage("CSL host left, ending quiz");
             quizOver();
         }
@@ -572,13 +572,13 @@ function setup() {
     new Listener("game chat update", (payload) => {
         for (let message of payload.messages) {
             if (message.message.startsWith("§CSL")) {
-                parseMessage(message.message, message.sender);
                 if (!showCSLMessages) {
                     setTimeout(() => {
                         let $message = gameChat.$chatMessageContainer.find(".gcMessage").last();
                         if ($message.text().startsWith("§CSL")) $message.parent().remove();
                     }, 0);
                 }
+                parseMessage(message.message, message.sender);
             }
             else if (message.sender === selfName && message.message.startsWith("/csl")) {
                 try { cslMessage(JSON.stringify(eval(message.message.slice(5)))) }
@@ -951,7 +951,7 @@ function endGuessPhase(songNumber) {
     }
     fireListener("guess phase over");
     if (!quiz.soloMode && quiz.inQuiz) {
-        cslMessage("§CSL6" + btoa(currentAnswers[quiz.ownGamePlayerId]));
+        cslMessage("§CSL6" + btoa(encodeURIComponent(currentAnswers[quiz.ownGamePlayerId])));
     }
     answerTimer = setTimeout(() => {
         if (!quiz.cslActive || !quiz.inQuiz) return reset();
@@ -1166,7 +1166,7 @@ function parseMessage(content, sender) {
         quizOver();
     }
     else if (content.startsWith("§CSL1")) { //return to lobby
-        if (quiz.cslActive && quiz.inQuiz && isHost) {
+        if (quiz.cslActive && quiz.inQuiz && (isHost || quiz.isHost)) {
             quizOver();
         }
     }
@@ -1240,7 +1240,7 @@ function parseMessage(content, sender) {
     }
     else if (content.startsWith("§CSL6")) { //player final answer
         if (quiz.cslActive && player) {
-            currentAnswers[player.gamePlayerId] = decodeURI(atob(content.slice(5)));
+            currentAnswers[player.gamePlayerId] = decodeURIComponent(atob(content.slice(5)));
         }
     }
     else if (content.startsWith("§CSL7")) { //answer results
@@ -1512,7 +1512,7 @@ function quizOver() {
                 "gamePlayerId": null
             });
         }
-        else {
+        else if (!player.avatarDisabled) {
             data.players.push({
                 "name": player._name,
                 "gamePlayerId": player.gamePlayerId,
