@@ -1,6 +1,6 @@
 /* ==UserStyle==
 @name         Elodie's AMQ Style Script
-@version      10.2
+@version      10.2.1
 @namespace    userstyles.world/user/melodyelodie
 @description  A custom theme for animemusicquiz.com
 @author       melodyelodie
@@ -1152,7 +1152,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         background-color: var(--primaryColor);
         box-shadow: 0 0 10px var(--boxShadowColor);
     }
-    .gcEmojiPickerHeader {
+    .emojiPickerHeader {
         border-bottom: none;
     }
     #qpModFlaggedMessagesIcon {
@@ -1383,12 +1383,23 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     .lobbyAvatarLevelContainer > .lobbyAvatarSubTextContainer {
         background-color: var(--primaryColor);
     }
+    .lobbyAvatarAnswerModeContainer {
+        background-color: var(--primaryColor);
+        box-shadow: 0 0 10px 2px var(--boxShadowColor);
+    }
     .lobbyAvatarNameContainer {
         background-color: var(--lobbyAvatarNameBackground);
         box-shadow: 0 0 10px 2px var(--boxShadowColor);
     }
     .lbReady .lobbyAvatarImgContainer {
         box-shadow: 0 0 10px 2px var(--accentColor);
+    }
+    #lobbyInputModeContainer {
+        background-color: var(--primaryColor);
+        box-shadow: 0 0 10px 2px var(--boxShadowColor);
+    }
+    .lobbyInputModeOption.selected {
+        background-color: var(--secondaryColor);
     }
 
 
