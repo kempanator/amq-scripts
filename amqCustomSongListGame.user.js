@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.39
+// @version      0.40
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -43,7 +43,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.39";
+const version = "0.40";
 const saveData = validateLocalStorage("customSongListGame");
 const catboxHostDict = {1: "files.catbox.moe", 2: "nl.catbox.moe", 3: "ladist1.catbox.video", 4: "abdist1.catbox.video", 5: "nl.catbox.video"};
 let CSLButtonCSS = saveData.CSLButtonCSS || "calc(25% - 250px)";
@@ -530,7 +530,7 @@ function setup() {
         if (quiz.cslActive && quiz.inQuiz && quiz.isHost) {
             let player = Object.values(quiz.players).find((p) => p._name === payload.name);
             if (player) {
-                cslMessage(`CSL: reconnecting ${payload.name}`);
+                sendSystemMessage(`CSL: reconnecting ${payload.name}`);
                 cslMessage("§CSL0" + btoa(encodeURI(`${showSelection}-${currentSong}-${totalSongs}-${guessTime}-${extraGuessTime}-${fastSkip ? "1" : "0"}`)));
             }
             else {
@@ -541,14 +541,34 @@ function setup() {
     }).bindListener();
     new Listener("New Spectator", (payload) => {
         if (quiz.cslActive && quiz.inQuiz && quiz.isHost) {
-            cslMessage("§CSL0" + btoa(encodeURI(`${showSelection}-${currentSong}-${totalSongs}-${guessTime}-${extraGuessTime}-${fastSkip ? "1" : "0"}`)));
-            setTimeout(() => { cslMessage("§CSL3" + btoa(`${currentSong}-${getStartPoint()}-${songList[songOrder[currentSong]].audio || ""}-${/*nextSong.video480 || */""}-${/*nextSong.video720 || */""}`)) }, 100);
+            let player = Object.values(quiz.players).find((p) => p._name === payload.name);
+            if (player) {
+                sendSystemMessage(`CSL: reconnecting ${payload.name}`);
+                cslMessage("§CSL20" + btoa(payload.name));
+            }
+            setTimeout(() => {
+                cslMessage("§CSL3" + btoa(`${currentSong}-${getStartPoint()}-${songList[songOrder[currentSong]].audio || ""}-${/*nextSong.video480 || */""}-${/*nextSong.video720 || */""}`));
+            }, 300);
         }
     }).bindListener();
     new Listener("Spectator Change To Player", (payload) => {
         if (quiz.cslActive && quiz.inQuiz && quiz.isHost) {
-            cslMessage(`CSL game in progress, removing ${payload.name}`);
-            lobby.changeToSpectator(payload.name);
+            let player = Object.values(quiz.players).find((p) => p._name === payload.name);
+            if (player) {
+                cslMessage("§CSL0" + btoa(encodeURI(`${showSelection}-${currentSong}-${totalSongs}-${guessTime}-${extraGuessTime}-${fastSkip ? "1" : "0"}`)));
+            }
+            else {
+                cslMessage(`CSL game in progress, removing ${payload.name}`);
+                lobby.changeToSpectator(payload.name);
+            }
+        }
+    }).bindListener();
+    new Listener("Player Change To Spectator", (payload) => {
+        if (quiz.cslActive && quiz.inQuiz && quiz.isHost) {
+            let player = Object.values(quiz.players).find((p) => p._name === payload.name);
+            if (player) {
+                cslMessage("§CSL20" + btoa(payload.name));
+            }
         }
     }).bindListener();
     new Listener("Host Promotion", (payload) => {
@@ -722,7 +742,6 @@ function setup() {
 
     const oldVideoReady = quiz.videoReady;
     quiz.videoReady = function(songId) {
-        //console.log("videoReady event fired");
         if (quiz.cslActive && this.inQuiz) {
             nextVideoReady = true;
         }
@@ -1166,8 +1185,22 @@ function parseMessage(content, sender) {
         quizOver();
     }
     else if (content.startsWith("§CSL1")) { //return to lobby
-        if (quiz.cslActive && quiz.inQuiz && (isHost || quiz.isHost)) {
+        if (quiz.cslActive && quiz.inQuiz && (isHost || sender === lobby.hostName)) {
             quizOver();
+        }
+    }
+    else if (content.startsWith("§CSL20")) { //player rejoin
+        if (sender === lobby.hostName) {
+            let name = atob(content.slice(6));
+            if (name === selfName) {
+                socket.sendCommand({type: "lobby", command: "change to player"});
+            }
+            else if (quiz.cslActive && quiz.inQuiz) {
+                let player = Object.values(quiz.players).find((p) => p._name === name);
+                if (player) {
+                    fireListener("Rejoining Player", {"name": name, "gamePlayerId": player.gamePlayerId});
+                }
+            }
         }
     }
     else if (content === "§CSL21") { //has autocomplete
@@ -1324,7 +1357,7 @@ function parseMessage(content, sender) {
     else if (content === "§CSL91") { //vote skip
         if (quiz.isHost && player) {
             cslMultiplayer.voteSkip[player.gamePlayerId] = true;
-            if (!skipping && Object.values(cslMultiplayer.voteSkip).every(Boolean)) {
+            if (!skipping && checkVoteSkip()) {
                 skipping = true;
                 if (cslState === 1) {
                     cslMessage("§CSL92");
@@ -1391,6 +1424,14 @@ function parseMessage(content, sender) {
             cslMultiplayer.songInfo.audio = decodeURI(atob(content.slice(5)));
         }
     }
+}
+
+function checkVoteSkip() {
+    let keys = Object.keys(cslMultiplayer.voteSkip).filter((key) => key in quiz.players && !quiz.players[key].avatarDisabled);
+    for (let key of keys) {
+        if (!cslMultiplayer.voteSkip[key]) return false;
+    }
+    return true;
 }
 
 // input list of player keys, return group slot map
