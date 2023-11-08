@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.40
+// @version      0.41
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -43,7 +43,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.40";
+const version = "0.41";
 const saveData = validateLocalStorage("customSongListGame");
 const catboxHostDict = {1: "files.catbox.moe", 2: "nl.catbox.moe", 3: "ladist1.catbox.video", 4: "abdist1.catbox.video", 5: "nl.catbox.video"};
 let CSLButtonCSS = saveData.CSLButtonCSS || "calc(25% - 250px)";
@@ -99,6 +99,9 @@ $("#gameContainer").append($(`
                         </div>
                         <div id="cslgMergeTab" class="tab clickAble">
                             <h5>Merge</h5>
+                        </div>
+                        <div id="cslgMultiplayerTab" class="tab clickAble">
+                            <h5>Multiplayer</h5>
                         </div>
                         <div id="cslgInfoTab" class="tab clickAble" style="width: 45px; margin-right: -10px; padding-right: 8px; float: right;">
                             <h5><i class="fa fa-info-circle" aria-hidden="true"></i></h5>
@@ -236,14 +239,19 @@ $("#gameContainer").append($(`
                         </span>
                         <p style="margin-top: 30px">1. Load some songs into the table in the song list tab<br>2. Come back to this tab<br>3. Click "merge" to add everything from that list to a new combined list<br>4. Repeat steps 1-3 as many times as you want<br>5. Click "download" to download the new json file<br>6. Upload the file in the song list tab and play</p>
                     </div>
+                    <div id="cslgMultiplayerContainer" style="text-align: center; margin: 10px 0;">
+                        <div style="font-size: 20px; margin: 20px 0;">WORK IN PROGRESS</div>
+                        <div style="margin-top: 15px"><span style="font-size: 16px; margin-right: 10px; vertical-align: middle;">Show CSL Messages</span><div class="customCheckbox" style="vertical-align: middle"><input type="checkbox" id="cslgShowCSLMessagesCheckbox"><label for="cslgShowCSLMessagesCheckbox"><i class="fa fa-check" aria-hidden="true"></i></label></div></div>
+                        <h4 style="margin-top: 20px;">Prompt All Players</h4>
+                        <div style="margin: 10px 0"><button id="cslgPromptAllAutocompleteButton" style="color: black; margin-right: 10px;">Autocomplete</button><button id="cslgPromptAllVersionButton" style="color: black;">Version</button></div>
+                    </div>
                     <div id="cslgInfoContainer" style="text-align: center; margin: 10px 0;">
                         <h4>Script Info</h4>
                         <div>Created by: kempanator</div>
                         <div>Version: ${version}</div>
                         <div><a href="https://github.com/kempanator/amq-scripts/raw/main/amqCustomSongListGame.user.js" target="blank">Link</a></div>
-                        <div style="margin-top: 15px"><span style="font-size: 16px; margin-right: 10px; vertical-align: middle;">Show CSL Messages</span><div class="customCheckbox" style="vertical-align: middle"><input type="checkbox" id="cslgShowCSLMessagesCheckbox"><label for="cslgShowCSLMessagesCheckbox"><i class="fa fa-check" aria-hidden="true"></i></label></div></div>
                         <h4 style="margin-top: 20px;">Custom CSS</h4>
-                        <div><span style="font-size: 17px; margin-right: 17px;">#lnCustomSongListButton </span>right: <input id="cslgCSLButtonCSSInput" type="text" style="width: 150px; color: black;"></div>
+                        <div><span style="font-size: 15px; margin-right: 17px;">#lnCustomSongListButton </span>right: <input id="cslgCSLButtonCSSInput" type="text" style="width: 150px; color: black;"></div>
                         <div style="margin: 10px 0"><button id="cslgResetCSSButton" style="color: black; margin-right: 10px;">Reset</button><button id="cslgApplyCSSButton" style="color: black;">Save</button></div>
                     </div>
                 </div>
@@ -278,6 +286,11 @@ $("#cslgMergeTab").click(() => {
     tabReset();
     $("#cslgMergeTab").addClass("selected");
     $("#cslgMergeContainer").show();
+});
+$("#cslgMultiplayerTab").click(() => {
+    tabReset();
+    $("#cslgMultiplayerTab").addClass("selected");
+    $("#cslgMultiplayerContainer").show();
 });
 $("#cslgInfoTab").click(() => {
     tabReset();
@@ -501,9 +514,6 @@ $("#cslgModeFileUploadRadio").click(() => {
     $("#cslgSongListTable tbody").empty();
     $("#cslgMergeCurrentCount").text("Found 0 songs in the current song list");
 });
-tabReset();
-$("#cslgSongListTab").addClass("selected");
-$("#cslgSongListContainer").show();
 $("#cslgCSLButtonCSSInput").val(CSLButtonCSS);
 $("#cslgResetCSSButton").click(() => {
     CSLButtonCSS = "calc(25% - 250px)";
@@ -523,6 +533,15 @@ $("#cslgApplyCSSButton").click(() => {
 $("#cslgShowCSLMessagesCheckbox").prop("checked", showCSLMessages).click(() => {
     showCSLMessages = !showCSLMessages;
 });
+$("#cslgPromptAllAutocompleteButton").click(() => {
+    cslMessage("§CSL21");
+});
+$("#cslgPromptAllVersionButton").click(() => {
+    cslMessage("§CSL22");
+});
+tabReset();
+$("#cslgSongListTab").addClass("selected");
+$("#cslgSongListContainer").show();
 
 // setup
 function setup() {
@@ -801,18 +820,30 @@ function startQuiz() {
         score[player.gamePlayerId] = 0;
     }
     //console.log({showSelection, totalSongs, guessTime, extraGuessTime, fastSkip});
-    fireListener("Game Starting", {
+    let data = {
         "gameMode": lobby.soloMode ? "Solo" : "Multiplayer",
         "showSelection": showSelection,
         "groupSlotMap": createGroupSlotMap(Object.keys(lobby.players)),
-        "players": Object.values(lobby.players),
+        "players": [],
         "multipleChoice": false,
         "quizDescription": {
             "quizId": "",
             "startTime": date,
             "roomName": hostModal.$roomName.val()
         }
+    };
+    Object.values(lobby.players).forEach((player, i) => {
+        player.pose = 1;
+        player.sore = 0;
+        player.position = Math.floor(i / 8) + 1;
+        player.positionSlot = i % 8;
+        player.teamCaptain = null;
+        player.teamNumber = null;
+        player.teamPlayer = null;
+        data.players.push(player);
     });
+    //console.log(data.players);
+    fireListener("Game Starting", data);
     setTimeout(() => {
         if (quiz.soloMode) {
             fireListener("quiz next video info", {
@@ -1068,7 +1099,7 @@ function endGuessPhase(songNumber) {
                 fireListener("answer results", data);
             }
             else if (quiz.isHost) {
-                let list = []
+                let list = [];
                 for (let id of Object.keys(correct)) {
                     list.push(`${id},${correct[id] ? "1" : "0"},${pose[id]},${score[id]}`);
                 }
@@ -1109,11 +1140,12 @@ function endReplayPhase(songNumber) {
                 "length": 26.484,
                 "played": 6.484
             }*/
-            for (let player of Object.values(quiz.players)) {
+            let sortedScores = Array.from(new Set(Object.values(score))).sort((a, b) => b - a);
+            for (let id of Object.keys(score)) {
                 data.resultStates.push({
-                    "gamePlayerId": player.gamePlayerId,
+                    "gamePlayerId": parseInt(id),
                     "pose": 1,
-                    "endPosition": 1
+                    "endPosition": sortedScores.indexOf(score[id]) + 1
                 });
             }
             fireListener("quiz end result", data);
@@ -1204,10 +1236,10 @@ function parseMessage(content, sender) {
         }
     }
     else if (content === "§CSL21") { //has autocomplete
-        cslMessage(Boolean(autocomplete.length));
+        cslMessage("has autocomplete:  " + Boolean(autocomplete.length));
     }
     else if (content === "§CSL22") { //version
-        cslMessage(version);
+        cslMessage("CSL version " + version);
     }
     else if (content.startsWith("§CSL3")) { //next song link
         if (quiz.cslActive && isHost) {
@@ -1322,21 +1354,31 @@ function parseMessage(content, sender) {
                 "groupMap": createGroupSlotMap(Object.keys(quiz.players)),
                 "watched": false
             };
-            for (player of split) {
-                let split2 = player.split(",");
-                let id = parseInt(split2[0]);
-                data.players.push({
-                    "gamePlayerId": id,
-                    "pose": parseInt(split2[2]),
-                    "level": quiz.players[id].level,
-                    "correct": Boolean(parseInt(split2[1])),
-                    "score": parseInt(split2[3]),
-                    "listStatus": null,
-                    "showScore": null,
-                    "position": Math.floor(id / 8) + 1,
-                    "positionSlot": id % 8
+            let decodedPlayers = [];
+            for (p of split) {
+                let playerSplit = p.split(",");
+                decodedPlayers.push({
+                    id: parseInt(playerSplit[0]),
+                    correct: Boolean(parseInt(playerSplit[1])),
+                    pose: parseInt(playerSplit[2]),
+                    score: parseInt(playerSplit[3])
                 });
             }
+            decodedPlayers.sort((a, b) => b.score - a.score);
+            decodedPlayers.forEach((p, i) => {
+                data.players.push({
+                    "gamePlayerId": p.id,
+                    "pose": p.pose,
+                    "level": quiz.players[p.id].level,
+                    "correct": p.correct,
+                    "score": p.score,
+                    "listStatus": null,
+                    "showScore": null,
+                    "position": Math.floor(i / 8) + 1,
+                    "positionSlot": i % 8
+                });
+            });
+            //console.log(data.players);
             fireListener("answer results", data);
         }
     }
@@ -1439,6 +1481,7 @@ function createGroupSlotMap(players) {
     players = players.map(Number);
     let map = {};
     let group = 1;
+    if (Object.keys(score).length) players.sort((a, b) => score[b] - score[a]);
     for (let i = 0; i < players.length; i += 8) {
         map[group] = players.slice(i, i + 8);
         group++;
@@ -1856,11 +1899,13 @@ function tabReset() {
     $("#cslgQuizSettingsTab").removeClass("selected");
     $("#cslgAnswerTab").removeClass("selected");
     $("#cslgMergeTab").removeClass("selected");
+    $("#cslgMultiplayerTab").removeClass("selected");
     $("#cslgInfoTab").removeClass("selected");
     $("#cslgSongListContainer").hide();
     $("#cslgQuizSettingsContainer").hide();
     $("#cslgAnswerContainer").hide();
     $("#cslgMergeContainer").hide();
+    $("#cslgMultiplayerContainer").hide();
     $("#cslgInfoContainer").hide();
 }
 
