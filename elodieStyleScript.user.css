@@ -1,6 +1,6 @@
 /* ==UserStyle==
 @name         Elodie's AMQ Style Script
-@version      10.2.1
+@version      10.2.2
 @namespace    userstyles.world/user/melodyelodie
 @description  A custom theme for animemusicquiz.com
 @author       melodyelodie
@@ -900,6 +900,17 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         background: var(--accentColor);
         box-shadow: none;
         opacity: 1;
+    }
+    #loadBalanceStatusContainer {
+        background-color: var(--primaryColor);
+        box-shadow: 1px -3px 10px var(--boxShadowColor);
+    }
+    #loadBalanceStatusMainContainer {
+        background-color: var(--primaryColor);
+        box-shadow: 0 0 8px var(--boxShadowColor);
+    }
+    .loadBalanceStatusHostTextContainer {
+        text-shadow: 0 0 5px var(--textShadowColor);
     }
 
 
