@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Chat Plus
 // @namespace    https://github.com/kempanator
-// @version      0.27
+// @version      0.28
 // @description  Add new features to chat and messages
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -37,7 +37,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.27";
+const version = "0.28";
 const apiKey = "LIVDSRZULELA";
 const saveData = validateLocalStorage("chatPlus");
 const saveData2 = validateLocalStorage("highlightFriendsSettings");
@@ -942,6 +942,11 @@ function applyStyles() {
         }
         .nexusCoopChatName.friend {
             color: ${friendColor};
+        }
+    `;
+    if (reformatBottomBar) text += `
+        #loadBalanceStatusContainer {
+            left: calc(0% + 225px);
         }
     `;
     style.appendChild(document.createTextNode(text));
