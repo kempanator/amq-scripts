@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Chat Plus
 // @namespace    https://github.com/kempanator
-// @version      0.28
+// @version      0.29
 // @description  Add new features to chat and messages
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -37,7 +37,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.28";
+const version = "0.29";
 const apiKey = "LIVDSRZULELA";
 const saveData = validateLocalStorage("chatPlus");
 const saveData2 = validateLocalStorage("highlightFriendsSettings");
@@ -49,9 +49,11 @@ let friendColor = saveData2.smColorFriendColor ?? "#80ff80";
 let gcTimestamps = saveData.gcTimestamps ?? true;
 let ncTimestamps = saveData.ncTimestamps ?? true;
 let dmTimestamps = saveData.dmTimestamps ?? true;
+let timeStampFormat = saveData.timeStampFormat ?? "0"; //0: HH:MM, 1: HH:MM:SS
 let ncColor = saveData.ncColor ?? false;
 let dmColor = saveData.dmColor ?? true;
 let reformatBottomBar = saveData.reformatBottomBar ?? true;
+let loadBalancerFromLeft = saveData.loadBalancerFromLeft ?? 225;
 let xpBarWidth = saveData.xpBarWidth ?? 110;
 let xpBarFromRight = saveData.xpBarFromRight ?? 496;
 let dmWidthExtension = saveData.dmWidthExtension ?? 60;
@@ -79,31 +81,43 @@ $("#settingsGraphicContainer").append(`
             <div style="padding-top: 5px">
                 <span><b>Timestamps:</b></span>
                 <span style="margin-left: 10px">Chat</span>
-                <div class="customCheckbox" style="vertical-align: bottom">
+                <div class="customCheckbox">
                     <input type="checkbox" id="chatPlusGCTimestamps">
                     <label for="chatPlusGCTimestamps"><i class="fa fa-check" aria-hidden="true"></i></label>
                 </div>
                 <span style="margin-left: 10px">Nexus</span>
-                <div class="customCheckbox" style="vertical-align: bottom">
+                <div class="customCheckbox">
                     <input type="checkbox" id="chatPlusNCTimestamps">
                     <label for="chatPlusNCTimestamps"><i class="fa fa-check" aria-hidden="true"></i></label>
                 </div>
                 <span style="margin-left: 10px">DM</span>
-                <div class="customCheckbox" style="vertical-align: bottom">
+                <div class="customCheckbox">
                     <input type="checkbox" id="chatPlusDMTimestamps">
                     <label for="chatPlusDMTimestamps"><i class="fa fa-check" aria-hidden="true"></i></label>
                 </div>
-                <span style="margin-left: 45px"><b>Name Color</b>:</span>
+                <span style="margin-left: 10px">Format</span>
+                <select id="chatPlusTimestampFormatSelect" class="form-control" style="display: inline-block; width: 108px; height: auto; padding: 2px">
+                    <option value="0">HH:MM</option>
+                    <option value="1">HH:MM:SS</option>
+                </select>
+            </div>
+            <div style="padding-top: 10px">
+                <span style="margin-left: 0px"><b>Name Color:</b></span>
                 <span style="margin-left: 10px">Nexus</span>
-                <div class="customCheckbox" style="vertical-align: bottom">
+                <div class="customCheckbox">
                     <input type="checkbox" id="chatPlusNCColor">
                     <label for="chatPlusNCColor"><i class="fa fa-check" aria-hidden="true"></i></label>
                 </div>
                 <span style="margin-left: 10px">DM</span>
-                <div class="customCheckbox" style="vertical-align: bottom">
+                <div class="customCheckbox">
                     <input type="checkbox" id="chatPlusDMColor">
                     <label for="chatPlusDMColor"><i class="fa fa-check" aria-hidden="true"></i></label>
                 </div>
+                <span id="chatPlusLoadBalancerContainer">
+                    <span style="margin-left: 45px"><b>Load Balancer:</b></span>
+                    <span style="margin-left: 10px"># Pixels From Left</span>
+                    <input id="chatPlusLoadBalancerPositionInput" class="form-control" type="text" style="width: 40px;">
+                </span>
             </div>
             <div style="padding-top: 10px">
                 <span><b>Extend DM (px):</b></span>
@@ -223,6 +237,10 @@ $("#chatPlusDMTimestamps").prop("checked", dmTimestamps).click(() => {
     dmTimestamps = !dmTimestamps;
     saveSettings();
 });
+$("#chatPlusTimestampFormatSelect").val(timeStampFormat).on("change", function() {
+    timeStampFormat = this.value;
+    saveSettings();
+});
 $("#chatPlusNCColor").prop("checked", ncColor).click(() => {
     ncColor = !ncColor;
     applyStyles();
@@ -235,10 +253,22 @@ $("#chatPlusDMColor").prop("checked", dmColor).click(() => {
 });
 $("#chatPlusReformatBottomBar").prop("checked", reformatBottomBar).click(() => {
     reformatBottomBar = !reformatBottomBar;
-    if (reformatBottomBar) $("#chatPlusReformatBottomBarContainer").removeClass("disabled");
-    else $("#chatPlusReformatBottomBarContainer").addClass("disabled");
+    if (reformatBottomBar) {
+        $("#chatPlusReformatBottomBarContainer, #chatPlusLoadBalancerContainer").removeClass("disabled");
+    }
+    else {
+        $("#chatPlusReformatBottomBarContainer, #chatPlusLoadBalancerContainer").addClass("disabled");
+    }
     applyStyles();
     saveSettings();
+});
+$("#chatPlusLoadBalancerPositionInput").val(loadBalancerFromLeft).blur(() => {
+    let number = parseInt($("#chatPlusLoadBalancerPositionInput").val());
+    if (Number.isInteger(number) && number >= 0) {
+        loadBalancerFromLeft = number;
+        applyStyles();
+        saveSettings();
+    }
 });
 $("#chatPlusXPBarWidth").val(xpBarWidth).blur(() => {
     let number = parseInt($("#chatPlusXPBarWidth").val());
@@ -455,7 +485,7 @@ $gcInput.on("paste", (event) => {
         }
     }
 });
-if (!reformatBottomBar) $("#chatPlusReformatBottomBarContainer").addClass("disabled");
+if (!reformatBottomBar) $("#chatPlusReformatBottomBarContainer, #chatPlusLoadBalancerContainer").addClass("disabled");
 if (!gcLoadMediaButton) $("#chatPlusAutoLoadMediaContainer").addClass("disabled");
 if (!gifSearch) $("#chatPlusGifSearchContainer").addClass("disabled");
 $("#tenorGifContainer").perfectScrollbar();
@@ -474,8 +504,7 @@ function setup() {
                 let atBottom = gameChat.$chatMessageContainer.scrollTop() + gameChat.$chatMessageContainer.innerHeight() >= gameChat.$chatMessageContainer[0].scrollHeight - 100;
                 if (gcTimestamps) {
                     if ($node.is(".gcTimestamp .ps__scrollbar-y-rail .ps__scrollbar-x-rail")) return;
-                    let date = new Date();
-                    let timestamp = date.getHours().toString().padStart(2, 0) + ":" + date.getMinutes().toString().padStart(2, 0);
+                    let timestamp = getTimestamp();
                     if ($node.find(".gcTeamMessageIcon").length === 1) {
                         $node.find(".gcTeamMessageIcon").after($(`<span class="gcTimestamp">${timestamp}</span>`));
                     }
@@ -512,8 +541,7 @@ function setup() {
                 let atBottom = nexusCoopChat.$chatMessageContainer.scrollTop() + nexusCoopChat.$chatMessageContainer.innerHeight() >= nexusCoopChat.$chatMessageContainer[0].scrollHeight - 100;
                 if ($node.is(".ncTimestamp .ps__scrollbar-y-rail .ps__scrollbar-x-rail")) return;
                 if (ncTimestamps) {
-                    let date = new Date();
-                    let timestamp = date.getHours().toString().padStart(2, 0) + ":" + date.getMinutes().toString().padStart(2, 0);
+                    let timestamp = getTimestamp();
                     let $timestampNode = $(`<span class="ncTimestamp">${timestamp}</span>`);
                     if (!$node.find(".nexusCoopChatName").length) $timestampNode.css("margin-right", "7px");
                     $node.prepend($timestampNode);
@@ -652,6 +680,7 @@ function createMediaElement($node, type, src, autoLoad) {
     $node.append($container);
 }
 
+// check if the main game chat window is scrolled to the bottom
 function gcCheckAtBottom(atBottom) {
     if (atBottom) {
         gameChat.$chatMessageContainer.scrollTop(gameChat.$chatMessageContainer.prop("scrollHeight"));
@@ -667,36 +696,21 @@ function litterboxFormData(file) {
     return formData;
 }
 
-// save settings
-function saveSettings() {
-    let settings = {};
-    settings.gcTimestamps = gcTimestamps;
-    settings.ncTimestamps = ncTimestamps;
-    settings.dmTimestamps = dmTimestamps;
-    settings.dmColor = dmColor;
-    settings.ncColor = ncColor;
-    settings.dmWidthExtension = dmWidthExtension;
-    settings.dmHeightExtension = dmHeightExtension;
-    settings.resizeNexusChat = resizeNexusChat;
-    settings.reformatBottomBar = reformatBottomBar;
-    settings.xpBarWidth = xpBarWidth;
-    settings.xpBarFromRight = xpBarFromRight;
-    settings.gcLoadMediaButton = gcLoadMediaButton;
-    settings.gcAutoLoadMedia = gcAutoLoadMedia;
-    settings.gifSearch = gifSearch;
-    settings.gifSearchHeight = gifSearchHeight;
-    settings.gifSendOnClick = gifSendOnClick;
-    settings.gcMaxMessages = gcMaxMessages;
-    settings.ncMaxMessages = ncMaxMessages;
-    settings.fileUploadToLitterbox = fileUploadToLitterbox;
-    localStorage.setItem("chatPlus", JSON.stringify(settings));
+// get formatted timestamp
+function getTimestamp() {
+    let date = new Date();
+    if (timeStampFormat === "0") {
+        return date.getHours().toString().padStart(2, 0) + ":" + date.getMinutes().toString().padStart(2, 0);
+    }
+    else if (timeStampFormat === "1") {
+        return date.getHours().toString().padStart(2, 0) + ":" + date.getMinutes().toString().padStart(2, 0) + ":" + date.getSeconds().toString().padStart(2, 0);
+    }
 }
 
 // override writeMessage function to inject timestamp and username color
 ChatBox.prototype.writeMessage = function(sender, msg, emojis, allowHtml) {
     msg = passChatMessage(msg, emojis, allowHtml);
-    let date = new Date();
-    let timestamp = date.getHours().toString().padStart(2, 0) + ":" + date.getMinutes().toString().padStart(2, 0);
+    let timestamp = getTimestamp();
     let atBottom = this.$CHAT_CONTENT.scrollTop() + this.$CHAT_CONTENT.innerHeight() >= this.$CHAT_CONTENT[0].scrollHeight - 20;
     let dmUsernameClass = "dmUsername";
     if (sender === selfName) dmUsernameClass += " self";
@@ -782,6 +796,33 @@ function validateLocalStorage(item) {
     }
 }
 
+// save settings
+function saveSettings() {
+    let settings = {};
+    settings.gcTimestamps = gcTimestamps;
+    settings.ncTimestamps = ncTimestamps;
+    settings.dmTimestamps = dmTimestamps;
+    settings.timeStampFormat = timeStampFormat;
+    settings.dmColor = dmColor;
+    settings.ncColor = ncColor;
+    settings.dmWidthExtension = dmWidthExtension;
+    settings.dmHeightExtension = dmHeightExtension;
+    settings.resizeNexusChat = resizeNexusChat;
+    settings.reformatBottomBar = reformatBottomBar;
+    settings.loadBalancerFromLeft = loadBalancerFromLeft;
+    settings.xpBarWidth = xpBarWidth;
+    settings.xpBarFromRight = xpBarFromRight;
+    settings.gcLoadMediaButton = gcLoadMediaButton;
+    settings.gcAutoLoadMedia = gcAutoLoadMedia;
+    settings.gifSearch = gifSearch;
+    settings.gifSearchHeight = gifSearchHeight;
+    settings.gifSendOnClick = gifSendOnClick;
+    settings.gcMaxMessages = gcMaxMessages;
+    settings.ncMaxMessages = ncMaxMessages;
+    settings.fileUploadToLitterbox = fileUploadToLitterbox;
+    localStorage.setItem("chatPlus", JSON.stringify(settings));
+}
+
 // apply styles
 function applyStyles() {
     $("#chatPlusStyle").remove();
@@ -789,6 +830,9 @@ function applyStyles() {
     style.type = "text/css";
     style.id = "chatPlusStyle";
     let text = `
+        #smChatPlusSettings span, #smChatPlusSettings .customCheckbox {
+            vertical-align: middle;
+        }
         #smChatPlusSettings input.form-control {
             height: initial;
             color: black;
@@ -808,7 +852,7 @@ function applyStyles() {
             font-weight: bold;
         }
         #chatContainer {
-            width: ${reformatBottomBar ? "calc(100% - 85px - " + xpBarFromRight + "px - " + xpBarWidth + "px)" : "calc(50% - 205px)"};
+            width: ${reformatBottomBar ? "calc(100% - 85px - " + xpBarFromRight + "px - " + xpBarWidth + "px)" : "calc(50% - 275px)"};
             height: ${300 + dmHeightExtension}px;
         }
         #activeChatScrollContainer {
@@ -946,7 +990,7 @@ function applyStyles() {
     `;
     if (reformatBottomBar) text += `
         #loadBalanceStatusContainer {
-            left: calc(0% + 225px);
+            left: ${loadBalancerFromLeft}px;
         }
     `;
     style.appendChild(document.createTextNode(text));
