@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.41
+// @version      0.42
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -43,12 +43,13 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.41";
+const version = "0.42";
 const saveData = validateLocalStorage("customSongListGame");
 const catboxHostDict = {1: "files.catbox.moe", 2: "nl.catbox.moe", 3: "ladist1.catbox.video", 4: "abdist1.catbox.video", 5: "nl.catbox.video"};
 let CSLButtonCSS = saveData.CSLButtonCSS || "calc(25% - 250px)";
 let showCSLMessages = saveData.showCSLMessages ?? true;
 let replacedAnswers = saveData.replacedAnswers || {};
+let debug = Boolean(saveData.debug);
 let fastSkip = false;
 let nextVideoReady = false;
 let showSelection = 1;
@@ -58,6 +59,7 @@ let currentSong = 0;
 let totalSongs = 0;
 let currentAnswers = {};
 let score = {};
+let songListTableMode = 0; //0: song + artist, 1: anime + song type + vintage, 2: catbox links
 let songList = [];
 let songOrder = {}; //{song#: index#, ...}
 let mergedSongList = [];
@@ -114,7 +116,8 @@ $("#gameContainer").append($(`
                             <span style="font-size: 20px; font-weight: bold;">Mode</span>
                             <label class="clickAble" style="margin-left: 10px">Anisongdb<input id="cslgModeAnisongdbRadio" type="radio" name="cslgSongListMode"></label>
                             <label class="clickAble" style="margin-left: 10px">Load File<input id="cslgModeFileUploadRadio" type="radio" name="cslgSongListMode"></label>
-                            <span id="cslgSongListCount" style="font-size: 20px; font-weight: bold; margin-left: 120px;">Total Songs: 0</span>
+                            <i id="cslgTableModeButton" class="fa fa-table clickAble" aria-hidden="true" style="font-size: 20px; margin-left: 80px;"></i>
+                            <span id="cslgSongListCount" style="font-size: 20px; font-weight: bold; margin-left: 20px;">Total Songs: 0</span>
                         </div>
                         <div id="cslgFileUploadRow">
                             <label style="vertical-align: -4px"><input id="cslgFileUpload" type="file" style="width: 500px"></label>
@@ -514,6 +517,10 @@ $("#cslgModeFileUploadRadio").click(() => {
     $("#cslgSongListTable tbody").empty();
     $("#cslgMergeCurrentCount").text("Found 0 songs in the current song list");
 });
+$("#cslgTableModeButton").click(() => {
+    songListTableMode = (songListTableMode + 1) % 3;
+    createSongListTable();
+});
 $("#cslgCSLButtonCSSInput").val(CSLButtonCSS);
 $("#cslgResetCSSButton").click(() => {
     CSLButtonCSS = "calc(25% - 250px)";
@@ -619,7 +626,7 @@ function setup() {
                 }
                 parseMessage(message.message, message.sender);
             }
-            else if (message.sender === selfName && message.message.startsWith("/csl")) {
+            else if (debug && message.sender === selfName && message.message.startsWith("/csl")) {
                 try { cslMessage(JSON.stringify(eval(message.message.slice(5)))) }
                 catch { cslMessage("ERROR") }
             }
@@ -1839,6 +1846,7 @@ function handleData(data) {
     else if (Array.isArray(data) && data.length && data[0].animeRomajiName) {
         songList = data;
     }
+    songList = songList.filter((song) => song.audio || song.video480 || song.video720);
 }
 
 // create song list table
@@ -1846,17 +1854,64 @@ function createSongListTable() {
     $("#cslgSongListCount").text("Total Songs: " + songList.length);
     $("#cslgMergeCurrentCount").text(`Found ${songList.length} song${songList.length === 1 ? "" : "s"} in the current song list`);
     $("#cslgSongListWarning").text("");
+    let $thead = $("#cslgSongListTable thead");
     let $tbody = $("#cslgSongListTable tbody");
+    $thead.empty();
     $tbody.empty();
-    songList.forEach((result, i) => {
+    if (songListTableMode === 0) {
         let $row = $("<tr></tr>");
-        $row.append($("<td></td>").addClass("number").text(i + 1));
-        $row.append($("<td></td>").addClass("song").text(result.songName));
-        $row.append($("<td></td>").addClass("artist").text(result.songArtist));
-        $row.append($("<td></td>").addClass("difficulty").text(Number.isFinite(result.songDifficulty) ? Math.floor(result.songDifficulty) : ""));
-        $row.append($("<td></td>").addClass("trash clickAble").append(`<i class="fa fa-trash" aria-hidden="true"></i>`));
-        $tbody.append($row);
-    });
+        $row.append(`<th class="number">#</th>`);
+        $row.append(`<th class="song">Song</th>`);
+        $row.append(`<th class="artist">Artist</th>`);
+        $row.append(`<th class="difficulty">Dif</th>`);
+        $row.append(`<th class="trash"></th>`);
+        $thead.append($row);
+        songList.forEach((song, i) => {
+            let $row = $("<tr></tr>");
+            $row.append($("<td></td>").addClass("number").text(i + 1));
+            $row.append($("<td></td>").addClass("song").text(song.songName));
+            $row.append($("<td></td>").addClass("artist").text(song.songArtist));
+            $row.append($("<td></td>").addClass("difficulty").text(Number.isFinite(song.songDifficulty) ? Math.floor(song.songDifficulty) : ""));
+            $row.append($("<td></td>").addClass("trash clickAble").append(`<i class="fa fa-trash" aria-hidden="true"></i>`));
+            $tbody.append($row);
+        });
+    }
+    else if (songListTableMode === 1) {
+        let $row = $("<tr></tr>");
+        $row.append(`<th class="number">#</th>`);
+        $row.append(`<th class="anime">Anime</th>`);
+        $row.append(`<th class="songType">Type</th>`);
+        $row.append(`<th class="vintage">Vintage</th>`);
+        $row.append(`<th class="trash"></th>`);
+        $thead.append($row);
+        songList.forEach((song, i) => {
+            let $row = $("<tr></tr>");
+            $row.append($("<td></td>").addClass("number").text(i + 1));
+            $row.append($("<td></td>").addClass("anime").text(options.useRomajiNames ? song.animeRomajiName : song.animeEnglishName));
+            $row.append($("<td></td>").addClass("songType").text(songTypeText(song.songType, song.songTypeNumber)));
+            $row.append($("<td></td>").addClass("vintage").text(song.animeVintage));
+            $row.append($("<td></td>").addClass("trash clickAble").append(`<i class="fa fa-trash" aria-hidden="true"></i>`));
+            $tbody.append($row);
+        });
+    }
+    else if (songListTableMode === 2) {
+        let $row = $("<tr></tr>");
+        $row.append(`<th class="number">#</th>`);
+        $row.append(`<th class="link">MP3</th>`);
+        $row.append(`<th class="link">480</th>`);
+        $row.append(`<th class="link">720</th>`);
+        $row.append(`<th class="trash"></th>`);
+        $thead.append($row);
+        songList.forEach((song, i) => {
+            let $row = $("<tr></tr>");
+            $row.append($("<td></td>").addClass("number").text(i + 1));
+            $row.append($("<td></td>").addClass("link").append(createLinkElement(song.audio)));
+            $row.append($("<td></td>").addClass("link").append(createLinkElement(song.video480)));
+            $row.append($("<td></td>").addClass("link").append(createLinkElement(song.video720)));
+            $row.append($("<td></td>").addClass("trash clickAble").append(`<i class="fa fa-trash" aria-hidden="true"></i>`));
+            $tbody.append($row);
+        });
+    }
 }
 
 // create answer table
@@ -1893,6 +1948,21 @@ function createAnswerTable() {
     }
 }
 
+// create link element for song list table
+function createLinkElement(link) {
+    if (!link) return "";
+    let $a = $("<a></a>");
+    if (link.startsWith("http")) {
+        $a.text(link.includes("catbox") ? link.split("/").slice(-1)[0] : link);
+        $a.attr("href", link);
+    }
+    else if (/[a-z0-9]+\.(mp3|webm|mp4|avi|ogg|flac|wav)/i.test(link)) {
+        $a.text(link);
+        $a.attr("href", "https://" + catboxHostDict[fileHostOverride] + "/" + link);
+    }
+    return $a
+}
+
 // reset all tabs
 function tabReset() {
     $("#cslgSongListTab").removeClass("selected");
@@ -1916,6 +1986,13 @@ function formatTargetUrl(url) {
     }
     return url;
 }
+
+// translate type and typeNumber ids to shortened type text
+function songTypeText(type, typeNumber) {
+    if (type === 1) return "OP" + typeNumber;
+    if (type === 2) return "ED" + typeNumber;
+    if (type === 3) return "IN";
+};
 
 // input 3 links, return formatted catbox link object
 function createCatboxLinkObject(audio, video480, video720) {
@@ -1952,7 +2029,8 @@ function validateLocalStorage(item) {
 function saveSettings() {
     localStorage.setItem("customSongListGame", JSON.stringify({
         replacedAnswers: replacedAnswers,
-        CSLButtonCSS: CSLButtonCSS
+        CSLButtonCSS: CSLButtonCSS,
+        debug: debug
     }));
 }
 
@@ -1994,6 +2072,12 @@ function applyStyles() {
         }
         #cslgSongListTable .difficulty {
             width: 30px;
+        }
+        #cslgSongListTable .songType {
+            width: 45px;
+        }
+        #cslgSongListTable .vintage {
+            width: 100px;
         }
         #cslgSongListTable .trash {
             width: 20px;
