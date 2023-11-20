@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.42
+// @version      0.43
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -43,7 +43,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.42";
+const version = "0.43";
 const saveData = validateLocalStorage("customSongListGame");
 const catboxHostDict = {1: "files.catbox.moe", 2: "nl.catbox.moe", 3: "ladist1.catbox.video", 4: "abdist1.catbox.video", 5: "nl.catbox.video"};
 let CSLButtonCSS = saveData.CSLButtonCSS || "calc(25% - 250px)";
@@ -60,6 +60,7 @@ let totalSongs = 0;
 let currentAnswers = {};
 let score = {};
 let songListTableMode = 0; //0: song + artist, 1: anime + song type + vintage, 2: catbox links
+let songListTableSort = [0, 0, 0, 0, 0, 0, 0, 0, 0] //song, artist, difficulty, anime, type, vintage, mp3, 480, 720 (0: off, 1: ascending, 2: descending)
 let songList = [];
 let songOrder = {}; //{song#: index#, ...}
 let mergedSongList = [];
@@ -312,6 +313,7 @@ $("#cslgFileUpload").on("change", function() {
                 songList = [];
                 displayMessage("Upload Error");
             }
+            setSongListTableSort();
             createSongListTable();
             createAnswerTable();
         });
@@ -1690,6 +1692,7 @@ function getAnisongdbData(mode, query, ops, eds, ins, partial, ignoreDuplicates,
         body: JSON.stringify(json)
     }).then(res => res.json()).then(json => {
         handleData(json);
+        setSongListTableSort();
         if (songList.length === 0 && (ranked.currentState === ranked.RANKED_STATE_IDS.RUNNING || ranked.currentState === ranked.RANKED_STATE_IDS.CHAMP_RUNNING)) {
             $("#cslgSongListCount").text("Total Songs: 0");
             $("#cslgMergeCurrentCount").text("Found 0 songs in the current song list");
@@ -1702,6 +1705,7 @@ function getAnisongdbData(mode, query, ops, eds, ins, partial, ignoreDuplicates,
         createAnswerTable();
     }).catch(res => {
         songList = [];
+        setSongListTableSort();
         $("#cslgSongListCount").text("Total Songs: 0");
         $("#cslgMergeCurrentCount").text("Found 0 songs in the current song list");
         $("#cslgSongListTable tbody").empty();
@@ -1858,13 +1862,80 @@ function createSongListTable() {
     let $tbody = $("#cslgSongListTable tbody");
     $thead.empty();
     $tbody.empty();
+    if (songListTableSort[0] === 1) { //song name ascending
+        songList.sort((a, b) => (a.songName || "").localeCompare((b.songName || "")));
+    }
+    else if (songListTableSort[0] === 2) { //song name descending
+        songList.sort((a, b) => (b.songName || "").localeCompare((a.songName || "")));
+    }
+    else if (songListTableSort[1] === 1) { //artist ascending
+        songList.sort((a, b) => (a.songArtist || "").localeCompare((b.songArtist || "")));
+    }
+    else if (songListTableSort[1] === 2) { //artist descending
+        songList.sort((a, b) => (b.songArtist || "").localeCompare((a.songArtist || "")));
+    }
+    else if (songListTableSort[2] === 1) { //difficulty ascending
+        songList.sort((a, b) => a.songDifficulty - b.songDifficulty);
+    }
+    else if (songListTableSort[2] === 2) { //difficulty descending
+        songList.sort((a, b) => b.songDifficulty - a.songDifficulty);
+    }
+    else if (songListTableSort[3] === 1) { //anime ascending
+        options.useRomajiNames
+            ? songList.sort((a, b) => (a.animeRomajiName || "").localeCompare((b.animeRomajiName || "")))
+            : songList.sort((a, b) => (a.animeEnglishName || "").localeCompare((b.animeEnglishName || "")));
+    }
+    else if (songListTableSort[3] === 2) { //anime descending
+        options.useRomajiNames
+            ? songList.sort((a, b) => (b.animeRomajiName || "").localeCompare((a.animeRomajiName || "")))
+            : songList.sort((a, b) => (b.animeEnglishName || "").localeCompare((a.animeEnglishName || "")));
+    }
+    else if (songListTableSort[4] === 1) { //song type ascending
+        songList.sort((a, b) => songTypeSortValue(a.songType, a.songTypeNumber) - songTypeSortValue(b.songType, b.songTypeNumber));
+    }
+    else if (songListTableSort[4] === 2) { //song type descending
+        songList.sort((a, b) => songTypeSortValue(b.songType, b.songTypeNumber) - songTypeSortValue(a.songType, a.songTypeNumber));
+    }
+    else if (songListTableSort[5] === 1) { //vintage ascending
+        songList.sort((a, b) => vintageSortValue(a.animeVintage) - vintageSortValue(b.animeVintage));
+    }
+    else if (songListTableSort[5] === 2) { //vintage descending
+        songList.sort((a, b) => vintageSortValue(b.animeVintage) - vintageSortValue(a.animeVintage));
+    }
+    else if (songListTableSort[6] === 1) { //mp3 link ascending
+        songList.sort((a, b) => (a.audio || "").localeCompare((b.audio || "")));
+    }
+    else if (songListTableSort[6] === 2) { //mp3 link descending
+        songList.sort((a, b) => (b.audio || "").localeCompare((a.audio || "")));
+    }
+    else if (songListTableSort[7] === 1) { //480 link ascending
+        songList.sort((a, b) => (a.video480 || "").localeCompare((b.video480 || "")));
+    }
+    else if (songListTableSort[7] === 2) { //480 link descending
+        songList.sort((a, b) => (b.video480 || "").localeCompare((a.video480 || "")));
+    }
+    else if (songListTableSort[8] === 1) { //720 link ascending
+        songList.sort((a, b) => (a.video720 || "").localeCompare((b.video720 || "")));
+    }
+    else if (songListTableSort[8] === 2) { //720 link descending
+        songList.sort((a, b) => (b.video720 || "").localeCompare((a.video720 || "")));
+    }
     if (songListTableMode === 0) {
         let $row = $("<tr></tr>");
-        $row.append(`<th class="number">#</th>`);
-        $row.append(`<th class="song">Song</th>`);
-        $row.append(`<th class="artist">Artist</th>`);
-        $row.append(`<th class="difficulty">Dif</th>`);
-        $row.append(`<th class="trash"></th>`);
+        $row.append($(`<th class="number">#</th>`));
+        $row.append($(`<th class="song clickAble">Song</th>`).click(() => {
+            setSongListTableSort(0);
+            createSongListTable();
+        }));
+        $row.append($(`<th class="artist clickAble">Artist</th>`).click(() => {
+            setSongListTableSort(1);
+            createSongListTable();
+        }));
+        $row.append($(`<th class="difficulty clickAble">Dif</th>`).click(() => {
+            setSongListTableSort(2);
+            createSongListTable();
+        }));
+        $row.append($(`<th class="trash"></th>`));
         $thead.append($row);
         songList.forEach((song, i) => {
             let $row = $("<tr></tr>");
@@ -1878,11 +1949,20 @@ function createSongListTable() {
     }
     else if (songListTableMode === 1) {
         let $row = $("<tr></tr>");
-        $row.append(`<th class="number">#</th>`);
-        $row.append(`<th class="anime">Anime</th>`);
-        $row.append(`<th class="songType">Type</th>`);
-        $row.append(`<th class="vintage">Vintage</th>`);
-        $row.append(`<th class="trash"></th>`);
+        $row.append($(`<th class="number">#</th>`));
+        $row.append($(`<th class="anime clickAble">Anime</th>`).click(() => {
+            setSongListTableSort(3);
+            createSongListTable();
+        }));
+        $row.append($(`<th class="songType clickAble">Type</th>`).click(() => {
+            setSongListTableSort(4);
+            createSongListTable();
+        }));
+        $row.append($(`<th class="vintage clickAble">Vintage</th>`).click(() => {
+            setSongListTableSort(5);
+            createSongListTable();
+        }));
+        $row.append($(`<th class="trash"></th>`));
         $thead.append($row);
         songList.forEach((song, i) => {
             let $row = $("<tr></tr>");
@@ -1896,11 +1976,20 @@ function createSongListTable() {
     }
     else if (songListTableMode === 2) {
         let $row = $("<tr></tr>");
-        $row.append(`<th class="number">#</th>`);
-        $row.append(`<th class="link">MP3</th>`);
-        $row.append(`<th class="link">480</th>`);
-        $row.append(`<th class="link">720</th>`);
-        $row.append(`<th class="trash"></th>`);
+        $row.append($(`<th class="number">#</th>`));
+        $row.append($(`<th class="link clickAble">MP3</th>`).click(() => {
+            setSongListTableSort(6);
+            createSongListTable();
+        }));
+        $row.append($(`<th class="link clickAble">480</th>`).click(() => {
+            setSongListTableSort(7);
+            createSongListTable();
+        }));
+        $row.append($(`<th class="link clickAble">720</th>`).click(() => {
+            setSongListTableSort(8);
+            createSongListTable();
+        }));
+        $row.append($(`<th class="trash"></th>`));
         $thead.append($row);
         songList.forEach((song, i) => {
             let $row = $("<tr></tr>");
@@ -1958,9 +2047,42 @@ function createLinkElement(link) {
     }
     else if (/[a-z0-9]+\.(mp3|webm|mp4|avi|ogg|flac|wav)/i.test(link)) {
         $a.text(link);
-        $a.attr("href", "https://" + catboxHostDict[fileHostOverride] + "/" + link);
+        if (fileHostOverride === "0") {
+            $a.attr("href", "https://ladist1.catbox.video/" + link);
+        }
+        else {
+            $a.attr("href", "https://" + catboxHostDict[fileHostOverride] + "/" + link);
+        }
     }
-    return $a
+    return $a;
+}
+
+// reset all values in table sort options and toggle specified index
+function setSongListTableSort(index) {
+    if (Number.isInteger(index)) {
+        let value = songListTableSort[index];
+        songListTableSort.forEach((x, i) => { songListTableSort[i] = 0 });
+        songListTableSort[index] = value === 1 ? 2 : 1;
+    }
+    else {
+        songListTableSort.forEach((x, i) => { songListTableSort[i] = 0 });
+    }
+}
+
+// get sorting value for anime vintage
+function vintageSortValue(vintage) {
+    if (!vintage) return 0;
+    let split = vintage.split(" ");
+    let year = parseInt(split[1]);
+    if (isNaN(year)) return 0;
+    let season = Object({"Winter": .1, "Spring": .2, "Summer": .3, "Fall": .4})[split[0]];
+    if (!season) return 0;
+    return year + season;
+}
+
+// get sorting value for song type
+function songTypeSortValue(type, typeNumber) {
+    return (type || 0) * 1000 + (typeNumber || 0);
 }
 
 // reset all tabs
@@ -1992,6 +2114,7 @@ function songTypeText(type, typeNumber) {
     if (type === 1) return "OP" + typeNumber;
     if (type === 2) return "ED" + typeNumber;
     if (type === 3) return "IN";
+    return "";
 };
 
 // input 3 links, return formatted catbox link object
@@ -2058,6 +2181,9 @@ function applyStyles() {
             margin-left: 3px;
             vertical-align: -5px;
             cursor: pointer;
+        }
+        #cslgTableModeButton:hover {
+            opacity: .8;
         }
         #cslgSongListTable {
             width: 100%;
