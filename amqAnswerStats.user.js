@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Answer Stats
 // @namespace    https://github.com/kempanator
-// @version      0.18
+// @version      0.19
 // @description  Adds a window to display quiz answer stats
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -30,7 +30,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.18";
+const version = "0.19";
 const regionDictionary = {E: "Eastern", C: "Central", W: "Western"};
 const saveData = validateLocalStorage("answerStats");
 const saveData2 = validateLocalStorage("highlightFriendsSettings");
@@ -170,25 +170,28 @@ function setup() {
             }
         }
         for (let player of Object.values(answers)) {
-            if (player.answer.trim() === "") {
-                noAnswerIdList.push(player.id);
-                songHistory[songNumber].answers[player.id].noAnswer = true;
-            }
-            else {
-                let answerLowerCase = player.answer.toLowerCase();
-                let index = Object.keys(correctAnswerIdList).findIndex((value) => answerLowerCase === value.toLowerCase());
-                if (index > -1) {
-                    correctAnswerIdList[Object.keys(correctAnswerIdList)[index]].push(player.id);
+            let answerItem = songHistory[songNumber].answers[player.id];
+            if (answerItem) {
+                if (player.answer.trim() === "") {
+                    noAnswerIdList.push(player.id);
+                    answerItem.noAnswer = true;
                 }
                 else {
-                    index = listLowerCase.findIndex((value) => answerLowerCase === value);
+                    let answerLowerCase = player.answer.toLowerCase();
+                    let index = Object.keys(correctAnswerIdList).findIndex((value) => answerLowerCase === value.toLowerCase());
                     if (index > -1) {
-                        let wrongAnime = quiz.answerInput.typingInput.autoCompleteController.list[index];
-                        incorrectAnswerIdList[wrongAnime] ? incorrectAnswerIdList[wrongAnime].push(player.id) : incorrectAnswerIdList[wrongAnime] = [player.id];
+                        correctAnswerIdList[Object.keys(correctAnswerIdList)[index]].push(player.id);
                     }
                     else {
-                        invalidAnswerIdList.push(player.id);
-                        songHistory[songNumber].answers[player.id].invalidAnswer = true;
+                        index = listLowerCase.findIndex((value) => answerLowerCase === value);
+                        if (index > -1) {
+                            let wrongAnime = quiz.answerInput.typingInput.autoCompleteController.list[index];
+                            incorrectAnswerIdList[wrongAnime] ? incorrectAnswerIdList[wrongAnime].push(player.id) : incorrectAnswerIdList[wrongAnime] = [player.id];
+                        }
+                        else {
+                            invalidAnswerIdList.push(player.id);
+                            answerItem.invalidAnswer = true;
+                        }
                     }
                 }
             }
