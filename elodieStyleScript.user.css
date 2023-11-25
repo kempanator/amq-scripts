@@ -1,6 +1,6 @@
 /* ==UserStyle==
 @name         Elodie's AMQ Style Script
-@version      10.2.2
+@version      10.2.3
 @namespace    userstyles.world/user/melodyelodie
 @description  A custom theme for animemusicquiz.com
 @author       melodyelodie
@@ -1815,6 +1815,52 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     }
     .qpLife.target > .qpLifeTargetOverlay {
         opacity: 1;
+    }
+
+
+    /* Boss Mode */
+    #gcBossModeContainer {
+        border-top: var(--primaryColor) 4px solid;
+    }
+    #gcBossModeSongCountContainer {
+        background-color: var(--primaryColor);
+        box-shadow: 0 0 10px 0px var(--boxShadowColor);
+    }
+    #gcBossModeAvatarInnerContainer {
+        box-shadow: 0 0 10px 2px var(--boxShadowColor);
+    }
+    #gcBossModeAvatarNameContainer {
+        background-color: var(--primaryColor);
+    }
+    .selectedRibbon {
+        background: var(--accentColorLight);
+    }
+    .topTiltLayoutLeft::before, .topTiltLayoutRight::before {
+        background-color: var(--primaryColor);
+        box-shadow: 0 0 10px 0px var(--boxShadowColor);
+    }
+    .leftTiltButton::before, .rightTiltButton::before {
+        background-color: var(--primaryColor);
+        box-shadow: 0 0 10px 0px var(--boxShadowColor);
+    }
+    .leftTiltButton:hover::before, .rightTiltButton:hover::before {
+        background-color: var(--secondaryColor);
+    }
+    .leftTiltButton.noClick:hover::before, .rightTiltButton.noClick:hover::before {
+        background-color: var(--primaryColor);
+    }
+    .anniTypeSelectionOption.active::before {
+        background-color: var(--accentColor);
+    }
+    .gcBossModeAbility.inactive:hover::before, .gcBossModeAbility.used:hover::before {
+        background-color: var(--primaryColor);
+    }
+    .gcBossModeAbility.active::before, .gcBossModeAbility.active:hover::before {
+        background-color: var(--accentColor);
+    }
+    #gcBossModeQueueContainer::before {
+        background-color: var(--primaryColor);
+        box-shadow: 0 0 10px 0px var(--boxShadowColor);
     }
 
 
