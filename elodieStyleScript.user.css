@@ -1,6 +1,6 @@
 /* ==UserStyle==
 @name         Elodie's AMQ Style Script
-@version      10.2.3
+@version      10.2.4
 @namespace    userstyles.world/user/melodyelodie
 @description  A custom theme for animemusicquiz.com
 @author       melodyelodie
@@ -350,6 +350,10 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     .btn-primary:focus,
     .btn-primary:active,
     .btn-primary:active:focus,
+    .btn-primary.disabled.focus,
+    .btn-primary.disabled:focus,
+    .btn-primary.disabled:hover,
+    .btn-primary[disabled].focus,
     .btn-primary[disabled]:focus,
     .btn-primary[disabled]:hover {
         background-color: var(--accentColor);
