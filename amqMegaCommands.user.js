@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.105
+// @version      0.106
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -100,7 +100,7 @@ OTHER
 
 "use strict";
 if (typeof Listener === "undefined") return;
-const version = "0.105";
+const version = "0.106";
 const saveData = validateLocalStorage("megaCommands");
 let alerts = saveData.alerts ?? {hiddenPlayers: true, nameChange: true, onlineFriends: false, offlineFriends: false, serverStatus: false};
 let animeList;
@@ -117,7 +117,7 @@ let autoReady = saveData.autoReady ?? false;
 let autoStart = saveData.autoStart ?? false;
 let autoStatus = saveData.autoStatus ?? "";
 let autoSwitch = saveData.autoSwitch ?? "";
-let autoThrow = saveData.autoThrow ?? {time1: null, time2: null, text: null, multichoice: null};
+let autoThrow = saveData.autoThrow ?? {time: null, text: null, multichoice: null};
 let autoVoteLobby = saveData.autoVoteLobby ?? false;
 let autoVoteSkip = saveData.autoVoteSkip ?? null;
 let backgroundURL = saveData.backgroundURL ?? "";
@@ -301,16 +301,23 @@ function setup() {
             volumeController.adjustVolume();
         }
         if (!quiz.isSpectator && quiz.gameMode !== "Ranked") {
-            if (quiz.answerInput.multipleChoice.displayed && autoThrow.multichoice) {
-                let index = autoThrow.multichoice === "random" ? Math.floor(Math.random() * 4) : autoThrow.multichoice - 1;
-                setTimeout(() => { quiz.answerInput.multipleChoice.handleClick(quiz.answerInput.multipleChoice.answerOptions[index]) }, autoThrow.time1);
-            }
-            else if (autoThrow.text) {
-                if (autoThrow.time2) {
-                    setTimeout(() => { quiz.answerInput.setNewAnswer(autoThrow.text) }, Math.floor(Math.random() * (autoThrow.time2 - autoThrow.time1 + 1)) + autoThrow.time1);
+            if (Array.isArray(autoThrow.time)) {
+                if (quiz.answerInput.multipleChoice.displayed && autoThrow.multichoice) {
+                    let index = autoThrow.multichoice === "random" ? Math.floor(Math.random() * 4) : autoThrow.multichoice - 1;
+                    if (autoThrow.time.length === 1) {
+                        setTimeout(() => { quiz.answerInput.multipleChoice.handleClick(quiz.answerInput.multipleChoice.answerOptions[index]) }, autoThrow.time[0]);
+                    }
+                    else if (autoThrow.time.length === 2) {
+                        setTimeout(() => { quiz.answerInput.multipleChoice.handleClick(quiz.answerInput.multipleChoice.answerOptions[index]) }, Math.floor(Math.random() * (autoThrow.time[1] - autoThrow.time[0] + 1)) + autoThrow.time[0]);
+                    }
                 }
-                else {
-                    setTimeout(() => { quiz.answerInput.setNewAnswer(autoThrow.text) }, autoThrow.time1);
+                else if (autoThrow.text) {
+                    if (autoThrow.time.length === 1) {
+                        setTimeout(() => { quiz.answerInput.setNewAnswer(autoThrow.text) }, autoThrow.time[0]);
+                    }
+                    else if (autoThrow.time.length === 2) {
+                        setTimeout(() => { quiz.answerInput.setNewAnswer(autoThrow.text) }, Math.floor(Math.random() * (autoThrow.time[1] - autoThrow.time[0] + 1)) + autoThrow.time[0]);
+                    }
                 }
             }
             if (Number.isInteger(autoVoteSkip)) {
@@ -803,6 +810,24 @@ async function parseCommand(content, type, target) {
             setTimeout(() => { sendMessage(`Team ${team}: ` + shuffleArray(dict[team]).join(" ➜ "), type, target) }, (i + 1) * 200);
         });
     }
+    else if (/^\/roll genres?$/i.test(content)) {
+        let list = Object.values(idTranslator.genreNames);
+        sendMessage(list[Math.floor(Math.random() * list.length)], type, target);
+    }
+    else if (/^\/roll genres? [0-9]+$/i.test(content)) {
+        let number = parseInt(/^\S+ \S+ ([0-9]+)$/.exec(content)[1]);
+        let list = Object.values(idTranslator.genreNames);
+        if (number <= list.length) sendMessage(shuffleArray(list).slice(0, number).join(", "), type, target);
+    }
+    else if (/^\/roll tags?$/i.test(content)) {
+        let list = Object.values(idTranslator.tagNames);
+        sendMessage(list[Math.floor(Math.random() * list.length)], type, target);
+    }
+    else if (/^\/roll tags? [0-9]+$/i.test(content)) {
+        let number = parseInt(/^\S+ \S+ ([0-9]+)$/.exec(content)[1]);
+        let list = Object.values(idTranslator.tagNames);
+        if (number <= list.length) sendMessage(shuffleArray(list).slice(0, number).join(", "), type, target);
+    }
     else if (/^\/roll .+,.+$/i.test(content)) {
         let list = /^\S+ (.+)$/.exec(content)[1].split(",").map((x) => x.trim()).filter(Boolean);
         if (list.length > 1) sendMessage(list[Math.floor(Math.random() * list.length)], type, target);
@@ -1168,13 +1193,12 @@ async function parseCommand(content, type, target) {
         saveSettings();
         sendMessage(`auto key ${autoKey ? "enabled" : "disabled"}`, type, target, true);
     }
-    else if (/^\/(at|att|atmc|autothrow|autothrowtime|autothrowmc|autothrowmultichoice|autothrowmultiplechoice)$/i.test(content)) {
-        autoThrow = {time1: null, time2: null, text: null, multichoice: null};
+    else if (/^\/(at|att|atmc|attmc|autothrow|autothrowtime|autothrowmc|autothrowmultichoice|autothrowmultiplechoice|autothrowtimemc|autothrowtimemultichoice)$/i.test(content)) {
+        autoThrow = {time: null, text: null, multichoice: null};
         sendMessage("auto throw disabled", type, target, true);
     }
     else if (/^\/(at|autothrow) .+$/i.test(content)) {
-        autoThrow.time1 = 1;
-        autoThrow.time2 = null;
+        autoThrow.time = [1];
         autoThrow.text = translateShortcodeToUnicode(/^\S+ (.+)$/.exec(content)[1]).text;
         autoThrow.multichoice = null;
         sendMessage(`auto throwing: ${autoThrow.text}`, type, target, true);
@@ -1182,8 +1206,7 @@ async function parseCommand(content, type, target) {
     else if (/^\/(att|autothrowtime) [0-9.]+ .+$/i.test(content)) {
         let time1 = parseFloat(/^\S+ ([0-9.]+) .+$/.exec(content)[1]);
         if (isNaN(time1)) return;
-        autoThrow.time1 = Math.floor(time1 * 1000);
-        autoThrow.time2 = null;
+        autoThrow.time = [Math.floor(time1 * 1000)];
         autoThrow.text = translateShortcodeToUnicode(/^\S+ [0-9.]+ (.+)$/.exec(content)[1]).text;
         autoThrow.multichoice = null;
         sendMessage(`auto throwing: ${autoThrow.text} after ${time1} seconds`, type, target, true);
@@ -1192,27 +1215,44 @@ async function parseCommand(content, type, target) {
         let time1 = parseFloat(/^\S+ ([0-9.]+)[ -][0-9.]+ .+$/.exec(content)[1]);
         let time2 = parseFloat(/^\S+ [0-9.]+[ -]([0-9.]+) .+$/.exec(content)[1]);
         if (isNaN(time1) || isNaN(time2)) return;
-        autoThrow.time1 = Math.floor(time1 * 1000);
-        autoThrow.time2 = Math.floor(time2 * 1000);
+        autoThrow.time = [Math.floor(time1 * 1000), Math.floor(time2 * 1000)];
         autoThrow.text = translateShortcodeToUnicode(/^\S+ [0-9.]+[ -][0-9.]+ (.+)$/.exec(content)[1]).text;
         autoThrow.multichoice = null;
         sendMessage(`auto throwing: ${autoThrow.text} after ${time1}-${time2} seconds`, type, target, true);
     }
     else if (/^\/(atmc|autothrowmc|autothrowmultichoice|autothrowmultiplechoice) \S+$/i.test(content)) {
         let option = /^\S+ (\S+)$/.exec(content)[1];
-        if (option === "r" || option === "random") {
-            autoThrow.time1 = 100;
-            autoThrow.time2 = null;
+        let atmcDict = {"1": 1, "2": 2, "3": 3, "4": 4, "r": "random", "random": "random"};
+        if (option in atmcDict) {
+            autoThrow.time = [100];
             autoThrow.text = null;
-            autoThrow.multichoice = "random";
+            autoThrow.multichoice = atmcDict[option];
             sendMessage(`auto throwing multi choice item: ${autoThrow.multichoice}`, type, target, true);
         }
-        else if (option === "1" || option === "2" || option === "3" || option === "4") {
-            autoThrow.time1 = 100;
-            autoThrow.time2 = null;
+    }
+    else if (/^\/(attmc|autothrowtimemc|autothrowtimemultichoice) [0-9.]+ \S+$/i.test(content)) {
+        let time1 = parseFloat(/^\S+ ([0-9.]+) \S+$/.exec(content)[1]);
+        if (isNaN(time1)) return;
+        let option = /^\S+ [0-9.]+ (\S+)$/.exec(content)[1].toLowerCase();
+        let atmcDict = {"1": 1, "2": 2, "3": 3, "4": 4, "r": "random", "random": "random"};
+        if (option in atmcDict) {
+            autoThrow.time = [Math.floor(time1 * 1000)];
             autoThrow.text = null;
-            autoThrow.multichoice = parseInt(option);
-            sendMessage(`auto throwing multi choice item: ${autoThrow.multichoice}`, type, target, true);
+            autoThrow.multichoice = atmcDict[option];
+            sendMessage(`auto throwing multi choice item: ${autoThrow.multichoice} after ${time1} seconds`, type, target, true);
+        }
+    }
+    else if (/^\/(attmc|autothrowtimemc|autothrowtimemultichoice) [0-9.]+[ -][0-9.]+ \S+$/i.test(content)) {
+        let time1 = parseFloat(/^\S+ ([0-9.]+)[ -][0-9.]+ \S+$/.exec(content)[1]);
+        let time2 = parseFloat(/^\S+ [0-9.]+[ -]([0-9.]+) \S+$/.exec(content)[1]);
+        if (isNaN(time1) || isNaN(time2)) return;
+        let option = /^\S+ [0-9.]+[ -][0-9.]+ (\S+)$/.exec(content)[1].toLowerCase();
+        let atmcDict = {"1": 1, "2": 2, "3": 3, "4": 4, "r": "random", "random": "random"};
+        if (option in atmcDict) {
+            autoThrow.time = [Math.floor(time1 * 1000), Math.floor(time2 * 1000)];
+            autoThrow.text = null;
+            autoThrow.multichoice = atmcDict[option];
+            sendMessage(`auto throwing multi choice item: ${autoThrow.multichoice} after ${time1}-${time2} seconds`, type, target, true);
         }
     }
     else if (/^\/(ac|autocopy)$/i.test(content)) {
@@ -2082,6 +2122,8 @@ async function parseCommand(content, type, target) {
             if (anime) {
                 sendMessage(anime, type, target);
                 matchSettingsToAnime(anime);
+                autoThrow = {time: [3000, 5000], text: anime, multichoice: null};
+                sendMessage(`auto throwing: ${anime} after 3-5 seconds`, type, target, true);
             }
             else {
                 sendMessage("no anime found for those genres", type, target, true);
@@ -2091,6 +2133,13 @@ async function parseCommand(content, type, target) {
             sendMessage("no incomplete genre quests detected", type, target, true);
         }
     }
+    else if (/^\/(dq|daily|dailies|dailyquests?) (k|kutd|keepinguptodate)+$/i.test(content)) {
+        let anime = "NieR:Automata Ver1.1a";
+        sendMessage(anime, type, target);
+        matchSettingsToAnime(anime);
+        autoThrow = {time: [3000, 5000], text: anime, multichoice: null};
+        sendMessage(`auto throwing: ${anime} after 3-5 seconds`, type, target, true);
+    }
     else if (/^\/(dq|daily|dailies|dailyquests?) .+$/i.test(content)) {
         let genreDict = Object.assign({}, ...Object.entries(idTranslator.genreNames).map(([a, b]) => ({[b.toLowerCase()]: parseInt(a)})));
         let list = /^\S+ (.+)$/.exec(content)[1].toLowerCase().split(",").map((x) => genreDict[x.trim()]);
@@ -2099,6 +2148,8 @@ async function parseCommand(content, type, target) {
             if (anime) {
                 sendMessage(anime, type, target);
                 matchSettingsToAnime(anime);
+                autoThrow = {time: [3000, 5000], text: anime, multichoice: null};
+                sendMessage(`auto throwing: ${anime} after 3-5 seconds`, type, target, true);
             }
             else {
                 sendMessage("no anime found for those genres", type, target, true);
@@ -2109,11 +2160,10 @@ async function parseCommand(content, type, target) {
         }
     }
     else if (/^\/(sd|ds|settings default|default ?settings)$/i.test(content)) {
-        let currentSettings = hostModal.getSettings();
-        let settings = hostModal.DEFUALT_SETTINGS;
-        settings.roomName = currentSettings.roomName;
-        settings.privateRoom = currentSettings.privateRoom;
-        settings.password = currentSettings.password;
+        let settings = JSON.parse(JSON.stringify(hostModal.DEFUALT_SETTINGS));
+        settings.roomName = hostModal.$roomName.val();
+        settings.privateRoom = hostModal.$privateCheckbox.is(":checked");
+        settings.password = hostModal.$passwordInput.val();
         changeGameSettings(settings);
     }
     else if (/^\/settings (a|ani|anilist) [0-9]+$/i.test(content)) {
@@ -2293,7 +2343,7 @@ function parseIncomingDM(content, sender) {
 function parseForceAll(content, type) {
     if (commands) {
         if (/^\/forceall version$/i.test(content)) {
-            sendMessage("0.105", type);
+            sendMessage("0.106", type);
         }
         else if (/^\/forceall version .+$/i.test(content)) {
             let option = /^\S+ \S+ (.+)$/.exec(content)[1];
