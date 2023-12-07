@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Catbox Host Switch
 // @namespace    https://github.com/kempanator
-// @version      0.6
+// @version      0.7
 // @description  Switch your catbox host
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -28,17 +28,17 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.6";
+const version = "0.7";
 const saveData = validateLocalStorage("catboxHostSwitch");
-const catboxHostDict = {1: "files.catbox.moe", 2: "nl.catbox.moe", 3: "ladist1.catbox.video", 4: "abdist1.catbox.video", 5: "nl.catbox.video"};
-let catboxHost = saveData.catboxHost ?? "0"; //0: default link, 1: files.catbox.moe, 2: nl.catbox.moe, 3: ladist1.catbox, 4: abdist1.catbox.video, 5: nl.catbox.video
+const catboxHostDict = {1: "files.catbox.moe", 2: "nl.catbox.moe", 3: "ladist1.catbox.video", 4: "abdist1.catbox.video", 5: "nl.catbox.video", 6: "vhdist1.catbox.video"};
+let catboxHost = saveData.catboxHost ?? "0"; //0: default link, 1: files.catbox.moe, 2: nl.catbox.moe, 3: ladist1.catbox, 4: abdist1.catbox.video, 5: nl.catbox.video, 6: vhdist1.catbox.video
 let catboxDownFlagRaised = false;
 
 //setup
 function setup() {
     $("#settingsVideoHostsContainer .col-xs-6").first()
     .append($(`<h4>Catbox Link</h4>`))
-    .append($(`<select id="chsSelect" class="form-control"><option value="0">default link</option><option value="1">files.catbox.moe</option><option value="2">nl.catbox.moe</option><option value="3">ladist1.catbox.video</option><option value="4">abdist1.catbox.video</option><option value="5">nl.catbox.video</option></select>`).val(catboxHost).on("change", function() {
+    .append($(`<select id="chsSelect" class="form-control"><option value="0">default link</option><option value="1">files.catbox.moe</option><option value="2">nl.catbox.moe</option><option value="5">nl.catbox.video</option><option value="3">ladist1.catbox.video</option><option value="4">abdist1.catbox.video</option><option value="6">vhdist1.catbox.video</option></select>`).val(catboxHost).on("change", function() {
         catboxHost = this.value;
         saveSettings();
     }));
@@ -59,17 +59,14 @@ function setup() {
                             songInfo.videoMap.catbox[key] = `https://${catboxHostDict[catboxHost]}/${url}`;
                         }
                         else if (/^[a-z0-9]+:[a-z0-9]+$/i.test(url)) { //encrypted lobby (ranked, event, tournament)
-                            if (catboxHost === "2") {
-                                songInfo.videoMap.catbox[key] = `https://nl.catbox.moe/internals/dist.php?enc=${url}`;
+                            if (catboxHost === "2" || catboxHost === "5") {
+                                songInfo.videoMap.catbox[key] = `https://nl.catbox.video/internals/dist.php?enc=${url}`;
                             }
                             else if (catboxHost === "3") {
                                 songInfo.videoMap.catbox[key] = `https://ladist1.catbox.video/internals/dist.php?enc=${url}`;
                             }
-                            else if (catboxHost === "4") {
-                                songInfo.videoMap.catbox[key] = `https://abdist1.catbox.video/internals/dist.php?enc=${url}`;
-                            }
-                            else if (catboxHost === "5") {
-                                songInfo.videoMap.catbox[key] = `https://nl.catbox.moe/internals/dist.php?enc=${url}`;
+                            else if (catboxHost === "4" || catboxHost === "6") {
+                                songInfo.videoMap.catbox[key] = `https://vhdist1.catbox.video/internals/dist.php?enc=${url}`;
                             }
                         }
                         else {
