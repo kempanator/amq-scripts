@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Catbox Host Switch
 // @namespace    https://github.com/kempanator
-// @version      0.7
+// @version      0.8
 // @description  Switch your catbox host
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -28,11 +28,12 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.7";
+const version = "0.8";
 const saveData = validateLocalStorage("catboxHostSwitch");
 const catboxHostDict = {1: "files.catbox.moe", 2: "nl.catbox.moe", 3: "ladist1.catbox.video", 4: "abdist1.catbox.video", 5: "nl.catbox.video", 6: "vhdist1.catbox.video"};
 let catboxHost = saveData.catboxHost ?? "0"; //0: default link, 1: files.catbox.moe, 2: nl.catbox.moe, 3: ladist1.catbox, 4: abdist1.catbox.video, 5: nl.catbox.video, 6: vhdist1.catbox.video
 let catboxDownFlagRaised = false;
+let badUrlFlagRaised = false;
 
 //setup
 function setup() {
@@ -45,9 +46,8 @@ function setup() {
 
     QuizVideoController.prototype.nextVideoInfo = function(songInfo, playLength, startPoint, firstVideo, startTime, playbackSpeed, fullSongRange) {
         if (songInfo.videoMap.catbox) {
-            if (catboxDownFlagRaised) {
-                catboxDownFlagRaised = false;
-            }
+            catboxDownFlagRaised = false;
+            badUrlFlagRaised = false;
             if (catboxHost !== "0") {
                 for (let key of Object.keys(songInfo.videoMap.catbox)) {
                     let url = songInfo.videoMap.catbox[key];
@@ -69,9 +69,10 @@ function setup() {
                                 songInfo.videoMap.catbox[key] = `https://vhdist1.catbox.video/internals/dist.php?enc=${url}`;
                             }
                         }
-                        else {
-                            popoutMessages.displayPopoutMessage(`<h4 class="text-center">Catbox Host Switch</h4><h5 class="text-center">weird url detected<br>using default link</h5>`);
+                        else if (!badUrlFlagRaised) {
                             console.log({songInfo, playLength, startPoint, firstVideo, startTime, playbackSpeed, fullSongRange});
+                            popoutMessages.displayPopoutMessage(`<h4 class="text-center">Catbox Host Switch</h4><h5 class="text-center">weird url detected<br>using default link</h5>`);
+                            badUrlFlagRaised = true;
                         }
                     }
                 }
