@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Answer Stats
 // @namespace    https://github.com/kempanator
-// @version      0.19
+// @version      0.20
 // @description  Adds a window to display quiz answer stats
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -30,7 +30,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.19";
+const version = "0.20";
 const regionDictionary = {E: "Eastern", C: "Central", W: "Western"};
 const saveData = validateLocalStorage("answerStats");
 const saveData2 = validateLocalStorage("highlightFriendsSettings");
@@ -1066,8 +1066,7 @@ function colorClass(name) {
 
 function getScore(player) {
     if (quiz.scoreboard.scoreType === 1) return player.score;
-    if (quiz.scoreboard.scoreType === 2) return player.correctGuesses;
-    if (quiz.scoreboard.scoreType === 3) return player.correctGuesses;
+    return player.correctGuesses;
 }
 
 function resetHistory() {
