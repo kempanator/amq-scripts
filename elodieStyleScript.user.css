@@ -1,6 +1,6 @@
 /* ==UserStyle==
 @name         Elodie's AMQ Style Script
-@version      10.2.4
+@version      10.2.5
 @namespace    userstyles.world/user/melodyelodie
 @description  A custom theme for animemusicquiz.com
 @author       melodyelodie
@@ -2378,10 +2378,41 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     }
     #swPatreonContainer {
         background-color: var(--primaryColor);
-        border-radius: var(--borderRadius);
     }
     #swPatreonContainerInner > img {
         filter: brightness(var(--brightnessMod));
+    }
+    #swGiftTargetContainer {
+        background-color: var(--primaryColor);
+        color: var(--textColor);
+    }
+    #swGiftTargetHeader {
+        color: var(--textColor);
+        text-shadow: 0px 0px 10px var(--textShadowColor), 0px 0px 10px var(--textShadowColor), 0px 0px 10px var(--textShadowColor);
+    }
+    #swGiftTargetNoTargetMessage {
+        color: var(--textColor);
+    }
+    #swGiftTargetFriendList {
+        background-color: var(--primaryColor);
+        box-shadow: 0 0 10px 2px var(--boxShadowColor);
+    }
+    .swGiftTargetFriendEntry {
+        border-bottom: 1px solid var(--secondaryColor);
+    }
+    .swGiftTargetFriendEntry:hover {
+        background-color: var(--secondaryColor);
+    }
+    #swGiftTargetClearButton::before {
+        background-color: var(--primaryColor);
+        box-shadow: 0px 0px 10px var(--boxShadowColor);
+    }
+    #swGiftTargetClearButton:hover::before {
+        background-color: var(--secondaryColor);
+    }
+    #swGiftTargetMessage {
+        background-color: var(--primaryColor);
+        border: 1px solid var(--secondaryColor);
     }
     #swRightColumnTop {
         background-color: var(--primaryColor);
@@ -3340,6 +3371,20 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     #nexusTutorialTextContainer::before {
         background-color: var(--primaryColor);
         box-shadow: 0 0 10px 1px var(--boxShadowColor);
+    }
+    #nexusTutorialButtonContainerInner::before {
+        background-color: var(--primaryColor);
+    }
+    .nexusTutorialButton {
+        text-shadow: 0px 0px 4px var(--textShadowColor), 0px 0px 4px var(--textShadowColor);
+        box-shadow: var(--boxShadowColor) 2px 2px 5px;
+    }
+    #nexusTutorialQuitButtonContainer::before {
+        background-color: var(--primaryColor);
+        box-shadow: 0 0 10px 1px var(--boxShadowColor);
+    }
+    #nexusTutorialQuitButton {
+        text-shadow: 0px 0px 4px var(--textShadowColor);
     }
 
 
