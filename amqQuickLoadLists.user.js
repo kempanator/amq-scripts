@@ -1,13 +1,13 @@
 // ==UserScript==
 // @name         AMQ Quick Load Lists
 // @namespace    https://github.com/kempanator
-// @version      0.3
+// @version      0.4
 // @description  Adds a window for saving and quick loading anime lists
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
 // @grant        none
-// @require      https://github.com/TheJoseph98/AMQ-Scripts/raw/master/common/amqScriptInfo.js
-// @require      https://github.com/TheJoseph98/AMQ-Scripts/raw/master/common/amqWindows.js
+// @require      https://github.com/joske2865/AMQ-Scripts/raw/master/common/amqScriptInfo.js
+// @require      https://github.com/joske2865/AMQ-Scripts/raw/master/common/amqWindows.js
 // @downloadURL  https://github.com/kempanator/amq-scripts/raw/main/amqQuickLoadLists.user.js
 // @updateURL    https://github.com/kempanator/amq-scripts/raw/main/amqQuickLoadLists.user.js
 // ==/UserScript==
@@ -26,7 +26,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.3";
+const version = "0.4";
 const saveData = validateLocalStorage("quickLoadLists");
 let savedLists = saveData.savedLists ?? [];
 let windowHotKey = saveData.windowHotKey ?? {key: "q", altKey: true, ctrlKey: false};

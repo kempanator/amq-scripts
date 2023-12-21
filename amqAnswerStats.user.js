@@ -1,13 +1,13 @@
 // ==UserScript==
 // @name         AMQ Answer Stats
 // @namespace    https://github.com/kempanator
-// @version      0.20
+// @version      0.21
 // @description  Adds a window to display quiz answer stats
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
 // @grant        none
-// @require      https://github.com/TheJoseph98/AMQ-Scripts/raw/master/common/amqScriptInfo.js
-// @require      https://github.com/TheJoseph98/AMQ-Scripts/raw/master/common/amqWindows.js
+// @require      https://github.com/joske2865/AMQ-Scripts/raw/master/common/amqScriptInfo.js
+// @require      https://github.com/joske2865/AMQ-Scripts/raw/master/common/amqWindows.js
 // @require      https://github.com/amq-script-project/AMQ-Scripts/raw/master/gameplay/amqAnswerTimesUtility.user.js
 // @downloadURL  https://github.com/kempanator/amq-scripts/raw/main/amqAnswerStats.user.js
 // @updateURL    https://github.com/kempanator/amq-scripts/raw/main/amqAnswerStats.user.js
@@ -30,7 +30,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.20";
+const version = "0.21";
 const regionDictionary = {E: "Eastern", C: "Central", W: "Western"};
 const saveData = validateLocalStorage("answerStats");
 const saveData2 = validateLocalStorage("highlightFriendsSettings");

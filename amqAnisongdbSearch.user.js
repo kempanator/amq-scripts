@@ -1,13 +1,13 @@
 // ==UserScript==
 // @name         AMQ Anisongdb Search
 // @namespace    https://github.com/kempanator
-// @version      0.5
+// @version      0.6
 // @description  Adds a window to search anisongdb.com in game
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
 // @grant        none
-// @require      https://github.com/TheJoseph98/AMQ-Scripts/raw/master/common/amqScriptInfo.js
-// @require      https://github.com/TheJoseph98/AMQ-Scripts/raw/master/common/amqWindows.js
+// @require      https://github.com/joske2865/AMQ-Scripts/raw/master/common/amqScriptInfo.js
+// @require      https://github.com/joske2865/AMQ-Scripts/raw/master/common/amqWindows.js
 // @downloadURL  https://github.com/kempanator/amq-scripts/raw/main/amqAnisongdbSearch.user.js
 // @updateURL    https://github.com/kempanator/amq-scripts/raw/main/amqAnisongdbSearch.user.js
 // ==/UserScript==
@@ -27,7 +27,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.5";
+const version = "0.6";
 let anisongdbWindow;
 let injectSearchButtons = true;
 let anisongdbSort = {animeSortAscending: false, artistSortAscending: false, songSortAscending: false, typeSortAscending: false, vintageSortAscending: false};

@@ -1,12 +1,12 @@
 // ==UserScript==
 // @name         AMQ Show All Song Links
 // @namespace    https://github.com/kempanator
-// @version      0.6
+// @version      0.7
 // @description  Show all song links in the song info container
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
 // @grant        none
-// @require      https://github.com/TheJoseph98/AMQ-Scripts/raw/master/common/amqScriptInfo.js
+// @require      https://github.com/joske2865/AMQ-Scripts/raw/master/common/amqScriptInfo.js
 // @downloadURL  https://github.com/kempanator/amq-scripts/raw/main/amqShowAllSongLinks.user.js
 // @updateURL    https://github.com/kempanator/amq-scripts/raw/main/amqShowAllSongLinks.user.js
 // ==/UserScript==
@@ -20,7 +20,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.6";
+const version = "0.7";
 
 function setup() {
     new Listener("answer results", (payload) => {

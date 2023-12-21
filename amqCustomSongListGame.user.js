@@ -1,12 +1,12 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.43
+// @version      0.44
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
 // @grant        none
-// @require      https://github.com/TheJoseph98/AMQ-Scripts/raw/master/common/amqScriptInfo.js
+// @require      https://github.com/joske2865/AMQ-Scripts/raw/master/common/amqScriptInfo.js
 // @downloadURL  https://github.com/kempanator/amq-scripts/raw/main/amqCustomSongListGame.user.js
 // @updateURL    https://github.com/kempanator/amq-scripts/raw/main/amqCustomSongListGame.user.js
 // ==/UserScript==
@@ -43,9 +43,9 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.43";
+const version = "0.44";
 const saveData = validateLocalStorage("customSongListGame");
-const catboxHostDict = {1: "files.catbox.moe", 2: "nl.catbox.moe", 3: "ladist1.catbox.video", 4: "abdist1.catbox.video", 5: "nl.catbox.video"};
+const catboxHostDict = {1: "files.catbox.moe", 2: "nl.catbox.moe", 3: "nl.catbox.video", 4: "ladist1.catbox.video", 5: "abdist1.catbox.video", 6: "vhdist1.catbox.video"};
 let CSLButtonCSS = saveData.CSLButtonCSS || "calc(25% - 250px)";
 let showCSLMessages = saveData.showCSLMessages ?? true;
 let replacedAnswers = saveData.replacedAnswers || {};
@@ -203,9 +203,11 @@ $("#gameContainer").append($(`
                                 <option value="0">default</option>
                                 <option value="1">files.catbox.moe</option>
                                 <option value="2">nl.catbox.moe</option>
-                                <option value="3">ladist1.catbox.video</option>
-                                <option value="4">abdist1.catbox.video</option>
-                                <option value="5">nl.catbox.video</option>
+                                <option value="3">nl.catbox.video</option>
+                                <option value="4">ladist1.catbox.video</option>
+                                <option value="5">abdist1.catbox.video</option>
+                                <option value="6">vhdist1.catbox.video</option>
+                                
                             </select>
                         </div>
                         <p style="margin-top: 20px">Normal room settings are ignored. Only these settings will apply.</p>
@@ -901,7 +903,7 @@ function startQuiz() {
 // check if all conditions are met to go to next song
 function readySong(songNumber) {
     if (songNumber === currentSong) return;
-    console.log("Ready song: " + songNumber);
+    //console.log("Ready song: " + songNumber);
     nextVideoReadyInterval = setInterval(() => {
         //console.log({nextVideoReady, previousSongFinished});
         if (nextVideoReady && !quiz.pauseButton.pauseOn && previousSongFinished) {
@@ -1043,11 +1045,13 @@ function endGuessPhase(songNumber) {
             if (!quiz.cslActive || !quiz.inQuiz) return reset();
             let correct = {};
             let pose = {};
-            for (let player of Object.values(quiz.players)) {
-                let isCorrect = isCorrectAnswer(songNumber, currentAnswers[player.gamePlayerId]);
-                correct[player.gamePlayerId] = isCorrect;
-                pose[player.gamePlayerId] = currentAnswers[player.gamePlayerId] ? (isCorrect ? 5 : 4) : 6;
-                if (isCorrect) score[player.gamePlayerId]++;
+            if (quiz.isHost) {
+                for (let player of Object.values(quiz.players)) {
+                    let isCorrect = isCorrectAnswer(songNumber, currentAnswers[player.gamePlayerId]);
+                    correct[player.gamePlayerId] = isCorrect;
+                    pose[player.gamePlayerId] = currentAnswers[player.gamePlayerId] ? (isCorrect ? 5 : 4) : 6;
+                    if (isCorrect) score[player.gamePlayerId]++;
+                }
             }
             if (quiz.soloMode) {
                 let data = {
@@ -1132,7 +1136,7 @@ function endGuessPhase(songNumber) {
 // end replay phase
 function endReplayPhase(songNumber) {
     if (!quiz.cslActive || !quiz.inQuiz) return reset();
-    console.log(`end replay phase (${songNumber})`);
+    //console.log(`end replay phase (${songNumber})`);
     if (songNumber < totalSongs) {
         fireListener("quiz overlay message", "Skipping to Next Song");
         setTimeout(() => {
@@ -1253,7 +1257,7 @@ function parseMessage(content, sender) {
     else if (content.startsWith("§CSL3")) { //next song link
         if (quiz.cslActive && isHost) {
             let split = atob(content.slice(5)).split("-");
-            console.log(split);
+            //console.log(split);
             if (split.length === 5) {
                 if (!songLinkReceived[split[0]]) {
                     songLinkReceived[split[0]] = true;
@@ -1503,7 +1507,7 @@ function isCorrectAnswer(songNumber, answer) {
     if (!answer) return false;
     answer = answer.toLowerCase();
     let song = songList[songOrder[songNumber]];
-    let correctAnswers = [].concat(song.altAnimeNames, song.altAnimeNamesAnswers);
+    let correctAnswers = [].concat((song.altAnimeNames || []), (song.altAnimeNamesAnswers || []));
     for (let a1 of correctAnswers) {
         let a2 = replacedAnswers[a1];
         if (a2 && a2.toLowerCase() === answer) return true;

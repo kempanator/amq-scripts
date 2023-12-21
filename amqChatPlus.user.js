@@ -1,19 +1,19 @@
 // ==UserScript==
 // @name         AMQ Chat Plus
 // @namespace    https://github.com/kempanator
-// @version      0.29
+// @version      0.30
 // @description  Add new features to chat and messages
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
 // @grant        none
-// @require      https://github.com/TheJoseph98/AMQ-Scripts/raw/master/common/amqScriptInfo.js
+// @require      https://github.com/joske2865/AMQ-Scripts/raw/master/common/amqScriptInfo.js
 // @downloadURL  https://github.com/kempanator/amq-scripts/raw/main/amqChatPlus.user.js
 // @updateURL    https://github.com/kempanator/amq-scripts/raw/main/amqChatPlus.user.js
 // ==/UserScript==
 
 /*
 IMPORTANT: disable these scripts before installing
-- chat time stamps by thejoseph98
+- chat time stamps by thejoseph98/joske2865
 - dm time stamps by xsardine
 - bigger dms css by xsardine
 
@@ -37,7 +37,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.29";
+const version = "0.30";
 const apiKey = "LIVDSRZULELA";
 const saveData = validateLocalStorage("chatPlus");
 const saveData2 = validateLocalStorage("highlightFriendsSettings");
