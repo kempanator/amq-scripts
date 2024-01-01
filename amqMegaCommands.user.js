@@ -1,21 +1,21 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.106
+// @version      0.107
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
 // @grant        unsafeWindow
 // @grant        GM_xmlhttpRequest
 // @connect      myanimelist.net
-// @require      https://github.com/TheJoseph98/AMQ-Scripts/raw/master/common/amqScriptInfo.js
+// @require      https://github.com/joske2865/AMQ-Scripts/raw/master/common/amqScriptInfo.js
 // @downloadURL  https://github.com/kempanator/amq-scripts/raw/main/amqMegaCommands.user.js
 // @updateURL    https://github.com/kempanator/amq-scripts/raw/main/amqMegaCommands.user.js
 // ==/UserScript==
 
 /*
 IMPORTANT: disable these scripts before installing
-- dice roller by thejoseph98
+- dice roller by thejoseph98/joske2865
 - chat commands by nyamu
 - auto ready by nyamu
 - auto answer on keypress by (unknown)
@@ -52,7 +52,7 @@ IN GAME/LOBBY
 /autostart                automatically start the game when everyone is ready if you are host
 /autohost [name]          automatically promote player to host if you are the current host
 /autoinvite [name]        automatically invite a player to your room when they log in (only friends)
-/autoaccept               automatically accept game invites if you aren't in a room (only friends)
+/autoaccept               automatically accept game invites if you aren't in a room
 /autolobby                automatically vote return to lobby when host starts a vote
 /ready                    ready/unready in lobby
 /invite [name]            invite player to game
@@ -70,7 +70,7 @@ IN GAME/LOBBY
 /quality [text]           change video quality to mp3, 480, 720
 /countdown [seconds]      start game after # of seconds
 /dropdown                 enable/disable anime dropdown
-/dropdownspec             enable drop down while spectating
+/dropdownspec             enable dropdown while spectating
 /speed [number]           change client-side song playback speed (0.0625 - 16)
 /mutereplay               auto mute during the replay phase
 /mutesubmit               auto mute after answer submit
@@ -83,6 +83,7 @@ OTHER
 /startvote [list]         start a vote with a list of options (separate with commas)
 /stopvote                 stop the vote and print results
 /calc [expression]        calculate a math expression
+/list [a|m|k] [name]      change anime list
 /rules                    show list of gamemodes and rules
 /info                     show list of external utilities
 /clear                    clear chat
@@ -100,12 +101,14 @@ OTHER
 
 "use strict";
 if (typeof Listener === "undefined") return;
-const version = "0.106";
+const version = "0.107";
 const saveData = validateLocalStorage("megaCommands");
-let alerts = saveData.alerts ?? {hiddenPlayers: true, nameChange: true, onlineFriends: false, offlineFriends: false, serverStatus: false};
+if (typeof saveData.alerts?.hiddenPlayers === "boolean") delete saveData.alerts;
+let alerts = saveData.alerts ?? {};
 let animeList;
 let animeAutoCompleteLowerCase = [];
 let autoAcceptInvite = saveData.autoAcceptInvite ?? false;
+if (autoAcceptInvite === true) autoAcceptInvite = "friends";
 let autoCopy = saveData.autoCopy ?? "";
 let autoDownloadSong = saveData ?? [];
 let autoHost = saveData.autoHost ?? "";
@@ -117,10 +120,11 @@ let autoReady = saveData.autoReady ?? false;
 let autoStart = saveData.autoStart ?? false;
 let autoStatus = saveData.autoStatus ?? "";
 let autoSwitch = saveData.autoSwitch ?? "";
-let autoThrow = saveData.autoThrow ?? {time: null, text: null, multichoice: null};
+let autoThrow = saveData.autoThrow ?? {time: [], text: null, multichoice: null};
 let autoVoteLobby = saveData.autoVoteLobby ?? false;
-let autoVoteSkip = saveData.autoVoteSkip ?? null;
+let autoVoteSkip = saveData.autoVoteSkip ?? [];
 let backgroundURL = saveData.backgroundURL ?? "";
+let commandPersist = saveData.commandPersist ?? {};
 let commands = saveData.commands ?? true;
 let continueSample = saveData.continueSample ?? false;
 let countdown = null;
@@ -129,18 +133,63 @@ let dropdown = saveData.dropdown ?? true;
 let dropdownInSpec = saveData.dropdownInSpec ?? false;
 let enableAllProfileButtons = saveData.enableAllProfileButtons ?? true;
 let hidePlayers = saveData.hidePlayers ?? false;
+let hotKeys = saveData.hotKeys ?? {};
 let lastUsedVersion = saveData.lastUsedVersion ?? null;
 let loopVideo = saveData.loopVideo ?? false;
-let malClientId = saveData.malClientId ?? null;
+let malClientId = saveData.malClientId ?? "";
 let muteReplay = saveData.muteReplay ?? false;
 let muteSubmit = saveData.muteSubmit ?? false;
-let playbackSpeed = saveData.playbackSpeed ?? null;
+let playbackSpeed = saveData.playbackSpeed ?? [];
 let playerDetection = saveData.playerDetection ?? {invisible: false, players: []};
 let printLoot = saveData.printLoot ?? false;
 let selfDM = saveData.selfDM ?? false;
 let tabSwitch = saveData.tabSwitch ?? 0; //0: off, 1: chat first, 2: answerbox first, 3: only chat, 4: only answerbox
 let voteOptions = {};
 let votes = {};
+
+alerts.hiddenPlayers = saveData.alerts?.hiddenPlayers ?? {chat: true, popout: true};
+alerts.nameChange = saveData.alerts?.nameChange ?? {chat: true, popout: true};
+alerts.onlineFriends = saveData.alerts?.onlineFriends ?? {chat: false, popout: false};
+alerts.offlineFriends = saveData.alerts?.offlineFriends ?? {chat: false, popout: false};
+alerts.serverStatus = saveData.alerts?.serverStatus ?? {chat: false, popout: false};
+
+commandPersist.autoAcceptInvite = saveData.commandPersist?.autoAcceptInvite ?? true;
+commandPersist.autoCopy = saveData.commandPersist?.autoCopy ?? false;
+commandPersist.autoDownloadSong = saveData.commandPersist?.autoDownloadSong ?? false;
+commandPersist.autoHost = saveData.commandPersist?.autoHost ?? false;
+commandPersist.autoInvite = saveData.commandPersist?.autoInvite ?? false;
+commandPersist.autoKey = saveData.commandPersist?.autoKey ?? true;
+commandPersist.autoMute = saveData.commandPersist?.autoMute ?? false;
+commandPersist.autoReady = saveData.commandPersist?.autoReady ?? true;
+commandPersist.autoStart = saveData.commandPersist?.autoStart ?? false;
+commandPersist.autoStatus = saveData.commandPersist?.autoStatus ?? true;
+commandPersist.autoSwitch = saveData.commandPersist?.autoSwitch ?? false;
+commandPersist.autoThrow = saveData.commandPersist?.autoThrow ?? false;
+commandPersist.autoVoteLobby = saveData.commandPersist?.autoVoteLobby ?? true;
+commandPersist.autoVoteSkip = saveData.commandPersist?.autoVoteSkip ?? false;
+commandPersist.continueSample = saveData.commandPersist?.continueSample ?? true;
+commandPersist.dropdown = saveData.commandPersist?.dropdown ?? true;
+commandPersist.dropdownInSpec = saveData.commandPersist?.dropdownInSpec ?? true;
+commandPersist.loopVideo = saveData.commandPersist?.loopVideo ?? true;
+commandPersist.muteReplay = saveData.commandPersist?.muteReplay ?? true;
+commandPersist.muteSubmit = saveData.commandPersist?.muteSubmit ?? true;
+commandPersist.playbackSpeed = saveData.commandPersist?.playbackSpeed ?? false;
+
+hotKeys.autoKey = saveData.hotKeys?.autoKey ?? {altKey: false, ctrlKey: false, key: ""};
+hotKeys.dropdown = saveData.hotKeys?.dropdown ?? {altKey: false, ctrlKey: false, key: ""};
+hotKeys.mute = saveData.hotKeys?.mute ?? {altKey: false, ctrlKey: false, key: ""};
+hotKeys.ready = saveData.hotKeys?.ready ?? {altKey: false, ctrlKey: false, key: ""};
+hotKeys.joinSpectate = saveData.hotKeys?.joinSpectate ?? {altKey: false, ctrlKey: false, key: ""};
+hotKeys.start = saveData.hotKeys?.start ?? {altKey: false, ctrlKey: false, key: ""};
+hotKeys.leave = saveData.hotKeys?.leave ?? {altKey: false, ctrlKey: false, key: ""};
+hotKeys.rejoin = saveData.hotKeys?.rejoin ?? {altKey: false, ctrlKey: false, key: ""};
+hotKeys.lobby = saveData.hotKeys?.lobby ?? {altKey: false, ctrlKey: false, key: ""};
+hotKeys.pause = saveData.hotKeys?.pause ?? {altKey: false, ctrlKey: false, key: ""};
+hotKeys.voteSkip = saveData.hotKeys?.voteSkip ?? {altKey: false, ctrlKey: false, key: ""};
+hotKeys.relog = saveData.hotKeys?.relog ?? {altKey: false, ctrlKey: false, key: ""};
+hotKeys.mcHelpWindow = saveData.hotKeys?.mcHelpWindow ?? {altKey: false, ctrlKey: false, key: ""};
+hotKeys.songHistoryWindow = saveData.hotKeys?.songHistoryWindow ?? {altKey: false, ctrlKey: false, key: ""};
+
 const rules = {
     "alien": "https://pastebin.com/LxLMg1nA",
     "blackjack": "https://pastebin.com/kcq7hsJm",
@@ -155,19 +204,18 @@ const rules = {
     "warlords": "https://pastebin.com/zWNRFsC3"
 };
 const scripts = {
-    "autoready": "https://github.com/nyamu-amq/amq_scripts/raw/master/amqAutoReady.user.js",
     "highlightfriends": "https://github.com/nyamu-amq/amq_scripts/raw/master/amqHighlightFriends.user.js",
     "notificationsounds": "https://github.com/amq-script-project/AMQ-Scripts/raw/master/gameplay/amqNotificationSounds.user.js",
-    "songlistui": "https://github.com/TheJoseph98/AMQ-Scripts/raw/master/amqSongListUI.user.js",
-    "rigtrackerlite": "https://github.com/TheJoseph98/AMQ-Scripts/raw/master/amqRigTrackerLite.user.js",
+    "songlistui": "https://github.com/joske2865/AMQ-Scripts/raw/master/amqSongListUI.user.js",
     "answertime": "https://github.com/amq-script-project/AMQ-Scripts/raw/master/gameplay/amqPlayerAnswerTimeDisplay.user.js",
-    "speedrun": "https://github.com/TheJoseph98/AMQ-Scripts/raw/master/amqSpeedrun.user.js",
+    "speedrun": "https://github.com/joske2865/AMQ-Scripts/raw/master/amqSpeedrun.user.js",
     "emojianswer": "https://github.com/nyamu-amq/amq_scripts/raw/master/amqEmojiAnswer.user.js",
     "answerstats": "https://github.com/kempanator/amq-scripts/raw/main/amqAnswerStats.user.js",
     "chatplus": "https://github.com/kempanator/amq-scripts/raw/main/amqChatPlus.user.js",
     "customsonglistgame" : "https://github.com/kempanator/amq-scripts/raw/main/amqCustomSongListGame.user.js",
     "megacommands": "https://github.com/kempanator/amq-scripts/raw/main/amqMegaCommands.user.js",
     "newgamemodeui": "https://github.com/kempanator/amq-scripts/raw/main/amqNewGameModeUI.user.js",
+    "quickloadlists": "https://github.com/kempanator/amq-scripts/raw/main/amqQuickLoadLists.user.js",
     "showroomplayers": "https://github.com/kempanator/amq-scripts/raw/main/amqShowRoomPlayers.user.js",
     "elodiestyle": "https://userstyles.world/style/1435"
 };
@@ -262,12 +310,97 @@ function setup() {
     }
     if (autoStatus === "do not disturb") socialTab.socialStatus.changeSocialStatus(2);
     else if (autoStatus === "away") socialTab.socialStatus.changeSocialStatus(3);
-    else if (autoStatus === "invisible") socialTab.socialStatus.changeSocialStatus(4);
+    else if (autoStatus === "offline" || autoStatus === "invisible") socialTab.socialStatus.changeSocialStatus(4);
     document.body.addEventListener("keydown", (event) => {
-        if (event.which === 9) {
+        const key = event.key;
+        const which = event.which;
+        const altKey = event.altKey;
+        const ctrlKey = event.ctrlKey;
+        if (which === 9) {
             if (tabSwitch && quiz.inQuiz) {
                 toggleTextInputFocus();
             }
+        }
+        if (testHotkey("autoKey", key, altKey, ctrlKey)) {
+            autoKey = !autoKey;
+            saveSettings();
+            sendSystemMessage(`auto key ${autoKey ? "enabled" : "disabled"}`);
+        }
+        if (testHotkey("dropdown", key, altKey, ctrlKey)) {
+            dropdown = !dropdown;
+            saveSettings();
+            sendSystemMessage(`dropdown ${dropdown ? "enabled" : "disabled"}`);
+            quiz.answerInput.typingInput.autoCompleteController.newList();
+        }
+        if (testHotkey("mute", key, altKey, ctrlKey)) {
+            volumeController.setMuted(!volumeController.muted);
+            volumeController.adjustVolume();
+        }
+        if (testHotkey("ready", key, altKey, ctrlKey)) {
+            if (lobby.inLobby && !lobby.isHost && !lobby.isSpectator && lobby.settings.gameMode !== "Ranked") {
+                lobby.fireMainButtonEvent();
+            }
+        }
+        if (testHotkey("joinSpectate", key, altKey, ctrlKey)) {
+            if (lobby.inLobby) {
+                if (lobby.isSpectator) {
+                    socket.sendCommand({type: "lobby", command: "change to player"});
+                }
+                else {
+                    lobby.changeToSpectator(selfName);
+                }
+            }
+        }
+        if (testHotkey("start", key, altKey, ctrlKey)) {
+            if (lobby.inLobby && lobby.isHost) {
+                lobby.fireMainButtonEvent(true);
+            }
+            else if (nexus.inNexusLobby) {
+                socket.sendCommand({
+                    type: "nexus",
+                    command: "start dungeon lobby",
+                    data: nexus.cityController.dungeonSelectionWindow.dungeonSetupTab.settingDescription
+                });
+            }
+        }
+        if (testHotkey("leave", key, altKey, ctrlKey)) {
+            if (lobby.inLobby || quiz.inQuiz) {
+                if (isRankedMode()) {
+                    setTimeout(() => { viewChanger.changeView("main") }, 1);
+                }
+                else {
+                    setTimeout(() => { viewChanger.changeView("roomBrowser") }, 1);
+                }
+            }
+        }
+        if (testHotkey("rejoin", key, altKey, ctrlKey)) {
+            if (lobby.inLobby || quiz.inQuiz) {
+                rejoinRoom(100);
+            }
+        }
+        if (testHotkey("lobby", key, altKey, ctrlKey)) {
+            if (quiz.inQuiz && quiz.isHost) {
+                socket.sendCommand({type: "quiz", command: "start return lobby vote"});
+            }
+        }
+        if (testHotkey("pause", key, altKey, ctrlKey)) {
+            if (quiz.inQuiz) {
+                socket.sendCommand({type: "quiz", command: "quiz " + (quiz.pauseButton.pauseOn ? "unpause" : "pause")});
+            }
+        }
+        if (testHotkey("voteSkip", key, altKey, ctrlKey)) {
+            if (quiz.inQuiz && !quiz.skipController._toggled) {
+                quiz.skipClicked();
+            }
+        }
+        if (testHotkey("relog", key, altKey, ctrlKey)) {
+            relog();
+        }
+        if (testHotkey("mcHelpWindow", key, altKey, ctrlKey)) {
+            $("#mcSettingsModal").is(":visible") ? $("#mcSettingsModal").modal("hide") : $("#mcSettingsModal").modal("show");
+        }
+        if (testHotkey("songHistoryWindow", key, altKey, ctrlKey)) {
+            songHistoryWindow.trigger();
         }
     });
     new Listener("game chat update", (payload) => {
@@ -292,8 +425,8 @@ function setup() {
         if (payload.msg.startsWith("/")) parseCommand(payload.msg, "dm", payload.target);
     }).bindListener();
     new Listener("play next song", (payload) => {
-        if (playbackSpeed !== null) {
-            let speed = Array.isArray(playbackSpeed) ? Math.random() * (playbackSpeed[1] - playbackSpeed[0]) + playbackSpeed[0] : playbackSpeed;
+        if (playbackSpeed.length) {
+            let speed = playbackSpeed.length === 1 ? playbackSpeed[0] : Math.random() * (playbackSpeed[1] - playbackSpeed[0]) + playbackSpeed[0];
             quizVideoController.moePlayers.forEach((moePlayer) => { moePlayer.playbackRate = speed });
         }
         if (muteReplay || muteSubmit) {
@@ -301,8 +434,16 @@ function setup() {
             volumeController.adjustVolume();
         }
         if (!quiz.isSpectator && quiz.gameMode !== "Ranked") {
-            if (Array.isArray(autoThrow.time)) {
-                if (quiz.answerInput.multipleChoice.displayed && autoThrow.multichoice) {
+            if (autoThrow.time.length) {
+                if (autoThrow.text) {
+                    if (autoThrow.time.length === 1) {
+                        setTimeout(() => { quiz.answerInput.setNewAnswer(autoThrow.text) }, autoThrow.time[0]);
+                    }
+                    else if (autoThrow.time.length === 2) {
+                        setTimeout(() => { quiz.answerInput.setNewAnswer(autoThrow.text) }, Math.floor(Math.random() * (autoThrow.time[1] - autoThrow.time[0] + 1)) + autoThrow.time[0]);
+                    }
+                }
+                else if (autoThrow.multichoice && quiz.answerInput.multipleChoice.displayed) {
                     let index = autoThrow.multichoice === "random" ? Math.floor(Math.random() * 4) : autoThrow.multichoice - 1;
                     if (autoThrow.time.length === 1) {
                         setTimeout(() => { quiz.answerInput.multipleChoice.handleClick(quiz.answerInput.multipleChoice.answerOptions[index]) }, autoThrow.time[0]);
@@ -311,17 +452,14 @@ function setup() {
                         setTimeout(() => { quiz.answerInput.multipleChoice.handleClick(quiz.answerInput.multipleChoice.answerOptions[index]) }, Math.floor(Math.random() * (autoThrow.time[1] - autoThrow.time[0] + 1)) + autoThrow.time[0]);
                     }
                 }
-                else if (autoThrow.text) {
-                    if (autoThrow.time.length === 1) {
-                        setTimeout(() => { quiz.answerInput.setNewAnswer(autoThrow.text) }, autoThrow.time[0]);
-                    }
-                    else if (autoThrow.time.length === 2) {
-                        setTimeout(() => { quiz.answerInput.setNewAnswer(autoThrow.text) }, Math.floor(Math.random() * (autoThrow.time[1] - autoThrow.time[0] + 1)) + autoThrow.time[0]);
-                    }
-                }
             }
-            if (Number.isInteger(autoVoteSkip)) {
-                setTimeout(() => { if (!quiz.skipController._toggled) quiz.skipClicked() }, autoVoteSkip);
+            if (Array.isArray(autoVoteSkip)) {
+                if (autoVoteSkip.length === 1) {
+                    setTimeout(() => { if (!quiz.skipController._toggled) quiz.skipClicked() }, autoVoteSkip[0]);
+                }
+                else if (autoVoteSkip.length === 2) {
+                    setTimeout(() => { if (!quiz.skipController._toggled) quiz.skipClicked() }, Math.floor(Math.random() * (autoVoteSkip[1] - autoVoteSkip[0] + 1)) + autoVoteSkip[0]);
+                }
             }
         }
         if (autoMute.mute.length) {
@@ -411,7 +549,8 @@ function setup() {
         }
     }).bindListener();
     new Listener("Game Starting", (payload) => {
-        if (autoVoteSkip !== null) sendSystemMessage("Auto Vote Skip: " + (Number.isFinite(autoVoteSkip) ? autoVoteSkip : (autoVoteSkip === "valid" ? "on first valid answer": "Enabled")));
+        if (autoVoteSkip === "valid") sendSystemMessage("Auto Vote Skip: on first valid answer");
+        else if (autoVoteSkip.length) sendSystemMessage("Auto Vote Skip: Enabled");
         if (autoKey) sendSystemMessage("Auto Key: Enabled");
         if (autoCopy) sendSystemMessage("Auto Copy: " + autoCopy);
         if (autoThrow.text) sendSystemMessage("Auto Throw: " + autoThrow.text);
@@ -425,7 +564,8 @@ function setup() {
         else if (autoMute.randomUnmute) sendSystemMessage(`Auto Unmute Random: ${autoMute.randomUnmute / 1000}s`);
         if (muteReplay) sendSystemMessage("Mute During Replay Phase: Enabled");
         if (muteSubmit) sendSystemMessage("Mute After Submit: Enabled");
-        if (playbackSpeed !== null) sendSystemMessage("Song Playback Speed: " + (Array.isArray(playbackSpeed) ? `random ${playbackSpeed[0]}x - ${playbackSpeed[1]}x` : `${playbackSpeed}x`));
+        if (playbackSpeed.length === 1) sendSystemMessage(`Song Playback Speed: ${playbackSpeed[0]}x`);
+        else if (playbackSpeed.length === 2) sendSystemMessage(`Song Playback Speed: random ${playbackSpeed[0]}x - ${playbackSpeed[1]}x`);
         if (autoDownloadSong.length) sendSystemMessage("Auto Download Song: " + autoDownloadSong.join(", "));
         if (hidePlayers) setTimeout(() => { quizHidePlayers() }, 0);
     }).bindListener();
@@ -489,9 +629,8 @@ function setup() {
     }).bindListener();
     new Listener("battle royal phase over", (payload) => {
         if (printLoot && !battleRoyal.isSpectator) {
-            for (let entry of battleRoyal.collectionController.entries) {
-                sendSystemMessage(entry.$entry.text().substring(2));
-            }
+            let lootNames = battleRoyal.collectionController.entries.map((entry) => entry.$entry.text().substring(2));
+            sendSystemMessage(`Loot: ${battleRoyal.collectionController.entries.length}/${battleRoyal.collectionController.size}`, lootNames.join("<br>"));
         }
     }).bindListener();
     new Listener("quiz over", (payload) => {
@@ -550,12 +689,14 @@ function setup() {
         if (hidePlayers) setTimeout(() => { quizHidePlayers() }, 0);
     }).bindListener();
     new Listener("player hidden", (payload) => {
-        if (alerts.hiddenPlayers) {
+        if (alerts.hiddenPlayers.chat) {
             sendSystemMessage("Player Hidden: " + payload.name);
+        }
+        if (alerts.hiddenPlayers.popout) {
             popoutMessages.displayStandardMessage("Player Hidden", payload.name);
         }
     }).bindListener();
-    new Listener("Player Ready Change",  (payload) => {
+    new Listener("Player Ready Change", (payload) => {
         checkAutoStart();
     }).bindListener();
     new Listener("Room Settings Changed", (payload) => {
@@ -578,9 +719,16 @@ function setup() {
         if (hidePlayers) setTimeout(() => { lobbyHidePlayers() }, 0);
     }).bindListener();
     new Listener("game invite", (payload) => {
-        if (autoAcceptInvite && !inRoom() && ((autoAcceptInvite === true && socialTab.isFriend(payload.sender))
-        || (Array.isArray(autoAcceptInvite) && autoAcceptInvite.includes(payload.sender.toLowerCase())))) {
-            roomBrowser.fireSpectateGame(payload.gameId, undefined, true);
+        if (autoAcceptInvite && !inRoom()) {
+            if (autoAcceptInvite === "all") {
+                roomBrowser.fireSpectateGame(payload.gameId, undefined, true);
+            }
+            else if (autoAcceptInvite === "friends" && socialTab.isFriend(payload.sender)) {
+                roomBrowser.fireSpectateGame(payload.gameId, undefined, true);
+            }
+            else if (Array.isArray(autoAcceptInvite) && autoAcceptInvite.includes(payload.sender.toLowerCase())) {
+                roomBrowser.fireSpectateGame(payload.gameId, undefined, true);
+            }
         }
     }).bindListener();
     new Listener("friend state change", (payload) => {
@@ -588,12 +736,16 @@ function setup() {
             sendSystemMessage(payload.name + " online: auto inviting");
             setTimeout(() => { socket.sendCommand({type: "social", command: "invite to game", data: {target: payload.name}}) }, 1000);
         }
-        else if (alerts.onlineFriends && payload.online) {
+        else if (alerts.onlineFriends.chat && payload.online) {
             sendSystemMessage(payload.name + " online");
+        }
+        else if (alerts.offlineFriends.chat && !payload.online) {
+            sendSystemMessage(payload.name + " offline");
+        }
+        if (alerts.onlineFriends.popout && payload.online) {
             popoutMessages.displayStandardMessage(payload.name + " online", "");
         }
-        else if (alerts.offlineFriends && !payload.online) {
-            sendSystemMessage(payload.name + " offline");
+        else if (alerts.offlineFriends.popout && !payload.online) {
             popoutMessages.displayStandardMessage(payload.name + " offline", "");
         }
     }).bindListener();
@@ -619,9 +771,16 @@ function setup() {
         }
     }).bindListener();
     new Listener("nexus game invite", (payload) => {
-        if (autoAcceptInvite && !inRoom() && ((autoAcceptInvite === true && socialTab.isFriend(payload.sender))
-        || (Array.isArray(autoAcceptInvite) && autoAcceptInvite.includes(payload.sender.toLowerCase())))) {
-            socket.sendCommand({type: "nexus", command: "join dungeon lobby", data: {lobbyId: payload.lobbyId}});
+        if (autoAcceptInvite && !inRoom()) {
+            if (autoAcceptInvite === "all") {
+                socket.sendCommand({type: "nexus", command: "join dungeon lobby", data: {lobbyId: payload.lobbyId}});
+            }
+            else if (autoAcceptInvite === "friends" && socialTab.isFriend(payload.sender)) {
+                socket.sendCommand({type: "nexus", command: "join dungeon lobby", data: {lobbyId: payload.lobbyId}});
+            }
+            else if (Array.isArray(autoAcceptInvite) && autoAcceptInvite.includes(payload.sender.toLowerCase())) {
+                socket.sendCommand({type: "nexus", command: "join dungeon lobby", data: {lobbyId: payload.lobbyId}});
+            }
         }
     }).bindListener();
     new Listener("nexus lobby host change", (payload) => {
@@ -634,8 +793,10 @@ function setup() {
         setTimeout(() => { checkAutoHost() }, 1);
     }).bindListener();
     new Listener("friend name change", (payload) => {
-        if (alerts.nameChange) {
+        if (alerts.nameChange.chat) {
             sendSystemMessage(`friend name change: ${payload.oldName} => ${payload.newName}`);
+        }
+        if (alerts.nameChange.popout) {
             popoutMessages.displayStandardMessage("friend name change", payload.oldName + " => " + payload.newName);
         }
     }).bindListener();
@@ -650,8 +811,10 @@ function setup() {
         }, 10);
     }).bindListener();
     new Listener("server state change", (payload) => {
-        if (alerts.serverStatus) {
+        if (alerts.serverStatus.chat) {
             sendSystemMessage(`Server Status: ${payload.name} ${payload.online ? "online" : "offline"}`);
+        }
+        if (alerts.serverStatus.popout) {
             popoutMessages.displayStandardMessage("Server Status", `${payload.name} ${payload.online ? "online" : "offline"}`);
         }
     }).bindListener();
@@ -722,20 +885,877 @@ function setup() {
             saveSettings();
         }
     }
+
     new MutationObserver(function() {
         if (enableAllProfileButtons) {
             $("#playerProfileLayer .ppFooterOptionIcon").removeClass("disabled");
         }
     }).observe(document.querySelector("#playerProfileLayer"), {childList: true});
+
+    $("#gameContainer").append($(`
+        <div class="modal fade tab-modal" id="mcSettingsModal" tabindex="-1" role="dialog">
+            <div class="modal-dialog" role="document">
+                <div class="modal-content">
+                    <div class="modal-header" style="padding: 3px 0 0 0">
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">×</span>
+                        </button>
+                        <h4 class="modal-title">Mega Commands</h4>
+                        <div class="tabContainer">
+                            <div id="mcDocumentationTab" class="tab clickAble">
+                                <h5>Commands</h5>
+                            </div>
+                            <div id="mcActiveTab" class="tab clickAble selected">
+                                <h5>Active</h5>
+                            </div>
+                            <div id="mcHotkeyTab" class="tab clickAble">
+                                <h5>Hotkey</h5>
+                            </div>
+                            <div id="mcAlertsTab" class="tab clickAble">
+                                <h5>Alerts</h5>
+                            </div>
+                            <div id="mcInfoTab" class="tab clickAble" style="width: 45px; margin-right: -10px; padding-right: 8px; float: right;">
+                                <h5><i class="fa fa-info-circle" aria-hidden="true"></i></h5>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-body" style="overflow-y: auto; max-height: calc(100vh - 150px);">
+                        <div id="mcActiveContainer" style="margin: 10px 0;">
+                            <div class="mcCommandRow">
+                                <button id="mcAutoReadyButton" class="btn mcCommandButton"></button>
+                                <span class="mcCommandTitle">Auto Ready</span>
+                            </div>
+                            <div class="mcCommandRow">
+                                <button id="mcAutoStartButton" class="btn mcCommandButton"></button>
+                                <span class="mcCommandTitle">Auto Start</span>
+                            </div>
+                            <div class="mcCommandRow">
+                                <button id="mcAutoAcceptInviteButton" class="btn mcCommandButton"></button>
+                                <span class="mcCommandTitle">Auto Accept Invite</span>
+                                <select id="mcAutoAcceptInviteSelect" style="padding: 3px 0;">
+                                    <option>friends</option>
+                                    <option>all</option>
+                                    <option>list</option>
+                                </select>
+                                <input id="mcAutoAcceptInviteInput" type="text" placeholder="players" style="width: 250px;">
+                            </div>
+                            <div class="mcCommandRow">
+                                <button id="mcAutoStatusButton" class="btn mcCommandButton"></button>
+                                <span class="mcCommandTitle">Auto Status</span>
+                                <select id="mcAutoStatusSelect" style="padding: 3px 0;">
+                                    <option>do not disturb</option>
+                                    <option>away</option>
+                                    <option>offline</option>
+                                </select>
+                            </div>
+                            <div class="mcCommandRow">
+                                <button id="mcAutoKeyButton" class="btn mcCommandButton"></button>
+                                <span class="mcCommandTitle">Auto Key</span>
+                            </div>
+                            <div class="mcCommandRow">
+                                <button id="mcAutoThrowButton" class="btn mcCommandButton"></button>
+                                <span class="mcCommandTitle">Auto Throw</span>
+                                <select id="mcAutoThrowSelect" style="padding: 3px 0;">
+                                    <option>text</option>
+                                    <option>multichoice</option>
+                                </select>
+                                <input id="mcAutoThrowTimeInput" type="text" placeholder="time" style="width: 50px;">
+                                <input id="mcAutoThrowTextInput" type="text" placeholder="text" style="width: 250px;">
+                            </div>
+                            <div class="mcCommandRow">
+                                <button id="mcAutoCopyButton" class="btn mcCommandButton"></button>
+                                <span class="mcCommandTitle">Auto Copy</span>
+                                <input id="mcAutoCopyInput" type="text" placeholder="player" style="width: 150px;">
+                            </div>
+                            <div class="mcCommandRow">
+                                <button id="mcAutoHostButton" class="btn mcCommandButton"></button>
+                                <span class="mcCommandTitle">Auto Host</span>
+                                <input id="mcAutoHostInput" type="text" placeholder="player" style="width: 150px;">
+                            </div>
+                            <div class="mcCommandRow">
+                                <button id="mcAutoVoteSkipButton" class="btn mcCommandButton"></button>
+                                <span class="mcCommandTitle">Auto Vote Skip</span>
+                                <select id="mcAutoVoteSkipSelect" style="padding: 3px 0;">
+                                    <option>time</option>
+                                    <option>valid</option>
+                                </select>
+                                <input id="mcAutoVoteSkipTimeInput" type="text" placeholder="time" style="width: 50px;">
+                            </div>
+                            <div class="mcCommandRow">
+                                <button id="mcAutoVoteLobbyButton" class="btn mcCommandButton"></button>
+                                <span class="mcCommandTitle">Auto Vote Lobby</span>
+                            </div>
+                            <div class="mcCommandRow">
+                                <button id="mcAutoMuteButton" class="btn mcCommandButton"></button>
+                                <span class="mcCommandTitle">Auto Mute</span>
+                                <select id="mcAutoMuteSelect" style="padding: 3px 0;">
+                                    <option>mute</option>
+                                    <option>unmute</option>
+                                    <option>toggle</option>
+                                    <option>random mute</option>
+                                    <option>random unmute</option>
+                                </select>
+                                <input id="mcAutoMuteTimeInput" type="text" placeholder="time" style="width: 50px;">
+                            </div>
+                            <div class="mcCommandRow">
+                                <button id="mcMuteSubmitButton" class="btn mcCommandButton"></button>
+                                <span class="mcCommandTitle">Mute Submit</span>
+                            </div>
+                            <div class="mcCommandRow">
+                                <button id="mcMuteReplayButton" class="btn mcCommandButton"></button>
+                                <span class="mcCommandTitle">Mute Replay</span>
+                            </div>
+                            <div class="mcCommandRow">
+                                <button id="mcContinueSampleButton" class="btn mcCommandButton"></button>
+                                <span class="mcCommandTitle">Continue Sample</span>
+                            </div>
+                            <div class="mcCommandRow">
+                                <button id="mcLoopVideoButton" class="btn mcCommandButton"></button>
+                                <span class="mcCommandTitle">Loop Video</span>
+                            </div>
+                            <div class="mcCommandRow">
+                                <button id="mcDropDownButton" class="btn mcCommandButton"></button>
+                                <span class="mcCommandTitle">Drop Down</span>
+                            </div>
+                            <div class="mcCommandRow">
+                                <button id="mcDropDownInSpecButton" class="btn mcCommandButton"></button>
+                                <span class="mcCommandTitle">Drop Down In Spec</span>
+                            </div>
+                        </div>
+                        <div id="mcHotkeyContainer" style="margin: 10px 0;">
+                            <table id="mcHotkeyTable">
+                                <thead>
+                                    <tr>
+                                        <th>Action</th>
+                                        <th>Modifier</th>
+                                        <th>Key</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div id="mcAlertsContainer" style="margin: 10px 0;">
+                        <table id="mcAlertsTable">
+                            <thead>
+                                <tr>
+                                    <th>Alert</th>
+                                    <th>Popout</th>
+                                    <th>Chat</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            </tbody>
+                        </table>
+                        </div>
+                        <div id="mcDocumentationContainer" style="height: 500px; margin-top: 10px;">
+                        </div>
+                        <div id="mcInfoContainer" style="text-align: center; margin: 20px 0;">
+                            <h4>Script Info</h4>
+                            <div>Created by: kempanator</div>
+                            <div>Version: ${version}</div>
+                            <div><a href="https://github.com/kempanator/amq-scripts/raw/main/amqMegaCommands.user.js" target="blank">Link</a></div>
+                            <h4 style="margin-top: 20px;">Local Storage</h4>
+                            <div style="margin: 10px 0"><button id="mcLocalStorageImportButton" style="color: black; margin-right: 10px;">Import</button><button id="mcLocalStorageExportButton" style="color: black; margin-right: 10px;">Export</button><button id="mcLocalStorageClearButton" style="color: black;">Clear</button></div>
+                            <h4 style="margin-top: 20px;">MAL Client ID</h4>
+                            <div style="margin: 10px 0"><input id="mcMalClientIdInput" type="text" style="width: 300px; color: black;"></div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button id="mcExitButton" class="btn btn-default" data-dismiss="modal">Exit</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `));
+
+    $("#mcActiveTab").click(() => {
+        tabReset();
+        $("#mcActiveTab").addClass("selected");
+        $("#mcActiveContainer").show();
+    });
+    $("#mcHotkeyTab").click(() => {
+        tabReset();
+        $("#mcHotkeyTab").addClass("selected");
+        $("#mcHotkeyContainer").show();
+    });
+    $("#mcDocumentationTab").click(() => {
+        tabReset();
+        $("#mcDocumentationTab").addClass("selected");
+        $("#mcDocumentationContainer").show();
+    });
+    $("#mcAlertsTab").click(() => {
+        tabReset();
+        $("#mcAlertsTab").addClass("selected");
+        $("#mcAlertsContainer").show();
+    });
+    $("#mcInfoTab").click(() => {
+        tabReset();
+        $("#mcInfoTab").addClass("selected");
+        $("#mcInfoContainer").show();
+    });
+    $("#mcAutoReadyButton").click(function() {
+        autoReady = !autoReady;
+        saveSettings();
+        sendSystemMessage(`auto ready ${autoReady ? "enabled" : "disabled"}`);
+        checkAutoReady();
+        toggleCommandButton($(this), autoReady);
+    });
+    $("#mcAutoStartButton").click(function() {
+        autoStart = !autoStart;
+        sendSystemMessage(`auto start game ${autoStart ? "enabled" : "disabled"}`);
+        checkAutoStart();
+        toggleCommandButton($(this), autoStart);
+    });
+    $("#mcAutoAcceptInviteButton").click(function() {
+        if ($(this).text() === "Off") {
+            let option = $("#mcAutoAcceptInviteSelect").val();
+            if (option === "all") {
+                autoAcceptInvite = "all";
+                saveSettings();
+                sendSystemMessage("auto accept invite from everyone");
+                toggleCommandButton($(this), autoAcceptInvite);
+            }
+            else if (option === "friends") {
+                autoAcceptInvite = "friends";
+                saveSettings();
+                sendSystemMessage("auto accept invite from friends");
+                toggleCommandButton($(this), autoAcceptInvite);
+            }
+            else if (option === "list") {
+                let list = $("#mcAutoAcceptInviteInput").val().toLowerCase().split(/[, ]+/).filter(Boolean);
+                if (list.length) {
+                    autoAcceptInvite = list;
+                    saveSettings();
+                    sendSystemMessage(`auto accept invite only from ${autoAcceptInvite.join(", ")}`);
+                    toggleCommandButton($(this), autoAcceptInvite);
+                }
+            }
+        }
+        else {
+            autoAcceptInvite = false;
+            saveSettings();
+            sendSystemMessage("auto accept invite disabled");
+            toggleCommandButton($(this), autoAcceptInvite);
+        }
+    });
+    $("#mcAutoAcceptInviteSelect").on("change", function() {
+        if ($(this).val() === "list") {
+            $("#mcAutoAcceptInviteInput").show();
+        }
+        else {
+            $("#mcAutoAcceptInviteInput").hide();
+        }
+    });
+    $("#mcAutoStatusButton").click(function() {
+        if ($(this).text() === "Off") {
+            autoStatus = $("#mcAutoStatusSelect").val();
+            sendSystemMessage(`auto status set to ${autoStatus}`);
+        }
+        else {
+            autoStatus = "";
+            sendSystemMessage(`auto status removed`);
+        }
+        saveSettings();
+        toggleCommandButton($(this), autoStatus);
+    });
+    $("#mcAutoKeyButton").click(function() {
+        autoKey = !autoKey;
+        saveSettings();
+        sendSystemMessage(`auto key ${autoKey ? "enabled" : "disabled"}`);
+        toggleCommandButton($(this), autoKey);
+    });
+    $("#mcAutoThrowButton").click(function() {
+        if ($(this).text() === "Off") {
+            let option = $("#mcAutoThrowSelect").val();
+            let time = $("#mcAutoThrowTimeInput").val();
+            let text = $("#mcAutoThrowTextInput").val();
+            if (!text) return;
+            if (time) {
+                time = time.split(/[ ,-]+/).map((x) => parseFloat(x));
+                if (!time.length || time.some((x) => isNaN(x))) return;
+            }
+            else {
+                $("#mcAutoThrowTimeInput").val("0");
+                time = [0];
+            }
+            let milliseconds = time.map((x) => Math.floor(x * 1000));
+            if (option === "text") {
+                autoThrow = {time: milliseconds, text: text, multichoice: null};
+                sendSystemMessage(getAutoThrowStatus());
+                toggleCommandButton($(this), true);
+            }
+            else if (option === "multichoice") {
+                if (/^(r|random)$/i.test(text)) {
+                    autoThrow = {time: milliseconds, text: null, multichoice: "random"};
+                    sendSystemMessage(getAutoThrowStatus());
+                    toggleCommandButton($(this), true);
+                }
+                else if (/^[1-4]$/i.test(text)) {
+                    autoThrow = {time: milliseconds, text: null, multichoice: parseInt(text)};
+                    sendSystemMessage(getAutoThrowStatus());
+                    toggleCommandButton($(this), true);
+                }
+            }
+        }
+        else {
+            autoThrow = {time: [], text: null, multichoice: null};
+            sendSystemMessage("auto throw disabled");
+            toggleCommandButton($(this), false);
+        }
+    });
+    $("#mcAutoThrowSelect").on("change", function() {
+        if ($(this).val() === "text") {
+            $("#mcAutoThrowTextInput").attr("placeholder", "text");
+        }
+        else if ($(this).val() === "multichoice") {
+            $("#mcAutoThrowTextInput").attr("placeholder", "option (1-4)");
+        }
+    });
+    $("#mcAutoCopyButton").click(function() {
+        if ($(this).text() === "Off") {
+            let text = $("#mcAutoCopyInput").val().toLowerCase();
+            if (text) {
+                autoCopy = text;
+                sendSystemMessage(`auto copying ${text}`);
+                toggleCommandButton($(this), true);
+            }
+        }
+        else {
+            autoCopy = "";
+            sendSystemMessage("auto copy disabled");
+            toggleCommandButton($(this), false);
+        }
+    });
+    $("#mcAutoHostButton").click(function() {
+        if ($(this).text() === "Off") {
+            let text = $("#mcAutoHostInput").val().toLowerCase();
+            if (text) {
+                autoHost = text;
+                sendSystemMessage(`auto hosting ${text}`);
+                toggleCommandButton($(this), true);
+            }
+        }
+        else {
+            autoHost = "";
+            sendSystemMessage("auto host disabled");
+            toggleCommandButton($(this), false);
+        }
+    });
+    $("#mcAutoVoteSkipButton").click(function() {
+        if ($(this).text() === "Off") {
+            let option = $("#mcAutoVoteSkipSelect").val();
+            if (option === "time") {
+                let time = $("#mcAutoVoteSkipTimeInput").val();
+                if (time) {
+                    time = time.split(/[ ,-]+/).map((x) => parseFloat(x));
+                    if (!time.length || time.some((x) => isNaN(x))) return;
+                }
+                else {
+                    $("#mcAutoVoteSkipTimeInput").val("0");
+                    time = [0];
+                }
+                if (time.length === 1) {
+                    autoVoteSkip = [Math.floor(time[0] * 1000)];
+                    saveSettings();
+                    sendSystemMessage(`auto vote skip after ${time[0]} seconds`);
+                    toggleCommandButton($(this), true);
+                }
+                else if (time.length === 2) {
+                    autoVoteSkip = [Math.floor(time[0] * 1000), Math.floor(time[1] * 1000)];
+                    saveSettings();
+                    sendSystemMessage(`auto vote skip after ${time[0]}-${time[1]} seconds`);
+                    toggleCommandButton($(this), true);
+                }
+            }
+            else if (option === "valid") {
+                autoVoteSkip = "valid";
+                saveSettings();
+                sendSystemMessage("auto vote skip after first valid answer on team enabled");
+                toggleCommandButton($(this), true);
+                $("#mcAutoVoteSkipTimeInput").val("");
+            }
+        }
+        else {
+            autoVoteSkip = [];
+            saveSettings();
+            sendSystemMessage("auto vote skip disabled");
+            toggleCommandButton($(this), false);
+        }
+    });
+    $("#mcAutoVoteSkipSelect").on("change", function() {
+        if ($(this).val() === "time") {
+            $("#mcAutoVoteSkipTimeInput").show();
+        }
+        else {
+            $("#mcAutoVoteSkipTimeInput").hide();
+        }
+    });
+    $("#mcAutoVoteLobbyButton").click(function() {
+        autoVoteLobby = !autoVoteLobby;
+        saveSettings();
+        sendSystemMessage(`auto vote lobby ${autoVoteLobby ? "enabled" : "disabled"}`);
+        toggleCommandButton($(this), autoVoteLobby);
+    });
+    $("#mcAutoMuteButton").click(function() {
+        if ($("#mcAutoMuteButton").text() === "Off") {
+            let option = $("#mcAutoMuteSelect").val();
+            let time = $("#mcAutoMuteTimeInput").val();
+            if (time) {
+                time = time.split(/[ ,-]+/).map((x) => parseFloat(x));
+            }
+            else {
+                $("#mcAutoMuteTimeInput").val("0");
+                time = [0];
+            }
+            if (time.length && time.every((x) => !isNaN(x))) {
+                let milliseconds = time.map((x) => Math.floor(x * 1000));
+                if (option === "mute") {
+                    autoMute = {mute: milliseconds, unmute: [], toggle: [], randomMute: null, randomUnmute: null};
+                    saveSettings();
+                    sendSystemMessage(getAutoMuteStatus());
+                    toggleCommandButton($(this), true);
+                }
+                else if (option === "unmute") {
+                    autoMute = {mute: [], unmute: milliseconds, toggle: [], randomMute: null, randomUnmute: null};
+                    saveSettings();
+                    sendSystemMessage(getAutoMuteStatus());
+                    toggleCommandButton($(this), true);
+                }
+                else if (option === "toggle") {
+                    autoMute = {mute: [], unmute: [], toggle: milliseconds, randomMute: null, randomUnmute: null};
+                    saveSettings();
+                    sendSystemMessage(getAutoMuteStatus());
+                    toggleCommandButton($(this), true);
+                }
+                else if (option === "random mute") {
+                    autoMute = {mute: [], unmute: [], toggle: [], randomMute: milliseconds[0], randomUnmute: null};
+                    saveSettings();
+                    sendSystemMessage(getAutoMuteStatus());
+                    toggleCommandButton($(this), true);
+                }
+                else if (option === "random unmute") {
+                    autoMute = {mute: [], unmute: [], toggle: [], randomMute: null, randomUnmute: milliseconds[0]};
+                    saveSettings();
+                    sendSystemMessage(getAutoMuteStatus());
+                    toggleCommandButton($(this), true);
+                }
+            }
+        }
+        else {
+            autoMute = {mute: [], unmute: [], toggle: [], randomMute: null, randomUnmute: null};
+            saveSettings();
+            sendSystemMessage("auto mute system disabled");
+            toggleCommandButton($(this), false);
+        }
+    });
+    $("#mcAutoMuteSelect").on("change", function() {
+        if ($(this).val() === "toggle") {
+            $("#mcAutoMuteTimeInput").css("width", "150px").attr("placeholder", "time list");
+        }
+        else {
+            $("#mcAutoMuteTimeInput").css("width", "50px").attr("placeholder", "time");
+        }
+    });
+    $("#mcMuteSubmitButton").click(function() {
+        muteSubmit = !muteSubmit;
+        saveSettings();
+        sendSystemMessage(`mute after answer submit ${muteSubmit ? "enabled" : "disabled"}`);
+        toggleCommandButton($(this), muteSubmit);
+    });
+    $("#mcMuteReplayButton").click(function() {
+        muteReplay = !muteReplay;
+        saveSettings();
+        sendSystemMessage(`mute during replay phase ${muteReplay ? "enabled" : "disabled"}`);
+        toggleCommandButton($(this), muteReplay);
+    });
+    $("#mcContinueSampleButton").click(function() {
+        continueSample = !continueSample;
+        saveSettings();
+        sendSystemMessage(`continue sample ${continueSample ? "enabled" : "disabled"}`);
+        toggleCommandButton($(this), continueSample);
+    });
+    $("#mcLoopVideoButton").click(function() {
+        loopVideo = !loopVideo;
+        for (let videoPlayer of quizVideoController.moePlayers) {
+            videoPlayer.$player[0].loop = loopVideo;
+        }
+        saveSettings();
+        sendSystemMessage(`loop video ${loopVideo ? "enabled" : "disabled"}`);
+        toggleCommandButton($(this), loopVideo);
+    });
+    $("#mcDropDownButton").click(function() {
+        dropdown = !dropdown;
+        saveSettings();
+        sendSystemMessage(`drop down ${dropdown ? "enabled" : "disabled"}`);
+        toggleCommandButton($(this), dropdown);
+    });
+    $("#mcDropDownInSpecButton").click(function() {
+        dropdownInSpec = !dropdownInSpec;
+        saveSettings();
+        sendSystemMessage(`drop down in spec ${dropdownInSpec ? "enabled" : "disabled"}`);
+        toggleCommandButton($(this), dropdownInSpec);
+    });
+
+    createHotkeyElement("Toggle Autokey", "autoKey", "mcAutokeyHotkeySelect", "mcAutokeyHotkeyInput");
+    createHotkeyElement("Toggle Dropdown", "dropdown", "mcDropdownHotkeySelect", "mcDropdownHotkeyInput");
+    createHotkeyElement("Toggle Mute", "mute", "mcMuteHotkeySelect", "mcMuteHotkeyInput");
+    createHotkeyElement("Ready", "ready", "mcReadyHotkeySelect", "mcReadyHotkeyInput");
+    createHotkeyElement("Join / Spectate", "joinSpectate", "mcJoinSpectateHotkeySelect", "mcJoinSpectateHotkeyInput");
+    createHotkeyElement("Start Quiz", "start", "mcStartHotkeySelect", "mcStartHotkeyInput");
+    //createHotkeyElement("Leave Quiz", "leave", "mcLeaveHotkeySelect", "mcLeaveHotkeyInput");
+    createHotkeyElement("Rejoin Quiz", "rejoin", "mcRejoinHotkeySelect", "mcRejoinHotkeyInput");
+    createHotkeyElement("Return To Lobby", "lobby", "mcLobbyHotkeySelect", "mcLobbyHotkeyInput");
+    createHotkeyElement("Pause / Unpause", "pause", "mcPauseHotkeySelect", "mcPauseHotkeyInput");
+    createHotkeyElement("Vote Skip", "voteSkip", "mcSkipHotkeySelect", "mcSkipHotkeyInput");
+    createHotkeyElement("Relog", "relog", "mcRelogHotkeySelect", "mcRelogHotkeyInput");
+    createHotkeyElement("Open This Window", "mcHelpWindow", "mcHelpWindowSelect", "mcHelpWindowInput");
+    createHotkeyElement("Open Song History", "songHistoryWindow", "mcSongHistoryWindowSelect", "mcSongHistoryWindowInput");
+
+    createAlertElement("Online Friends", "onlineFriends", "mcAlertOnlineFriends");
+    createAlertElement("Offline Friends", "offlineFriends", "mcAlertOfflineFriends");
+    createAlertElement("Server Status", "serverStatus", "mcAlertServerStatus");
+    createAlertElement("Hidden Players", "hiddenPlayers", "mcAlertHiddenPlayers");
+    createAlertElement("Name Change", "nameChange", "mcAlertNameChange");
+
+    $("#mcLocalStorageImportButton").click(() => {
+        importLocalStorage();
+    });
+    $("#mcLocalStorageExportButton").click(() => {
+        exportLocalStorage();
+    });
+    $("#mcLocalStorageClearButton").click(() => {
+        displayOption(
+            "Confirm",
+            "Clear AMQ local storage for all scripts?",
+            "Clear",
+            "Cancel",
+            () => {
+                localStorage.clear();
+                displayMessage("All local storage cleared");
+            }
+        );
+    });
+    $("#mcMalClientIdInput").val(malClientId || "").blur(() => {
+        malClientId = $(this).val().trim();
+    });
+    
+    tabReset();
+    updateCommandListWindow();
+    $("#mcDocumentationTab").addClass("selected");
+    $("#mcDocumentationContainer").show();
+    $("#optionListSettings").before(`<li class="clickAble" onclick="$('#mcSettingsModal').modal('show')">Commands</li>`);
+
+    $("#mcDocumentationContainer").append(`<h4 class="text-center">Soon™</h4>`);
+
+    $("#mcScriptDataHelpButton").click(() => {
+        $("#installedModal").modal("hide");
+        tabReset();
+        $("#mcDocumentationTab").addClass("selected");
+        $("#mcDocumentationContainer").show();
+        $("#mcSettingsModal").modal("show");
+    });
+
     AMQ_addScriptData({
         name: "Mega Commands",
         author: "kempanator",
         version: version,
         link: "https://github.com/kempanator/amq-scripts/raw/main/amqMegaCommands.user.js",
         description: `
-            <p>Command List: <a href="https://kempanator.github.io/amq-mega-commands" target="_blank">https://kempanator.github.io/amq-mega-commands</a></p>
+            <p>A large collection of commands for quality of life improvements and automation utilities</p>
+            <ul><b>Disable these scripts if you have them</b>
+                <li>- dice roller by thejoseph98/joske2865</li>
+                <li>- chat commands by nyamu</li>
+                <li>- auto ready by nyamu</li>
+                <li>- auto answer on keypress by (unknown)</li>
+                <li>- no dropdown by juvian</li>
+            </ul>
+            <p>See all commands: <button id="mcScriptDataHelpButton" style="color: black">Help</button></p>
         `
     });
+}
+
+// set command status buttons to enabled or disabled
+function toggleCommandButton($element, enabled) {
+    if (enabled) {
+        $element.removeClass("btn-danger").addClass("btn-success").text("On");
+    }
+    else {
+        $element.removeClass("btn-success").addClass("btn-danger").text("Off");
+    }
+}
+
+// get auto throw status text
+function getAutoThrowStatus() {
+    if (autoThrow.time.length) {
+        let time = autoThrow.time.map((x) => x / 1000);
+        if (autoThrow.text) {
+            if (time.length === 1) {
+                if (time[0] === 0) {
+                    return `auto throwing: ${autoThrow.text}`;
+                }
+                else {
+                    return `auto throwing: ${autoThrow.text} after ${time[0]} second${time[0] === 1 ? "" : "s"}`;
+                }
+            }
+            else if (time.length === 2) {
+                return `auto throwing: ${autoThrow.text} after ${time[0]}-${time[1]} seconds`;
+            }
+        }
+        else if (autoThrow.multichoice) {
+            if (time.length === 1) {
+                if (time[0] === 0) {
+                    return `auto throwing multichoice item: ${autoThrow.multichoice}`;
+                }
+                else {
+                    return `auto throwing multichoice item: ${autoThrow.multichoice} after ${time[0]} second${time[0] === 1 ? "" : "s"}`;
+                }
+            }
+            else if (time.length === 2) {
+                return `auto throwing multichoice item: ${autoThrow.multichoice} after ${time[0]}-${time[1]} seconds`;
+            }
+        }
+    }
+    return "auto throw disabled";
+}
+
+// get auto mute status text
+function getAutoMuteStatus() {
+    if (autoMute.mute.length === 1) {
+        let time = autoMute.mute.map((x) => x / 1000);
+        return `auto muting after ${time[0]} second${time[0] === 1 ? "" : "s"}`;
+    }
+    else if (autoMute.mute.length === 2) {
+        let time = autoMute.mute.map((x) => x / 1000);
+        return `auto muting after random # of seconds between ${time[0]} - ${time[1]}`;
+    }
+    else if (autoMute.unmute.length === 1) {
+        let time = autoMute.unmute.map((x) => x / 1000);
+        return `auto unmuting after ${time[0]} second${time[0] === 1 ? "" : "s"}`;
+    }
+    else if (autoMute.unmute.length === 2) {
+        let time = autoMute.unmute.map((x) => x / 1000);
+        return `auto unmuting after random # of seconds between ${time[0]} - ${time[1]}`;
+    }
+    else if (autoMute.toggle.length) {
+        return `auto mute toggle list set to ${autoMute.toggle.map((x) => x / 1000).join(", ")}`;
+    }
+    else if (autoMute.randomMute !== null) {
+        return `auto mute a random ${autoMute.randomMute / 1000} second interval`;
+    }
+    else if (autoMute.randomUnmute !== null) {
+        return `auto unmute a random ${autoMute.randomUnmute / 1000} second interval`;
+    }
+    return "auto mute system disabled";
+}
+
+// update command status in the command window user interface
+function updateCommandListWindow(type) {
+    if (!type || type === "autoReady") {
+        toggleCommandButton($("#mcAutoReadyButton"), autoReady);
+    }
+    if (!type || type === "autoStart") {
+        toggleCommandButton($("#mcAutoStartButton"), autoStart);
+    }
+    if (!type || type === "autoAcceptInvite") {
+        toggleCommandButton($("#mcAutoAcceptInviteButton"), autoAcceptInvite);
+        if (autoAcceptInvite === "all") {
+            $("#mcAutoAcceptInviteSelect").val("all");
+            $("#mcAutoAcceptInviteInput").hide();
+        }
+        else if (autoAcceptInvite === "friends") {
+            $("#mcAutoAcceptInviteSelect").val("friends");
+            $("#mcAutoAcceptInviteInput").hide();
+        }
+        else if (Array.isArray(autoAcceptInvite)) {
+            $("#mcAutoAcceptInviteSelect").val("list");
+            $("#mcAutoAcceptInviteInput").show();
+        }
+        else {
+            $("#mcAutoAcceptInviteInput").hide();
+        }
+    }
+    if (!type || type === "autoStatus") {
+        toggleCommandButton($("#mcAutoStatusButton"), autoStatus);
+        if (autoStatus === "do not disturb") {
+            $("#mcAutoStatusSelect").val("do not disturb");
+        }
+        if (autoStatus === "away") {
+            $("#mcAutoStatusSelect").val("away");
+        }
+        else {
+            $("#mcAutoStatusSelect").val("offline");
+        }
+    }
+    if (!type || type === "autoKey") {
+        toggleCommandButton($("#mcAutoKeyButton"), autoKey);
+    }
+    if (!type || type === "autoThrow") {
+        toggleCommandButton($("#mcAutoThrowButton"), autoThrow.time.length);
+        $("#mcAutoThrowSelect").val(autoThrow.multichoice ? "multichoice" : "text");
+        $("#mcAutoThrowTimeInput").val(autoThrow.time.map((x) => x / 1000).join("-"));
+        $("#mcAutoThrowTextInput").val(autoThrow.multichoice || autoThrow.text || "").attr("placeholder", autoThrow.multichoice ? "option (1-4)": "text");
+    }
+    if (!type || type === "autoCopy") {
+        toggleCommandButton($("#mcAutoCopyButton"), autoCopy);
+        $("#mcAutoCopyInput").val(autoCopy);
+    }
+    if (!type || type === "autoHost") {
+        toggleCommandButton($("#mcAutoHostButton"), autoHost);
+        $("#mcAutoHostInput").val(autoHost);
+    }
+    if (!type || type === "autoVoteSkip") {
+        if (autoVoteSkip === "valid") {
+            toggleCommandButton($("#mcAutoVoteSkipButton"), true);
+            $("#mcAutoVoteSkipSelect").val("valid");
+            $("#mcAutoVoteSkipTimeInput").hide("");
+        }
+        else if (Array.isArray(autoVoteSkip) && autoVoteSkip.length) {
+            toggleCommandButton($("#mcAutoVoteSkipButton"), true);
+            $("#mcAutoVoteSkipSelect").val("time");
+            $("#mcAutoVoteSkipTimeInput").show().val(autoVoteSkip.map((x) => x / 1000).join("-"));
+        }
+        else {
+            toggleCommandButton($("#mcAutoVoteSkipButton"), false);
+        }
+    }
+    if (!type || type === "autoVoteLobby") {
+        $("#mcAutoVoteLobbyButton").addClass(autoVoteLobby ? "btn-success" : "btn-danger").text(autoVoteLobby ? "On" : "Off");
+    }
+    if (!type || type === "autoMute") {
+        if (autoMute.mute.length) {
+            toggleCommandButton($("#mcAutoMuteButton"), true);
+            $("#mcAutoMuteSelect").val("mute");
+            $("#mcAutoMuteTimeInput").val(autoMute.mute.map((x) => x / 1000).join("-")).css("width", "50px").attr("placeholder", "time");
+        }
+        else if (autoMute.unmute.length) {
+            toggleCommandButton($("#mcAutoMuteButton"), true);
+            $("#mcAutoMuteSelect").val("unmute");
+            $("#mcAutoMuteTimeInput").val(autoMute.unmute.map((x) => x / 1000).join("-")).css("width", "50px").attr("placeholder", "time");
+        }
+        else if (autoMute.toggle.length) {
+            toggleCommandButton($("#mcAutoMuteButton"), true);
+            $("#mcAutoMuteSelect").val("toggle");
+            $("#mcAutoMuteTimeInput").val(autoMute.toggle.map((x) => x / 1000).join(", ")).css("width", "150px").attr("placeholder", "time list");
+        }
+        else if (autoMute.randomMute !== null) {
+            toggleCommandButton($("#mcAutoMuteButton"), true);
+            $("#mcAutoMuteSelect").val("random mute");
+            $("#mcAutoMuteTimeInput").val(autoMute.randomMute / 1000).css("width", "50px").attr("placeholder", "time");
+        }
+        else if (autoMute.randomUnmute !== null) {
+            toggleCommandButton($("#mcAutoMuteButton"), true);
+            $("#mcAutoMuteSelect").val("random unmute");
+            $("#mcAutoMuteTimeInput").val(autoMute.randomUnmute / 1000).css("width", "50px").attr("placeholder", "time");
+        }
+        else {
+            toggleCommandButton($("#mcAutoMuteButton"), false);
+            $("#mcAutoMuteTimeInput").val("");
+        }
+    }
+    if (!type || type === "muteSubmit") {
+        toggleCommandButton($("#mcMuteSubmitButton"), muteSubmit);
+    }
+    if (!type || type === "muteReplay") {
+        toggleCommandButton($("#mcMuteReplayButton"), muteReplay);
+    }
+    if (!type || type === "continueSample") {
+        toggleCommandButton($("#mcContinueSampleButton"), continueSample);
+    }
+    if (!type || type === "loopVideo") {
+        toggleCommandButton($("#mcLoopVideoButton"), loopVideo);
+    }
+    if (!type || type === "dropdown") {
+        toggleCommandButton($("#mcDropDownButton"), dropdown);
+    }
+    if (!type || type === "dropdownInSpec") {
+        toggleCommandButton($("#mcDropDownInSpecButton"), dropdownInSpec);
+    }
+}
+
+// test hotkey
+function testHotkey(action, key, altKey, ctrlKey) {
+    let hotkey = hotKeys[action];
+    return key === hotkey.key && altKey === hotkey.altKey && ctrlKey === hotkey.ctrlKey;
+}
+
+// create hotkey element
+function createHotkeyElement(title, key, selectID, inputID) {
+    let $tr = $(`<tr></tr>`);
+    let $select = $(`<select id="${selectID}" style="padding: 3px 0;"></select>`).append(`<option>ALT</option>`).append(`<option>CTRL</option>`).append(`<option>CTRL ALT</option>`);
+    let $input = $(`<input id="${inputID}" type="text" maxlength="1" style="width: 40px;">`).val(hotKeys[key].key);
+    $select.on("change", () => {
+        hotKeys[key] = {
+            "altKey": $select.val().includes("ALT"),
+            "ctrlKey": $select.val().includes("CTRL"),
+            "key": $input.val().toLowerCase()
+        }
+        saveSettings();
+    });
+    $input.blur(() => {
+        hotKeys[key] = {
+            "altKey": $select.val().includes("ALT"),
+            "ctrlKey": $select.val().includes("CTRL"),
+            "key": $input.val().toLowerCase()
+        }
+        saveSettings();
+    })
+    if (hotKeys[key].altKey && hotKeys[key].ctrlKey) $select.val("CTRL ALT");
+    else if (hotKeys[key].altKey) $select.val("ALT");
+    else if (hotKeys[key].ctrlKey) $select.val("CTRL");
+    $tr.append($(`<td></td>`).text(title));
+    $tr.append($(`<td></td>`).append($select));
+    $tr.append($(`<td></td>`).append($input));
+    $("#mcHotkeyTable tbody").append($tr);
+}
+
+// create alert element
+function createAlertElement(title, key, id) {
+    let $tr = $(`<tr></tr>`);
+    let $popoutCheckbox = $(`<div class="customCheckbox"></div>`);
+    let $chatCheckbox = $(`<div class="customCheckbox"></div>`);
+    $popoutCheckbox.append($(`<input type="checkbox" id="${id}PopoutCheckbox">`).prop("checked", alerts[key].popout).click(() => {
+        alerts[key].popout = !alerts[key].popout;
+        saveSettings();
+    }));
+    $chatCheckbox.append($(`<input type="checkbox" id="${id}ChatCheckbox">`).prop("checked", alerts[key].chat).click(() => {
+        alerts[key].chat = !alerts[key].chat;
+        saveSettings();
+    }));
+    $popoutCheckbox.append(`<label for="${id}PopoutCheckbox"><i class="fa fa-check" aria-hidden="true"></i></label>`);
+    $chatCheckbox.append(`<label for="${id}ChatCheckbox"><i class="fa fa-check" aria-hidden="true"></i></label>`);
+    $tr.append($(`<td></td>`).text(title));
+    $tr.append($(`<td style="text-align: center"></td>`).append($popoutCheckbox));
+    $tr.append($(`<td style="text-align: center"></td>`).append($chatCheckbox));
+    $("#mcAlertsTable tbody").append($tr);
+}
+
+// update all checkboxes in the alerts user interface
+function updateAlertCheckboxes() {
+    $("#mcAlertOnlineFriendsChatCheckbox").prop("checked", alerts.onlineFriends.chat);
+    $("#mcAlertOnlineFriendsPopoutCheckbox").prop("checked", alerts.onlineFriends.popout);
+    $("#mcAlertOfflineFriendsChatCheckbox").prop("checked", alerts.offlineFriends.chat);
+    $("#mcAlertOfflineFriendsPopoutCheckbox").prop("checked", alerts.offlineFriends.popout);
+    $("#mcAlertServerStatusChatCheckbox").prop("checked", alerts.serverStatus.chat);
+    $("#mcAlertServerStatusPopoutCheckbox").prop("checked", alerts.serverStatus.popout);
+    $("#mcAlertHiddenPlayersChatCheckbox").prop("checked", alerts.hiddenPlayers.chat);
+    $("#mcAlertHiddenPlayersPopoutCheckbox").prop("checked", alerts.hiddenPlayers.popout);
+    $("#mcAlertNameChangeChatCheckbox").prop("checked", alerts.nameChange.chat);
+    $("#mcAlertNameChangePopoutCheckbox").prop("checked", alerts.nameChange.popout);
+}
+
+// reset all tabs
+function tabReset() {
+    $("#mcActiveTab").removeClass("selected");
+    $("#mcHotkeyTab").removeClass("selected");
+    $("#mcDocumentationTab").removeClass("selected");
+    $("#mcAlertsTab").removeClass("selected");
+    $("#mcInfoTab").removeClass("selected");
+    $("#mcActiveContainer").hide();
+    $("#mcHotkeyContainer").hide();
+    $("#mcDocumentationContainer").hide();
+    $("#mcAlertsContainer").hide();
+    $("#mcInfoContainer").hide();
 }
 
 /**
@@ -1149,14 +2169,14 @@ async function parseCommand(content, type, target) {
         socket.sendCommand({type: "quiz", command: "quiz " + (quiz.pauseButton.pauseOn ? "unpause" : "pause")});
     }
     else if (/^\/speed$/i.test(content)) {
-        playbackSpeed = null;
+        playbackSpeed = [];
         sendMessage("song playback speed set to default", type, target, true);
     }
     else if (/^\/speed [0-9.]+$/i.test(content)) {
         let option = parseFloat(/^\S+ ([0-9.]+)$/.exec(content)[1]);
         if (isNaN(option) || option === 0) return;
-        playbackSpeed = option;
-        sendMessage(`song playback speed set to ${playbackSpeed}`, type, target, true);
+        playbackSpeed = [option];
+        sendMessage(`song playback speed set to ${option}`, type, target, true);
     }
     else if (/^\/speed [0-9.]+[ ,-]+[0-9.]+$/i.test(content)) {
         let low = parseFloat(/^\S+ ([0-9.]+)[ ,-]+[0-9.]+$/.exec(content)[1]);
@@ -1168,40 +2188,55 @@ async function parseCommand(content, type, target) {
     else if (/^\/(mr|mutereplay)$/i.test(content)) {
         muteReplay = !muteReplay;
         sendMessage(`mute during replay phase ${muteReplay ? "enabled" : "disabled"}`, type, target, true);
+        updateCommandListWindow("muteReplay");
     }
     else if (/^\/(ms|mutesubmit)$/i.test(content)) {
         muteSubmit = !muteSubmit;
         sendMessage(`mute after answer submit ${muteSubmit ? "enabled" : "disabled"}`, type, target, true);
+        updateCommandListWindow("muteSubmit");
     }
     else if (/^\/(avs|autoskip|autovoteskip)$/i.test(content)) {
-        if (autoVoteSkip === null) autoVoteSkip = 100;
-        else autoVoteSkip = null;
-        sendMessage(`auto vote skip ${autoVoteSkip ? "enabled" : "disabled"}`, type, target, true);
+        autoVoteSkip = autoVoteSkip.length ? [] : [0];
+        sendMessage(`auto vote skip ${autoVoteSkip.length ? "enabled" : "disabled"}`, type, target, true);
+        updateCommandListWindow("autoVoteSkip");
     }
     else if (/^\/(avs|autoskip|autovoteskip) [0-9.]+$/i.test(content)) {
         let seconds = parseFloat(/^\S+ ([0-9.]+)$/.exec(content)[1]);
         if (isNaN(seconds)) return;
-        autoVoteSkip = Math.floor(seconds * 1000);
-        sendMessage(`auto vote skip after ${seconds} seconds`, type, target, true);
+        autoVoteSkip = [Math.floor(seconds * 1000)];
+        sendMessage(`auto vote skip after ${seconds} second${seconds === 1 ? "" : "s"}`, type, target, true);
+        updateCommandListWindow("autoVoteSkip");
+    }
+    else if (/^\/(avs|autoskip|autovoteskip) [0-9.]+[ ,-]+[0-9.]+$/i.test(content)) {
+        let low = parseFloat(/^\S+ ([0-9.]+)[ ,-]+[0-9.]+$/.exec(content)[1]);
+        let high = parseFloat(/^\S+ [0-9.]+[ ,-]+([0-9.]+)$/.exec(content)[1]);
+        if (isNaN(low) || isNaN(high) || low >= high) return;
+        autoVoteSkip = [Math.floor(low * 1000), Math.floor(high * 1000)];
+        sendMessage(`auto vote skip after ${low}-${high} seconds`, type, target, true);
+        updateCommandListWindow("autoVoteSkip");
     }
     else if (/^\/(avs|autoskip|autovoteskip) (v|valid|onvalid)$/i.test(content)) {
         autoVoteSkip = "valid";
-        sendMessage(`auto vote skip after first valid answer on team ${autoVoteSkip ? "enabled" : "disabled"}`, type, target, true);
+        sendMessage(`auto vote skip after first valid answer on team enabled`, type, target, true);
+        updateCommandListWindow("autoVoteSkip");
     }
     else if (/^\/(ak|autokey|autosubmit)$/i.test(content)) {
         autoKey = !autoKey;
         saveSettings();
         sendMessage(`auto key ${autoKey ? "enabled" : "disabled"}`, type, target, true);
+        updateCommandListWindow("autoKey");
     }
     else if (/^\/(at|att|atmc|attmc|autothrow|autothrowtime|autothrowmc|autothrowmultichoice|autothrowmultiplechoice|autothrowtimemc|autothrowtimemultichoice)$/i.test(content)) {
-        autoThrow = {time: null, text: null, multichoice: null};
+        autoThrow = {time: [], text: null, multichoice: null};
         sendMessage("auto throw disabled", type, target, true);
+        updateCommandListWindow("autoThrow");
     }
     else if (/^\/(at|autothrow) .+$/i.test(content)) {
         autoThrow.time = [1];
         autoThrow.text = translateShortcodeToUnicode(/^\S+ (.+)$/.exec(content)[1]).text;
         autoThrow.multichoice = null;
         sendMessage(`auto throwing: ${autoThrow.text}`, type, target, true);
+        updateCommandListWindow("autoThrow");
     }
     else if (/^\/(att|autothrowtime) [0-9.]+ .+$/i.test(content)) {
         let time1 = parseFloat(/^\S+ ([0-9.]+) .+$/.exec(content)[1]);
@@ -1210,6 +2245,7 @@ async function parseCommand(content, type, target) {
         autoThrow.text = translateShortcodeToUnicode(/^\S+ [0-9.]+ (.+)$/.exec(content)[1]).text;
         autoThrow.multichoice = null;
         sendMessage(`auto throwing: ${autoThrow.text} after ${time1} seconds`, type, target, true);
+        updateCommandListWindow("autoThrow");
     }
     else if (/^\/(att|autothrowtime) [0-9.]+[ -][0-9.]+ .+$/i.test(content)) {
         let time1 = parseFloat(/^\S+ ([0-9.]+)[ -][0-9.]+ .+$/.exec(content)[1]);
@@ -1219,6 +2255,7 @@ async function parseCommand(content, type, target) {
         autoThrow.text = translateShortcodeToUnicode(/^\S+ [0-9.]+[ -][0-9.]+ (.+)$/.exec(content)[1]).text;
         autoThrow.multichoice = null;
         sendMessage(`auto throwing: ${autoThrow.text} after ${time1}-${time2} seconds`, type, target, true);
+        updateCommandListWindow("autoThrow");
     }
     else if (/^\/(atmc|autothrowmc|autothrowmultichoice|autothrowmultiplechoice) \S+$/i.test(content)) {
         let option = /^\S+ (\S+)$/.exec(content)[1];
@@ -1227,7 +2264,8 @@ async function parseCommand(content, type, target) {
             autoThrow.time = [100];
             autoThrow.text = null;
             autoThrow.multichoice = atmcDict[option];
-            sendMessage(`auto throwing multi choice item: ${autoThrow.multichoice}`, type, target, true);
+            sendMessage(`auto throwing multichoice item: ${autoThrow.multichoice}`, type, target, true);
+            updateCommandListWindow("autoThrow");
         }
     }
     else if (/^\/(attmc|autothrowtimemc|autothrowtimemultichoice) [0-9.]+ \S+$/i.test(content)) {
@@ -1239,7 +2277,8 @@ async function parseCommand(content, type, target) {
             autoThrow.time = [Math.floor(time1 * 1000)];
             autoThrow.text = null;
             autoThrow.multichoice = atmcDict[option];
-            sendMessage(`auto throwing multi choice item: ${autoThrow.multichoice} after ${time1} seconds`, type, target, true);
+            sendMessage(`auto throwing multichoice item: ${autoThrow.multichoice} after ${time1} seconds`, type, target, true);
+            updateCommandListWindow("autoThrow");
         }
     }
     else if (/^\/(attmc|autothrowtimemc|autothrowtimemultichoice) [0-9.]+[ -][0-9.]+ \S+$/i.test(content)) {
@@ -1252,16 +2291,19 @@ async function parseCommand(content, type, target) {
             autoThrow.time = [Math.floor(time1 * 1000), Math.floor(time2 * 1000)];
             autoThrow.text = null;
             autoThrow.multichoice = atmcDict[option];
-            sendMessage(`auto throwing multi choice item: ${autoThrow.multichoice} after ${time1}-${time2} seconds`, type, target, true);
+            sendMessage(`auto throwing multichoice item: ${autoThrow.multichoice} after ${time1}-${time2} seconds`, type, target, true);
+            updateCommandListWindow("autoThrow");
         }
     }
     else if (/^\/(ac|autocopy)$/i.test(content)) {
         autoCopy = "";
         sendMessage("auto copy disabled", type, target, true);
+        updateCommandListWindow("autoCopy");
     }
     else if (/^\/(ac|autocopy) \w+$/i.test(content)) {
         autoCopy = /^\S+ (\w+)$/.exec(content)[1].toLowerCase();
         sendMessage(`auto copying ${autoCopy}`, type, target, true);
+        updateCommandListWindow("autoCopy");
     }
     else if (/^\/(am|au|amt|amr|aur|automute|autounmute|automutetoggle|automuterandom|autounmuterandom)$/i.test(content)) {
         $("#qpVolume").removeClass("disabled");
@@ -1269,12 +2311,14 @@ async function parseCommand(content, type, target) {
         volumeController.adjustVolume();
         autoMute = {mute: [], unmute: [], toggle: [], randomMute: null, randomUnmute: null};
         sendMessage("auto mute system disabled", type, target, true);
+        updateCommandListWindow("autoMute");
     }
     else if (/^\/(am|automute) [0-9.]+$/i.test(content)) {
         let seconds = parseFloat(/^\S+ ([0-9.]+)$/.exec(content)[1]);
         if (isNaN(seconds)) return;
         autoMute = {mute: [Math.floor(seconds * 1000)], unmute: [], toggle: [], randomMute: null, randomUnmute: null};
         sendMessage(`auto muting after ${seconds} second${seconds === 1 ? "" : "s"}`, type, target, true);
+        updateCommandListWindow("autoMute");
     }
     else if (/^\/(am|automute) [0-9.]+[ ,-]+[0-9.]+$/i.test(content)) {
         let low = parseFloat(/^\S+ ([0-9.]+)[ ,-]+[0-9.]+$/.exec(content)[1]);
@@ -1282,12 +2326,14 @@ async function parseCommand(content, type, target) {
         if (isNaN(low) || isNaN(high) || low >= high) return;
         autoMute = {mute: [Math.floor(low * 1000), Math.floor(high * 1000)], unmute: [], toggle: [], randomMute: null, randomUnmute: null};
         sendMessage(`auto muting after random # of seconds between ${low} - ${high}`, type, target, true);
+        updateCommandListWindow("autoMute");
     }
     else if (/^\/(au|autounmute) [0-9.]+$/i.test(content)) {
         let seconds = parseFloat(/^\S+ ([0-9.]+)$/.exec(content)[1]);
         if (isNaN(seconds)) return;
         autoMute = {mute: [], unmute: [Math.floor(seconds * 1000)], toggle: [], randomMute: null, randomUnmute: null};
         sendMessage(`auto unmuting after ${seconds} second${seconds === 1 ? "" : "s"}`, type, target, true);
+        updateCommandListWindow("autoMute");
     }
     else if (/^\/(au|autounmute) [0-9.]+[ ,-]+[0-9.]+$/i.test(content)) {
         let low = parseFloat(/^\S+ ([0-9.]+)[ ,-]+[0-9.]+$/.exec(content)[1]);
@@ -1295,6 +2341,7 @@ async function parseCommand(content, type, target) {
         if (isNaN(low) || isNaN(high) || low >= high) return;
         autoMute = {mute: [], unmute: [Math.floor(low * 1000), Math.floor(high * 1000)], toggle: [], randomMute: null, randomUnmute: null};
         sendMessage(`auto unmuting after random # of seconds between ${low} - ${high}`, type, target, true);
+        updateCommandListWindow("autoMute");
     }
     else if (/^\/(amt|automutetoggle) .+$/i.test(content)) {
         let list = /^\S+ (.+)$/.exec(content)[1].split(/[, ]+/).map((x) => parseFloat(x)).filter((x) => !isNaN(x) && x >= 0);
@@ -1302,38 +2349,45 @@ async function parseCommand(content, type, target) {
         if (list.length < 2) return;
         autoMute = {mute: [], unmute: [], toggle: list.map((x) => Math.floor(x * 1000)), randomMute: null, randomUnmute: null};
         sendMessage(`auto mute toggle list set to ${list.join(", ")}`, type, target, true);
+        updateCommandListWindow("autoMute");
     }
     else if (/^\/(amr|automuterandom) [0-9.]+$/i.test(content)) {
         let option = parseFloat(/^\S+ ([0-9.]+)$/.exec(content)[1]);
         if (isNaN(option) || option === 0) return;
         autoMute = {mute: [], unmute: [], toggle: [], randomMute: Math.floor(option * 1000), randomUnmute: null};
         sendMessage(`auto mute a random ${option} second interval`, type, target, true);
+        updateCommandListWindow("autoMute");
     }
     else if (/^\/(aur|autounmuterandom) [0-9.]+$/i.test(content)) {
         let option = parseFloat(/^\S+ ([0-9.]+)$/.exec(content)[1]);
         if (isNaN(option) || option === 0) return;
         autoMute = {mute: [], unmute: [], toggle: [], randomMute: null, randomUnmute: Math.floor(option * 1000)};
         sendMessage(`auto unmute a random ${option} second interval`, type, target, true);
+        updateCommandListWindow("autoMute");
     }
     else if (/^\/autoready$/i.test(content)) {
         autoReady = !autoReady;
         saveSettings();
         sendMessage(`auto ready ${autoReady ? "enabled" : "disabled"}`, type, target, true);
         checkAutoReady();
+        updateCommandListWindow("autoReady");
     }
     else if (/^\/autostart$/i.test(content)) {
         autoStart = !autoStart;
         sendMessage(`auto start game ${autoStart ? "enabled" : "disabled"}`, type, target, true);
         checkAutoStart();
+        updateCommandListWindow("autoStart");
     }
     else if (/^\/(ah|autohost)$/i.test(content)) {
         autoHost = "";
         sendMessage("auto host disabled", type, target, true);
+        updateCommandListWindow("autoHost");
     }
     else if (/^\/(ah|autohost) \S+$/i.test(content)) {
         autoHost = /^\S+ (\S+)$/.exec(content)[1].toLowerCase();
         sendMessage(`auto hosting ${autoHost}`, type, target, true);
         checkAutoHost();
+        updateCommandListWindow("autoHost");
     }
     else if (/^\/autoinvite$/i.test(content)) {
         autoInvite = "";
@@ -1343,15 +2397,29 @@ async function parseCommand(content, type, target) {
         autoInvite = /^\S+ (\w+)$/.exec(content)[1].toLowerCase();
         sendMessage(`auto inviting ${autoInvite}`, type, target, true);
     }
-    else if (/^\/autoaccept$/i.test(content)) {
-        autoAcceptInvite = !autoAcceptInvite;
+    else if (/^\/(aai|autoaccept|autoacceptinvite)$/i.test(content)) {
+        autoAcceptInvite = false;
         saveSettings();
-        sendMessage(`auto accept invite ${autoAcceptInvite ? "enabled" : "disabled"}`, type, target, true);
+        sendMessage("auto accept invite disabled", type, target, true);
+        updateCommandListWindow("autoAcceptInvite");
     }
-    else if (/^\/autoaccept .+$/i.test(content)) {
+    else if (/^\/(aai|autoaccept|autoacceptinvite) (a|e|all|everyone)$/i.test(content)) {
+        autoAcceptInvite = "all";
+        saveSettings();
+        sendMessage("auto accept invite from everyone", type, target, true);
+        updateCommandListWindow("autoAcceptInvite");
+    }
+    else if (/^\/(aai|autoaccept|autoacceptinvite) (f|friends?)$/i.test(content)) {
+        autoAcceptInvite = "friends";
+        saveSettings();
+        sendMessage("auto accept invite from friends", type, target, true);
+        updateCommandListWindow("autoAcceptInvite");
+    }
+    else if (/^\/(aai|autoaccept|autoacceptinvite) .+$/i.test(content)) {
         autoAcceptInvite = /^\S+ (.+)$/.exec(content)[1].split(",").map((x) => x.trim().toLowerCase()).filter(Boolean);
         saveSettings();
         sendMessage(`auto accept invite only from ${autoAcceptInvite.join(", ")}`, type, target, true);
+        updateCommandListWindow("autoAcceptInvite");
     }
     else if (/^\/autojoin$/i.test(content)) {
         if (autoJoinRoom || isSoloMode() || isRankedMode()) {
@@ -1401,25 +2469,46 @@ async function parseCommand(content, type, target) {
         sendMessage(`auto switching to ${autoSwitch}`, type, target, true);
         checkAutoSwitch();
     }
-    else if (/^\/autolobby$/i.test(content)) {
+    else if (/^\/(avl|autovotelobby|autolobby)$/i.test(content)) {
         autoVoteLobby = !autoVoteLobby;
         saveSettings();
         sendMessage(`auto vote lobby ${autoVoteLobby ? "enabled" : "disabled"}`, type, target, true);
+        updateCommandListWindow("autoVoteLobby");
     }
     else if (/^\/autostatus$/i.test(content)) {
         autoStatus = "";
         saveSettings();
         sendMessage("auto status removed", type, target, true);
+        updateCommandListWindow("autoStatus");
     }
     else if (/^\/autostatus .+$/i.test(content)) {
-        let option = /^\S+ (.+)$/.exec(content)[1];
-        if (option === "away" || option === "do not disturb" || option === "invisible") {
-            autoStatus = option;
+        let option = /^\S+ (.+)$/.exec(content)[1].toLowerCase();
+        if (option.startsWith("on") || option === "1") {
+            autoStatus = "";
+            saveSettings();
+            sendMessage("auto status removed", type, target, true);
+            updateCommandListWindow("autoStatus");
+        }
+        if (option.startsWith("d") || option === "2") {
+            autoStatus = "do not disturb";
             saveSettings();
             sendMessage(`auto status set to ${autoStatus}`, type, target, true);
+            updateCommandListWindow("autoStatus");
+        }
+        if (option.startsWith("a") || option === "3") {
+            autoStatus = "away";
+            saveSettings();
+            sendMessage(`auto status set to ${autoStatus}`, type, target, true);
+            updateCommandListWindow("autoStatus");
+        }
+        if (option.startsWith("off") || option.startsWith("i") || option === "4") {
+            autoStatus = "invisible";
+            saveSettings();
+            sendMessage(`auto status set to ${autoStatus}`, type, target, true);
+            updateCommandListWindow("autoStatus");
         }
         else {
-            sendMessage("Options: away, do not disturb, invisible", type, target, true);
+            sendMessage("Options: away, do not disturb, offline", type, target, true);
         }
     }
     else if (/^\/(ads|autodownloadsongs?)$/i.test(content)) {
@@ -1458,7 +2547,7 @@ async function parseCommand(content, type, target) {
                 if (!lobby.inLobby) null;
                 else if (!lobby.isHost) sendMessage("failed to start: not host", type, target);
                 else if (!allPlayersReady()) sendMessage("failed to start: not all players ready", type, target);
-                else lobby.fireMainButtonEvent();
+                else lobby.fireMainButtonEvent(true);
                 countdown = null;
                 clearInterval(countdownInterval);
             }
@@ -1594,14 +2683,17 @@ async function parseCommand(content, type, target) {
     }
     else if (/^\/(dd|dropdown)$/i.test(content)) {
         dropdown = !dropdown;
+        saveSettings();
         sendMessage(`dropdown ${dropdown ? "enabled" : "disabled"}`, type, target, true);
         quiz.answerInput.typingInput.autoCompleteController.newList();
+        updateCommandListWindow("dropdown");
     }
     else if (/^\/(dds|dropdownspec|dropdownspectate)$/i.test(content)) {
         dropdownInSpec = !dropdownInSpec;
+        saveSettings();
         if (dropdownInSpec) $("#qpAnswerInput").removeAttr("disabled");
         sendMessage(`dropdown while spectating ${dropdownInSpec ? "enabled" : "disabled"}`, type, target, true);
-        saveSettings();
+        updateCommandListWindow("dropdownInSpec");
     }
     else if (/^\/(pw|password)$/i.test(content)) {
         sendMessage(`password: ${hostModal.$passwordInput.val()}`, type, target);
@@ -1677,6 +2769,18 @@ async function parseCommand(content, type, target) {
         let option = /^\S+ (.+)$/.exec(content)[1];
         if (option in info) sendMessage(info[option], type, target);
     }
+    else if (/^\/start$/i.test(content)) {
+        if (lobby.inLobby && lobby.isHost) {
+            lobby.fireMainButtonEvent(true);
+        }
+        else if (nexus.inNexusLobby) {
+            socket.sendCommand({
+                type: "nexus",
+                command: "start dungeon lobby",
+                data: nexus.cityController.dungeonSelectionWindow.dungeonSetupTab.settingDescription
+            });
+        }
+    }
     else if (/^\/leave$/i.test(content)) {
         setTimeout(() => { viewChanger.changeView("main") }, 1);
     }
@@ -1692,73 +2796,7 @@ async function parseCommand(content, type, target) {
         setTimeout(() => { options.logout() }, 1);
     }
     else if (/^\/relog$/i.test(content)) {
-        if (isSoloMode()) {
-            autoJoinRoom = {type: "solo", rejoin: quiz.inQuiz, temp: true, settings: hostModal.getSettings(), autoLogIn: true};
-            saveSettings();
-            unsafeWindow.onbeforeunload = null;
-            setTimeout(() => { unsafeWindow.location = "/?forceLogin=True" }, 1);
-        }
-        else if (isRankedMode()) {
-            autoJoinRoom = {type: hostModal.$roomName.val().toLowerCase(), rejoin: quiz.inQuiz && !quiz.isSpectator, temp: true, autoLogIn: true};
-            saveSettings();
-            unsafeWindow.onbeforeunload = null;
-            setTimeout(() => { unsafeWindow.location = "/?forceLogin=True" }, 1);
-        }
-        else if (lobby.inLobby) {
-            let password = hostModal.$passwordInput.val();
-            autoJoinRoom = {type: "multiplayer", id: lobby.gameId, password: password, joinAsPlayer: !lobby.isSpectator, temp: true, autoLogIn: true};
-            saveSettings();
-            unsafeWindow.onbeforeunload = null;
-            setTimeout(() => { unsafeWindow.location = "/?forceLogin=True" }, 1);
-        }
-        else if (quiz.inQuiz || battleRoyal.inView) {
-            let gameInviteListener = new Listener("game invite", (payload) => {
-                if (payload.sender === selfName) {
-                    gameInviteListener.unbindListener();
-                    let password = hostModal.$passwordInput.val();
-                    autoJoinRoom = {type: "multiplayer", id: payload.gameId, password: password, rejoin: !quiz.isSpectator, temp: true, autoLogIn: true};
-                    saveSettings();
-                    unsafeWindow.onbeforeunload = null;
-                    setTimeout(() => { unsafeWindow.location = "/?forceLogin=True" }, 1);
-                }
-            });
-            gameInviteListener.bindListener();
-            socket.sendCommand({type: "social", command: "invite to game", data: {target: selfName}});
-        }
-        else if (nexus.inNexusLobby) {
-            if (nexus.inCoopLobby) {
-                if (Object.keys(nexusCoopChat.playerMap).length > 1) {
-                    autoJoinRoom = {type: "nexus coop", id: $("#ncdwPartySetupLobbyIdText").text(), temp: true, autoLogIn: true};
-                    saveSettings();
-                    unsafeWindow.onbeforeunload = null;
-                    setTimeout(() => { unsafeWindow.location = "/?forceLogin=True" }, 1);
-                }
-                else {
-                    autoJoinRoom = {type: "nexus coop", temp: true, autoLogIn: true};
-                    saveSettings();
-                    unsafeWindow.onbeforeunload = null;
-                    setTimeout(() => { unsafeWindow.location = "/?forceLogin=True" }, 1);
-                }
-            }
-            else {
-                autoJoinRoom = {type: "nexus solo", temp: true, autoLogIn: true};
-                saveSettings();
-                unsafeWindow.onbeforeunload = null;
-                setTimeout(() => { unsafeWindow.location = "/?forceLogin=True" }, 1);
-            }
-        }
-        else if (nexus.inNexusGame) {
-            autoJoinRoom = {type: "nexus coop", rejoin: true, temp: true, autoLogIn: true};
-            saveSettings();
-            unsafeWindow.onbeforeunload = null;
-            setTimeout(() => { unsafeWindow.location = "/?forceLogin=True" }, 1);
-        }
-        else {
-            autoJoinRoom = {temp: true, autoLogIn: true};
-            saveSettings();
-            unsafeWindow.onbeforeunload = null;
-            setTimeout(() => { unsafeWindow.location = "/?forceLogin=True" }, 1);
-        }
+        relog();
     }
     else if (/^\/alien$/i.test(content)) {
         sendMessage("command: /alien pick #", type, target, true);
@@ -1879,47 +2917,24 @@ async function parseCommand(content, type, target) {
         sendMessage(Object.keys(alerts).map((key) => `${key}: ${alerts[key]}`).join(", "), type, target, true);
     }
     else if (/^\/alerts? on$/i.test(content)) {
-        alerts.hiddenPlayers = true;
-        alerts.nameChange = true;
-        alerts.onlineFriends = true;
-        alerts.offlineFriends = true;
-        alerts.serverStatus = true;
+        alerts.hiddenPlayers = {chat: true, popout: true};
+        alerts.nameChange = {chat: true, popout: true};
+        alerts.onlineFriends = {chat: true, popout: true};
+        alerts.offlineFriends = {chat: true, popout: true};
+        alerts.serverStatus = {chat: true, popout: true};
         saveSettings();
         sendMessage("all alerts enabled", type, target, true);
+        updateAlertCheckboxes();
     }
     else if (/^\/alerts? off$/i.test(content)) {
-        alerts.hiddenPlayers = false;
-        alerts.nameChange = false;
-        alerts.onlineFriends = false;
-        alerts.offlineFriends = false;
-        alerts.serverStatus = false;
+        alerts.hiddenPlayers = {chat: false, popout: false};
+        alerts.nameChange = {chat: false, popout: false};
+        alerts.onlineFriends = {chat: false, popout: false};
+        alerts.offlineFriends = {chat: false, popout: false};
+        alerts.serverStatus = {chat: false, popout: false};
         saveSettings();
         sendMessage("all alerts disabled", type, target, true);
-    }
-    else if (/^\/alerts? (hidden|hiddenplayers?)$/i.test(content)) {
-        alerts.hiddenPlayers = !alerts.hiddenPlayers;
-        saveSettings();
-        sendMessage(`alert when players are hidden by moderator: ${alerts.hiddenPlayers ? "enabled" : "disabled"}`, type, target, true);
-    }
-    else if (/^\/alerts? namechange$/i.test(content)) {
-        alerts.nameChange = !alerts.nameChange;
-        saveSettings();
-        sendMessage(`alert on friend name change: ${alerts.nameChange ? "enabled" : "disabled"}`, type, target, true);
-    }
-    else if (/^\/alerts? (online|onlinefriends?)$/i.test(content)) {
-        alerts.onlineFriends = !alerts.onlineFriends;
-        saveSettings();
-        sendMessage(`alert when friends go online: ${alerts.onlineFriends ? "enabled" : "disabled"}`, type, target, true);
-    }
-    else if (/^\/alerts? (offline|offlinefriends?)$/i.test(content)) {
-        alerts.offlineFriends = !alerts.offlineFriends;
-        saveSettings();
-        sendMessage(`alert when friends go offline: ${alerts.offlineFriends ? "enabled" : "disabled"}`, type, target, true);
-    }
-    else if (/^\/alerts? (server|serverstatus)$/i.test(content)) {
-        alerts.serverStatus = !alerts.serverStatus;
-        saveSettings();
-        sendMessage(`alert on file host server status change: ${alerts.serverStatus ? "enabled" : "disabled"}`, type, target, true);
+        updateAlertCheckboxes();
     }
     else if (/^\/print ?loot$/i.test(content)) {
         printLoot = !printLoot;
@@ -1962,6 +2977,7 @@ async function parseCommand(content, type, target) {
         continueSample = !continueSample;
         saveSettings();
         sendMessage(`continue sample ${continueSample ? "enabled" : "disabled"}`, type, target, true);
+        updateCommandListWindow("continueSample");
     }
     else if (/^\/video$/i.test(content)) {
         sendMessage("Options: pause, play, replay, loop", type, target, true);
@@ -1987,13 +3003,14 @@ async function parseCommand(content, type, target) {
     else if (/^\/(play ?video|video play)$/i.test(content)) {
         quizVideoController.getCurrentPlayer().player.play();
     }
-    else if (/^\/(loop ?video|video loop)$/i.test(content)) {
+    else if (/^\/(lv|loop ?video|video loop)$/i.test(content)) {
         loopVideo = !loopVideo;
         for (let videoPlayer of quizVideoController.moePlayers) {
             videoPlayer.$player[0].loop = loopVideo;
         }
         saveSettings();
         sendMessage(`loop video ${loopVideo ? "enabled" : "disabled"}`, type, target, true);
+        updateCommandListWindow("loopVideo");
     }
     else if (/^\/(hp|hideplayers)$/i.test(content)) {
         hidePlayers = !hidePlayers;
@@ -2015,48 +3032,33 @@ async function parseCommand(content, type, target) {
             }, 1);
         }
     }
-    else if (/^\/(ls|localstorage) (download|save)$/i.test(content)) {
-        let storage = {};
-        for (let key of Object.keys(localStorage)) {
-            storage[key] = localStorage[key];
-        }
-        delete storage["__paypal_storage__"];
-        let data = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(storage));
-        let $element = $("<a></a>").attr("href", data).attr("download", "amq local storage backup.json");
-        $("body").append($element);
-        $element.trigger("click").remove();
+    else if (/^\/(ls|localstorage) (import|upload|load)$/i.test(content)) {
+        importLocalStorage();
     }
-    else if (/^\/(ls|localstorage) (upload|load)$/i.test(content)) {
-        $("body").remove("#uploadLocalStorageInput").append($(`<input type="file" id="uploadLocalStorageInput" style="display: none"></input>`).on("change", function() {
-            if (this.files.length) {
-                this.files[0].text().then((data) => {
-                    try {
-                        let json = JSON.parse(data);
-                        if (typeof json !== "object" || !Object.values(json).every((x) => typeof x === "string")) {
-                            displayMessage("Upload Error");
-                        }
-                        else {
-                            let keys = Object.keys(json);
-                            for (let key of keys) {
-                                localStorage.setItem(key, json[key]);
-                            }
-                            sendMessage(`${keys.length} item${keys.length === 1 ? "" :"s"} loaded into localStorage`, type, target, true);
-                        }
-                    }
-                    catch {
-                        displayMessage("Upload Error");
-                    }
-                    finally {
-                        $(this).remove();
-                    }
-                });
-            }
-        }));
-        $("#uploadLocalStorageInput").trigger("click");
+    else if (/^\/(ls|localstorage) (export|download|save)$/i.test(content)) {
+        exportLocalStorage();
     }
-    else if (/^\/(ls|localstorage) (clear|delete)$/i.test(content)) {
+    else if (/^\/(ls|localstorage) (clear|delete|remove)$/i.test(content)) {
         localStorage.clear();
         sendMessage("all local storage cleared", type, target, true);
+    }
+    else if (/^\/persist \S+$/i.test(content)) {
+        let option = /^\S+ (\S+)$/.exec(content)[1].toLowerCase();
+        for (let key of Object.keys(commandPersist)) {
+            if (key.toLowerCase() === option) {
+                sendMessage(String(commandPersist[key]), type, target);
+            }
+        }
+    }
+    else if (/^\/persist \S+ (t|f|true|false)$/i.test(content)) {
+        let option = /^\S+ (\S+) \S+$/.exec(content)[1].toLowerCase();
+        let value = /^\S+ \S+ (\S+)$/.exec(content)[1].toLowerCase();
+        for (let key of Object.keys(commandPersist)) {
+            if (key.toLowerCase() === option) {
+                commandPersist[key] = value[0] === "t" ? true : false;
+                sendMessage(`${key} persist set to ${commandPersist[key]}`, type, target);
+            }
+        }
     }
     else if (/^\/commands$/i.test(content)) {
         sendMessage("Options: on, off, help, link, version, clear, auto", type, target, true);
@@ -2113,6 +3115,62 @@ async function parseCommand(content, type, target) {
         let tagDict = Object.assign({}, ...Object.entries(idTranslator.tagNames).map(([a, b]) => ({[b.toLowerCase()]: a})));
         sendMessage(list.map((x) => isNaN(parseInt(x)) ? tagDict[x] : idTranslator.tagNames[x]).filter(Boolean).join(", "), type, target);
     }
+    else if (/^\/list \S+ \S+$/i.test(content)) {
+        let option = /^\S+ (\S+) \S+$/.exec(content)[1].toLowerCase();
+        let username = /^\S+ \S+ (\S+)$/.exec(content)[1].toLowerCase();
+        if (option.startsWith("a")) {
+            let listener = new Listener("anime list update result", (payload) => {
+                listener.unbindListener();
+                if (payload.success) {
+                    $("#aniListUserNameInput").val(username);
+                    sendMessage("anilist set to " + username, type, target, true);
+                }
+                else {
+                    sendMessage("list update failed", type, target, true);
+                }
+                removeMyanimelist();
+                removeKitsu();
+            });
+            listener.bindListener();
+            socket.sendCommand({type: "library", command: "update anime list", data: {newUsername: username, listType: "ANILIST"}});
+        }
+        else if (option.startsWith("m")) {
+            let listener = new Listener("anime list update result", (payload) => {
+                listener.unbindListener();
+                if (payload.success) {
+                    $("#malUserNameInput").val(username);
+                    sendMessage("myanimelist set to " + username, type, target, true);
+                }
+                else {
+                    sendMessage("list update failed", type, target, true);
+                }
+                removeAnilist();
+                removeKitsu();
+            });
+            listener.bindListener();
+            socket.sendCommand({type: "library", command: "update anime list", data: {newUsername: username, listType: "MAL"}});
+        }
+        else if (option.startsWith("k")) {
+            let listener = new Listener("anime list update result", (payload) => {
+                listener.unbindListener();
+                if (payload.success) {
+                    $("#kitsuUserNameInput").val(username);
+                    sendMessage("kitsu set to " + username, type, target, true);
+                }
+                else {
+                    sendMessage("list update failed", type, target, true);
+                }
+                removeAnilist();
+                removeMyanimelist();
+            });
+            listener.bindListener();
+            socket.sendCommand({type: "library", command: "update anime list", data: {newUsername: username, listType: "KITSU"}});
+        }
+    }
+    else if (/^\/list (off|clear|remove)$/i.test(content)) {
+        removeAllLists();
+        sendMessage("all lists cleared", type, target, true);
+    }
     else if (/^\/(dq|daily|dailies|dailyquests?) (d|detect|auto)$/i.test(content)) {
         let genreDict = Object.assign({}, ...Object.entries(idTranslator.genreNames).map(([a, b]) => ({[b]: parseInt(a)})));
         let list = Object.values(qusetContainer.questMap).filter((x) => x.name.includes(" Fan") && x.state !== x.targetState).map((x) => genreDict[x.name.split(" Fan")[0]]);
@@ -2124,6 +3182,7 @@ async function parseCommand(content, type, target) {
                 matchSettingsToAnime(anime);
                 autoThrow = {time: [3000, 5000], text: anime, multichoice: null};
                 sendMessage(`auto throwing: ${anime} after 3-5 seconds`, type, target, true);
+                updateCommandListWindow("autoThrow");
             }
             else {
                 sendMessage("no anime found for those genres", type, target, true);
@@ -2139,6 +3198,7 @@ async function parseCommand(content, type, target) {
         matchSettingsToAnime(anime);
         autoThrow = {time: [3000, 5000], text: anime, multichoice: null};
         sendMessage(`auto throwing: ${anime} after 3-5 seconds`, type, target, true);
+        updateCommandListWindow("autoThrow");
     }
     else if (/^\/(dq|daily|dailies|dailyquests?) .+$/i.test(content)) {
         let genreDict = Object.assign({}, ...Object.entries(idTranslator.genreNames).map(([a, b]) => ({[b.toLowerCase()]: parseInt(a)})));
@@ -2150,6 +3210,7 @@ async function parseCommand(content, type, target) {
                 matchSettingsToAnime(anime);
                 autoThrow = {time: [3000, 5000], text: anime, multichoice: null};
                 sendMessage(`auto throwing: ${anime} after 3-5 seconds`, type, target, true);
+                updateCommandListWindow("autoThrow");
             }
             else {
                 sendMessage("no anime found for those genres", type, target, true);
@@ -2258,6 +3319,26 @@ async function parseCommand(content, type, target) {
         saveSettings();
         sendMessage("mal client id set", type, target, true);
     }
+    else if (/^\/lookup/i.test(content)) {
+        if (!animeAutoCompleteLowerCase.length) return sendMessage("missing autocomplete", type, target, true);;
+        let query = /^\/lookup .+$/i.test(content)
+            ? /^\S+ (.+)$/.exec(content)[1].toLowerCase()
+            : $("#qpAnimeName").text().split("    ").map((x) => x.replaceAll(/\s/g, "")).join(" ").toLowerCase();
+        if (!query.includes("_")) return;
+        let re = new RegExp("^" + query.split("").map((x) => x === "_" ? "\\S" : x).join("") + "$");
+        let results = animeAutoCompleteLowerCase.filter((anime) => re.test(anime));
+        if (results.length === 0) {
+            sendMessage("no results", type, target);
+        }
+        else if (results.length === 1) {
+            sendMessage(results[0], type, target);
+            console.log(`Query: ${query} | 1 Result\n${results[0]}`);
+        }
+        else {
+            sendMessage(results.length + " results (see console)", type, target);
+            console.log(`Query: ${query} | ${results.length} Results\n${results.join("\n")}`);
+        }
+    }
 }
 
 /**
@@ -2343,7 +3424,7 @@ function parseIncomingDM(content, sender) {
 function parseForceAll(content, type) {
     if (commands) {
         if (/^\/forceall version$/i.test(content)) {
-            sendMessage("0.106", type);
+            sendMessage("0.107", type);
         }
         else if (/^\/forceall version .+$/i.test(content)) {
             let option = /^\S+ \S+ (.+)$/.exec(content)[1];
@@ -2368,14 +3449,18 @@ function parseForceAll(content, type) {
             sendMessage(hidePlayers, type);
         }
         else if (/^\/forceall speed$/i.test(content)) {
-            if (playbackSpeed === null) sendMessage("speed: default", type);
-            else sendMessage("speed: " + (Array.isArray(playbackSpeed) ? `random ${playbackSpeed[0]}x - ${playbackSpeed[1]}x` : `${playbackSpeed}x`), type);
+            if (playbackSpeed.length === 0) sendMessage("speed: default", type);
+            else if (playbackSpeed.length === 1) sendMessage(`speed: ${playbackSpeed[0]}x`, type);
+            else if (playbackSpeed.length === 2) sendMessage(`speed: random ${playbackSpeed[0]}x - ${playbackSpeed[1]}x`, type);
         }
         else if (/^\/forceall skip$/i.test(content)) {
             if (!quiz.skipController._toggled) quiz.skipClicked();
         }
         else if (/^\/forceall share ?entries$/i.test(content)) {
             sendMessage(options.$MAl_SHARE_CHECKBOX.prop("checked"), type);
+        }
+        else if (/^\/forceall (dd|dropdown)$/i.test(content)) {
+            sendMessage(`dropdown: ${dropdown ? "enabled" : "disabled"}`, type);
         }
     }
 }
@@ -2418,10 +3503,6 @@ function sendMessage(content, type, target, sys) {
         if (sys) setTimeout(() => { nexusCoopChat.displayServerMessage({message: content}) }, 1);
         else socket.sendCommand({type: "nexus", command: "coop chat message", data: {message: content}});
     }
-}
-
-function S(a, b) {
-    return a.split("").map((x) => String.fromCharCode(x.charCodeAt(0) + b)).join("");
 }
 
 // return true if you are in a solo lobby or quiz
@@ -2611,9 +3692,14 @@ function sendChatMessage(message, isTeamMessage) {
 }
 
 // send a client side message to game chat
-function sendSystemMessage(message) {
+function sendSystemMessage(message, message2) {
     if (gameChat.open) {
-        setTimeout(() => { gameChat.systemMessage(String(message)) }, 1);
+        if (message2) {
+            setTimeout(() => { gameChat.systemMessage(String(message), String(message2)) }, 1);
+        }
+        else {
+            setTimeout(() => { gameChat.systemMessage(String(message)) }, 1);
+        }
     }
     else if (nexus.inCoopLobby) {
         setTimeout(() => { nexusCoopChat.displayServerMessage({message: String(message)}) }, 1);
@@ -2757,6 +3843,77 @@ function rejoinRoom(time) {
     }, 1);
 }
 
+// log out, log in, and rejoin the room you were in
+function relog() {
+    if (isSoloMode()) {
+        autoJoinRoom = {type: "solo", rejoin: quiz.inQuiz, temp: true, settings: hostModal.getSettings(), autoLogIn: true};
+        saveSettings();
+        unsafeWindow.onbeforeunload = null;
+        setTimeout(() => { unsafeWindow.location = "/?forceLogin=True" }, 1);
+    }
+    else if (isRankedMode()) {
+        autoJoinRoom = {type: hostModal.$roomName.val().toLowerCase(), rejoin: quiz.inQuiz && !quiz.isSpectator, temp: true, autoLogIn: true};
+        saveSettings();
+        unsafeWindow.onbeforeunload = null;
+        setTimeout(() => { unsafeWindow.location = "/?forceLogin=True" }, 1);
+    }
+    else if (lobby.inLobby) {
+        let password = hostModal.$passwordInput.val();
+        autoJoinRoom = {type: "multiplayer", id: lobby.gameId, password: password, joinAsPlayer: !lobby.isSpectator, temp: true, autoLogIn: true};
+        saveSettings();
+        unsafeWindow.onbeforeunload = null;
+        setTimeout(() => { unsafeWindow.location = "/?forceLogin=True" }, 1);
+    }
+    else if (quiz.inQuiz || battleRoyal.inView) {
+        let gameInviteListener = new Listener("game invite", (payload) => {
+            if (payload.sender === selfName) {
+                gameInviteListener.unbindListener();
+                let password = hostModal.$passwordInput.val();
+                autoJoinRoom = {type: "multiplayer", id: payload.gameId, password: password, rejoin: !quiz.isSpectator, temp: true, autoLogIn: true};
+                saveSettings();
+                unsafeWindow.onbeforeunload = null;
+                setTimeout(() => { unsafeWindow.location = "/?forceLogin=True" }, 1);
+            }
+        });
+        gameInviteListener.bindListener();
+        socket.sendCommand({type: "social", command: "invite to game", data: {target: selfName}});
+    }
+    else if (nexus.inNexusLobby) {
+        if (nexus.inCoopLobby) {
+            if (Object.keys(nexusCoopChat.playerMap).length > 1) {
+                autoJoinRoom = {type: "nexus coop", id: $("#ncdwPartySetupLobbyIdText").text(), temp: true, autoLogIn: true};
+                saveSettings();
+                unsafeWindow.onbeforeunload = null;
+                setTimeout(() => { unsafeWindow.location = "/?forceLogin=True" }, 1);
+            }
+            else {
+                autoJoinRoom = {type: "nexus coop", temp: true, autoLogIn: true};
+                saveSettings();
+                unsafeWindow.onbeforeunload = null;
+                setTimeout(() => { unsafeWindow.location = "/?forceLogin=True" }, 1);
+            }
+        }
+        else {
+            autoJoinRoom = {type: "nexus solo", temp: true, autoLogIn: true};
+            saveSettings();
+            unsafeWindow.onbeforeunload = null;
+            setTimeout(() => { unsafeWindow.location = "/?forceLogin=True" }, 1);
+        }
+    }
+    else if (nexus.inNexusGame) {
+        autoJoinRoom = {type: "nexus coop", rejoin: true, temp: true, autoLogIn: true};
+        saveSettings();
+        unsafeWindow.onbeforeunload = null;
+        setTimeout(() => { unsafeWindow.location = "/?forceLogin=True" }, 1);
+    }
+    else {
+        autoJoinRoom = {temp: true, autoLogIn: true};
+        saveSettings();
+        unsafeWindow.onbeforeunload = null;
+        setTimeout(() => { unsafeWindow.location = "/?forceLogin=True" }, 1);
+    }
+}
+
 // input name, return correct case sensitive name of player
 function getPlayerNameCorrectCase(name) {
     let nameLowerCase = name.toLowerCase();
@@ -2783,7 +3940,8 @@ function getPlayerNameCorrectCase(name) {
 // return list of every auto function that is enabled
 function autoList() {
     let list = [];
-    if (autoVoteSkip !== null) list.push("Auto Vote Skip: " + (Number.isFinite(autoVoteSkip) ? autoVoteSkip : (autoVoteSkip === "valid" ? "on first valid answer": "Enabled")));
+    if (autoVoteSkip === "valid") list.push("Auto Vote Skip: on first valid answer");
+    else if (autoVoteSkip.length) list.push("Auto Vote Skip: Enabled");
     if (autoKey) list.push("Auto Key: Enabled");
     if (autoCopy) list.push("Auto Copy: " + autoCopy);
     if (autoThrow.text) list.push("Auto Throw: " + autoThrow.text);
@@ -2976,6 +4134,37 @@ function quizUnhidePlayers() {
     }
 }
 
+// remove anilist
+function removeAnilist() {
+    if ($("#aniListLastUpdateDate").text()) {
+        $("#aniListUserNameInput").val("");
+        socket.sendCommand({type: "library", command: "update anime list", data: {newUsername: "", listType: "ANILIST"}});
+    }
+}
+
+// remove myaniemlist
+function removeMyanimelist() {
+    if ($("#malLastUpdateDate").text()) {
+        $("#malUserNameInput").val("");
+        socket.sendCommand({type: "library", command: "update anime list", data: {newUsername: "", listType: "MAL"}});
+    }
+}
+
+// remove kitsu
+function removeKitsu() {
+    if ($("#kitsuLastUpdated").text()) {
+        $("#kitsuUserNameInput").val("");
+        socket.sendCommand({type: "library", command: "update anime list", data: {newUsername: "", listType: "KITSU"}});
+    }
+}
+
+// remove all lists
+function removeAllLists() {
+    removeAnilist();
+    removeMyanimelist();
+    removeKitsu();
+}
+
 // input array of genre ids, return anime that satisfies all genres
 function genreLookup(inputGenres) {
     for (let anime of Object.keys(dqMap)) {
@@ -3121,13 +4310,113 @@ function validateLocalStorage(item) {
     }
 }
 
+// import local storage
+function importLocalStorage() {
+    $("body").remove("#uploadLocalStorageInput").append($(`<input type="file" id="uploadLocalStorageInput" style="display: none"></input>`).on("change", function() {
+        if (this.files.length) {
+            this.files[0].text().then((data) => {
+                try {
+                    let json = JSON.parse(data);
+                    if (typeof json !== "object" || !Object.values(json).every((x) => typeof x === "string")) {
+                        displayMessage("Upload Error");
+                    }
+                    else {
+                        let keys = Object.keys(json);
+                        for (let key of keys) {
+                            localStorage.setItem(key, json[key]);
+                        }
+                        displayMessage(`${keys.length} item${keys.length === 1 ? "" : "s"} loaded into local storage`);
+                    }
+                }
+                catch {
+                    displayMessage("Upload Error");
+                }
+                finally {
+                    $(this).remove();
+                }
+            });
+        }
+    }));
+    $("#uploadLocalStorageInput").trigger("click");
+}
+
+// export local storage
+function exportLocalStorage() {
+    let storage = {};
+    for (let key of Object.keys(localStorage)) {
+        storage[key] = localStorage[key];
+    }
+    delete storage["__paypal_storage__"];
+    let data = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(storage));
+    let $element = $("<a></a>").attr("href", data).attr("download", "amq local storage backup.json");
+    $("body").append($element);
+    $element.trigger("click").remove();
+}
+
 // apply styles
 function applyStyles() {
     $("#megaCommandsStyle").remove();
     let style = document.createElement("style");
     style.type = "text/css";
     style.id = "megaCommandsStyle";
-    let text = "";
+    let text = `
+        .mcCommandTitle {
+            margin: 0 5px;
+            display: inline-block;
+        }
+        .mcCommandButton {
+            width: 36px;
+            padding: 4px 0;
+            display: inline-block;
+        }
+        .mcCommandRow select, .mcCommandRow input {
+            color: black;
+        }
+        .mcDocumentationRow {
+            padding-bottom: 5px;
+            line-height: normal;
+        }
+        .mcDocumentationHeading {
+            font-size: 22px;
+            font-weight: bold;
+            text-align: center;
+        }
+        .mcDocumentationCommand {
+            font-size: 18px;
+            cursor: pointer;
+            user-select: none;
+        }
+        .mcDocumentationAlias {
+            margin: 0 10px;
+        }
+        .mcDocumentationParameters {
+            margin: 0 10px;
+        }
+        .mcDocumentationDescription {
+            opacity: .8;
+            margin-left: 20px;
+        }
+        #mcHotkeyTable th {
+            font-weight: bold;
+            padding: 0 20px 5px 0;
+        }
+        #mcHotkeyTable td {
+            padding: 2px 20px 2px 0;
+        }
+        #mcHotkeyTable select, #mcHotkeyTable input {
+            color: black;
+        }
+        #mcAlertsTable th {
+            font-weight: bold;
+            padding: 0px 20px 5px 0;
+        }
+        #mcAlertsTable td {
+            padding: 5px 20px 5px 0;
+        }
+        #mcAlertsTable .customCheckbox {
+            vertical-align: middle;
+        }
+    `;
     if (backgroundURL) text += `
         #loadingScreen, #gameContainer {
             background-image: url("${backgroundURL}");
@@ -3152,37 +4441,39 @@ function applyStyles() {
 function saveSettings() {
     let settings = {};
     settings.alerts = alerts;
-    settings.autoAcceptInvite = autoAcceptInvite;
-    //settings.autoCopy = autoCopy;
-    //settings.autoDownloadSong = autoDownloadSong;
-    //settings.autoHost = autoHost;
-    //settings.autoInvite = autoInvite;
     settings.autoJoinRoom = autoJoinRoom;
-    settings.autoKey = autoKey;
-    //settings.autoMute = autoMute;
-    settings.autoReady = autoReady;
-    //settings.autoStart = autoStart;
-    settings.autoStatus = autoStatus;
-    //settings.autoSwitch = autoSwitch;
-    //settings.autoThrow = autoThrow;
-    settings.autoVoteLobby = autoVoteLobby;
-    //settings.autoVoteSkip = autoVoteSkip;
     settings.backgroundURL = backgroundURL;
+    settings.commandPersist = commandPersist;
     //settings.commands = commands;
-    settings.continueSample = continueSample;
-    //settings.dropdown = dropdown;
-    settings.dropdownInSpec = dropdownInSpec;
-    settings.enableAllProfileButtons = enableAllProfileButtons;
     //settings.hidePlayers = hidePlayers;
+    settings.enableAllProfileButtons = enableAllProfileButtons;
+    settings.hotKeys = hotKeys;
     settings.lastUsedVersion = version;
-    settings.loopVideo = loopVideo;
     settings.malClientId = malClientId;
-    //settings.muteReplay = muteReplay;
-    //settings.muteSubmit = muteSubmit;
-    //settings.playbackSpeed = playbackSpeed;
     settings.playerDetection = playerDetection;
     settings.printLoot = printLoot;
     settings.selfDM = selfDM;
     settings.tabSwitch = tabSwitch;
+    if (commandPersist.autoAcceptInvite) settings.autoAcceptInvite = autoAcceptInvite;
+    if (commandPersist.autoCopy) settings.autoCopy = autoCopy;
+    if (commandPersist.autoDownloadSong) settings.autoDownloadSong = autoDownloadSong;
+    if (commandPersist.autoHost) settings.autoHost = autoHost;
+    if (commandPersist.autoInvite) settings.autoInvite = autoInvite;
+    if (commandPersist.autoKey) settings.autoKey = autoKey;
+    if (commandPersist.autoMute) settings.autoMute = autoMute;
+    if (commandPersist.autoReady) settings.autoReady = autoReady;
+    if (commandPersist.autoStart) settings.autoStart = autoStart;
+    if (commandPersist.autoStatus) settings.autoStatus = autoStatus;
+    if (commandPersist.autoSwitch) settings.autoSwitch = autoSwitch;
+    if (commandPersist.autoThrow) settings.autoThrow = autoThrow;
+    if (commandPersist.autoVoteLobby) settings.autoVoteLobby = autoVoteLobby;
+    if (commandPersist.autoVoteSkip) settings.autoVoteSkip = autoVoteSkip;
+    if (commandPersist.continueSample) settings.continueSample = continueSample;
+    if (commandPersist.dropdown) settings.dropdown = dropdown;
+    if (commandPersist.dropdownInSpec) settings.dropdownInSpec = dropdownInSpec;
+    if (commandPersist.loopVideo) settings.loopVideo = loopVideo;
+    if (commandPersist.muteReplay) settings.muteReplay = muteReplay;
+    if (commandPersist.muteSubmit) settings.muteSubmit = muteSubmit;
+    if (commandPersist.playbackSpeed) settings.playbackSpeed = playbackSpeed;
     localStorage.setItem("megaCommands", JSON.stringify(settings));
 }
