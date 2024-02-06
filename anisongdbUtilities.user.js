@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Anisongdb Utilities
 // @namespace    https://github.com/kempanator
-// @version      0.5
+// @version      0.6
 // @description  some extra functions for anisongdb.com
 // @author       kempanator
 // @match        https://anisongdb.com/*
@@ -23,7 +23,7 @@ Features:
 */
 
 "use strict";
-const version = "0.5";
+const version = "0.6";
 const saveData = validateLocalStorage("anisongdbUtilities");
 const catboxHostDict = {1: "files.catbox.moe", 2: "nl.catbox.moe", 3: "nl.catbox.video", 4: "ladist1.catbox.video", 5: "vhdist1.catbox.video"};
 let catboxHost = saveData.catboxHost ?? "0";
@@ -171,28 +171,42 @@ function setup() {
     // watch audio player
     new MutationObserver(() => {
         let audioInterval = setInterval(() => {
-            if (autoPlayMP3 && document.querySelector("audio")) {
-                document.querySelector("audio").addEventListener("canplay", function() {
-                    clearInterval(audioInterval);
-                    this.play();
-                    document.querySelector("audio").onended = function() {
-                        if (loop === "1") {
-                            this.play();
-                        }
-                        else if (loop === "2") {
-                            let tdList = document.querySelectorAll(`td[title="Listen to mp3"]:has(i.fa-music)`);
-                            let index = Array.from(tdList).findIndex(e => e.style.color === "rgb(226, 148, 4)");
-                            if (index >= 0) {
-                                if (index === tdList.length - 1) {
-                                    tdList[0].click();
-                                }
-                                else {
-                                    tdList[index + 1].click();
+            let audioElement = document.querySelector("audio");
+            if (audioElement) {
+                clearInterval(audioInterval);
+                if (catboxHost !== "0") {
+                    let oldLink = document.querySelector("audio source").src;
+                    let newLink = oldLink.replace(/^https:\/\/[a-z0-9]+\.catbox\.[a-z0-9]+/i, "https://" + catboxHostDict[catboxHost]);
+                    //console.log({oldLink, newLink});
+                    if (oldLink !== newLink) {
+                        let sourceElement = document.querySelector("audio source");
+                        sourceElement.setAttribute("src", newLink);
+                        sourceElement.setAttribute("data-vs", newLink);
+                        audioElement.load();
+                    }
+                }
+                if (autoPlayMP3) {
+                    audioElement.addEventListener("canplay", function() {
+                        this.play();
+                        audioElement.onended = function() {
+                            if (loop === "1") {
+                                this.play();
+                            }
+                            else if (loop === "2") {
+                                let tdList = document.querySelectorAll(`td[title="Listen to mp3"]:has(i.fa-music)`);
+                                let index = Array.from(tdList).findIndex(e => e.style.color === "rgb(226, 148, 4)");
+                                if (index >= 0) {
+                                    if (index === tdList.length - 1) {
+                                        tdList[0].click();
+                                    }
+                                    else {
+                                        tdList[index + 1].click();
+                                    }
                                 }
                             }
-                        }
-                    };
-                });
+                        };
+                    });
+                }
             }
         }, 10);
     }).observe(document.querySelector("#video-player"), {attributes: true});
