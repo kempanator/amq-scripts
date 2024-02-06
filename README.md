@@ -30,3 +30,6 @@ click on a script name below to install
 
 ### [AMQ Show Room Players](https://github.com/kempanator/amq-scripts/raw/main/amqShowRoomPlayers.user.js)
 - Mouse over the players bar on a room tile to show full player list https://imgur.com/jivcLDo
+
+### [AnisongDB Utilities](https://github.com/kempanator/amq-scripts/raw/main/anisongdbUtilities.user.js)
+- Some extra functionality for AnisongDB https://imgur.com/a/vBzXuay
