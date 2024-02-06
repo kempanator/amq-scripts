@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Anisongdb Utilities
 // @namespace    https://github.com/kempanator
-// @version      0.4
+// @version      0.5
 // @description  some extra functions for anisongdb.com
 // @author       kempanator
 // @match        https://anisongdb.com/*
@@ -12,6 +12,7 @@
 
 /*
 Features:
+- loop songs in a radio playlist
 - replace all links with different catbox host
 - hide "This database is built upon the database of AMQ..."
 - auto play audio when you click the mp3 button for a song
@@ -22,7 +23,7 @@ Features:
 */
 
 "use strict";
-const version = "0.4";
+const version = "0.5";
 const saveData = validateLocalStorage("anisongdbUtilities");
 const catboxHostDict = {1: "files.catbox.moe", 2: "nl.catbox.moe", 3: "nl.catbox.video", 4: "ladist1.catbox.video", 5: "vhdist1.catbox.video"};
 let catboxHost = saveData.catboxHost ?? "0";
@@ -33,6 +34,7 @@ let jsonDownloadHotkey = saveData.jsonDownloadHotkey ?? {altKey: false, ctrlKey:
 let hideAmqText = saveData.hideAmqText ?? false;
 let defaultAdvanced = saveData.defaultAdvanced ?? false;
 let defaultEnglish = saveData.defaultEnglish ?? false;
+let loop = saveData.loop ?? "0"; //0:none, 1:repeat, 2:loop all
 
 let settingsModal;
 let banner;
@@ -84,11 +86,11 @@ function setup() {
     banner.insertBefore(i, languageButton);
     
     // create catbox host select
-    let select = document.createElement("select");
-    select.style.margin = "0 12px 0 0";
-    select.style.padding = "7px 3px";
-    select.style.borderRadius = "5px";
-    select.onchange = (event) => {
+    let hostSelect = document.createElement("select");
+    hostSelect.style.margin = "0 12px 0 0";
+    hostSelect.style.padding = "7px 3px";
+    hostSelect.style.borderRadius = "5px";
+    hostSelect.onchange = (event) => {
         catboxHost = event.target.value;
         saveSettings();
     }
@@ -97,10 +99,28 @@ function setup() {
         let option = document.createElement("option");
         option.value = key;
         option.textContent = dict[key];
-        select.appendChild(option);
+        hostSelect.appendChild(option);
     }
-    select.value = catboxHost;
-    banner.insertBefore(select, languageButton);
+    hostSelect.value = catboxHost;
+    banner.insertBefore(hostSelect, languageButton);
+
+    // create song loop select
+    let loopSelect = document.createElement("select");
+    loopSelect.style.margin = "0 12px 0 0";
+    loopSelect.style.padding = "7px 3px";
+    loopSelect.style.borderRadius = "5px";
+    loopSelect.onchange = (event) => {
+        loop = event.target.value;
+        saveSettings();
+    }
+    ["none", "repeat", "loop all"].forEach((x, i) => {
+        let option = document.createElement("option");
+        option.value = i;
+        option.textContent = x;
+        loopSelect.appendChild(option);
+    });
+    loopSelect.value = loop;
+    banner.insertBefore(loopSelect, hostSelect);
 
     // keyboard and mouse events
     document.body.addEventListener("keydown", (event) => {
@@ -153,8 +173,25 @@ function setup() {
         let audioInterval = setInterval(() => {
             if (autoPlayMP3 && document.querySelector("audio")) {
                 document.querySelector("audio").addEventListener("canplay", function() {
-                    this.play();
                     clearInterval(audioInterval);
+                    this.play();
+                    document.querySelector("audio").onended = function() {
+                        if (loop === "1") {
+                            this.play();
+                        }
+                        else if (loop === "2") {
+                            let tdList = document.querySelectorAll(`td[title="Listen to mp3"]:has(i.fa-music)`);
+                            let index = Array.from(tdList).findIndex(e => e.style.color === "rgb(226, 148, 4)");
+                            if (index >= 0) {
+                                if (index === tdList.length - 1) {
+                                    tdList[0].click();
+                                }
+                                else {
+                                    tdList[index + 1].click();
+                                }
+                            }
+                        }
+                    };
                 });
             }
         }, 10);
@@ -286,7 +323,8 @@ function saveSettings() {
         jsonDownloadHotkey: jsonDownloadHotkey,
         hideAmqText: hideAmqText,
         defaultAdvanced: defaultAdvanced,
-        defaultEnglish: defaultEnglish
+        defaultEnglish: defaultEnglish,
+        loop: loop
     };
     localStorage.setItem("anisongdbUtilities", JSON.stringify(settings));
 }
