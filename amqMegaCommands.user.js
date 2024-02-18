@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.107
+// @version      0.108
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -19,7 +19,9 @@ IMPORTANT: disable these scripts before installing
 - chat commands by nyamu
 - auto ready by nyamu
 - auto answer on keypress by (unknown)
+- command invite by minigamer42
 - no dropdown by juvian
+- no sample reset by miyuki
 
 GAME SETTINGS
 /size [2-40]              change room size
@@ -101,8 +103,9 @@ OTHER
 
 "use strict";
 if (typeof Listener === "undefined") return;
-const version = "0.107";
+const version = "0.108";
 const saveData = validateLocalStorage("megaCommands");
+const originalOrder = {qb: [], gm: []};
 if (typeof saveData.alerts?.hiddenPlayers === "boolean") delete saveData.alerts;
 let alerts = saveData.alerts ?? {};
 let animeList;
@@ -142,6 +145,7 @@ let muteSubmit = saveData.muteSubmit ?? false;
 let playbackSpeed = saveData.playbackSpeed ?? [];
 let playerDetection = saveData.playerDetection ?? {invisible: false, players: []};
 let printLoot = saveData.printLoot ?? false;
+let reorder = saveData.reorder ?? {quizBar: false, quizBarList: [], gearMenu: false, gearMenuList: []};
 let selfDM = saveData.selfDM ?? false;
 let tabSwitch = saveData.tabSwitch ?? 0; //0: off, 1: chat first, 2: answerbox first, 3: only chat, 4: only answerbox
 let voteOptions = {};
@@ -234,7 +238,7 @@ const dqMap = {
     "Negima!?": {genre: [2, 3, 5, 6, 13], years: [2006, 2006], seasons: [3, 3]},
     "Urusei Yatsura": {genre: [3, 4, 13, 14, 15], years: [1981, 1981], seasons: [3, 3]},
     "Touch": {genre: [4, 13, 15, 16], years: [1985, 1985], seasons: [1, 1]},
-    "Code Geass: Lelouch of the Rebellion Remake Movies": {genre: [1, 9, 14, 17, 18], years: [2017, 2018], seasons: [3, 1]},
+    "Code Geass: Lelouch of the Rebellion Remake Movies": {genre: [1, 4, 9, 14, 18], years: [2017, 2018], seasons: [3, 1]},
     "Chainsaw Man": {genre: [1, 4, 7, 17], tags: [1090], years: [2022, 2022], seasons: [3, 3]},
     "Senki Zesshou Symphogear GX": {genre: [1, 4, 8, 10, 14], years: [2015, 2015], seasons: [2, 2]},
     "Ojamajo Doremi Dokkaan!": {genre: [3, 4, 6, 8, 15], years: [2002, 2002], seasons: [0, 0]},
@@ -267,11 +271,13 @@ const dqMap = {
     "Beastars": {genre: [4, 11, 12, 13, 15], years: [2019, 2021], seasons: [3, 0]},
     "Vivy: Fluorite Eye's Song": {genre: [1, 4, 10, 14, 18], years: [2021, 2021], seasons: [1, 1]},
     "Monogatari Series Second Season": {genre: [3, 4, 11, 12, 13, 17], years: [2013, 2013], seasons: [2, 2]},
+    "Hikaru no Go": {genre: [3, 16, 17], years: [2001, 2001], seasons: [3, 3]},
     "Akame ga Kill!": {genre: [1, 2, 4, 6, 7, 12, 18], years: [2014, 2014], seasons: [2, 2]},
     "Magical Girl Site": {genre: [1, 4, 7, 8, 12, 17], years: [2018, 2018], seasons: [1, 1]},
     "Made in Abyss": {genre: [2, 4, 6, 7, 11, 14], years: [2017, 2017], seasons: [2, 2]},
     "Girls' Last Tour": {genre: [2, 14, 15], years: [2017, 2017], seasons: [3, 3]},
-    "Mirai Nikki": {genre: [1, 7, 11, 12, 17, 18], years: [2011, 2011], seasons: [3, 3]}
+    "Mirai Nikki": {genre: [1, 7, 11, 12, 17, 18], years: [2011, 2011], seasons: [3, 3]},
+    "MF Ghost": {genre: [14, 16], years: [2023, 2023], seasons: [3, 3]}
 };
 
 if (document.querySelector("#loginPage")) {
@@ -914,12 +920,17 @@ function setup() {
                             <div id="mcAlertsTab" class="tab clickAble">
                                 <h5>Alerts</h5>
                             </div>
+                            <div id="mcOrderTab" class="tab clickAble">
+                                <h5>Order</h5>
+                            </div>
                             <div id="mcInfoTab" class="tab clickAble" style="width: 45px; margin-right: -10px; padding-right: 8px; float: right;">
                                 <h5><i class="fa fa-info-circle" aria-hidden="true"></i></h5>
                             </div>
                         </div>
                     </div>
                     <div class="modal-body" style="overflow-y: auto; max-height: calc(100vh - 150px);">
+                        <div id="mcDocumentationContainer" style="height: 500px; margin-top: 10px;">
+                        </div>
                         <div id="mcActiveContainer" style="margin: 10px 0;">
                             <div class="mcCommandRow">
                                 <button id="mcAutoReadyButton" class="btn mcCommandButton"></button>
@@ -1048,13 +1059,36 @@ function setup() {
                             </tbody>
                         </table>
                         </div>
-                        <div id="mcDocumentationContainer" style="height: 500px; margin-top: 10px;">
+                        <div id="mcOrderContainer" style="margin: 10px 0;">
+                            <h4 class="text-center">Reorganize Icons/Settings</h4>
+                            <table id="mcOrderTable" style="width: 100%;">
+                                <thead>
+                                    <tr>
+                                        <th>
+                                            <span style="font-size: 18px; font-weight: bold; margin-right: 10px;">Quiz Bar</span>
+                                            <div class="customCheckbox"><input type="checkbox" id="mcOrderQuizBarCheckbox"><label for="mcOrderQuizBarCheckbox"><i class="fa fa-check" aria-hidden="true"></i></label></div>
+                                            <button id="mcOrderQuizBarResetButton" class="btn btn-danger" style="margin: 0 0 0 7px; padding: 0 5px; vertical-align: top;"><i class="fa fa-trash" aria-hidden="true"></i></button>
+                                        </th>
+                                        <th>
+                                            <span style="font-size: 18px; font-weight: bold; margin-right: 10px;">Gear Menu</span>
+                                            <div class="customCheckbox"><input type="checkbox" id="mcOrderGearMenuCheckbox"><label for="mcOrderGearMenuCheckbox"><i class="fa fa-check" aria-hidden="true"></i></label></div>
+                                            <button id="mcOrderGearMenuResetButton" class="btn btn-danger" style="margin: 0 0 0 7px; padding: 0 5px; vertical-align: top;"><i class="fa fa-trash" aria-hidden="true"></i></button>
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td><ul id="mcOrderQuizBarList"></ul>
+                                        <td><ul id="mcOrderGearMenuList"></ul>
+                                    </tr>
+                                </tbody>
+                            </table>
                         </div>
                         <div id="mcInfoContainer" style="text-align: center; margin: 20px 0;">
                             <h4>Script Info</h4>
                             <div>Created by: kempanator</div>
                             <div>Version: ${version}</div>
-                            <div><a href="https://github.com/kempanator/amq-scripts/raw/main/amqMegaCommands.user.js" target="blank">Link</a></div>
+                            <div><a href="https://github.com/kempanator/amq-scripts/blob/main/amqMegaCommands.user.js" target="blank">Github</a> <a href="https://github.com/kempanator/amq-scripts/raw/main/amqMegaCommands.user.js" target="blank">Install</a></div>
                             <h4 style="margin-top: 20px;">Local Storage</h4>
                             <div style="margin: 10px 0"><button id="mcLocalStorageImportButton" style="color: black; margin-right: 10px;">Import</button><button id="mcLocalStorageExportButton" style="color: black; margin-right: 10px;">Export</button><button id="mcLocalStorageClearButton" style="color: black;">Clear</button></div>
                             <h4 style="margin-top: 20px;">MAL Client ID</h4>
@@ -1089,11 +1123,17 @@ function setup() {
         $("#mcAlertsTab").addClass("selected");
         $("#mcAlertsContainer").show();
     });
+    $("#mcOrderTab").click(() => {
+        tabReset();
+        $("#mcOrderTab").addClass("selected");
+        $("#mcOrderContainer").show();
+    });
     $("#mcInfoTab").click(() => {
         tabReset();
         $("#mcInfoTab").addClass("selected");
         $("#mcInfoContainer").show();
     });
+
     $("#mcAutoReadyButton").click(function() {
         autoReady = !autoReady;
         saveSettings();
@@ -1440,6 +1480,7 @@ function setup() {
         malClientId = $(this).val().trim();
     });
     
+    $("#mcOrderTab").hide();
     tabReset();
     updateCommandListWindow();
     $("#mcDocumentationTab").addClass("selected");
@@ -1447,14 +1488,6 @@ function setup() {
     $("#optionListSettings").before(`<li class="clickAble" onclick="$('#mcSettingsModal').modal('show')">Commands</li>`);
 
     $("#mcDocumentationContainer").append(`<h4 class="text-center">Soon™</h4>`);
-
-    $("#mcScriptDataHelpButton").click(() => {
-        $("#installedModal").modal("hide");
-        tabReset();
-        $("#mcDocumentationTab").addClass("selected");
-        $("#mcDocumentationContainer").show();
-        $("#mcSettingsModal").modal("show");
-    });
 
     AMQ_addScriptData({
         name: "Mega Commands",
@@ -1468,10 +1501,20 @@ function setup() {
                 <li>- chat commands by nyamu</li>
                 <li>- auto ready by nyamu</li>
                 <li>- auto answer on keypress by (unknown)</li>
+                <li>- command invite by minigamer42</li>
                 <li>- no dropdown by juvian</li>
+                <li>- no sample reset by miyuki</li>
             </ul>
             <p>See all commands: <button id="mcScriptDataHelpButton" style="color: black">Help</button></p>
         `
+    });
+    
+    $("#mcScriptDataHelpButton").click(() => {
+        $("#installedModal").modal("hide");
+        tabReset();
+        $("#mcDocumentationTab").addClass("selected");
+        $("#mcDocumentationContainer").show();
+        $("#mcSettingsModal").modal("show");
     });
 }
 
@@ -1750,11 +1793,13 @@ function tabReset() {
     $("#mcHotkeyTab").removeClass("selected");
     $("#mcDocumentationTab").removeClass("selected");
     $("#mcAlertsTab").removeClass("selected");
+    $("#mcOrderTab").removeClass("selected");
     $("#mcInfoTab").removeClass("selected");
     $("#mcActiveContainer").hide();
     $("#mcHotkeyContainer").hide();
     $("#mcDocumentationContainer").hide();
     $("#mcAlertsContainer").hide();
+    $("#mcOrderContainer").hide();
     $("#mcInfoContainer").hide();
 }
 
@@ -1875,6 +1920,27 @@ async function parseCommand(content, type, target) {
         let option = parseInt(/^\S+ ([0-9]+)$/.exec(content)[1]);
         let settings = hostModal.getSettings();
         settings.roomSize = option;
+        changeGameSettings(settings);
+    }
+    else if (/^\/(loot|looting)$/i.test(content)) {
+        let settings = hostModal.getSettings();
+        settings.showSelection = 2;
+        changeGameSettings(settings);
+    }
+    else if (/^\/(loot|looting) [0-9]+$/i.test(content)) {
+        let settings = hostModal.getSettings();
+        settings.showSelection = 2;
+        settings.inventorySize.randomOn = false;
+        settings.inventorySize.standardValue = parseInt(/^\S+ ([0-9]+)$/.exec(content)[1]);
+        changeGameSettings(settings);
+    }
+    else if (/^\/(loot|looting) [0-9]+ [0-9]+$/i.test(content)) {
+        let settings = hostModal.getSettings();
+        settings.showSelection = 2;
+        settings.inventorySize.randomOn = false;
+        settings.inventorySize.standardValue = parseInt(/^\S+ ([0-9]+) [0-9]+$/.exec(content)[1]);
+        settings.lootingTime.randomOn = false;
+        settings.lootingTime.standardValue = parseInt(/^\S+ [0-9]+ ([0-9]+)$/.exec(content)[1]);
         changeGameSettings(settings);
     }
     else if (/^\/(t|types?|songtypes?) \w+$/i.test(content)) {
@@ -2023,7 +2089,21 @@ async function parseCommand(content, type, target) {
         settings.lives = option;
         changeGameSettings(settings);
     }
-    else if (/^\/team [0-9]+$/i.test(content)) {
+    else if (/^\/boss$/i.test(content)) {
+        let settings = hostModal.getSettings();
+        settings.scoreType = 4;
+        changeGameSettings(settings);
+    }
+    else if (/^\/boss [0-9]+ [0-9]+ [0-9]+$/i.test(content)) {
+        let regex = /^\S+ ([0-9]+) ([0-9]+) ([0-9]+)$/.exec(content);
+        let settings = hostModal.getSettings();
+        settings.scoreType = 4;
+        settings.bossLives = parseInt(regex[1]);
+        settings.bossPowerUps = parseInt(regex[2]);
+        settings.bossMaxSongs = parseInt(regex[3]);
+        changeGameSettings(settings);
+    }
+    else if (/^\/(teams?|teamsize) [0-9]+$/i.test(content)) {
         let option = parseInt(/^\S+ ([0-9]+)$/.exec(content)[1]);
         let settings = hostModal.getSettings();
         settings.teamSize.randomOn = false;
@@ -2162,28 +2242,45 @@ async function parseCommand(content, type, target) {
         }
         changeGameSettings(settings);
     }
+    else if (/^\/(pscores?|playerscores?) [0-9]+$/i.test(content)) {
+        let option = parseInt(/^\S+ ([0-9]+)$/.exec(content)[1]);
+        if (option < 1 || option > 10) return;
+        let settings = hostModal.getSettings();
+        settings.playerScore.advancedOn = false;
+        settings.playerScore.standardValue = [option, option];
+        changeGameSettings(settings);
+    }
+    else if (/^\/(pscores?|playerscores?) [0-9]+[ ,-]+[0-9]+$/i.test(content)) {
+        let low = parseInt(/^\S+ ([0-9]+)[ ,-]+[0-9]+$/.exec(content)[1]);
+        let high = parseInt(/^\S+ [0-9]+[ ,-]+([0-9]+)$/.exec(content)[1]);
+        if (low < 1 || high > 10 || low > high) return;
+        let settings = hostModal.getSettings();
+        settings.playerScore.advancedOn = false;
+        settings.playerScore.standardValue = [low, high];
+        changeGameSettings(settings);
+    }
+    else if (/^\/(ascores?|animescores?) [0-9]+$/i.test(content)) {
+        let option = parseInt(/^\S+ ([0-9]+)$/.exec(content)[1]);
+        if (option < 1 || option > 10) return;
+        let settings = hostModal.getSettings();
+        settings.animeScore.advancedOn = false;
+        settings.animeScore.standardValue = [option, option];
+        changeGameSettings(settings);
+    }
+    else if (/^\/(ascores?|animescores?) [0-9]+[ ,-]+[0-9]+$/i.test(content)) {
+        let low = parseInt(/^\S+ ([0-9]+)[ ,-]+[0-9]+$/.exec(content)[1]);
+        let high = parseInt(/^\S+ [0-9]+[ ,-]+([0-9]+)$/.exec(content)[1]);
+        if (low < 1 || high > 10 || low > high) return;
+        let settings = hostModal.getSettings();
+        settings.animeScore.advancedOn = false;
+        settings.animeScore.standardValue = [low, high];
+        changeGameSettings(settings);
+    }
     else if (/^\/skip$/i.test(content)) {
         quiz.skipClicked();
     }
     else if (/^\/pause$/i.test(content)) {
         socket.sendCommand({type: "quiz", command: "quiz " + (quiz.pauseButton.pauseOn ? "unpause" : "pause")});
-    }
-    else if (/^\/speed$/i.test(content)) {
-        playbackSpeed = [];
-        sendMessage("song playback speed set to default", type, target, true);
-    }
-    else if (/^\/speed [0-9.]+$/i.test(content)) {
-        let option = parseFloat(/^\S+ ([0-9.]+)$/.exec(content)[1]);
-        if (isNaN(option) || option === 0) return;
-        playbackSpeed = [option];
-        sendMessage(`song playback speed set to ${option}`, type, target, true);
-    }
-    else if (/^\/speed [0-9.]+[ ,-]+[0-9.]+$/i.test(content)) {
-        let low = parseFloat(/^\S+ ([0-9.]+)[ ,-]+[0-9.]+$/.exec(content)[1]);
-        let high = parseFloat(/^\S+ [0-9.]+[ ,-]+([0-9.]+)$/.exec(content)[1]);
-        if (isNaN(low) || isNaN(high) || low >= high) return;
-        playbackSpeed = [low, high];
-        sendMessage(`song playback speed set to random # between ${low} - ${high}`, type, target, true);
     }
     else if (/^\/(mr|mutereplay)$/i.test(content)) {
         muteReplay = !muteReplay;
@@ -2569,9 +2666,13 @@ async function parseCommand(content, type, target) {
             socket.sendCommand({type: "social", command: "invite to game", data: {target: target}});
         }
     }
-    else if (/^\/(inv|invite) \w+$/i.test(content)) {
-        let name = getPlayerNameCorrectCase(/^\S+ (\w+)$/.exec(content)[1]);
-        socket.sendCommand({type: "social", command: "invite to game", data: {target: name}});
+    else if (/^\/(inv|invite) .+$/i.test(content)) {
+        let list = /^\S+ (.+)$/.exec(content)[1].split(/[ ,]+/).filter(Boolean);
+        list.forEach((name, i) => {
+            setTimeout(() => {
+                socket.sendCommand({type: "social", command: "invite to game", data: {target: getPlayerNameCorrectCase(name)}});
+            }, i * 200);
+        });
     }
     else if (/^\/(spec|spectate)$/i.test(content)) {
         lobby.changeToSpectator(selfName);
@@ -3012,6 +3113,23 @@ async function parseCommand(content, type, target) {
         sendMessage(`loop video ${loopVideo ? "enabled" : "disabled"}`, type, target, true);
         updateCommandListWindow("loopVideo");
     }
+    else if (/^\/(vs|speed|video speed)( d| default)?$/i.test(content)) {
+        playbackSpeed = [];
+        sendMessage("song playback speed set to default", type, target, true);
+    }
+    else if (/^\/(vs|speed|video speed) [0-9.]+$/i.test(content)) {
+        let option = parseFloat(/^\S+ ([0-9.]+)$/.exec(content)[1]);
+        if (isNaN(option) || option === 0) return;
+        playbackSpeed = [option];
+        sendMessage(`song playback speed set to ${option}`, type, target, true);
+    }
+    else if (/^\/(vs|speed|video speed) [0-9.]+[ ,-]+[0-9.]+$/i.test(content)) {
+        let low = parseFloat(/^\S+ ([0-9.]+)[ ,-]+[0-9.]+$/.exec(content)[1]);
+        let high = parseFloat(/^\S+ [0-9.]+[ ,-]+([0-9.]+)$/.exec(content)[1]);
+        if (isNaN(low) || isNaN(high) || low >= high) return;
+        playbackSpeed = [low, high];
+        sendMessage(`song playback speed set to random # between ${low} - ${high}`, type, target, true);
+    }
     else if (/^\/(hp|hideplayers)$/i.test(content)) {
         hidePlayers = !hidePlayers;
         if (hidePlayers) {
@@ -3193,7 +3311,7 @@ async function parseCommand(content, type, target) {
         }
     }
     else if (/^\/(dq|daily|dailies|dailyquests?) (k|kutd|keepinguptodate)+$/i.test(content)) {
-        let anime = "NieR:Automata Ver1.1a";
+        let anime = "MF Ghost";
         sendMessage(anime, type, target);
         matchSettingsToAnime(anime);
         autoThrow = {time: [3000, 5000], text: anime, multichoice: null};
@@ -3424,7 +3542,7 @@ function parseIncomingDM(content, sender) {
 function parseForceAll(content, type) {
     if (commands) {
         if (/^\/forceall version$/i.test(content)) {
-            sendMessage("0.107", type);
+            sendMessage("0.108", type);
         }
         else if (/^\/forceall version .+$/i.test(content)) {
             let option = /^\S+ \S+ (.+)$/.exec(content)[1];
@@ -4452,6 +4570,7 @@ function saveSettings() {
     settings.malClientId = malClientId;
     settings.playerDetection = playerDetection;
     settings.printLoot = printLoot;
+    settings.reorder = reorder;
     settings.selfDM = selfDM;
     settings.tabSwitch = tabSwitch;
     if (commandPersist.autoAcceptInvite) settings.autoAcceptInvite = autoAcceptInvite;
