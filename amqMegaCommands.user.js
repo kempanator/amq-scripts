@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.108
+// @version      0.109
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -103,7 +103,7 @@ OTHER
 
 "use strict";
 if (typeof Listener === "undefined") return;
-const version = "0.108";
+const version = "0.109";
 const saveData = validateLocalStorage("megaCommands");
 const originalOrder = {qb: [], gm: []};
 if (typeof saveData.alerts?.hiddenPlayers === "boolean") delete saveData.alerts;
@@ -1472,7 +1472,7 @@ function setup() {
             "Cancel",
             () => {
                 localStorage.clear();
-                displayMessage("All local storage cleared");
+                messageDisplayer.displayMessage("All local storage cleared");
             }
         );
     });
@@ -1849,7 +1849,7 @@ async function parseCommand(content, type, target) {
         let name = getRandomOtherTeammate();
         if (name) sendMessage(name, type, target);
     }
-    else if (/^\/roll (pt|playerteams?|teams?|warlords?)$/i.test(content)) {
+    else if (/^\/roll (pt|playerteams?|warlords?)$/i.test(content)) {
         if (hostModal.$teamSize.slider("getValue") === 1) return sendMessage("team size must be greater than 1", type, target);
         let dict = getTeamDictionary();
         if (Object.keys(dict).length > 0) {
@@ -1861,9 +1861,39 @@ async function parseCommand(content, type, target) {
             });
         }
     }
+    else if (/^\/roll (pt|playerteams?|warlords?) [0-9]+$/i.test(content)) {
+        let teamSize = hostModal.$teamSize.slider("getValue");
+        if (teamSize === 1) return sendMessage("team size must be greater than 1", type, target);
+        let number = parseInt(/^\S+ \S+ ([0-9]+)$/.exec(content)[1]);
+        if (!number || number > teamSize) return sendMessage("invalid number", type, target);
+        let dict = getTeamDictionary();
+        if (Object.keys(dict).length > 0) {
+            let teams = Object.keys(dict);
+            teams.sort((a, b) => parseInt(a) - parseInt(b));
+            teams.forEach((team, i) => {
+                shuffleArray(dict[team]);
+                let chosen = dict[team].slice(0, number);
+                setTimeout(() => { sendMessage(`Team ${team}: ${chosen.join(", ")}`, type, target) }, (i + 1) * 200);
+            });
+        }
+    }
     else if (/^\/roll (s|spec|spectators?)$/i.test(content)) {
         let list = getSpectatorList();
         sendMessage(list.length ? list[Math.floor(Math.random() * list.length)] : "no spectators", type, target);
+    }
+    else if (/^\/roll teams? [0-9]+$/i.test(content)) {
+        let players = getPlayerList();
+        let teamSize = parseInt(/^\S+ \S+ ([0-9]+)$/.exec(content)[1]);
+        if (teamSize && teamSize < players.length) {
+            shuffleArray(players);
+            for (let i = 0; i < Math.ceil(players.length / teamSize); i++) {
+                let slice = players.slice(i * teamSize, Math.min((i + 1) * teamSize, players.length));
+                setTimeout(() => { sendMessage(`Team ${i + 1}: ${slice.join(", ")}`, type, target) }, (i + 1) * 200);
+            }
+        }
+        else {
+            sendMessage("invalid # players per team", type, target);
+        }
     }
     else if (/^\/roll relays?$/i.test(content)) {
         if (hostModal.$teamSize.slider("getValue") === 1) return sendMessage("team size must be greater than 1", type, target);
@@ -1946,9 +1976,9 @@ async function parseCommand(content, type, target) {
     else if (/^\/(t|types?|songtypes?) \w+$/i.test(content)) {
         let option = /^\S+ (\w+)$/.exec(content)[1].toLowerCase();
         let settings = hostModal.getSettings();
-        settings.songType.standardValue.openings = option.includes("o");
-        settings.songType.standardValue.endings = option.includes("e");
-        settings.songType.standardValue.inserts = option.includes("i");
+        settings.songType.standardValue.openings = option === "all" || option.includes("o");
+        settings.songType.standardValue.endings = option === "all" || option.includes("e");
+        settings.songType.standardValue.inserts = option === "all" || option.includes("i");
         settings.songType.advancedValue.openings = 0;
         settings.songType.advancedValue.endings = 0;
         settings.songType.advancedValue.inserts = 0;
@@ -3542,7 +3572,7 @@ function parseIncomingDM(content, sender) {
 function parseForceAll(content, type) {
     if (commands) {
         if (/^\/forceall version$/i.test(content)) {
-            sendMessage("0.108", type);
+            sendMessage("0.109", type);
         }
         else if (/^\/forceall version .+$/i.test(content)) {
             let option = /^\S+ \S+ (.+)$/.exec(content)[1];
@@ -4436,18 +4466,18 @@ function importLocalStorage() {
                 try {
                     let json = JSON.parse(data);
                     if (typeof json !== "object" || !Object.values(json).every((x) => typeof x === "string")) {
-                        displayMessage("Upload Error");
+                        messageDisplayer.displayMessage("Upload Error");
                     }
                     else {
                         let keys = Object.keys(json);
                         for (let key of keys) {
                             localStorage.setItem(key, json[key]);
                         }
-                        displayMessage(`${keys.length} item${keys.length === 1 ? "" : "s"} loaded into local storage`);
+                        messageDisplayer.displayMessage(`${keys.length} item${keys.length === 1 ? "" : "s"} loaded into local storage`);
                     }
                 }
                 catch {
-                    displayMessage("Upload Error");
+                    messageDisplayer.displayMessage("Upload Error");
                 }
                 finally {
                     $(this).remove();
