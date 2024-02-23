@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.44
+// @version      0.45
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -43,9 +43,9 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.44";
+const version = "0.45";
 const saveData = validateLocalStorage("customSongListGame");
-const catboxHostDict = {1: "files.catbox.moe", 2: "nl.catbox.moe", 3: "nl.catbox.video", 4: "ladist1.catbox.video", 5: "abdist1.catbox.video", 6: "vhdist1.catbox.video"};
+const catboxHostDict = {1: "files.catbox.moe", 2: "nl.catbox.moe", 3: "nl.catbox.video", 4: "ladist1.catbox.video", 5: "vhdist1.catbox.video"};
 let CSLButtonCSS = saveData.CSLButtonCSS || "calc(25% - 250px)";
 let showCSLMessages = saveData.showCSLMessages ?? true;
 let replacedAnswers = saveData.replacedAnswers || {};
@@ -205,8 +205,7 @@ $("#gameContainer").append($(`
                                 <option value="2">nl.catbox.moe</option>
                                 <option value="3">nl.catbox.video</option>
                                 <option value="4">ladist1.catbox.video</option>
-                                <option value="5">abdist1.catbox.video</option>
-                                <option value="6">vhdist1.catbox.video</option>
+                                <option value="5">vhdist1.catbox.video</option>
                                 
                             </select>
                         </div>
@@ -255,7 +254,7 @@ $("#gameContainer").append($(`
                         <h4>Script Info</h4>
                         <div>Created by: kempanator</div>
                         <div>Version: ${version}</div>
-                        <div><a href="https://github.com/kempanator/amq-scripts/raw/main/amqCustomSongListGame.user.js" target="blank">Link</a></div>
+                        <div><a href="https://github.com/kempanator/amq-scripts/blob/main/amqCustomSongListGame.user.js" target="blank">Github</a> <a href="https://github.com/kempanator/amq-scripts/raw/main/amqCustomSongListGame.user.js" target="blank">Install</a></div>
                         <h4 style="margin-top: 20px;">Custom CSS</h4>
                         <div><span style="font-size: 15px; margin-right: 17px;">#lnCustomSongListButton </span>right: <input id="cslgCSLButtonCSSInput" type="text" style="width: 150px; color: black;"></div>
                         <div style="margin: 10px 0"><button id="cslgResetCSSButton" style="color: black; margin-right: 10px;">Reset</button><button id="cslgApplyCSSButton" style="color: black;">Save</button></div>
@@ -313,7 +312,7 @@ $("#cslgFileUpload").on("change", function() {
             }
             catch {
                 songList = [];
-                displayMessage("Upload Error");
+                messageDisplayer.displayMessage("Upload Error");
             }
             setSongListTableSort();
             createSongListTable();
@@ -346,7 +345,7 @@ $("#cslgMergeDownloadButton").click(() => {
         element.remove();
     }
     else {
-        displayMessage("No songs", "add some songs to the merged song list");
+        messageDisplayer.displayMessage("No songs", "add some songs to the merged song list");
     }
 });
 $("#cslgAutocompleteButton").click(() => {
@@ -372,34 +371,34 @@ $("#cslgAutocompleteButton").click(() => {
         autocompleteListener.bindListener();
     }
     else {
-        displayMessage("Autocomplete", "For multiplayer, just start the quiz normally and immediately lobby");
+        messageDisplayer.displayMessage("Autocomplete", "For multiplayer, just start the quiz normally and immediately lobby");
     }
 });
 $("#cslgStartButton").click(() => {
     songOrder = {};
     if (!lobby.isHost) {
-        return displayMessage("Unable to start", "must be host");
+        return messageDisplayer.displayMessage("Unable to start", "must be host");
     }
     if (lobby.numberOfPlayers !== lobby.numberOfPlayersReady) {
-        return displayMessage("Unable to start", "all players must be ready");
+        return messageDisplayer.displayMessage("Unable to start", "all players must be ready");
     }
     if (!songList || !songList.length) {
-        return displayMessage("Unable to start", "no songs");
+        return messageDisplayer.displayMessage("Unable to start", "no songs");
     }
     if (autocomplete.length === 0) {
-        return displayMessage("Unable to start", "autocomplete list empty");
+        return messageDisplayer.displayMessage("Unable to start", "autocomplete list empty");
     }
     let numSongs = parseInt($("#cslgSettingsSongs").val());
     if (isNaN(numSongs) || numSongs < 1) {
-        return displayMessage("Unable to start", "invalid number of songs");
+        return messageDisplayer.displayMessage("Unable to start", "invalid number of songs");
     }
     guessTime = parseInt($("#cslgSettingsGuessTime").val());
     if (isNaN(guessTime) || guessTime < 1 || guessTime > 99) {
-        return displayMessage("Unable to start", "invalid guess time");
+        return messageDisplayer.displayMessage("Unable to start", "invalid guess time");
     }
     extraGuessTime = parseInt($("#cslgSettingsExtraGuessTime").val());
     if (isNaN(extraGuessTime) || extraGuessTime < 0 || extraGuessTime > 15) {
-        return displayMessage("Unable to start", "invalid extra guess time");
+        return messageDisplayer.displayMessage("Unable to start", "invalid extra guess time");
     }
     let startPointText = $("#cslgSettingsStartPoint").val().trim();
     if (/^[0-9]+$/.test(startPointText)) {
@@ -409,20 +408,20 @@ $("#cslgStartButton").click(() => {
         startPointRange = [parseInt(/^([0-9]+)[\s-]+[0-9]+$/.exec(startPointText)[1]), parseInt(/^[0-9]+[\s-]+([0-9]+)$/.exec(startPointText)[1])];
     }
     else {
-        return displayMessage("Unable to start", "song start sample must be a number or range 0-100");
+        return messageDisplayer.displayMessage("Unable to start", "song start sample must be a number or range 0-100");
     }
     if (startPointRange[0] < 0 || startPointRange[0] > 100 || startPointRange[1] < 0 || startPointRange[1] > 100 || startPointRange[0] > startPointRange[1]) {
-        return displayMessage("Unable to start", "song start sample must be a number or range 0-100");
+        return messageDisplayer.displayMessage("Unable to start", "song start sample must be a number or range 0-100");
     }
     let difficultyText = $("#cslgSettingsDifficulty").val().trim();
     if (/^[0-9]+[\s-]+[0-9]+$/.test(difficultyText)) {
         difficultyRange = [parseInt(/^([0-9]+)[\s-]+[0-9]+$/.exec(difficultyText)[1]), parseInt(/^[0-9]+[\s-]+([0-9]+)$/.exec(difficultyText)[1])];
     }
     else {
-        return displayMessage("Unable to start", "difficulty must be a range 0-100");
+        return messageDisplayer.displayMessage("Unable to start", "difficulty must be a range 0-100");
     }
     if (difficultyRange[0] < 0 || difficultyRange[0] > 100 || difficultyRange[1] < 0 || difficultyRange[1] > 100 || difficultyRange[0] > difficultyRange[1]) {
-        return displayMessage("Unable to start", "difficulty must be a range 0-100");
+        return messageDisplayer.displayMessage("Unable to start", "difficulty must be a range 0-100");
     }
     let ops = $("#cslgSettingsOPCheckbox").prop("checked");
     let eds = $("#cslgSettingsEDCheckbox").prop("checked");
@@ -444,7 +443,7 @@ $("#cslgStartButton").click(() => {
     songKeys.slice(0, numSongs).forEach((key, i) => { songOrder[i + 1] = parseInt(key) });
     totalSongs = Object.keys(songOrder).length;
     if (totalSongs === 0) {
-        return displayMessage("Unable to start", "no songs");
+        return messageDisplayer.displayMessage("Unable to start", "no songs");
     }
     fastSkip = $("#cslgSettingsFastSkip").prop("checked");
     $("#cslgSettingsModal").modal("hide");
@@ -538,7 +537,7 @@ $("#cslgApplyCSSButton").click(() => {
         applyStyles();
     }
     else {
-        displayMessage("Error");
+        messageDisplayer.displayMessage("Error");
     }
 });
 $("#cslgShowCSLMessagesCheckbox").prop("checked", showCSLMessages).click(() => {
