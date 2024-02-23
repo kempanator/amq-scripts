@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Quick Load Lists
 // @namespace    https://github.com/kempanator
-// @version      0.4
+// @version      0.5
 // @description  Adds a window for saving and quick loading anime lists
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -26,7 +26,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.4";
+const version = "0.5";
 const saveData = validateLocalStorage("quickLoadLists");
 let savedLists = saveData.savedLists ?? [];
 let windowHotKey = saveData.windowHotKey ?? {key: "q", altKey: true, ctrlKey: false};
@@ -69,7 +69,7 @@ function setup() {
                 .append($(`<button id="qllSettingsButton" class="btn btn-danger" style="margin-left: 8px">Clear</button>`).click(() => {
                     $("#qllTable .qllRow").removeClass("selected");
                     removeAllLists();
-                    displayMessage("Current List Cleared");
+                    messageDisplayer.displayMessage("Current List Cleared");
                 }))
             )
         );
@@ -84,7 +84,7 @@ function setup() {
         .append($(`<i class="fa fa-trash clickAble" style="font-size: 23px; top: 8px; right: 73px; position: absolute;" aria-hidden="true"></i>`).click(() => {
             $("#qllTable .qllRow").removeClass("selected");
             removeAllLists();
-            displayMessage("Current List Cleared");
+            messageDisplayer.displayMessage("Current List Cleared");
         }))
         .append(`<h2>Quick Load Lists</h2>`)
         .append($(`<div class="tabContainer">`)
@@ -216,16 +216,16 @@ function setup() {
                                                 createListTable();
                                                 createEditTable();
                                                 saveSettings();
-                                                displayMessage(`Imported ${json.savedLists.length} list${json.savedLists.length === 1 ? "" : "s"}`);
+                                                messageDisplayer.displayMessage(`Imported ${json.savedLists.length} list${json.savedLists.length === 1 ? "" : "s"}`);
                                             }
                                         });
                                     }
                                     else {
-                                        displayMessage("Upload Error");
+                                        messageDisplayer.displayMessage("Upload Error");
                                     }
                                 }
                                 catch {
-                                    displayMessage("Upload Error");
+                                    messageDisplayer.displayMessage("Upload Error");
                                 }
                             });
                         }
@@ -249,7 +249,7 @@ function setup() {
                         element.remove();
                     }
                     else {
-                        displayMessage("Nothing to export");
+                        messageDisplayer.displayMessage("Nothing to export");
                     }
                 }))
             )
@@ -320,7 +320,7 @@ function loadList($row, username, type, watching, completed, hold, dropped, plan
                 $row.addClass("selected");
             }
             else {
-                displayMessage("Update Unsuccessful", payload.message);
+                messageDisplayer.displayMessage("Update Unsuccessful", payload.message);
                 checkSelectedList();
             }
             removeMyanimelist();
@@ -341,7 +341,7 @@ function loadList($row, username, type, watching, completed, hold, dropped, plan
                 $row.addClass("selected");
             }
             else {
-                displayMessage("Update Unsuccessful", payload.message);
+                messageDisplayer.displayMessage("Update Unsuccessful", payload.message);
                 checkSelectedList();
             }
             removeAnilist();
@@ -362,7 +362,7 @@ function loadList($row, username, type, watching, completed, hold, dropped, plan
                 $row.addClass("selected");
             }
             else {
-                displayMessage("Update Unsuccessful", payload.message);
+                messageDisplayer.displayMessage("Update Unsuccessful", payload.message);
                 checkSelectedList();
             }
             removeAnilist();
