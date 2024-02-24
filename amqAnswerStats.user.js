@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Answer Stats
 // @namespace    https://github.com/kempanator
-// @version      0.21
+// @version      0.22
 // @description  Adds a window to display quiz answer stats
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -30,7 +30,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.21";
+const version = "0.22";
 const regionDictionary = {E: "Eastern", C: "Central", W: "Western"};
 const saveData = validateLocalStorage("answerStats");
 const saveData2 = validateLocalStorage("highlightFriendsSettings");
@@ -118,14 +118,26 @@ function setup() {
         let invalidAnswerIdList = [];
         let noAnswerIdList = [];
         songHistory[songNumber] = {
-            romaji: payload.songInfo.animeNames.romaji,
-            english: payload.songInfo.animeNames.english,
-            number: songNumber,
-            artist: payload.songInfo.artist,
-            song: payload.songInfo.songName,
-            type: typeText(payload.songInfo.type, payload.songInfo.typeNumber),
-            vintage: payload.songInfo.vintage,
-            difficulty: Math.round(payload.songInfo.animeDifficulty),
+            animeRomajiName: payload.songInfo.animeNames.romaji,
+            animeEnglishName: payload.songInfo.animeNames.english,
+            altAnimeNames: payload.songInfo.altAnimeNames,
+            altAnimeNamesAnswers: payload.songInfo.altAnimeNamesAnswers,
+            animeType: payload.songInfo.animeType,
+            animeVintage: payload.songInfo.vintage,
+            songNumber: songNumber,
+            songArtist: payload.songInfo.artist,
+            songName: payload.songInfo.songName,
+            songType: payload.songInfo.type,
+            songTypeNumber: payload.songInfo.typeNumber,
+            songTypeText: typeText(payload.songInfo.type, payload.songInfo.typeNumber),
+            songDifficulty: Math.round(payload.songInfo.animeDifficulty),
+            annId: payload.songInfo.siteIds.annId,
+            malId: payload.songInfo.siteIds.malId,
+            kitsuId: payload.songInfo.siteIds.kitsuId,
+            aniListId: payload.songInfo.siteIds.aniListId,
+            audio: payload.songInfo.videoTargetMap.catbox?.[0] ?? payload.songInfo.videoTargetMap.openingsmoe?.[0] ?? null,
+            video480: payload.songInfo.videoTargetMap.catbox?.[480] ?? payload.songInfo.videoTargetMap.openingsmoe?.[480] ?? null,
+            video720: payload.songInfo.videoTargetMap.catbox?.[720] ?? payload.songInfo.videoTargetMap.openingsmoe?.[720] ?? null,
             groupSlotMap: {...payload.groupMap},
             answers: {}
         };
@@ -218,6 +230,8 @@ function setup() {
             let activePlayers = $("#qpScoreBoardEntryContainer .qpStandingItem:not(.disabled)").length;
             answerStatsWindow.panels[0].clear();
             if (quiz.gameMode === "Ranked") {
+                let difficultyList = Object.values(songHistory).map((x) => x.songDifficulty);
+                let songTypeList = Object.values(songHistory).map((x) => x.songType);
                 answerStatsWindow.panels[0].panel.append(`
                     <div style="margin: 0 3px">
                         <span><b>${rankedText()}</b></span>
@@ -225,6 +239,25 @@ function setup() {
                         <span style="margin-left: 20px"><b>Total Players:</b> ${totalPlayers}</span>
                     </div>
                 `);
+                answerStatsWindow.panels[0].panel.append(`
+                    <div style="margin: 0 3px">
+                        <i id="asDistributionButton" class="fa fa-info-circle" aria-hidden="true"></i>
+                        <span style="margin-left: 10px"><b>OP:</b> ${songTypeList.filter((x) => x === 1).length}</span>
+                        <span style="margin-left: 10px"><b>ED:</b> ${songTypeList.filter((x) => x === 2).length}</span>
+                        <span style="margin-left: 10px"><b>IN:</b> ${songTypeList.filter((x) => x === 3).length}</span>
+                        <span style="margin-left: 20px"><b>Easy:</b> ${difficultyList.filter((x) => x >= 60).length}</span>
+                        <span style="margin-left: 10px"><b>Medium:</b> ${difficultyList.filter((x) => x > 25 && x < 60).length}</span>
+                        <span style="margin-left: 10px"><b>Hard:</b> ${difficultyList.filter((x) => x <= 25).length}</span>
+                    </div>
+                `);
+                $("#asDistributionButton").popover({
+                    container: "#gameContainer",
+                    placement: "bottom",
+                    trigger: "hover",
+                    html: true,
+                    title: answerHistorySettings.roomName,
+                    content: difficultyInfoText(answerHistorySettings.roomName)
+                });
             }
             answerStatsWindow.panels[0].panel.append(`
                 <div style="margin: 0 3px">
@@ -468,7 +501,7 @@ function setup() {
         );
         $div1.find("input").on("change", function() {
             if (quiz.inQuiz) {
-                displayMessage("Don't do this in quiz");
+                messageDisplayer.displayMessage("Don't do this in quiz");
             }
             else {
                 if (this.files.length) {
@@ -477,16 +510,37 @@ function setup() {
                             let json = JSON.parse(data);
                             //console.log(json);
                             if (json.playerInfo && json.songHistory) {
+                                // support for older version of this script
+                                if (Object.values(json.songHistory)[0].romaji) {
+                                    for (song of Object.values(json.songHistory)) {
+                                        song.animeRomajiName = song.romaji;
+                                        delete song.romaji;
+                                        song.animeEnglishName = song.english;
+                                        delete song.english;
+                                        song.songNumber = song.number;
+                                        delete song.number;
+                                        song.songArtist = song.artist;
+                                        delete song.artist;
+                                        song.songName = song.song;
+                                        delete song.song;
+                                        song.songTypeText = song.type;
+                                        delete song.type;
+                                        song.animeVintage = song.vintage;
+                                        delete song.vintage;
+                                        song.songDifficulty = song.difficulty;
+                                        delete song.difficulty;
+                                    }
+                                }
                                 answerHistorySettings = {mode: "song", songNumber: null, playerId: null, roomType: json.roomType, roomName: json.roomName};
                                 playerInfo = json.playerInfo;
                                 songHistory = json.songHistory;
                                 songHistoryFilter = {type: "all"};
-                                displaySongHistoryResults(Object.values(songHistory)[0].number);
+                                displaySongHistoryResults(Object.values(songHistory)[0].songNumber);
                                 displayAverageSpeedResults();
                             }
                         }
                         catch {
-                            displayMessage("Upload Error");
+                            messageDisplayer.displayMessage("Upload Error");
                         }
                     });
                 }
@@ -524,7 +578,7 @@ function setup() {
         let $button3 = $(`<div class="answerStatsButton arrowButton">‹</div>`).hide().click(() => {
             if (Object.keys(songHistory).length) {
                 let songNumber = answerHistorySettings.songNumber;
-                if (songNumber !== Object.values(songHistory)[0].number) {
+                if (songNumber !== Object.values(songHistory)[0].songNumber) {
                     songHistoryFilter = {type: "all"};
                     displaySongHistoryResults(songNumber - 1);
                 }
@@ -533,7 +587,7 @@ function setup() {
         let $button4 = $(`<div class="answerStatsButton arrowButton">›</div>`).hide().click(() => {
             if (Object.keys(songHistory).length) {
                 let songNumber = answerHistorySettings.songNumber;
-                if (songNumber !== Object.values(songHistory).slice(-1)[0].number) {
+                if (songNumber !== Object.values(songHistory).slice(-1)[0].songNumber) {
                     songHistoryFilter = {type: "all"};
                     displaySongHistoryResults(songNumber + 1);
                 }
@@ -542,13 +596,13 @@ function setup() {
         let $button5 = $(`<div class="answerStatsButton arrowButton">»</div>`).hide().click(() => {
             if (Object.keys(songHistory).length) {
                 songHistoryFilter = {type: "all"};
-                displaySongHistoryResults(Object.values(songHistory).slice(-1)[0].number);
+                displaySongHistoryResults(Object.values(songHistory).slice(-1)[0].songNumber);
             }
         });
         let $button6 = $(`<div class="answerStatsButton backButton">back</div>`).hide().click(() => {
             if (Object.keys(songHistory).length) {
                 if (songHistory[answerHistorySettings.songNumber]) displaySongHistoryResults(answerHistorySettings.songNumber);
-                else displaySongHistoryResults(Object.values(songHistory).slice(-1)[0].number);
+                else displaySongHistoryResults(Object.values(songHistory).slice(-1)[0].songNumber);
             }
         });
         $div2.append(`<span id="answerHistoryCurrentSong" style="font-size: 16px; margin: 0 8px 0 8px;">Song: </span>`);
@@ -699,10 +753,10 @@ function displaySongHistoryResults(songNumber) {
     songHistoryFilter.type === "all" ? answerHistoryWindow.window.find(".filterButton").hide() : answerHistoryWindow.window.find(".filterButton").show();
     //answerHistoryWindow.window.find(".infoButton").data("bs.popover").options.title = "Song " + songNumber;
     answerHistoryWindow.window.find(".infoButton").data("bs.popover").options.content = `
-        <p>${song.song}</p>
-        <p>${song.artist}</p>
-        <p style="color: #4497EA">${options.useRomajiNames ? song.romaji : song.english}</p>
-        <p>${song.type} (${song.difficulty}) ${song.vintage}</p>
+        <p>${song.songName}</p>
+        <p>${song.songArtist}</p>
+        <p style="color: #4497EA">${options.useRomajiNames ? song.animeRomajiName : song.animeEnglishName}</p>
+        <p>${song.songTypeText} (${song.songDifficulty}) ${song.animeVintage}</p>
     `;
     answerHistoryWindow.panels[0].clear();
     let $table = $(`<table id="answerHistoryTable" class="songMode"></table>`);
@@ -880,8 +934,8 @@ function displayPlayerHistoryResults(id) {
         else sortedKeys.sort((a, b) => parseInt(b) - parseInt(a));
     }
     else if (playerHistorySort.difSortAscending !== null) {
-        if (playerHistorySort.difSortAscending) sortedKeys.sort((a, b) => songHistory[a].difficulty - songHistory[b].difficulty);
-        else sortedKeys.sort((a, b) => songHistory[b].difficulty - songHistory[a].difficulty);
+        if (playerHistorySort.difSortAscending) sortedKeys.sort((a, b) => songHistory[a].songDifficulty - songHistory[b].songDifficulty);
+        else sortedKeys.sort((a, b) => songHistory[b].songDifficulty - songHistory[a].songDifficulty);
     }
     else if (playerHistorySort.speedSortAscending !== null) {
         if (playerHistorySort.speedSortAscending) sortedKeys.sort((a, b) => songHistory[a].answers[id].speed - songHistory[b].answers[id].speed);
@@ -895,7 +949,7 @@ function displayPlayerHistoryResults(id) {
         let answer = songHistory[songNumber].answers[id];
         let $row = $("<tr></tr>");
         $row.append($("<td></td>").addClass("songNumber answerStatsClick").text(songNumber));
-        $row.append($("<td></td>").addClass("songDifficulty").text(songHistory[songNumber].difficulty));
+        $row.append($("<td></td>").addClass("songDifficulty").text(songHistory[songNumber].songDifficulty));
         $row.append($("<td></td>").addClass("speed").text(answer.speed ? answer.speed : ""));
         $row.append($("<td></td>").addClass("answer").text(answer.text).prepend(`<i class="fa ${answer.correct ? "fa-check" : "fa-times"}">`));
         $tbody.append($row);
@@ -955,8 +1009,8 @@ function displayFastestSpeedResults() {
     $thead.append($row);
     for (let song of Object.values(songHistory)) {
         let $row = $(`<tr></tr>`);
-        $row.append($("<td></td>").addClass("songNumber answerStatsClick").text(song.number));
-        $row.append($("<td></td>").addClass("anime").text(options.useRomajiNames ? song.romaji : song.english));
+        $row.append($("<td></td>").addClass("songNumber answerStatsClick").text(song.songNumber));
+        $row.append($("<td></td>").addClass("anime").text(options.useRomajiNames ? song.animeRomajiName : song.animeEnglishName));
         $row.append($("<td></td>").addClass("speed").text(song.fastestSpeed ?? ""));
         let $tdName = $("<td></td>").addClass("name");
         for (let id of song.fastestPlayers) {
@@ -1056,6 +1110,65 @@ function rankedText() {
     let region = regionDictionary[$("#mpRankedTimer h3").text()] || "";
     let type = hostModal.$roomName.val();
     return region + " " + type;
+}
+
+function difficultyInfoText(roomName) {
+    if (roomName === "Ranked Novice") {
+        return `
+            <table id="asDistributionTable">
+                <thead>
+                    <tr>
+                        <td>Dif</td>
+                        <td>OP</td>
+                        <td>ED</td>
+                        <td>IN</td>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>60-100</td>
+                        <td>9</td>
+                        <td>2</td>
+                        <td>1</td>
+                    </tr>
+                    <tr>
+                        <td>45-60</td>
+                        <td>8</td>
+                        <td>2</td>
+                        <td>2</td>
+                    </tr>
+                    <tr>
+                        <td>30-45</td>
+                        <td>5</td>
+                        <td>2</td>
+                        <td>2</td>
+                    </tr>
+                    <tr>
+                        <td>25-35</td>
+                        <td>3</td>
+                        <td>2</td>
+                        <td>2</td>
+                    </tr>
+                    <tr>
+                        <td>0-25</td>
+                        <td>2</td>
+                        <td>2</td>
+                        <td>1</td>
+                    </tr>
+                    <tr>
+                        <td>Total</td>
+                        <td>27</td>
+                        <td>10</td>
+                        <td>8</td>
+                    </tr>
+                </tbody>
+            </table>
+        `;
+    }
+    if (roomName === "Ranked Expert") {
+        return `dm me if you know the song difficulty distribution for ranked expert`;
+    }
+    return "";
 }
 
 function colorClass(name) {
@@ -1420,6 +1533,10 @@ function applyStyles() {
         }
         #answerCompareTable tbody tr.highlightWrong {
             background-color: #6B0000;
+        }
+        #asDistributionTable td {
+            text-align: left;
+            padding: 0 4px;
         }
     `;
     if (showPlayerColor) text += `
