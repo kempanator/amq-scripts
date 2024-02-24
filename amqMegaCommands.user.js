@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.109
+// @version      0.110
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -103,7 +103,7 @@ OTHER
 
 "use strict";
 if (typeof Listener === "undefined") return;
-const version = "0.109";
+const version = "0.110";
 const saveData = validateLocalStorage("megaCommands");
 const originalOrder = {qb: [], gm: []};
 if (typeof saveData.alerts?.hiddenPlayers === "boolean") delete saveData.alerts;
@@ -1927,6 +1927,9 @@ async function parseCommand(content, type, target) {
         let list = /^\S+ (.+)$/.exec(content)[1].split(",").map((x) => x.trim()).filter(Boolean);
         if (list.length > 1) sendMessage(list[Math.floor(Math.random() * list.length)], type, target);
     }
+    else if (/^\/shuffle$/i.test(content)) {
+        lobby.shuffleTeams();
+    }
     else if (/^\/shuffle (p|players?)$/i.test(content)) {
         let list = getPlayerList();
         if (list.length > 1) sendMessage(shuffleArray(list).join(", "), type, target);
@@ -2136,8 +2139,7 @@ async function parseCommand(content, type, target) {
     else if (/^\/(teams?|teamsize) [0-9]+$/i.test(content)) {
         let option = parseInt(/^\S+ ([0-9]+)$/.exec(content)[1]);
         let settings = hostModal.getSettings();
-        settings.teamSize.randomOn = false;
-        settings.teamSize.standardValue = option;
+        settings.teamSize = option;
         changeGameSettings(settings);
     }
     else if (/^\/(n|songs|numsongs) [0-9]+$/i.test(content)) {
@@ -3572,7 +3574,7 @@ function parseIncomingDM(content, sender) {
 function parseForceAll(content, type) {
     if (commands) {
         if (/^\/forceall version$/i.test(content)) {
-            sendMessage("0.109", type);
+            sendMessage("0.110", type);
         }
         else if (/^\/forceall version .+$/i.test(content)) {
             let option = /^\S+ \S+ (.+)$/.exec(content)[1];
