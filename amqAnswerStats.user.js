@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Answer Stats
 // @namespace    https://github.com/kempanator
-// @version      0.22
+// @version      0.23
 // @description  Adds a window to display quiz answer stats
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -30,7 +30,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.22";
+const version = "0.23";
 const regionDictionary = {E: "Eastern", C: "Central", W: "Western"};
 const saveData = validateLocalStorage("answerStats");
 const saveData2 = validateLocalStorage("highlightFriendsSettings");
@@ -1113,7 +1113,7 @@ function rankedText() {
 }
 
 function difficultyInfoText(roomName) {
-    if (roomName === "Ranked Novice") {
+    if (roomName.includes("Ranked Novice")) {
         return `
             <table id="asDistributionTable">
                 <thead>
@@ -1165,8 +1165,8 @@ function difficultyInfoText(roomName) {
             </table>
         `;
     }
-    if (roomName === "Ranked Expert") {
-        return `dm me if you know the song difficulty distribution for ranked expert`;
+    if (roomName.includes("Ranked Expert")) {
+        return `song selection is completely random`;
     }
     return "";
 }
