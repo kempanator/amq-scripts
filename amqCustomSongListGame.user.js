@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.45
+// @version      0.46
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -43,7 +43,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.45";
+const version = "0.46";
 const saveData = validateLocalStorage("customSongListGame");
 const catboxHostDict = {1: "files.catbox.moe", 2: "nl.catbox.moe", 3: "nl.catbox.video", 4: "ladist1.catbox.video", 5: "vhdist1.catbox.video"};
 let CSLButtonCSS = saveData.CSLButtonCSS || "calc(25% - 250px)";
@@ -1849,6 +1849,36 @@ function handleData(data) {
             });
         }
     }
+    // kempanator answer stats script export structure
+    else if (typeof data === "object" && data.songHistory && data.playerInfo) {
+        for (let song of Object.values(data.songHistory)) {
+            songList.push({
+                animeRomajiName: song.animeRomajiName,
+                animeEnglishName: song.animeEnglishName,
+                altAnimeNames: song.altAnimeNames || [],
+                altAnimeNamesAnswers: song.altAnimeNamesAnswers || [],
+                songArtist: song.songArtist,
+                songName: song.songName,
+                songType: song.songType,
+                songTypeNumber: song.songTypeNumber,
+                songDifficulty: song.songDifficulty,
+                animeType: song.animeType,
+                animeVintage: song.animeVintage,
+                annId: song.annId,
+                malId: song.malId,
+                kitsuId: song.kitsuId,
+                aniListId: song.aniListId,
+                animeTags: song.animeTags || [],
+                animeGenre: song.animeGenre || [],
+                startPoint: null,
+                audio: song.audio,
+                video480: song.video480,
+                video720: song.video720,
+                correctGuess: true,
+                incorrectGuess: true
+            });
+        }
+    }
     // this script structure
     else if (Array.isArray(data) && data.length && data[0].animeRomajiName) {
         songList = data;
@@ -2057,6 +2087,7 @@ function createLinkElement(link) {
             $a.attr("href", "https://" + catboxHostDict[fileHostOverride] + "/" + link);
         }
     }
+    $a.attr("target", "_blank");
     return $a;
 }
 

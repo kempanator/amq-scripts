@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Answer Stats
 // @namespace    https://github.com/kempanator
-// @version      0.23
+// @version      0.24
 // @description  Adds a window to display quiz answer stats
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -30,7 +30,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.23";
+const version = "0.24";
 const regionDictionary = {E: "Eastern", C: "Central", W: "Western"};
 const saveData = validateLocalStorage("answerStats");
 const saveData2 = validateLocalStorage("highlightFriendsSettings");
@@ -124,6 +124,8 @@ function setup() {
             altAnimeNamesAnswers: payload.songInfo.altAnimeNamesAnswers,
             animeType: payload.songInfo.animeType,
             animeVintage: payload.songInfo.vintage,
+            animeTags: payload.songInfo.animeTags,
+            animeGenre: payload.songInfo.animeGenre,
             songNumber: songNumber,
             songArtist: payload.songInfo.artist,
             songName: payload.songInfo.songName,
