@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Answer Stats
 // @namespace    https://github.com/kempanator
-// @version      0.25
+// @version      0.26
 // @description  Adds a window to display quiz answer stats
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -30,7 +30,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.25";
+const version = "0.26";
 const regionDictionary = {E: "Eastern", C: "Central", W: "Western"};
 const saveData = validateLocalStorage("answerStats");
 const saveData2 = validateLocalStorage("highlightFriendsSettings");
@@ -132,7 +132,7 @@ function setup() {
             songType: payload.songInfo.type,
             songTypeNumber: payload.songInfo.typeNumber,
             songTypeText: typeText(payload.songInfo.type, payload.songInfo.typeNumber),
-            songDifficulty: Math.round(payload.songInfo.animeDifficulty),
+            songDifficulty: payload.songInfo.animeDifficulty,
             annId: payload.songInfo.siteIds.annId,
             malId: payload.songInfo.siteIds.malId,
             kitsuId: payload.songInfo.siteIds.kitsuId,
@@ -759,7 +759,7 @@ function displaySongHistoryResults(songNumber) {
         <p>${song.songName}</p>
         <p>${song.songArtist}</p>
         <p style="color: #4497EA">${options.useRomajiNames ? song.animeRomajiName : song.animeEnglishName}</p>
-        <p>${song.songTypeText} (${song.songDifficulty}) ${song.animeVintage}</p>
+        <p>${song.songTypeText} (${song.songDifficulty.toFixed(1)}) ${song.animeVintage}</p>
     `;
     answerHistoryWindow.panels[0].clear();
     let $table = $(`<table id="answerHistoryTable" class="songMode"></table>`);
@@ -952,7 +952,7 @@ function displayPlayerHistoryResults(id) {
         let answer = songHistory[songNumber].answers[id];
         let $row = $("<tr></tr>");
         $row.append($("<td></td>").addClass("songNumber answerStatsClick").text(songNumber));
-        $row.append($("<td></td>").addClass("songDifficulty").text(songHistory[songNumber].songDifficulty));
+        $row.append($("<td></td>").addClass("songDifficulty").text(Math.round(songHistory[songNumber].songDifficulty)));
         $row.append($("<td></td>").addClass("speed").text(answer.speed ? answer.speed : ""));
         $row.append($("<td></td>").addClass("answer").text(answer.text).prepend(`<i class="fa ${answer.correct ? "fa-check" : "fa-times"}">`));
         $tbody.append($row);
