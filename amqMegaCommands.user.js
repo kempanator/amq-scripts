@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.110
+// @version      0.111
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -103,7 +103,7 @@ OTHER
 
 "use strict";
 if (typeof Listener === "undefined") return;
-const version = "0.110";
+const version = "0.111";
 const saveData = validateLocalStorage("megaCommands");
 const originalOrder = {qb: [], gm: []};
 if (typeof saveData.alerts?.hiddenPlayers === "boolean") delete saveData.alerts;
@@ -555,7 +555,8 @@ function setup() {
         }
     }).bindListener();
     new Listener("Game Starting", (payload) => {
-        if (autoVoteSkip === "valid") sendSystemMessage("Auto Vote Skip: on first valid answer");
+        if (autoVoteSkip === "valid") sendSystemMessage("Auto Vote Skip: on first valid team answer");
+        else if (autoVoteSkip === "correct") sendSystemMessage("Auto Vote Skip: only correct answers");
         else if (autoVoteSkip.length) sendSystemMessage("Auto Vote Skip: Enabled");
         if (autoKey) sendSystemMessage("Auto Key: Enabled");
         if (autoCopy) sendSystemMessage("Auto Copy: " + autoCopy);
@@ -607,6 +608,12 @@ function setup() {
         if (muteReplay) {
             volumeController.setMuted(true);
             volumeController.adjustVolume();
+        }
+        if (autoVoteSkip === "correct") {
+            let player = payload.players.find((x) => x.gamePlayerId === quiz.ownGamePlayerId);
+            if (player?.correct) {
+                setTimeout(() => { if (!quiz.skipController._toggled) quiz.skipClicked() }, 1);
+            }
         }
         if (autoDownloadSong.length) {
             if (autoDownloadSong.includes("video")) {
@@ -988,7 +995,8 @@ function setup() {
                                 <span class="mcCommandTitle">Auto Vote Skip</span>
                                 <select id="mcAutoVoteSkipSelect" style="padding: 3px 0;">
                                     <option>time</option>
-                                    <option>valid</option>
+                                    <option>correct</option>
+                                    <option>team valid</option>
                                 </select>
                                 <input id="mcAutoVoteSkipTimeInput" type="text" placeholder="time" style="width: 50px;">
                             </div>
@@ -1308,10 +1316,17 @@ function setup() {
                     toggleCommandButton($(this), true);
                 }
             }
-            else if (option === "valid") {
+            else if (option === "team valid") {
                 autoVoteSkip = "valid";
                 saveSettings();
                 sendSystemMessage("auto vote skip after first valid answer on team enabled");
+                toggleCommandButton($(this), true);
+                $("#mcAutoVoteSkipTimeInput").val("");
+            }
+            else if (option === "correct") {
+                autoVoteSkip = "correct";
+                saveSettings();
+                sendSystemMessage(`auto vote skip correct answers only${options.autoVoteSkipReplay ? " (please disable replay phase skip in settings)" : ""}`);
                 toggleCommandButton($(this), true);
                 $("#mcAutoVoteSkipTimeInput").val("");
             }
@@ -1650,8 +1665,13 @@ function updateCommandListWindow(type) {
     if (!type || type === "autoVoteSkip") {
         if (autoVoteSkip === "valid") {
             toggleCommandButton($("#mcAutoVoteSkipButton"), true);
-            $("#mcAutoVoteSkipSelect").val("valid");
-            $("#mcAutoVoteSkipTimeInput").hide("");
+            $("#mcAutoVoteSkipSelect").val("team valid");
+            $("#mcAutoVoteSkipTimeInput").hide();
+        }
+        else if (autoVoteSkip === "correct") {
+            toggleCommandButton($("#mcAutoVoteSkipButton"), true);
+            $("#mcAutoVoteSkipSelect").val("correct");
+            $("#mcAutoVoteSkipTimeInput").hide();
         }
         else if (Array.isArray(autoVoteSkip) && autoVoteSkip.length) {
             toggleCommandButton($("#mcAutoVoteSkipButton"), true);
@@ -2324,19 +2344,19 @@ async function parseCommand(content, type, target) {
         sendMessage(`mute after answer submit ${muteSubmit ? "enabled" : "disabled"}`, type, target, true);
         updateCommandListWindow("muteSubmit");
     }
-    else if (/^\/(avs|autoskip|autovoteskip)$/i.test(content)) {
+    else if (/^\/(avs|asv|autoskip|autovoteskip)$/i.test(content)) {
         autoVoteSkip = autoVoteSkip.length ? [] : [0];
         sendMessage(`auto vote skip ${autoVoteSkip.length ? "enabled" : "disabled"}`, type, target, true);
         updateCommandListWindow("autoVoteSkip");
     }
-    else if (/^\/(avs|autoskip|autovoteskip) [0-9.]+$/i.test(content)) {
+    else if (/^\/(avs|asv|autoskip|autovoteskip) [0-9.]+$/i.test(content)) {
         let seconds = parseFloat(/^\S+ ([0-9.]+)$/.exec(content)[1]);
         if (isNaN(seconds)) return;
         autoVoteSkip = [Math.floor(seconds * 1000)];
         sendMessage(`auto vote skip after ${seconds} second${seconds === 1 ? "" : "s"}`, type, target, true);
         updateCommandListWindow("autoVoteSkip");
     }
-    else if (/^\/(avs|autoskip|autovoteskip) [0-9.]+[ ,-]+[0-9.]+$/i.test(content)) {
+    else if (/^\/(avs|asv|autoskip|autovoteskip) [0-9.]+[ ,-]+[0-9.]+$/i.test(content)) {
         let low = parseFloat(/^\S+ ([0-9.]+)[ ,-]+[0-9.]+$/.exec(content)[1]);
         let high = parseFloat(/^\S+ [0-9.]+[ ,-]+([0-9.]+)$/.exec(content)[1]);
         if (isNaN(low) || isNaN(high) || low >= high) return;
@@ -2344,10 +2364,27 @@ async function parseCommand(content, type, target) {
         sendMessage(`auto vote skip after ${low}-${high} seconds`, type, target, true);
         updateCommandListWindow("autoVoteSkip");
     }
-    else if (/^\/(avs|autoskip|autovoteskip) (v|valid|onvalid)$/i.test(content)) {
+    else if (/^\/(avs|asv|autoskip|autovoteskip) (v|tv|valid|team ?valid)$/i.test(content)) {
         autoVoteSkip = "valid";
         sendMessage(`auto vote skip after first valid answer on team enabled`, type, target, true);
         updateCommandListWindow("autoVoteSkip");
+    }
+    else if (/^\/(avs|asv|autoskip|autovoteskip) (c|correct|right)$/i.test(content)) {
+        autoVoteSkip = "correct";
+        sendMessage(`auto vote skip correct answers only${options.autoVoteSkipReplay ? " (please disable replay phase skip in settings)" : ""}`, type, target, true);
+        updateCommandListWindow("autoVoteSkip");
+    }
+    else if (/^\/(avs|asv|autoskip|autovoteskip) (g|guess|guessing)$/i.test(content)) {
+        let option = !options.$AUTO_VOTE_GUESS.prop("checked");
+        options.$AUTO_VOTE_GUESS.prop("checked", option);
+        options.updateAutoVoteSkipGuess();
+        sendMessage(`auto vote skip guess phase ${option ? "enabled" : "disabled"}`, type, target, true);
+    }
+    else if (/^\/(avs|asv|autoskip|autovoteskip) (r|replay)$/i.test(content)) {
+        let option = !options.$AUTO_VOTE_REPLAY.prop("checked");
+        options.$AUTO_VOTE_REPLAY.prop("checked", option);
+        options.updateAutoVoteSkipReplay();
+        sendMessage(`auto vote skip replay phase ${option ? "enabled" : "disabled"}`, type, target, true);
     }
     else if (/^\/(ak|autokey|autosubmit)$/i.test(content)) {
         autoKey = !autoKey;
@@ -3350,6 +3387,84 @@ async function parseCommand(content, type, target) {
         sendMessage(`auto throwing: ${anime} after 3-5 seconds`, type, target, true);
         updateCommandListWindow("autoThrow");
     }
+    else if (/^\/(dq|daily|dailies|dailyquests?) ops?$/i.test(content)) {
+        let anime = "Detective Conan";
+        if (lobby.inLobby && lobby.isHost && anime in dqMap) {
+            let settings = hostModal.getSettings();
+            let data = dqMap[anime];
+            settings.songSelection.standardValue = 1;
+            settings.songSelection.advancedValue = {random: settings.numberOfSongs, unwatched: 0, watched: 0};
+            settings.songType.advancedValue = {openings: 0, endings: 0, inserts: 0, random: 20};
+            settings.songType.standardValue = {openings: true, endings: true, inserts: true};
+            settings.vintage.advancedValueList = [];
+            settings.vintage.standardValue = {seasons: data.seasons, years: data.years};
+            settings.genre = data.genre.map((x) => ({id: String(x), state: 1}));
+            settings.tags = data.tags ?? [];
+            settings.songType.standardValue.openings = true;
+            settings.songType.standardValue.endings = false;
+            settings.songType.standardValue.inserts = false;
+            settings.songType.advancedValue.openings = 0;
+            settings.songType.advancedValue.endings = 0;
+            settings.songType.advancedValue.inserts = 0;
+            settings.songType.advancedValue.random = settings.numberOfSongs;
+            changeGameSettings(settings);
+        }
+        autoThrow = {time: [3000, 5000], text: anime, multichoice: null};
+        sendMessage(`auto throwing: ${anime} after 3-5 seconds`, type, target, true);
+        updateCommandListWindow("autoThrow");
+    }
+    else if (/^\/(dq|daily|dailies|dailyquests?) eds?$/i.test(content)) {
+        let anime = "Detective Conan";
+        if (lobby.inLobby && lobby.isHost && anime in dqMap) {
+            let settings = hostModal.getSettings();
+            let data = dqMap[anime];
+            settings.songSelection.standardValue = 1;
+            settings.songSelection.advancedValue = {random: settings.numberOfSongs, unwatched: 0, watched: 0};
+            settings.songType.advancedValue = {openings: 0, endings: 0, inserts: 0, random: 20};
+            settings.songType.standardValue = {openings: true, endings: true, inserts: true};
+            settings.vintage.advancedValueList = [];
+            settings.vintage.standardValue = {seasons: data.seasons, years: data.years};
+            settings.genre = data.genre.map((x) => ({id: String(x), state: 1}));
+            settings.tags = data.tags ?? [];
+            settings.songType.standardValue.openings = false;
+            settings.songType.standardValue.endings = true;
+            settings.songType.standardValue.inserts = false;
+            settings.songType.advancedValue.openings = 0;
+            settings.songType.advancedValue.endings = 0;
+            settings.songType.advancedValue.inserts = 0;
+            settings.songType.advancedValue.random = settings.numberOfSongs;
+            changeGameSettings(settings);
+        }
+        autoThrow = {time: [3000, 5000], text: anime, multichoice: null};
+        sendMessage(`auto throwing: ${anime} after 3-5 seconds`, type, target, true);
+        updateCommandListWindow("autoThrow");
+    }
+    else if (/^\/(dq|daily|dailies|dailyquests?) ins?$/i.test(content)) {
+        let anime = "Initial D";
+        if (lobby.inLobby && lobby.isHost && anime in dqMap) {
+            let settings = hostModal.getSettings();
+            let data = dqMap[anime];
+            settings.songSelection.standardValue = 1;
+            settings.songSelection.advancedValue = {random: settings.numberOfSongs, unwatched: 0, watched: 0};
+            settings.songType.advancedValue = {openings: 0, endings: 0, inserts: 0, random: 20};
+            settings.songType.standardValue = {openings: true, endings: true, inserts: true};
+            settings.vintage.advancedValueList = [];
+            settings.vintage.standardValue = {seasons: data.seasons, years: data.years};
+            settings.genre = data.genre.map((x) => ({id: String(x), state: 1}));
+            settings.tags = data.tags ?? [];
+            settings.songType.standardValue.openings = false;
+            settings.songType.standardValue.endings = false;
+            settings.songType.standardValue.inserts = true;
+            settings.songType.advancedValue.openings = 0;
+            settings.songType.advancedValue.endings = 0;
+            settings.songType.advancedValue.inserts = 0;
+            settings.songType.advancedValue.random = settings.numberOfSongs;
+            changeGameSettings(settings);
+        }
+        autoThrow = {time: [3000, 5000], text: anime, multichoice: null};
+        sendMessage(`auto throwing: ${anime} after 3-5 seconds`, type, target, true);
+        updateCommandListWindow("autoThrow");
+    }
     else if (/^\/(dq|daily|dailies|dailyquests?) .+$/i.test(content)) {
         let genreDict = Object.assign({}, ...Object.entries(idTranslator.genreNames).map(([a, b]) => ({[b.toLowerCase()]: parseInt(a)})));
         let list = /^\S+ (.+)$/.exec(content)[1].toLowerCase().split(",").map((x) => genreDict[x.trim()]);
@@ -3574,7 +3689,7 @@ function parseIncomingDM(content, sender) {
 function parseForceAll(content, type) {
     if (commands) {
         if (/^\/forceall version$/i.test(content)) {
-            sendMessage("0.110", type);
+            sendMessage("0.111", type);
         }
         else if (/^\/forceall version .+$/i.test(content)) {
             let option = /^\S+ \S+ (.+)$/.exec(content)[1];
@@ -4090,7 +4205,8 @@ function getPlayerNameCorrectCase(name) {
 // return list of every auto function that is enabled
 function autoList() {
     let list = [];
-    if (autoVoteSkip === "valid") list.push("Auto Vote Skip: on first valid answer");
+    if (autoVoteSkip === "valid") list.push("Auto Vote Skip: on first valid team answer");
+    else if (autoVoteSkip === "correct") list.push("Auto Vote Skip: only correct answers");
     else if (autoVoteSkip.length) list.push("Auto Vote Skip: Enabled");
     if (autoKey) list.push("Auto Key: Enabled");
     if (autoCopy) list.push("Auto Copy: " + autoCopy);
