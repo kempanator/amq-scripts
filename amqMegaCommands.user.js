@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.111
+// @version      0.112
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -103,7 +103,7 @@ OTHER
 
 "use strict";
 if (typeof Listener === "undefined") return;
-const version = "0.111";
+const version = "0.112";
 const saveData = validateLocalStorage("megaCommands");
 const originalOrder = {qb: [], gm: []};
 if (typeof saveData.alerts?.hiddenPlayers === "boolean") delete saveData.alerts;
@@ -113,7 +113,8 @@ let animeAutoCompleteLowerCase = [];
 let autoAcceptInvite = saveData.autoAcceptInvite ?? false;
 if (autoAcceptInvite === true) autoAcceptInvite = "friends";
 let autoCopy = saveData.autoCopy ?? "";
-let autoDownloadSong = saveData ?? [];
+let autoDownloadSong = saveData.autoDownloadSong ?? [];
+let autoDownloadJson = saveData.autoDownloadJson ?? [];
 let autoHost = saveData.autoHost ?? "";
 let autoInvite = saveData.autoInvite ?? "";
 let autoJoinRoom = saveData.autoJoinRoom ?? false;
@@ -160,6 +161,7 @@ alerts.serverStatus = saveData.alerts?.serverStatus ?? {chat: false, popout: fal
 commandPersist.autoAcceptInvite = saveData.commandPersist?.autoAcceptInvite ?? true;
 commandPersist.autoCopy = saveData.commandPersist?.autoCopy ?? false;
 commandPersist.autoDownloadSong = saveData.commandPersist?.autoDownloadSong ?? false;
+commandPersist.autoDownloadJson = saveData.commandPersist?.autoDownloadJson ?? true;
 commandPersist.autoHost = saveData.commandPersist?.autoHost ?? false;
 commandPersist.autoInvite = saveData.commandPersist?.autoInvite ?? false;
 commandPersist.autoKey = saveData.commandPersist?.autoKey ?? true;
@@ -640,6 +642,20 @@ function setup() {
             }, 100);
         }
     }).bindListener();
+    new Listener("return lobby vote result", (payload) => {
+        if (payload.passed) {
+            if (autoDownloadJson.includes("all") || 
+            (autoDownloadJson.includes("solo") && quiz.soloMode) || 
+            (autoDownloadJson.includes("ranked") && quiz.gameMode === "Ranked") || 
+            (autoDownloadJson.includes("tour") && hostModal.$roomName.val().toLowerCase().includes("tour"))) {
+                $("#shHistoryTab").trigger("click");
+                setTimeout(() => {
+                    popoutMessages.displayStandardMessage("Auto Download JSON", $(".shGameTitleInner").first().text().trim());
+                    $(".shGameTitleInner .shGameDownloadIcon").first().trigger("click");
+                }, 100);
+            }
+        }
+    }).bindListener();
     new Listener("battle royal phase over", (payload) => {
         if (printLoot && !battleRoyal.isSpectator) {
             let lootNames = battleRoyal.collectionController.entries.map((entry) => entry.$entry.text().substring(2));
@@ -650,6 +666,18 @@ function setup() {
         setTimeout(() => { checkAutoHost() }, 10);
         if (autoSwitch) setTimeout(() => { checkAutoSwitch() }, 100);
         if (hidePlayers) setTimeout(() => { lobbyHidePlayers() }, 0);
+    }).bindListener();
+    new Listener("quiz end result", (payload) => {
+        if (autoDownloadJson.includes("all") || 
+        (autoDownloadJson.includes("solo") && quiz.soloMode) || 
+        (autoDownloadJson.includes("ranked") && quiz.gameMode === "Ranked") || 
+        (autoDownloadJson.includes("tour") && hostModal.$roomName.val().toLowerCase().includes("tour"))) {
+            $("#shHistoryTab").trigger("click");
+            setTimeout(() => {
+                popoutMessages.displayStandardMessage("Auto Download JSON", $(".shGameTitleInner").first().text().trim());
+                $(".shGameTitleInner .shGameDownloadIcon").first().trigger("click");
+            }, 100);
+        }
     }).bindListener();
     new Listener("Join Game", (payload) => {
         if (payload.error) {
@@ -833,7 +861,7 @@ function setup() {
     }).bindListener();
     $("#qpAnswerInput").on("input", (event) => {
         if (autoKey) {
-            socket.sendCommand({type: "quiz", command: "quiz answer", data: {answer: event.target.value || " ", isPlaying: true, volumeAtMax: false}});
+            socket.sendCommand({type: "quiz", command: "quiz answer", data: {answer: event.target.value || " "}});
             quiz.answerInput.typingInput.autoSubmitEligible = false;
         }
     }).on("keypress", (event) => {
@@ -907,7 +935,7 @@ function setup() {
 
     $("#gameContainer").append($(`
         <div class="modal fade tab-modal" id="mcSettingsModal" tabindex="-1" role="dialog">
-            <div class="modal-dialog" role="document">
+            <div class="modal-dialog modal-lg" role="document">
                 <div class="modal-content">
                     <div class="modal-header" style="padding: 3px 0 0 0">
                         <button type="button" class="close" data-dismiss="modal" aria-label="Close">
@@ -937,6 +965,7 @@ function setup() {
                     </div>
                     <div class="modal-body" style="overflow-y: auto; max-height: calc(100vh - 150px);">
                         <div id="mcDocumentationContainer" style="height: 500px; margin-top: 10px;">
+                            <pre>${helpText}</pre>
                         </div>
                         <div id="mcActiveContainer" style="margin: 10px 0;">
                             <div class="mcCommandRow">
@@ -1055,17 +1084,17 @@ function setup() {
                             </table>
                         </div>
                         <div id="mcAlertsContainer" style="margin: 10px 0;">
-                        <table id="mcAlertsTable">
-                            <thead>
-                                <tr>
-                                    <th>Alert</th>
-                                    <th>Popout</th>
-                                    <th>Chat</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                            </tbody>
-                        </table>
+                            <table id="mcAlertsTable">
+                                <thead>
+                                    <tr>
+                                        <th>Alert</th>
+                                        <th>Popout</th>
+                                        <th>Chat</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                </tbody>
+                            </table>
                         </div>
                         <div id="mcOrderContainer" style="margin: 10px 0;">
                             <h4 class="text-center">Reorganize Icons/Settings</h4>
@@ -1076,11 +1105,13 @@ function setup() {
                                             <span style="font-size: 18px; font-weight: bold; margin-right: 10px;">Quiz Bar</span>
                                             <div class="customCheckbox"><input type="checkbox" id="mcOrderQuizBarCheckbox"><label for="mcOrderQuizBarCheckbox"><i class="fa fa-check" aria-hidden="true"></i></label></div>
                                             <button id="mcOrderQuizBarResetButton" class="btn btn-danger" style="margin: 0 0 0 7px; padding: 0 5px; vertical-align: top;"><i class="fa fa-trash" aria-hidden="true"></i></button>
+                                            <h4>Soon™</h4>
                                         </th>
                                         <th>
                                             <span style="font-size: 18px; font-weight: bold; margin-right: 10px;">Gear Menu</span>
                                             <div class="customCheckbox"><input type="checkbox" id="mcOrderGearMenuCheckbox"><label for="mcOrderGearMenuCheckbox"><i class="fa fa-check" aria-hidden="true"></i></label></div>
                                             <button id="mcOrderGearMenuResetButton" class="btn btn-danger" style="margin: 0 0 0 7px; padding: 0 5px; vertical-align: top;"><i class="fa fa-trash" aria-hidden="true"></i></button>
+                                            <h4>Soon™</h4>
                                         </th>
                                     </tr>
                                 </thead>
@@ -1495,14 +1526,11 @@ function setup() {
         malClientId = $(this).val().trim();
     });
     
-    $("#mcOrderTab").hide();
     tabReset();
     updateCommandListWindow();
     $("#mcDocumentationTab").addClass("selected");
     $("#mcDocumentationContainer").show();
     $("#optionListSettings").before(`<li class="clickAble" onclick="$('#mcSettingsModal').modal('show')">Commands</li>`);
-
-    $("#mcDocumentationContainer").append(`<h4 class="text-center">Soon™</h4>`);
 
     AMQ_addScriptData({
         name: "Mega Commands",
@@ -2703,6 +2731,46 @@ async function parseCommand(content, type, target) {
             sendMessage("countdown stopped", type, target, true);
         }
     }
+    else if (/^\/(adj|autodownloadjsons?)$/i.test(content)) {
+        if (autoDownloadJson.length === 0) {
+            sendMessage("auto download json disabled", type, target, true);
+        }
+        else if (autoDownloadJson.includes("all")) {
+            sendMessage("auto download json enabled", type, target, true);
+        }
+        else {
+            sendMessage(`auto download json enabled for ${autoDownloadJson.join(", ")}`, type, target, true);
+        }
+    }
+    else if (/^\/(adj|autodownloadjsons?) \S+$/i.test(content)) {
+        let option = /^\S+ (.+)$/.exec(content)[1].toLowerCase();
+        if (/^(on|all|true|enabled?)$/.test(option)) {
+            autoDownloadJson = ["all"];
+            sendMessage("auto download json enabled", type, target, true);
+        }
+        else if (/^(off|none|false|disabled?)$/.test(option)) {
+            autoDownloadJson = [];
+            sendMessage("auto download json disabled", type, target, true);
+        }
+        else if (/^solo$/.test(option)) {
+            if (!autoDownloadJson.includes("solo")) {
+                autoDownloadJson.push("solo");
+            }
+            sendMessage("auto download json enabled for solo", type, target, true);
+        }
+        else if (/^ranked$/.test(option)) {
+            if (!autoDownloadJson.includes("ranked")) {
+                autoDownloadJson.push("ranked");
+            }
+            sendMessage("auto download json enabled for ranked", type, target, true);
+        }
+        else if (/^tours?$/.test(option)) {
+            if (!autoDownloadJson.includes("tour")) {
+                autoDownloadJson.push("tour");
+            }
+            sendMessage("auto download json enabled for tours", type, target, true);
+        }
+    }
     else if (/^\/(cd|countdown) [0-9]+$/i.test(content)) {
         if (type !== "chat" || !lobby.inLobby) return;
         if (!lobby.isHost) return sendMessage("countdown failed: not host", type, target, true);
@@ -2900,6 +2968,9 @@ async function parseCommand(content, type, target) {
             gameInviteListener.bindListener();
             socket.sendCommand({type: "social", command: "invite to game", data: {target: selfName}});
         }
+    }
+    else if (/^\/quizid$/i.test(content)) {
+        sendMessage(String(quiz.quizDescription?.quizId), type, target);
     }
     else if (/^\/(dm|pm)$/i.test(content)) {
         socialTab.startChat(selfName);
@@ -3244,6 +3315,7 @@ async function parseCommand(content, type, target) {
             if (key.toLowerCase() === option) {
                 commandPersist[key] = value[0] === "t" ? true : false;
                 sendMessage(`${key} persist set to ${commandPersist[key]}`, type, target);
+                saveSettings();
             }
         }
     }
@@ -3689,7 +3761,7 @@ function parseIncomingDM(content, sender) {
 function parseForceAll(content, type) {
     if (commands) {
         if (/^\/forceall version$/i.test(content)) {
-            sendMessage("0.111", type);
+            sendMessage("0.112", type);
         }
         else if (/^\/forceall version .+$/i.test(content)) {
             let option = /^\S+ \S+ (.+)$/.exec(content)[1];
@@ -4682,6 +4754,11 @@ function applyStyles() {
         #mcAlertsTable .customCheckbox {
             vertical-align: middle;
         }
+        #mcDocumentationContainer pre {
+            background-color: inherit;
+            color: inherit;
+            border: 0;
+        }
     `;
     if (backgroundURL) text += `
         #loadingScreen, #gameContainer {
@@ -4724,6 +4801,7 @@ function saveSettings() {
     if (commandPersist.autoAcceptInvite) settings.autoAcceptInvite = autoAcceptInvite;
     if (commandPersist.autoCopy) settings.autoCopy = autoCopy;
     if (commandPersist.autoDownloadSong) settings.autoDownloadSong = autoDownloadSong;
+    if (commandPersist.autoDownloadJson) settings.autoDownloadJson = autoDownloadJson;
     if (commandPersist.autoHost) settings.autoHost = autoHost;
     if (commandPersist.autoInvite) settings.autoInvite = autoInvite;
     if (commandPersist.autoKey) settings.autoKey = autoKey;
@@ -4744,3 +4822,82 @@ function saveSettings() {
     if (commandPersist.playbackSpeed) settings.playbackSpeed = playbackSpeed;
     localStorage.setItem("megaCommands", JSON.stringify(settings));
 }
+
+const helpText = `
+GAME SETTINGS
+/size [2-40]              change room size
+/type [oei]               change song types
+/random                   change selection type to random
+/unwatched                change selection type to unwatched
+/watched                  change selection type to watched
+/time [1-60]              change song guess time
+/extratime [0-15]         change song guess extra time
+/sample [low] [high]      change start sample point
+/lives [1-5]              change number of lives
+/team [1-8]               change team size
+/songs [5-100]            change number of songs
+/dif [low] [high]         change difficulty
+/vintage [text]           change vintage
+/genre [text]             change genre
+/tag [text]               change tags
+
+IN GAME/LOBBY
+/autoskip                 automatically vote skip at the beginning of each song
+/autokey                  automatically submit answer on each key press
+/autothrow [text]         automatically send answer at the beginning of each song
+/autocopy [name]          automatically copy a team member's answer
+/automute [seconds]       automatically mute sound during quiz after # of seconds
+/autounmute [seconds]     automatically unmute sound during quiz after # of seconds
+/automutetoggle [list]    start unmuted and automatically toggle mute iterating over a list of # of seconds
+/automuterandom [time]    automatically mute a random time interval during guess phase
+/autounmuterandom [time]  automatically unmute a random time interval during guess phase
+/autoready                automatically ready up in lobby
+/autostart                automatically start the game when everyone is ready if you are host
+/autohost [name]          automatically promote player to host if you are the current host
+/autoinvite [name]        automatically invite a player to your room when they log in (only friends)
+/autoaccept               automatically accept game invites if you aren't in a room
+/autolobby                automatically vote return to lobby when host starts a vote
+/ready                    ready/unready in lobby
+/invite [name]            invite player to game
+/host [name]              promote player to host
+/kick [name]              kick player
+/skip                     vote skip on current song
+/pause                    pause/unpause game
+/lobby                    start return to lobby vote
+/leave                    leave room
+/rejoin [seconds]         leave and rejoin the room you're in after # of seconds
+/spec                     change to spectator
+/join                     change from spectator to player in lobby
+/queue                    join/leave queue
+/volume [0-100]           change volume
+/quality [text]           change video quality to mp3, 480, 720
+/countdown [seconds]      start game after # of seconds
+/dropdown                 enable/disable anime dropdown
+/dropdownspec             enable dropdown while spectating
+/speed [number]           change client-side song playback speed (0.0625 - 16)
+/mutereplay               auto mute during the replay phase
+/mutesubmit               auto mute after answer submit
+/continuesample           continue sample after answer reveal instead of resetting
+/loopvideo                loop the video when it ends
+
+OTHER
+/roll                     roll number, player, teammate, playerteam, spectator
+/shuffle [list]           shuffle a list of anything (separate with commas)
+/startvote [list]         start a vote with a list of options (separate with commas)
+/stopvote                 stop the vote and print results
+/calc [expression]        calculate a math expression
+/list [a|m|k] [name]      change anime list
+/rules                    show list of gamemodes and rules
+/info                     show list of external utilities
+/clear                    clear chat
+/dm [name] [text]         direct message a player
+/profile [name]           show profile window of any player
+/password                 reveal private room password
+/invisible                show invisible friends
+/background [url]         change the background
+/logout                   log out
+/relog                    log out, log in, and auto join the room you were in
+/alerts [type]            toggle alerts
+/version                  check the version of this script
+/commands [on|off]        turn this script on or off
+`;
