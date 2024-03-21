@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.46
+// @version      0.47
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -43,7 +43,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.46";
+const version = "0.47";
 const saveData = validateLocalStorage("customSongListGame");
 const catboxHostDict = {1: "files.catbox.moe", 2: "nl.catbox.moe", 3: "nl.catbox.video", 4: "ladist1.catbox.video", 5: "vhdist1.catbox.video"};
 let CSLButtonCSS = saveData.CSLButtonCSS || "calc(25% - 250px)";
@@ -1395,21 +1395,21 @@ function parseMessage(content, sender) {
         }
     }
     else if (content === "§CSL81") { //pause
-        if (isHost) {
+        if (quiz.cslActive && isHost) {
             fireListener("quiz pause triggered", {
                 "playerName": sender
             });
         }
     }
     else if (content === "§CSL82") { //unpause
-        if (isHost) {
+        if (quiz.cslActive && isHost) {
             fireListener("quiz unpause triggered", {
                 "playerName": sender
             });
         }
     }
     else if (content === "§CSL91") { //vote skip
-        if (quiz.isHost && player) {
+        if (quiz.cslActive && quiz.isHost && player) {
             cslMultiplayer.voteSkip[player.gamePlayerId] = true;
             if (!skipping && checkVoteSkip()) {
                 skipping = true;
@@ -1423,7 +1423,7 @@ function parseMessage(content, sender) {
         }
     }
     else if (content === "§CSL92") { //skip guessing phase
-        if (isHost) {
+        if (quiz.cslActive && isHost) {
             fireListener("quiz overlay message", "Skipping to Answers");
             clearInterval(skipInterval);
             clearTimeout(endGuessTimer);
@@ -1434,33 +1434,33 @@ function parseMessage(content, sender) {
         }
     }
     else if (content === "§CSL93") { //skip replay phase
-        if (isHost) {
+        if (quiz.cslActive && isHost) {
             endReplayPhase(currentSong);
         }
     }
     else if (content.startsWith("§CSLa")) { //animeRomajiName
-        if (isHost) {
-            cslMultiplayer.songInfo.animeRomajiName = decodeURI(atob(content.slice(5)));
+        if (quiz.cslActive && isHost) {
+            cslMultiplayer.songInfo.animeRomajiName = preventCodeInjection(decodeURI(atob(content.slice(5))));
         }
     }
     else if (content.startsWith("§CSLb")) { //animeEnglishName
-        if (isHost) {
-            cslMultiplayer.songInfo.animeEnglishName = decodeURI(atob(content.slice(5)));
+        if (quiz.cslActive && isHost) {
+            cslMultiplayer.songInfo.animeEnglishName = preventCodeInjection(decodeURI(atob(content.slice(5))));
         }
     }
     else if (content.startsWith("§CSLc")) { //songArtist
-        if (isHost) {
-            cslMultiplayer.songInfo.songArtist = decodeURI(atob(content.slice(5)));
+        if (quiz.cslActive && isHost) {
+            cslMultiplayer.songInfo.songArtist = preventCodeInjection(decodeURI(atob(content.slice(5))));
         }
     }
     else if (content.startsWith("§CSLd")) { //songName
-        if (isHost) {
-            cslMultiplayer.songInfo.songName = decodeURI(atob(content.slice(5)));
+        if (quiz.cslActive && isHost) {
+            cslMultiplayer.songInfo.songName = preventCodeInjection(decodeURI(atob(content.slice(5))));
         }
     }
     else if (content.startsWith("§CSLe")) { //songType songTypeNumber songDifficulty animeType animeVintage
         if (quiz.cslActive && isHost) {
-            let split = atob(content.slice(5)).split("-");
+            let split = preventCodeInjection(atob(content.slice(5)).split("-"));
             //console.log(split);
             cslMultiplayer.songInfo.songType = parseInt(split[0]) || null;
             cslMultiplayer.songInfo.songTypeNumber = parseInt(split[1]) || null;
@@ -1474,8 +1474,8 @@ function parseMessage(content, sender) {
         }
     }
     else if (content.startsWith("§CSLf")) { //audio
-        if (isHost) {
-            cslMultiplayer.songInfo.audio = decodeURI(atob(content.slice(5)));
+        if (quiz.cslActive && isHost) {
+            cslMultiplayer.songInfo.audio = preventCodeInjection(decodeURI(atob(content.slice(5))));
         }
     }
 }
@@ -2170,6 +2170,17 @@ function createCatboxLinkObject(audio, video480, video720) {
 // return true if you are in a ranked lobby or quiz
 function isRankedMode() {
     return (lobby.inLobby && lobby.settings.gameMode === "Ranked") || (quiz.inQuiz && quiz.gameMode === "Ranked");
+}
+
+// safeguard against people putting valid javascript in the song json
+function preventCodeInjection(text) {
+    if (/<script/i.test(text)) {
+        cslMessage("⚠️ code injection attempt detected, ending quiz");
+        quizOver();
+        console.warn("CSL CODE INJECTION ATTEMPT:\n" + text);
+        return "";
+    }
+    return text;
 }
 
 // validate json data in local storage
