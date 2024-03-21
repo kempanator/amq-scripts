@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Answer Stats
 // @namespace    https://github.com/kempanator
-// @version      0.26
+// @version      0.27
 // @description  Adds a window to display quiz answer stats
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -30,7 +30,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.26";
+const version = "0.27";
 const regionDictionary = {E: "Eastern", C: "Central", W: "Western"};
 const saveData = validateLocalStorage("answerStats");
 const saveData2 = validateLocalStorage("highlightFriendsSettings");
@@ -756,10 +756,10 @@ function displaySongHistoryResults(songNumber) {
     songHistoryFilter.type === "all" ? answerHistoryWindow.window.find(".filterButton").hide() : answerHistoryWindow.window.find(".filterButton").show();
     //answerHistoryWindow.window.find(".infoButton").data("bs.popover").options.title = "Song " + songNumber;
     answerHistoryWindow.window.find(".infoButton").data("bs.popover").options.content = `
-        <p>${song.songName}</p>
-        <p>${song.songArtist}</p>
-        <p style="color: #4497EA">${options.useRomajiNames ? song.animeRomajiName : song.animeEnglishName}</p>
-        <p>${song.songTypeText} (${song.songDifficulty.toFixed(1)}) ${song.animeVintage}</p>
+        <p>${escapeHtml(song.songName)}</p>
+        <p>${escapeHtml(song.songArtist)}</p>
+        <p style="color: #4497EA">${escapeHtml(options.useRomajiNames ? song.animeRomajiName : song.animeEnglishName)}</p>
+        <p>${escapeHtml(song.songTypeText)} (${escapeHtml(song.songDifficulty.toFixed(1))}) ${escapeHtml(song.animeVintage)}</p>
     `;
     answerHistoryWindow.panels[0].clear();
     let $table = $(`<table id="answerHistoryTable" class="songMode"></table>`);
