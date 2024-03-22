@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ New Game Mode UI
 // @namespace    https://github.com/kempanator
-// @version      0.24
+// @version      0.25
 // @description  Adds a user interface to new game mode to keep track of guesses
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -22,7 +22,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.24";
+const version = "0.25";
 let ngmWindow;
 let initialGuessCount = []; //list of initial # guesses for your team [5, 5, 5, 5]
 let guessCounter = []; //list of current # guesses for your team [4, 2, 1, 3]
@@ -62,7 +62,7 @@ function setup() {
     }).bindListener();
     new Listener("Game Starting", (payload) => {
         let selfPlayer = payload.players.find((player) => player.name === selfName);
-        if (selfPlayer?.inGame && hostModal.$teamSize.slider("getValue") > 1 && hostModal.$scoring.slider("getValue") === 3) {
+        if (selfPlayer?.inGame && hostModal.$teamSize.slider("getValue") > 1 && hostModal.$scoring.slider("getValue") === quiz.SCORE_TYPE_IDS.LIVES) {
             updateWindow(payload.players);
         }
         else {
@@ -70,7 +70,7 @@ function setup() {
         }
     }).bindListener();
     new Listener("Join Game", (payload) => {
-        if (payload.quizState && payload.settings.teamSize > 1 && payload.settings.scoreType === 3) {
+        if (payload.quizState && payload.settings.teamSize > 1 && payload.settings.scoreType === quiz.SCORE_TYPE_IDS.LIVES) {
             updateWindow(payload.quizState.players);
         }
         else {
@@ -84,7 +84,7 @@ function setup() {
         clearWindow();
     }).bindListener();
     new Listener("play next song", (payload) => {
-        if (quiz.teamMode && !quiz.isSpectator && hostModal.$scoring.slider("getValue") === 3) {
+        if (quiz.teamMode && !quiz.isSpectator && hostModal.$scoring.slider("getValue") === quiz.SCORE_TYPE_IDS.LIVES) {
             answers = {};
             if (autoThrowSelfCount && guessCounter.length) {
                 setTimeout(() => {
@@ -98,17 +98,17 @@ function setup() {
         }
     }).bindListener();
     new Listener("team member answer", (payload) => {
-        if (quiz.teamMode && hostModal.$scoring.slider("getValue") === 3) {
+        if (quiz.teamMode && hostModal.$scoring.slider("getValue") === quiz.SCORE_TYPE_IDS.LIVES) {
             answers[payload.gamePlayerId] = {id: payload.gamePlayerId, text: payload.answer};
         }
     }).bindListener();
     new Listener("player answers", (payload) => {
-        if (quiz.teamMode && !quiz.isSpectator && hostModal.$scoring.slider("getValue") === 3) {
+        if (quiz.teamMode && !quiz.isSpectator && hostModal.$scoring.slider("getValue") === quiz.SCORE_TYPE_IDS.LIVES) {
             Object.keys(answers).forEach((id) => answers[id].speed = amqAnswerTimesUtility.playerTimes[id]);
         }
     }).bindListener();
     new Listener("answer results", (payload) => {
-        if (quiz.teamMode && !quiz.isSpectator && hostModal.$scoring.slider("getValue") === 3) {
+        if (quiz.teamMode && !quiz.isSpectator && hostModal.$scoring.slider("getValue") === quiz.SCORE_TYPE_IDS.LIVES) {
             let halfMode = halfModeList.some((x) => x === true);
             if (autoTrackCount && Object.keys(answers).length) {
                 let selfPlayer = payload.players.find((player) => player.gamePlayerId === quiz.ownGamePlayerId);
