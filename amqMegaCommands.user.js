@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.112
+// @version      0.113
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -103,7 +103,7 @@ OTHER
 
 "use strict";
 if (typeof Listener === "undefined") return;
-const version = "0.112";
+const version = "0.113";
 const saveData = validateLocalStorage("megaCommands");
 const originalOrder = {qb: [], gm: []};
 if (typeof saveData.alerts?.hiddenPlayers === "boolean") delete saveData.alerts;
@@ -2166,22 +2166,27 @@ async function parseCommand(content, type, target) {
     else if (/^\/lives [0-9]+$/i.test(content)) {
         let option = parseInt(/^\S+ ([0-9]+)$/.exec(content)[1]);
         let settings = hostModal.getSettings();
-        settings.scoreType = 3;
+        settings.scoreType = quiz.SCORE_TYPE_IDS.LIVES;
         settings.lives = option;
         changeGameSettings(settings);
     }
     else if (/^\/boss$/i.test(content)) {
         let settings = hostModal.getSettings();
-        settings.scoreType = 4;
+        settings.scoreType = quiz.SCORE_TYPE_IDS.BOSS;
         changeGameSettings(settings);
     }
     else if (/^\/boss [0-9]+ [0-9]+ [0-9]+$/i.test(content)) {
         let regex = /^\S+ ([0-9]+) ([0-9]+) ([0-9]+)$/.exec(content);
         let settings = hostModal.getSettings();
-        settings.scoreType = 4;
+        settings.scoreType = quiz.SCORE_TYPE_IDS.BOSS;
         settings.bossLives = parseInt(regex[1]);
         settings.bossPowerUps = parseInt(regex[2]);
         settings.bossMaxSongs = parseInt(regex[3]);
+        changeGameSettings(settings);
+    }
+    else if (/^\/hints?$/i.test(content)) {
+        let settings = hostModal.getSettings();
+        settings.scoreType = quiz.SCORE_TYPE_IDS.HINT;
         changeGameSettings(settings);
     }
     else if (/^\/(teams?|teamsize) [0-9]+$/i.test(content)) {
@@ -2936,24 +2941,6 @@ async function parseCommand(content, type, target) {
     else if (/^\/(pw|password)$/i.test(content)) {
         sendMessage(`password: ${hostModal.$passwordInput.val()}`, type, target);
     }
-    else if (/^\/online \w+$/i.test(content)) {
-        let name = /^\S+ (\w+)$/.exec(content)[1].toLowerCase();
-        let handleAllOnlineMessage = new Listener("all online users", function (onlineUsers) {
-            sendMessage(onlineUsers.localeIncludes(name) ? "online" : "offline", type, target);
-            handleAllOnlineMessage.unbindListener();
-        });
-        handleAllOnlineMessage.bindListener();
-        socket.sendCommand({type: "social", command: "get online users"});
-    }
-    else if (/^\/invisible$/i.test(content)) {
-        let handleAllOnlineMessage = new Listener("all online users", (onlineUsers) => {
-            let list = Object.keys(socialTab.offlineFriends).filter((name) => onlineUsers.includes(name));
-            sendMessage(list.length > 0 ? list.join(", ") : "no invisible friends detected", type, target);
-            handleAllOnlineMessage.unbindListener();
-        });
-        handleAllOnlineMessage.bindListener();
-        socket.sendCommand({type: "social", command: "get online users"});
-    }
     else if (/^\/(roomid|lobbyid)$/i.test(content)) {
         if (lobby.inLobby) {
             sendMessage(lobby.gameId, type, target);
@@ -3109,13 +3096,64 @@ async function parseCommand(content, type, target) {
         }
         saveSettings();
     }
-    else if (/^\/count ?friends$/i.test(content)) {
+    else if (/^\/online ?friends?$/i.test(content)) {
+        let handleAllOnlineMessage = new Listener("all online users", (onlineUsers) => {
+            sendMessage(onlineUsers.filter((name) => socialTab.isFriend(name)).join(", "), type, target);
+            handleAllOnlineMessage.unbindListener();
+        });
+        handleAllOnlineMessage.bindListener();
+        socket.sendCommand({type: "social", command: "get online users"});
+    }
+    else if (/^\/offline ?friends?$/i.test(content)) {
+        let handleAllOnlineMessage = new Listener("all online users", (onlineUsers) => {
+            let friends = getAllFriends();
+            sendMessage(onlineUsers.filter((name) => !friends.includes(name)).join(", "), type, target);
+            handleAllOnlineMessage.unbindListener();
+        });
+        handleAllOnlineMessage.bindListener();
+        socket.sendCommand({type: "social", command: "get online users"});
+    }
+    else if (/^\/online \w+$/i.test(content)) {
+        let name = /^\S+ (\w+)$/.exec(content)[1].toLowerCase();
+        let handleAllOnlineMessage = new Listener("all online users", (onlineUsers) => {
+            sendMessage(onlineUsers.localeIncludes(name) ? "online" : "offline", type, target);
+            handleAllOnlineMessage.unbindListener();
+        });
+        handleAllOnlineMessage.bindListener();
+        socket.sendCommand({type: "social", command: "get online users"});
+    }
+    else if (/^\/invisible$/i.test(content)) {
+        let handleAllOnlineMessage = new Listener("all online users", (onlineUsers) => {
+            let list = Object.keys(socialTab.offlineFriends).filter((name) => onlineUsers.includes(name));
+            sendMessage(list.length > 0 ? list.join(", ") : "no invisible friends detected", type, target);
+            handleAllOnlineMessage.unbindListener();
+        });
+        handleAllOnlineMessage.bindListener();
+        socket.sendCommand({type: "social", command: "get online users"});
+    }
+    else if (/^\/count ?online ?friends?$/i.test(content)) {
+        let handleAllOnlineMessage = new Listener("all online users", (onlineUsers) => {
+            sendMessage(onlineUsers.filter((name) => socialTab.isFriend(name)).length, type, target);
+            handleAllOnlineMessage.unbindListener();
+        });
+        handleAllOnlineMessage.bindListener();
+        socket.sendCommand({type: "social", command: "get online users"});
+    }
+    else if (/^\/count ?offline ?friends?$/i.test(content)) {
+        let handleAllOnlineMessage = new Listener("all online users", (onlineUsers) => {
+            sendMessage(getAllFriends().filter((name) => !onlineUsers.includes(name)).length, type, target);
+            handleAllOnlineMessage.unbindListener();
+        });
+        handleAllOnlineMessage.bindListener();
+        socket.sendCommand({type: "social", command: "get online users"});
+    }
+    else if (/^\/count ?friends?$/i.test(content)) {
         sendMessage(getAllFriends().length, type, target);
     }
-    else if (/^\/count ?scripts$/i.test(content)) {
+    else if (/^\/count ?scripts?$/i.test(content)) {
         sendMessage($("#installedListContainer h4").length, type, target);
     }
-    else if (/^\/friendsin(lobby|quiz|game|room)$/i.test(content)) {
+    else if (/^\/(fil|fiq|fig|fir|friendsinlobby|friendsinquiz|friendsingame|friendsinroom)$/i.test(content)) {
         if (lobby.inLobby) {
             let list = Object.values(lobby.players).map((player) => player._name).filter((player) => socialTab.isFriend(player));
             sendMessage(list.length ? list.join(", ") : "(none)", type, target);
@@ -3761,7 +3799,7 @@ function parseIncomingDM(content, sender) {
 function parseForceAll(content, type) {
     if (commands) {
         if (/^\/forceall version$/i.test(content)) {
-            sendMessage("0.112", type);
+            sendMessage("0.113", type);
         }
         else if (/^\/forceall version .+$/i.test(content)) {
             let option = /^\S+ \S+ (.+)$/.exec(content)[1];
