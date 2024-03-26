@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.47
+// @version      0.48
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -43,7 +43,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.47";
+const version = "0.48";
 const saveData = validateLocalStorage("customSongListGame");
 const catboxHostDict = {1: "files.catbox.moe", 2: "nl.catbox.moe", 3: "nl.catbox.video", 4: "ladist1.catbox.video", 5: "vhdist1.catbox.video"};
 let CSLButtonCSS = saveData.CSLButtonCSS || "calc(25% - 250px)";
@@ -80,6 +80,9 @@ let cslMultiplayer = {host: "", songInfo: {}, voteSkip: {}};
 let cslState = 0; //0: none, 1: guessing phase, 2: answer phase
 let songLinkReceived = {};
 let skipping = false;
+let answerChunks = {};
+let songInfoChunks = "";
+let nextSongChunks = "";
 
 $("#gameContainer").append($(`
     <div class="modal fade tab-modal" id="cslgSettingsModal" tabindex="-1" role="dialog">
@@ -452,7 +455,7 @@ $("#cslgStartButton").click(() => {
         startQuiz();
     }
     else if (lobby.isHost) {
-        cslMessage("§CSL0" + btoa(encodeURI(`${showSelection}-${currentSong}-${totalSongs}-${guessTime}-${extraGuessTime}-${fastSkip ? "1" : "0"}`)));
+        cslMessage("§CSL0" + btoa(`${showSelection}§${currentSong}§${totalSongs}§${guessTime}§${extraGuessTime}§${fastSkip ? "1" : "0"}`));
     }
 });
 $("#cslgSongListTable").on("click", "i.fa-trash", (event) => {
@@ -560,7 +563,7 @@ function setup() {
             let player = Object.values(quiz.players).find((p) => p._name === payload.name);
             if (player) {
                 sendSystemMessage(`CSL: reconnecting ${payload.name}`);
-                cslMessage("§CSL0" + btoa(encodeURI(`${showSelection}-${currentSong}-${totalSongs}-${guessTime}-${extraGuessTime}-${fastSkip ? "1" : "0"}`)));
+                cslMessage("§CSL0" + btoa(`${showSelection}§${currentSong}§${totalSongs}§${guessTime}§${extraGuessTime}§${fastSkip ? "1" : "0"}`));
             }
             else {
                 cslMessage(`CSL game in progress, removing ${payload.name}`);
@@ -573,10 +576,17 @@ function setup() {
             let player = Object.values(quiz.players).find((p) => p._name === payload.name);
             if (player) {
                 sendSystemMessage(`CSL: reconnecting ${payload.name}`);
-                cslMessage("§CSL20" + btoa(payload.name));
+                cslMessage("§CSL17" + btoa(payload.name));
+            }
+            else {
+                cslMessage("§CSL0" + btoa(`${showSelection}§${currentSong}§${totalSongs}§${guessTime}§${extraGuessTime}§${fastSkip ? "1" : "0"}`));
             }
             setTimeout(() => {
-                cslMessage("§CSL3" + btoa(`${currentSong}-${getStartPoint()}-${songList[songOrder[currentSong]].audio || ""}-${/*nextSong.video480 || */""}-${/*nextSong.video720 || */""}`));
+                let song = songList[songOrder[currentSong]];
+                let message  = `${currentSong}§${getStartPoint()}§${song.audio || ""}§${song.video480 || ""}§${song.video720 || ""}`;
+                splitIntoChunks(btoa(message) + "$", 144).forEach((item, index) => {
+                    cslMessage("§CSL3" + (index % 10) + item);
+                });
             }, 300);
         }
     }).bindListener();
@@ -584,7 +594,7 @@ function setup() {
         if (quiz.cslActive && quiz.inQuiz && quiz.isHost) {
             let player = Object.values(quiz.players).find((p) => p._name === payload.name);
             if (player) {
-                cslMessage("§CSL0" + btoa(encodeURI(`${showSelection}-${currentSong}-${totalSongs}-${guessTime}-${extraGuessTime}-${fastSkip ? "1" : "0"}`)));
+                cslMessage("§CSL0" + btoa(`${showSelection}§${currentSong}§${totalSongs}§${guessTime}§${extraGuessTime}§${fastSkip ? "1" : "0"}`));
             }
             else {
                 cslMessage(`CSL game in progress, removing ${payload.name}`);
@@ -596,7 +606,10 @@ function setup() {
         if (quiz.cslActive && quiz.inQuiz && quiz.isHost) {
             let player = Object.values(quiz.players).find((p) => p._name === payload.name);
             if (player) {
-                cslMessage("§CSL20" + btoa(payload.name));
+                cslMessage("§CSL17" + btoa(payload.name));
+            }
+            else {
+                cslMessage("§CSL0" + btoa(`${showSelection}§${currentSong}§${totalSongs}§${guessTime}§${extraGuessTime}§${fastSkip ? "1" : "0"}`));
             }
         }
     }).bindListener();
@@ -616,6 +629,13 @@ function setup() {
         if (quiz.cslActive && quiz.inQuiz && payload.spectator === cslMultiplayer.host) {
             sendSystemMessage("CSL host left, ending quiz");
             quizOver();
+        }
+    }).bindListener();
+    new Listener("game closed", (payload) => {
+        if (quiz.cslActive && quiz.inQuiz) {
+            reset();
+            messageDisplayer.displayMessage("Room Closed", payload.reason);
+            lobby.leave({ supressServerMsg: true });
         }
     }).bindListener();
     new Listener("game chat update", (payload) => {
@@ -693,10 +713,10 @@ function setup() {
             }
             else {
                 if (quiz.pauseButton.pauseOn) {
-                    cslMessage("§CSL82");
+                    cslMessage("§CSL12");
                 }
                 else {
-                    cslMessage("§CSL81");
+                    cslMessage("§CSL11");
                 }
             }
         }
@@ -712,7 +732,7 @@ function setup() {
                 clearTimeout(this.autoVoteTimeout);
             }
             else if (!skipping) {
-                cslMessage("§CSL91");
+                cslMessage("§CSL14");
             }
         }
         else {
@@ -733,7 +753,7 @@ function setup() {
                 quizOver();
             }
             else if (quiz.isHost) {
-                cslMessage("§CSL1");
+                cslMessage("§CSL10");
             }
         }
         else {
@@ -877,7 +897,10 @@ function startQuiz() {
         }
         else {
             if (quiz.isHost) {
-                cslMessage("§CSL3" + btoa(`${1}-${getStartPoint()}-${song.audio || ""}-${/*song.video480 || */""}-${/*song.video720 || */""}`));
+                let message  = `1§${getStartPoint()}§${song.audio || ""}§${song.video480 || ""}§${song.video720 || ""}`;
+                splitIntoChunks(btoa(message) + "$", 144).forEach((item, index) => {
+                    cslMessage("§CSL3" + (index % 10) + item);
+                });
             }
         }
     }, 100);
@@ -926,6 +949,8 @@ function playSong(songNumber) {
         currentAnswers[key] = "";
         cslMultiplayer.voteSkip[key] = false;
     }
+    answerChunks = {};
+    songInfoChunks = "";
     cslMultiplayer.songInfo = {};
     currentSong = songNumber;
     cslState = 1;
@@ -951,7 +976,7 @@ function playSong(songNumber) {
             endGuessPhase(songNumber);
         }
         else if (quiz.isHost) {
-            cslMessage("§CSL92");
+            cslMessage("§CSL15");
         }
     }, (guessTime + extraGuessTime) * 1000);
     if (quiz.soloMode) {
@@ -995,7 +1020,10 @@ function playSong(songNumber) {
                 readySong(songNumber + 1);
                 if (quiz.isHost) {
                     let nextSong = songList[songOrder[songNumber + 1]];
-                    cslMessage("§CSL3" + btoa(`${songNumber + 1}-${getStartPoint()}-${nextSong.audio || ""}-${/*nextSong.video480 || */""}-${/*nextSong.video720 || */""}`));
+                    let message  = `${songNumber + 1}§${getStartPoint()}§${nextSong.audio || ""}§${nextSong.video480 || ""}§${nextSong.video720 || ""}`;
+                    splitIntoChunks(btoa(message) + "$", 144).forEach((item, index) => {
+                        cslMessage("§CSL3" + (index % 10) + item);
+                    });
                 }
             }
         }
@@ -1010,13 +1038,23 @@ function endGuessPhase(songNumber) {
         song = songList[songOrder[songNumber]];
     }
     fireListener("guess phase over");
-    if (!quiz.soloMode && quiz.inQuiz) {
-        cslMessage("§CSL6" + btoa(encodeURIComponent(currentAnswers[quiz.ownGamePlayerId])));
+    if (!quiz.soloMode && quiz.inQuiz && !quiz.isSpectator) {
+        let answer = currentAnswers[quiz.ownGamePlayerId];
+        if (answer) {
+            splitIntoChunks(btoa(encodeURIComponent(answer)), 144).forEach((item, index) => {
+                cslMessage("§CSL5" + (index % 10) + item);
+            });
+        }
     }
     answerTimer = setTimeout(() => {
         if (!quiz.cslActive || !quiz.inQuiz) return reset();
         cslState = 2;
         skipping = false;
+        if (!quiz.soloMode) {
+            for (let player of Object.values(quiz.players)) {
+                currentAnswers[player.gamePlayerId] = decodeURIComponent(atob(answerChunks[player.gamePlayerId] || ""));
+            }
+        }
         for (let key of Object.keys(quiz.players)) {
             cslMultiplayer.voteSkip[key] = false;
         }
@@ -1033,12 +1071,10 @@ function endGuessPhase(songNumber) {
         }
         fireListener("player answers", data);
         if (!quiz.soloMode && quiz.isHost) {
-            cslMessage("§CSLa" + btoa(encodeURI(song.animeRomajiName || "")));
-            cslMessage("§CSLb" + btoa(encodeURI(song.animeEnglishName || "")));
-            cslMessage("§CSLc" + btoa(encodeURI(song.songArtist || "")));
-            cslMessage("§CSLd" + btoa(encodeURI(song.songName || "")));
-            cslMessage("§CSLe" + btoa(`${song.songType || ""}-${song.songTypeNumber || ""}-${song.songDifficulty || ""}-${song.animeType || ""}-${song.animeVintage || ""}-${song.annId || ""}-${song.malId || ""}-${song.kitsuId || ""}-${song.aniListId || ""}`));
-            cslMessage("§CSLf" + btoa(encodeURI(song.audio || "")));
+            let message = `${song.animeRomajiName || ""}§${song.animeEnglishName || ""}§${song.songArtist || ""}§${song.songName || ""}§${song.songType || ""}§${song.songTypeNumber || ""}§${song.songDifficulty || ""}§${song.animeType || ""}§${song.animeVintage || ""}§${song.annId || ""}§${song.malId || ""}§${song.kitsuId || ""}§${song.aniListId || ""}§${Array.isArray(song.animeTags) ? song.animeTags.join(",") : ""}§${Array.isArray(song.animeGenre) ? song.animeGenre.join(",") : ""}§${song.audio || ""}§${song.video480 || ""}§${song.video720 || ""}`;
+            splitIntoChunks(btoa(encodeURIComponent(message)), 144).forEach((item, index) => {
+                cslMessage("§CSL7" + (index % 10) + item);
+            });
         }
         answerTimer = setTimeout(() => {
             if (!quiz.cslActive || !quiz.inQuiz) return reset();
@@ -1115,7 +1151,7 @@ function endGuessPhase(songNumber) {
                 for (let id of Object.keys(correct)) {
                     list.push(`${id},${correct[id] ? "1" : "0"},${pose[id]},${score[id]}`);
                 }
-                cslMessage("§CSL7" + btoa(list.join("-")));
+                cslMessage("§CSL6" + btoa(list.join("§")));
             }
             setTimeout(() => {
                 if (!quiz.cslActive || !quiz.inQuiz) return reset();
@@ -1167,7 +1203,7 @@ function endReplayPhase(songNumber) {
                 quizOver();
             }
             else if (quiz.isHost) {
-                cslMessage("§CSL1");
+                cslMessage("§CSL10");
             }
         }, fastSkip ? 5000 : 12000);
     }
@@ -1211,7 +1247,7 @@ function parseMessage(content, sender) {
     let isHost = sender === cslMultiplayer.host;
     if (content.startsWith("§CSL0")) { //start quiz
         if (lobby.inLobby && sender === lobby.hostName && !quiz.cslActive) {
-            let split = decodeURI(atob(content.slice(5))).split("-");
+            let split = atob(content.slice(5)).split("§");
             if (split.length === 6) {
                 //mode = parseInt(split[0]);
                 currentSong = parseInt(split[1]);
@@ -1228,12 +1264,61 @@ function parseMessage(content, sender) {
         sendSystemMessage("client out of sync, quitting CSL");
         quizOver();
     }
-    else if (content.startsWith("§CSL1")) { //return to lobby
+    else if (content === "§CSL10") { //return to lobby
         if (quiz.cslActive && quiz.inQuiz && (isHost || sender === lobby.hostName)) {
             quizOver();
         }
     }
-    else if (content.startsWith("§CSL20")) { //player rejoin
+    else if (content === "§CSL11") { //pause
+        if (quiz.cslActive && isHost) {
+            fireListener("quiz pause triggered", {
+                "playerName": sender
+            });
+        }
+    }
+    else if (content === "§CSL12") { //unpause
+        if (quiz.cslActive && isHost) {
+            fireListener("quiz unpause triggered", {
+                "playerName": sender
+            });
+        }
+    }
+    else if (content === "§CSL13") { //player answered
+        if (quiz.cslActive && player) {
+            fireListener("player answered", [player.gamePlayerId]);
+        }
+    }
+    else if (content === "§CSL14") { //vote skip
+        if (quiz.cslActive && quiz.isHost && player) {
+            cslMultiplayer.voteSkip[player.gamePlayerId] = true;
+            if (!skipping && checkVoteSkip()) {
+                skipping = true;
+                if (cslState === 1) {
+                    cslMessage("§CSL15");
+                }
+                else if (cslState === 2) {
+                    cslMessage("§CSL16");
+                }
+            }
+        }
+    }
+    else if (content === "§CSL15") { //skip guessing phase
+        if (quiz.cslActive && isHost) {
+            fireListener("quiz overlay message", "Skipping to Answers");
+            clearInterval(skipInterval);
+            clearTimeout(endGuessTimer);
+            clearTimeout(extraGuessTimer);
+            setTimeout(() => {
+                endGuessPhase(currentSong);
+            }, fastSkip ? 1000 : 3000);
+        }
+    }
+    else if (content === "§CSL16") { //skip replay phase
+        if (quiz.cslActive && isHost) {
+            endReplayPhase(currentSong);
+        }
+    }
+    else if (content.startsWith("§CSL17")) { //player rejoin
         if (sender === lobby.hostName) {
             let name = atob(content.slice(6));
             if (name === selfName) {
@@ -1255,49 +1340,56 @@ function parseMessage(content, sender) {
     }
     else if (content.startsWith("§CSL3")) { //next song link
         if (quiz.cslActive && isHost) {
-            let split = atob(content.slice(5)).split("-");
-            //console.log(split);
-            if (split.length === 5) {
-                if (!songLinkReceived[split[0]]) {
-                    songLinkReceived[split[0]] = true;
-                    fireListener("quiz next video info", {
-                        "playLength": guessTime,
-                        "playbackSpeed": 1,
-                        "startPont": parseInt(split[1]),
-                        "videoInfo": {
-                            "id": null,
-                            "videoMap": {
-                                "catbox": createCatboxLinkObject(split[2], split[3], split[4])
-                            },
-                            "videoVolumeMap": {
-                                "catbox": {
-                                    "0": -20,
-                                    "480": -20,
-                                    "720": -20
+            //§CSL3#songNumber§startPoint§mp3§480§720
+            if (content.endsWith("$")) {
+                nextSongChunks += content.slice(6, -1);
+                let split = atob(nextSongChunks).split("§");
+                nextSongChunks = "";
+                if (split.length === 5) {
+                    if (!songLinkReceived[split[0]]) {
+                        songLinkReceived[split[0]] = true;
+                        fireListener("quiz next video info", {
+                            "playLength": guessTime,
+                            "playbackSpeed": 1,
+                            "startPont": parseInt(split[1]),
+                            "videoInfo": {
+                                "id": null,
+                                "videoMap": {
+                                    "catbox": createCatboxLinkObject(split[2], split[3], split[4])
+                                },
+                                "videoVolumeMap": {
+                                    "catbox": {
+                                        "0": -20,
+                                        "480": -20,
+                                        "720": -20
+                                    }
                                 }
                             }
+                        });
+                        if (Object.keys(songLinkReceived).length === 1) {
+                            setTimeout(() => {
+                                fireListener("quiz ready", {
+                                    "numberOfSongs": totalSongs
+                                });
+                            }, 200);
+                            setTimeout(() => {
+                                fireListener("quiz waiting buffering", {
+                                    "firstSong": true
+                                });
+                            }, 300);
+                            setTimeout(() => {
+                                previousSongFinished = true;
+                                readySong(currentSong + 1);
+                            }, 400);
                         }
-                    });
-                    if (Object.keys(songLinkReceived).length === 1) {
-                        setTimeout(() => {
-                            fireListener("quiz ready", {
-                                "numberOfSongs": totalSongs
-                            });
-                        }, 200);
-                        setTimeout(() => {
-                            fireListener("quiz waiting buffering", {
-                                "firstSong": true
-                            });
-                        }, 300);
-                        setTimeout(() => {
-                            previousSongFinished = true;
-                            readySong(currentSong + 1);
-                        }, 400);
                     }
+                }
+                else {
+                    sendSystemMessage(`CSL Multiplayer Error: next song link decode failed`);
                 }
             }
             else {
-                sendSystemMessage(`CSL Multiplayer Error: next song link decode failed`);
+                nextSongChunks += content.slice(6);
             }
         }
     }
@@ -1310,19 +1402,35 @@ function parseMessage(content, sender) {
             }
         }
     }
-    else if (content.startsWith("§CSL5")) { //player submission
+    else if (content.startsWith("§CSL5")) { //player final answer
         if (quiz.cslActive && player) {
-            fireListener("player answered", [player.gamePlayerId]);
+            if (!answerChunks[player.gamePlayerId]) answerChunks[player.gamePlayerId] = "";
+            answerChunks[player.gamePlayerId] += content.slice(6);
         }
     }
-    else if (content.startsWith("§CSL6")) { //player final answer
-        if (quiz.cslActive && player) {
-            currentAnswers[player.gamePlayerId] = decodeURIComponent(atob(content.slice(5)));
-        }
-    }
-    else if (content.startsWith("§CSL7")) { //answer results
+    else if (content.startsWith("§CSL6")) { //answer results
         if (quiz.cslActive && isHost) {
-            let split = atob(content.slice(5)).split("-");
+            let split = preventCodeInjection(decodeURIComponent(atob(songInfoChunks))).split("§");
+            cslMultiplayer.songInfo.animeRomajiName = split[0];
+            cslMultiplayer.songInfo.animeEnglishName = split[1];
+            cslMultiplayer.songInfo.songArtist = split[2];
+            cslMultiplayer.songInfo.songName = split[3];
+            cslMultiplayer.songInfo.songType = parseInt(split[4]) || null;
+            cslMultiplayer.songInfo.songTypeNumber = parseInt(split[5]) || null;
+            cslMultiplayer.songInfo.songDifficulty = parseFloat(split[6]) || null;
+            cslMultiplayer.songInfo.animeType = split[7];
+            cslMultiplayer.songInfo.animeVintage = split[8];
+            cslMultiplayer.songInfo.annId = parseInt(split[9]) || null;
+            cslMultiplayer.songInfo.malId = parseInt(split[10]) || null;
+            cslMultiplayer.songInfo.kitsuId = parseInt(split[11]) || null;
+            cslMultiplayer.songInfo.aniListId = parseInt(split[12]) || null;
+            cslMultiplayer.songInfo.animeTags = split[13].split(",");
+            cslMultiplayer.songInfo.animeGenre = split[14].split(",");
+            cslMultiplayer.songInfo.audio = split[15];
+            cslMultiplayer.songInfo.video480 = split[16];
+            cslMultiplayer.songInfo.video720 = split[17];
+            console.log(split);
+            split = atob(content.slice(5)).split("§");
             //console.log("Answer results: " + atob(content.slice(5)));
             let data = {
                 "players": [],
@@ -1394,89 +1502,8 @@ function parseMessage(content, sender) {
             fireListener("answer results", data);
         }
     }
-    else if (content === "§CSL81") { //pause
-        if (quiz.cslActive && isHost) {
-            fireListener("quiz pause triggered", {
-                "playerName": sender
-            });
-        }
-    }
-    else if (content === "§CSL82") { //unpause
-        if (quiz.cslActive && isHost) {
-            fireListener("quiz unpause triggered", {
-                "playerName": sender
-            });
-        }
-    }
-    else if (content === "§CSL91") { //vote skip
-        if (quiz.cslActive && quiz.isHost && player) {
-            cslMultiplayer.voteSkip[player.gamePlayerId] = true;
-            if (!skipping && checkVoteSkip()) {
-                skipping = true;
-                if (cslState === 1) {
-                    cslMessage("§CSL92");
-                }
-                else if (cslState === 2) {
-                    cslMessage("§CSL93");
-                }
-            }
-        }
-    }
-    else if (content === "§CSL92") { //skip guessing phase
-        if (quiz.cslActive && isHost) {
-            fireListener("quiz overlay message", "Skipping to Answers");
-            clearInterval(skipInterval);
-            clearTimeout(endGuessTimer);
-            clearTimeout(extraGuessTimer);
-            setTimeout(() => {
-                endGuessPhase(currentSong);
-            }, fastSkip ? 1000 : 3000);
-        }
-    }
-    else if (content === "§CSL93") { //skip replay phase
-        if (quiz.cslActive && isHost) {
-            endReplayPhase(currentSong);
-        }
-    }
-    else if (content.startsWith("§CSLa")) { //animeRomajiName
-        if (quiz.cslActive && isHost) {
-            cslMultiplayer.songInfo.animeRomajiName = preventCodeInjection(decodeURI(atob(content.slice(5))));
-        }
-    }
-    else if (content.startsWith("§CSLb")) { //animeEnglishName
-        if (quiz.cslActive && isHost) {
-            cslMultiplayer.songInfo.animeEnglishName = preventCodeInjection(decodeURI(atob(content.slice(5))));
-        }
-    }
-    else if (content.startsWith("§CSLc")) { //songArtist
-        if (quiz.cslActive && isHost) {
-            cslMultiplayer.songInfo.songArtist = preventCodeInjection(decodeURI(atob(content.slice(5))));
-        }
-    }
-    else if (content.startsWith("§CSLd")) { //songName
-        if (quiz.cslActive && isHost) {
-            cslMultiplayer.songInfo.songName = preventCodeInjection(decodeURI(atob(content.slice(5))));
-        }
-    }
-    else if (content.startsWith("§CSLe")) { //songType songTypeNumber songDifficulty animeType animeVintage
-        if (quiz.cslActive && isHost) {
-            let split = preventCodeInjection(atob(content.slice(5)).split("-"));
-            //console.log(split);
-            cslMultiplayer.songInfo.songType = parseInt(split[0]) || null;
-            cslMultiplayer.songInfo.songTypeNumber = parseInt(split[1]) || null;
-            cslMultiplayer.songInfo.songDifficulty = parseFloat(split[2]) || null;
-            cslMultiplayer.songInfo.animeType = parseInt(split[3]) || null;
-            cslMultiplayer.songInfo.animeVintage = split[4];
-            cslMultiplayer.songInfo.annId = parseInt(split[5]) || null;
-            cslMultiplayer.songInfo.malId = parseInt(split[6]) || null;
-            cslMultiplayer.songInfo.kitsuId = parseInt(split[7]) || null;
-            cslMultiplayer.songInfo.aniListId = parseInt(split[8]) || null;
-        }
-    }
-    else if (content.startsWith("§CSLf")) { //audio
-        if (quiz.cslActive && isHost) {
-            cslMultiplayer.songInfo.audio = preventCodeInjection(decodeURI(atob(content.slice(5))));
-        }
+    else if (content.startsWith("§CSL7")) {
+        songInfoChunks += content.slice(6);
     }
 }
 
@@ -1584,6 +1611,9 @@ function reset() {
     fastSkip = false;
     skipping = false;
     songLinkReceived = {};
+    answerChunks = {};
+    songInfoChunks = "";
+    nextSongChunks = "";
 }
 
 // end quiz and set up lobby
@@ -2181,6 +2211,15 @@ function preventCodeInjection(text) {
         return "";
     }
     return text;
+}
+
+// split a string into chunks
+function splitIntoChunks(str, chunkSize) {
+    let chunks = [];
+    for (let i = 0; i < str.length; i += chunkSize) {
+        chunks.push(str.slice(i, i + chunkSize));
+    }
+    return chunks;
 }
 
 // validate json data in local storage
