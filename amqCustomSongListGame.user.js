@@ -778,7 +778,7 @@ function setup() {
                 }
             }
             else {
-                cslMessage("§CSL5");
+                cslMessage("§CSL13");
                 if (options.autoVoteSkipGuess) {
                     this.skipController.voteSkip();
                 }
