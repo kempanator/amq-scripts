@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.48
+// @version      0.49
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -43,7 +43,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.48";
+const version = "0.49";
 const saveData = validateLocalStorage("customSongListGame");
 const catboxHostDict = {1: "files.catbox.moe", 2: "nl.catbox.moe", 3: "nl.catbox.video", 4: "ladist1.catbox.video", 5: "vhdist1.catbox.video"};
 let CSLButtonCSS = saveData.CSLButtonCSS || "calc(25% - 250px)";
@@ -80,9 +80,10 @@ let cslMultiplayer = {host: "", songInfo: {}, voteSkip: {}};
 let cslState = 0; //0: none, 1: guessing phase, 2: answer phase
 let songLinkReceived = {};
 let skipping = false;
-let answerChunks = {};
-let songInfoChunks = "";
-let nextSongChunks = "";
+let answerChunks = {}; //store player answer chunks, ids are keys
+let resultChunk;
+let songInfoChunk;
+let nextSongChunk;
 
 $("#gameContainer").append($(`
     <div class="modal fade tab-modal" id="cslgSettingsModal" tabindex="-1" role="dialog">
@@ -585,7 +586,7 @@ function setup() {
                 let song = songList[songOrder[currentSong]];
                 let message  = `${currentSong}§${getStartPoint()}§${song.audio || ""}§${song.video480 || ""}§${song.video720 || ""}`;
                 splitIntoChunks(btoa(message) + "$", 144).forEach((item, index) => {
-                    cslMessage("§CSL3" + (index % 10) + item);
+                    cslMessage("§CSL3" + base10to36(index % 36) + item);
                 });
             }, 300);
         }
@@ -810,6 +811,10 @@ function setup() {
         }
 	}
 
+    resultChunk = new Chunk();
+    songInfoChunk = new Chunk();
+    nextSongChunk = new Chunk();
+
     AMQ_addScriptData({
         name: "Custom Song List Game",
         author: "kempanator",
@@ -898,8 +903,8 @@ function startQuiz() {
         else {
             if (quiz.isHost) {
                 let message  = `1§${getStartPoint()}§${song.audio || ""}§${song.video480 || ""}§${song.video720 || ""}`;
-                splitIntoChunks(btoa(message) + "$", 144).forEach((item, index) => {
-                    cslMessage("§CSL3" + (index % 10) + item);
+                splitIntoChunks(btoa(encodeURIComponent(message)) + "$", 144).forEach((item, index) => {
+                    cslMessage("§CSL3" + base10to36(index % 36) + item);
                 });
             }
         }
@@ -950,7 +955,8 @@ function playSong(songNumber) {
         cslMultiplayer.voteSkip[key] = false;
     }
     answerChunks = {};
-    songInfoChunks = "";
+    resultChunk = new Chunk();
+    songInfoChunk = new Chunk();
     cslMultiplayer.songInfo = {};
     currentSong = songNumber;
     cslState = 1;
@@ -1021,8 +1027,8 @@ function playSong(songNumber) {
                 if (quiz.isHost) {
                     let nextSong = songList[songOrder[songNumber + 1]];
                     let message  = `${songNumber + 1}§${getStartPoint()}§${nextSong.audio || ""}§${nextSong.video480 || ""}§${nextSong.video720 || ""}`;
-                    splitIntoChunks(btoa(message) + "$", 144).forEach((item, index) => {
-                        cslMessage("§CSL3" + (index % 10) + item);
+                    splitIntoChunks(btoa(encodeURIComponent(message)) + "$", 144).forEach((item, index) => {
+                        cslMessage("§CSL3" + base10to36(index % 36) + item);
                     });
                 }
             }
@@ -1041,8 +1047,8 @@ function endGuessPhase(songNumber) {
     if (!quiz.soloMode && quiz.inQuiz && !quiz.isSpectator) {
         let answer = currentAnswers[quiz.ownGamePlayerId];
         if (answer) {
-            splitIntoChunks(btoa(encodeURIComponent(answer)), 144).forEach((item, index) => {
-                cslMessage("§CSL5" + (index % 10) + item);
+            splitIntoChunks(btoa(encodeURIComponent(answer)) + "$", 144).forEach((item, index) => {
+                cslMessage("§CSL5" + base10to36(index % 36) + item);
             });
         }
     }
@@ -1052,7 +1058,7 @@ function endGuessPhase(songNumber) {
         skipping = false;
         if (!quiz.soloMode) {
             for (let player of Object.values(quiz.players)) {
-                currentAnswers[player.gamePlayerId] = decodeURIComponent(atob(answerChunks[player.gamePlayerId] || ""));
+                currentAnswers[player.gamePlayerId] = answerChunks[player.gamePlayerId] ? answerChunks[player.gamePlayerId].decode() : "";
             }
         }
         for (let key of Object.keys(quiz.players)) {
@@ -1072,8 +1078,8 @@ function endGuessPhase(songNumber) {
         fireListener("player answers", data);
         if (!quiz.soloMode && quiz.isHost) {
             let message = `${song.animeRomajiName || ""}§${song.animeEnglishName || ""}§${song.songArtist || ""}§${song.songName || ""}§${song.songType || ""}§${song.songTypeNumber || ""}§${song.songDifficulty || ""}§${song.animeType || ""}§${song.animeVintage || ""}§${song.annId || ""}§${song.malId || ""}§${song.kitsuId || ""}§${song.aniListId || ""}§${Array.isArray(song.animeTags) ? song.animeTags.join(",") : ""}§${Array.isArray(song.animeGenre) ? song.animeGenre.join(",") : ""}§${song.audio || ""}§${song.video480 || ""}§${song.video720 || ""}`;
-            splitIntoChunks(btoa(encodeURIComponent(message)), 144).forEach((item, index) => {
-                cslMessage("§CSL7" + (index % 10) + item);
+            splitIntoChunks(btoa(encodeURIComponent(message)) + "$", 144).forEach((item, index) => {
+                cslMessage("§CSL7" + base10to36(index % 36) + item);
             });
         }
         answerTimer = setTimeout(() => {
@@ -1151,7 +1157,9 @@ function endGuessPhase(songNumber) {
                 for (let id of Object.keys(correct)) {
                     list.push(`${id},${correct[id] ? "1" : "0"},${pose[id]},${score[id]}`);
                 }
-                cslMessage("§CSL6" + btoa(list.join("§")));
+                splitIntoChunks(btoa(encodeURIComponent(list.join("§"))) + "$", 144).forEach((item, index) => {
+                    cslMessage("§CSL6" + base10to36(index % 36) + item);
+                });
             }
             setTimeout(() => {
                 if (!quiz.cslActive || !quiz.inQuiz) return reset();
@@ -1341,10 +1349,10 @@ function parseMessage(content, sender) {
     else if (content.startsWith("§CSL3")) { //next song link
         if (quiz.cslActive && isHost) {
             //§CSL3#songNumber§startPoint§mp3§480§720
-            if (content.endsWith("$")) {
-                nextSongChunks += content.slice(6, -1);
-                let split = atob(nextSongChunks).split("§");
-                nextSongChunks = "";
+            nextSongChunk.append(content);
+            if (nextSongChunk.isComplete) {
+                let split = nextSongChunk.decode().split("§");
+                nextSongChunk = new Chunk();
                 if (split.length === 5) {
                     if (!songLinkReceived[split[0]]) {
                         songLinkReceived[split[0]] = true;
@@ -1385,11 +1393,8 @@ function parseMessage(content, sender) {
                     }
                 }
                 else {
-                    sendSystemMessage(`CSL Multiplayer Error: next song link decode failed`);
+                    sendSystemMessage(`CSL Error: next song link decode failed`);
                 }
-            }
-            else {
-                nextSongChunks += content.slice(6);
             }
         }
     }
@@ -1404,13 +1409,90 @@ function parseMessage(content, sender) {
     }
     else if (content.startsWith("§CSL5")) { //player final answer
         if (quiz.cslActive && player) {
-            if (!answerChunks[player.gamePlayerId]) answerChunks[player.gamePlayerId] = "";
-            answerChunks[player.gamePlayerId] += content.slice(6);
+            if (!answerChunks[player.gamePlayerId]) answerChunks[player.gamePlayerId] = new Chunk();
+            answerChunks[player.gamePlayerId].append(content);
         }
     }
     else if (content.startsWith("§CSL6")) { //answer results
         if (quiz.cslActive && isHost) {
-            let split = preventCodeInjection(decodeURIComponent(atob(songInfoChunks))).split("§");
+            resultChunk.append(content);
+            if (resultChunk.isComplete) {
+                let split = resultChunk.decode().split("§");
+                let data = {
+                    "players": [],
+                    "songInfo": {
+                        "animeNames": {
+                            "english": cslMultiplayer.songInfo.animeEnglishName,
+                            "romaji": cslMultiplayer.songInfo.animeRomajiName
+                        },
+                        "artist": cslMultiplayer.songInfo.songArtist,
+                        "songName": cslMultiplayer.songInfo.songName,
+                        "videoTargetMap": {
+                            "catbox": {
+                                "0": formatTargetUrl(cslMultiplayer.songInfo.audio) || "",
+                                "480": formatTargetUrl(cslMultiplayer.songInfo.video480) || "",
+                                "720": formatTargetUrl(cslMultiplayer.songInfo.video720) || ""
+                            }
+                        },
+                        "type": cslMultiplayer.songInfo.songType,
+                        "typeNumber": cslMultiplayer.songInfo.songTypeNumber,
+                        "annId": cslMultiplayer.songInfo.annId,
+                        "highRisk": 0,
+                        "animeScore": null,
+                        "animeType": cslMultiplayer.songInfo.animeType,
+                        "vintage": cslMultiplayer.songInfo.animeVintage,
+                        "animeDifficulty": cslMultiplayer.songInfo.songDifficulty || 0,
+                        "animeTags": cslMultiplayer.songInfo.animeTags || [],
+                        "animeGenre": cslMultiplayer.songInfo.animeGenre || [],
+                        "altAnimeNames": cslMultiplayer.songInfo.altAnimeNames || [],
+                        "altAnimeNamesAnswers": cslMultiplayer.songInfo.altAnimeNamesAnswers || [],
+                        "siteIds": {
+                            "annId": cslMultiplayer.songInfo.annId,
+                            "malId": cslMultiplayer.songInfo.malId,
+                            "kitsuId": cslMultiplayer.songInfo.kitsuId,
+                            "aniListId": cslMultiplayer.songInfo.aniListId
+                        }
+                    },
+                    "progressBarState": {
+                        "length": 25,
+                        "played": 0
+                    },
+                    "groupMap": createGroupSlotMap(Object.keys(quiz.players)),
+                    "watched": false
+                };
+                let decodedPlayers = [];
+                for (p of split) {
+                    let playerSplit = p.split(",");
+                    decodedPlayers.push({
+                        id: parseInt(playerSplit[0]),
+                        correct: Boolean(parseInt(playerSplit[1])),
+                        pose: parseInt(playerSplit[2]),
+                        score: parseInt(playerSplit[3])
+                    });
+                }
+                decodedPlayers.sort((a, b) => b.score - a.score);
+                decodedPlayers.forEach((p, i) => {
+                    data.players.push({
+                        "gamePlayerId": p.id,
+                        "pose": p.pose,
+                        "level": quiz.players[p.id].level,
+                        "correct": p.correct,
+                        "score": p.score,
+                        "listStatus": null,
+                        "showScore": null,
+                        "position": Math.floor(i / 8) + 1,
+                        "positionSlot": i % 8
+                    });
+                });
+                //console.log(data.players);
+                fireListener("answer results", data);
+            }
+        }
+    }
+    else if (content.startsWith("§CSL7")) {
+        songInfoChunk.append(content);
+        if (songInfoChunk.isComplete) {
+            let split = preventCodeInjection(songInfoChunk.decode()).split("§");
             cslMultiplayer.songInfo.animeRomajiName = split[0];
             cslMultiplayer.songInfo.animeEnglishName = split[1];
             cslMultiplayer.songInfo.songArtist = split[2];
@@ -1430,80 +1512,7 @@ function parseMessage(content, sender) {
             cslMultiplayer.songInfo.video480 = split[16];
             cslMultiplayer.songInfo.video720 = split[17];
             console.log(split);
-            split = atob(content.slice(5)).split("§");
-            //console.log("Answer results: " + atob(content.slice(5)));
-            let data = {
-                "players": [],
-                "songInfo": {
-                    "animeNames": {
-                        "english": cslMultiplayer.songInfo.animeEnglishName,
-                        "romaji": cslMultiplayer.songInfo.animeRomajiName
-                    },
-                    "artist": cslMultiplayer.songInfo.songArtist,
-                    "songName": cslMultiplayer.songInfo.songName,
-                    "videoTargetMap": {
-                        "catbox": {
-                            "0": formatTargetUrl(cslMultiplayer.songInfo.audio) || "",
-                            "480": formatTargetUrl(cslMultiplayer.songInfo.video480) || "",
-                            "720": formatTargetUrl(cslMultiplayer.songInfo.video720) || ""
-                        }
-                    },
-                    "type": cslMultiplayer.songInfo.songType,
-                    "typeNumber": cslMultiplayer.songInfo.songTypeNumber,
-                    "annId": cslMultiplayer.songInfo.annId,
-                    "highRisk": 0,
-                    "animeScore": null,
-                    "animeType": cslMultiplayer.songInfo.animeType,
-                    "vintage": cslMultiplayer.songInfo.animeVintage,
-                    "animeDifficulty": cslMultiplayer.songInfo.songDifficulty || 0,
-                    "animeTags": cslMultiplayer.songInfo.animeTags || [],
-                    "animeGenre": cslMultiplayer.songInfo.animeGenre || [],
-                    "altAnimeNames": cslMultiplayer.songInfo.altAnimeNames || [],
-                    "altAnimeNamesAnswers": cslMultiplayer.songInfo.altAnimeNamesAnswers || [],
-                    "siteIds": {
-                        "annId": cslMultiplayer.songInfo.annId,
-                        "malId": cslMultiplayer.songInfo.malId,
-                        "kitsuId": cslMultiplayer.songInfo.kitsuId,
-                        "aniListId": cslMultiplayer.songInfo.aniListId
-                    }
-                },
-                "progressBarState": {
-                    "length": 25,
-                    "played": 0
-                },
-                "groupMap": createGroupSlotMap(Object.keys(quiz.players)),
-                "watched": false
-            };
-            let decodedPlayers = [];
-            for (p of split) {
-                let playerSplit = p.split(",");
-                decodedPlayers.push({
-                    id: parseInt(playerSplit[0]),
-                    correct: Boolean(parseInt(playerSplit[1])),
-                    pose: parseInt(playerSplit[2]),
-                    score: parseInt(playerSplit[3])
-                });
-            }
-            decodedPlayers.sort((a, b) => b.score - a.score);
-            decodedPlayers.forEach((p, i) => {
-                data.players.push({
-                    "gamePlayerId": p.id,
-                    "pose": p.pose,
-                    "level": quiz.players[p.id].level,
-                    "correct": p.correct,
-                    "score": p.score,
-                    "listStatus": null,
-                    "showScore": null,
-                    "position": Math.floor(i / 8) + 1,
-                    "positionSlot": i % 8
-                });
-            });
-            //console.log(data.players);
-            fireListener("answer results", data);
         }
-    }
-    else if (content.startsWith("§CSL7")) {
-        songInfoChunks += content.slice(6);
     }
 }
 
@@ -1612,8 +1621,8 @@ function reset() {
     skipping = false;
     songLinkReceived = {};
     answerChunks = {};
-    songInfoChunks = "";
-    nextSongChunks = "";
+    songInfoChunk = new Chunk();
+    nextSongChunk = new Chunk();
 }
 
 // end quiz and set up lobby
@@ -2220,6 +2229,73 @@ function splitIntoChunks(str, chunkSize) {
         chunks.push(str.slice(i, i + chunkSize));
     }
     return chunks;
+}
+
+// convert base 10 number to base 36
+function base10to36(number) {
+    if (number === 0) return 0;
+    let digits = '0123456789abcdefghijklmnopqrstuvwxyz';
+    let result = '';
+    while (number > 0) {
+        let remainder = number % 36;
+        result = digits[remainder] + result;
+        number = Math.floor(number / 36);
+    }
+    return result;
+}
+
+// convert base 36 number to base 10
+function base36to10(number) {
+    number = String(number);
+    let digits = '0123456789abcdefghijklmnopqrstuvwxyz';
+    let result = 0;
+    for (let i = 0; i < number.length; i++) {
+        let digit = digits.indexOf(number[i]);
+        if (digit === -1) return null;
+        result = result * 36 + digit;
+    }
+    return result;
+}
+
+// manage data for split messages
+class Chunk {
+    constructor() {
+        this.chunkMap = {};
+        this.isComplete = false;
+    }
+    append(text) {
+        let regex = /^§CSL\w(\w)/.exec(text);
+        if (regex) {
+            let index = base36to10(regex[1]);
+            if (text.endsWith("$")) {
+                this.chunkMap[index] = text.slice(6, -1);
+                this.isComplete = true;
+            }
+            else {
+                this.chunkMap[index] = text.slice(6);
+            }
+        }
+        else {
+            console.log("CSL ERROR: bad chunk\n" + text);
+        }
+    }
+    decode() {
+        if (this.isComplete) {
+            let result = Object.values(this.chunkMap).reduce((a, b) => a + b);
+            try {
+                return decodeURIComponent(atob(result));
+            }
+            catch {
+                sendSystemMessage("CSL chunk decode error");
+                console.log("CSL ERROR: could not decode\n" + result);
+            }
+        }
+        else {
+            sendSystemMessage("CSL incomplete chunk");
+            console.log("CSL ERROR: incomplete chunk\n", this.chunkMap);
+        }
+        return "";
+    }
 }
 
 // validate json data in local storage
