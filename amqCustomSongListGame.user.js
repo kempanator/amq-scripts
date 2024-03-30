@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.50
+// @version      0.51
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -43,7 +43,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.50";
+const version = "0.51";
 const saveData = validateLocalStorage("customSongListGame");
 const catboxHostDict = {1: "files.catbox.moe", 2: "nl.catbox.moe", 3: "nl.catbox.video", 4: "ladist1.catbox.video", 5: "vhdist1.catbox.video"};
 let CSLButtonCSS = saveData.CSLButtonCSS || "calc(25% - 250px)";
@@ -1226,7 +1226,7 @@ function endGuessPhase(songNumber) {
         }
         fireListener("player answers", data);
         if (!quiz.soloMode && quiz.isHost) {
-            let message = `${song.animeRomajiName || ""}§${song.animeEnglishName || ""}§${song.songArtist || ""}§${song.songName || ""}§${song.songType || ""}§${song.songTypeNumber || ""}§${song.songDifficulty || ""}§${song.animeType || ""}§${song.animeVintage || ""}§${song.annId || ""}§${song.malId || ""}§${song.kitsuId || ""}§${song.aniListId || ""}§${Array.isArray(song.animeTags) ? song.animeTags.join(",") : ""}§${Array.isArray(song.animeGenre) ? song.animeGenre.join(",") : ""}§${song.audio || ""}§${song.video480 || ""}§${song.video720 || ""}`;
+            let message = `${song.animeRomajiName || ""}\n${song.animeEnglishName || ""}\n${(song.altAnimeNames || []).join("\t")}\n${(song.altAnimeNamesAnswers || []).join("\t")}\n${song.songArtist || ""}\n${song.songName || ""}\n${song.songType || ""}\n${song.songTypeNumber || ""}\n${song.songDifficulty || ""}\n${song.animeType || ""}\n${song.animeVintage || ""}\n${song.annId || ""}\n${song.malId || ""}\n${song.kitsuId || ""}\n${song.aniListId || ""}\n${Array.isArray(song.animeTags) ? song.animeTags.join(",") : ""}\n${Array.isArray(song.animeGenre) ? song.animeGenre.join(",") : ""}\n${song.audio || ""}\n${song.video480 || ""}\n${song.video720 || ""}`;
             splitIntoChunks(btoa(encodeURIComponent(message)) + "$", 144).forEach((item, index) => {
                 cslMessage("§CSL7" + base10to36(index % 36) + item);
             });
@@ -1641,25 +1641,27 @@ function parseMessage(content, sender) {
     else if (content.startsWith("§CSL7")) {
         songInfoChunk.append(content);
         if (songInfoChunk.isComplete) {
-            let split = preventCodeInjection(songInfoChunk.decode()).split("§");
+            let split = preventCodeInjection(songInfoChunk.decode()).split("\n");
             cslMultiplayer.songInfo.animeRomajiName = split[0];
             cslMultiplayer.songInfo.animeEnglishName = split[1];
-            cslMultiplayer.songInfo.songArtist = split[2];
-            cslMultiplayer.songInfo.songName = split[3];
-            cslMultiplayer.songInfo.songType = parseInt(split[4]) || null;
-            cslMultiplayer.songInfo.songTypeNumber = parseInt(split[5]) || null;
-            cslMultiplayer.songInfo.songDifficulty = parseFloat(split[6]) || null;
-            cslMultiplayer.songInfo.animeType = split[7];
-            cslMultiplayer.songInfo.animeVintage = split[8];
-            cslMultiplayer.songInfo.annId = parseInt(split[9]) || null;
-            cslMultiplayer.songInfo.malId = parseInt(split[10]) || null;
-            cslMultiplayer.songInfo.kitsuId = parseInt(split[11]) || null;
-            cslMultiplayer.songInfo.aniListId = parseInt(split[12]) || null;
-            cslMultiplayer.songInfo.animeTags = split[13].split(",");
-            cslMultiplayer.songInfo.animeGenre = split[14].split(",");
-            cslMultiplayer.songInfo.audio = split[15];
-            cslMultiplayer.songInfo.video480 = split[16];
-            cslMultiplayer.songInfo.video720 = split[17];
+            cslMultiplayer.songInfo.altAnimeNames = split[2].split("\t").filter(Boolean);
+            cslMultiplayer.songInfo.altAnimeNamesAnswers = split[3].split("\t").filter(Boolean);
+            cslMultiplayer.songInfo.songArtist = split[4];
+            cslMultiplayer.songInfo.songName = split[5];
+            cslMultiplayer.songInfo.songType = parseInt(split[6]) || null;
+            cslMultiplayer.songInfo.songTypeNumber = parseInt(split[7]) || null;
+            cslMultiplayer.songInfo.songDifficulty = parseFloat(split[8]) || null;
+            cslMultiplayer.songInfo.animeType = split[9];
+            cslMultiplayer.songInfo.animeVintage = split[10];
+            cslMultiplayer.songInfo.annId = parseInt(split[11]) || null;
+            cslMultiplayer.songInfo.malId = parseInt(split[12]) || null;
+            cslMultiplayer.songInfo.kitsuId = parseInt(split[13]) || null;
+            cslMultiplayer.songInfo.aniListId = parseInt(split[14]) || null;
+            cslMultiplayer.songInfo.animeTags = split[15].split(",");
+            cslMultiplayer.songInfo.animeGenre = split[16].split(",");
+            cslMultiplayer.songInfo.audio = split[17];
+            cslMultiplayer.songInfo.video480 = split[18];
+            cslMultiplayer.songInfo.video720 = split[19];
             console.log(split);
         }
     }
