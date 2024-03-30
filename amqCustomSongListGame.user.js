@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.49
+// @version      0.50
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -43,12 +43,13 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.49";
+const version = "0.50";
 const saveData = validateLocalStorage("customSongListGame");
 const catboxHostDict = {1: "files.catbox.moe", 2: "nl.catbox.moe", 3: "nl.catbox.video", 4: "ladist1.catbox.video", 5: "vhdist1.catbox.video"};
 let CSLButtonCSS = saveData.CSLButtonCSS || "calc(25% - 250px)";
 let showCSLMessages = saveData.showCSLMessages ?? true;
 let replacedAnswers = saveData.replacedAnswers || {};
+let hotKeys = saveData.hotKeys ?? {};
 let debug = Boolean(saveData.debug);
 let fastSkip = false;
 let nextVideoReady = false;
@@ -85,9 +86,12 @@ let resultChunk;
 let songInfoChunk;
 let nextSongChunk;
 
+hotKeys.start = saveData.hotKeys?.start ?? {altKey: false, ctrlKey: false, key: ""};
+//hotKeys.mergeAll = saveData.hotKeys?.mergeAll ?? {altKey: false, ctrlKey: false, key: ""};
+
 $("#gameContainer").append($(`
     <div class="modal fade tab-modal" id="cslgSettingsModal" tabindex="-1" role="dialog">
-        <div class="modal-dialog" role="document">
+        <div class="modal-dialog" role="document" style="width: 680px">
             <div class="modal-content">
                 <div class="modal-header" style="padding: 3px 0 0 0">
                     <button type="button" class="close" data-dismiss="modal" aria-label="Close">
@@ -101,11 +105,14 @@ $("#gameContainer").append($(`
                         <div id="cslgQuizSettingsTab" class="tab clickAble">
                             <h5>Settings</h5>
                         </div>
+                        <div id="cslgMergeTab" class="tab clickAble">
+                            <h5>Merge</h5>
+                        </div>
                         <div id="cslgAnswerTab" class="tab clickAble">
                             <h5>Answers</h5>
                         </div>
-                        <div id="cslgMergeTab" class="tab clickAble">
-                            <h5>Merge</h5>
+                        <div id="cslgHotkeyTab" class="tab clickAble">
+                            <h5>Hotkey</h5>
                         </div>
                         <div id="cslgMultiplayerTab" class="tab clickAble">
                             <h5>Multiplayer</h5>
@@ -117,15 +124,21 @@ $("#gameContainer").append($(`
                 </div>
                 <div class="modal-body" style="overflow-y: auto; max-height: calc(100vh - 150px);">
                     <div id="cslgSongListContainer">
-                        <div>
+                        <div style="margin: 2px 0 3px 0;">
                             <span style="font-size: 20px; font-weight: bold;">Mode</span>
-                            <label class="clickAble" style="margin-left: 10px">Anisongdb<input id="cslgModeAnisongdbRadio" type="radio" name="cslgSongListMode"></label>
-                            <label class="clickAble" style="margin-left: 10px">Load File<input id="cslgModeFileUploadRadio" type="radio" name="cslgSongListMode"></label>
-                            <i id="cslgTableModeButton" class="fa fa-table clickAble" aria-hidden="true" style="font-size: 20px; margin-left: 80px;"></i>
-                            <span id="cslgSongListCount" style="font-size: 20px; font-weight: bold; margin-left: 20px;">Total Songs: 0</span>
+                            <select id="cslgSongListModeSelect" style="color: black; margin-left: 2px; padding: 3px 0;">
+                                <option value="Anisongdb">Anisongdb</option>
+                                <option value="Load File">Load File</option>
+                            </select>
+                            <i id="cslgMergeAllButton" class="fa fa-plus clickAble" aria-hidden="true" style="font-size: 20px; margin-left: 100px;"></i>
+                            <i id="cslgClearSongListButton" class="fa fa-trash clickAble" aria-hidden="true" style="font-size: 20px; margin-left: 10px;"></i>
+                            <i id="cslgTransferSongListButton" class="fa fa-exchange clickAble" aria-hidden="true" style="font-size: 20px; margin-left: 10px;"></i>
+                            <i id="cslgTableModeButton" class="fa fa-table clickAble" aria-hidden="true" style="font-size: 20px; margin-left: 10px;"></i>
+                            <span id="cslgSongListCount" style="font-size: 20px; font-weight: bold; margin-left: 20px;">Songs: 0</span>
+                            <span id="cslgMergedSongListCount" style="font-size: 20px; font-weight: bold; margin-left: 20px;">Merged: 0</span>
                         </div>
                         <div id="cslgFileUploadRow">
-                            <label style="vertical-align: -4px"><input id="cslgFileUpload" type="file" style="width: 500px"></label>
+                            <label style="vertical-align: -4px"><input id="cslgFileUpload" type="file" style="width: 600px"></label>
                         </div>
                         <div id="cslgAnisongdbSearchRow">
                             <div>
@@ -135,7 +148,7 @@ $("#gameContainer").append($(`
                                     <option value="Song">Song</option>
                                     <option value="Composer">Composer</option>
                                 </select>
-                                <input id="cslgAnisongdbQueryInput" type="text" style="color: black; width: 185px;">
+                                <input id="cslgAnisongdbQueryInput" type="text" style="color: black; width: 250px;">
                                 <button id="cslgAnisongdbSearchButtonGo" style="color: black">Go</button>
                                 <label class="clickAble" style="margin-left: 7px">Partial<input id="cslgAnisongdbPartialCheckbox" type="checkbox"></label>
                                 <label class="clickAble" style="margin-left: 7px">OP<input id="cslgAnisongdbOPCheckbox" type="checkbox"></label>
@@ -145,18 +158,19 @@ $("#gameContainer").append($(`
                             <div>
                                 <label class="clickAble">Max Other People<input id="cslgAnisongdbMaxOtherPeopleInput" type="text" style="color: black; font-weight: normal; width: 40px; margin-left: 3px;"></label>
                                 <label class="clickAble" style="margin-left: 10px">Min Group Members<input id="cslgAnisongdbMinGroupMembersInput" type="text" style="color: black; font-weight: normal; width: 40px; margin-left: 3px;"></label>
-                                <label class="clickAble" style="margin-left: 20px">Ignore Duplicates<input id="cslgAnisongdbIgnoreDuplicatesCheckbox" type="checkbox"></label>
+                                <label class="clickAble" style="margin-left: 10px">Ignore Duplicates<input id="cslgAnisongdbIgnoreDuplicatesCheckbox" type="checkbox"></label>
+                                <label class="clickAble" style="margin-left: 10px">Arrangement<input id="cslgAnisongdbArrangementCheckbox" type="checkbox"></label>
                             </div>
                         </div>
                         <div style="height: 400px; margin: 5px 0; overflow-y: scroll;">
-                            <table id="cslgSongListTable">
+                            <table id="cslgSongListTable" class="styledTable">
                                 <thead>
                                     <tr>
                                         <th class="number">#</th>
                                         <th class="song">Song</th>
                                         <th class="artist">Artist</th>
                                         <th class="difficulty">Dif</th>
-                                        <th class="trash"></th>
+                                        <th class="action"></th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -217,13 +231,13 @@ $("#gameContainer").append($(`
                     </div>
                     <div id="cslgAnswerContainer">
                         <span style="font-size: 16px; font-weight: bold;">Old:</span>
-                        <input id="cslgOldAnswerInput" type="text" style="width: 200px; color: black; margin: 10px 0;">
+                        <input id="cslgOldAnswerInput" type="text" style="width: 240px; color: black; margin: 10px 0;">
                         <span style="font-size: 16px; font-weight: bold; margin-left: 10px;">New:</span>
-                        <input id="cslgNewAnswerInput" type="text" style="width: 200px; color: black; margin: 10px 0;">
+                        <input id="cslgNewAnswerInput" type="text" style="width: 240px; color: black; margin: 10px 0;">
                         <button id="cslgAnswerButtonAdd" style="color: black; margin-left: 10px;">Add</button>
                         <div id="cslgAnswerText" style="font-size: 16px; font-weight: bold;">No list loaded</div>
                         <div style="height: 300px; margin: 5px 0; overflow-y: scroll;">
-                            <table id="cslgAnswerTable">
+                            <table id="cslgAnswerTable" class="styledTable">
                                 <thead>
                                     <tr>
                                         <th class="oldName">Old</th>
@@ -238,15 +252,44 @@ $("#gameContainer").append($(`
                         <p style="margin-top: 5px">Use this window to replace invalid answers from your imported song list with valid answers from AMQ's autocomplete.</p>
                     </div>
                     <div id="cslgMergeContainer">
-                        <h4 style="text-align: center; margin-bottom: 20px;">Merge multiple song lists into 1 JSON file</h4>
-                        <div id="cslgMergeCurrentCount" style="font-size: 16px; font-weight: bold; margin-bottom: 15px;">Found 0 songs in the current song list</div>
-                        <span id="cslgMergeTotalCount" style="font-size: 16px; font-weight: bold;">Merged JSON file: 0 songs</span>
-                        <span style="float: right">
+                        <h4 style="text-align: center; margin-bottom: 10px;">Merge multiple song lists into 1 JSON file</h4>
+                        <div style="width: 400px; display: inline-block;">
+                            <div id="cslgMergeCurrentCount" style="font-size: 16px; font-weight: bold;">Current song list: 0 songs</div>
+                            <div id="cslgMergeTotalCount" style="font-size: 16px; font-weight: bold;">Merged JSON file: 0 songs</div>
+                        </div>
+                        <div style="display: inline-block; vertical-align: 13px">
                             <button id="cslgMergeButton" class="btn btn-default">Merge</button>
                             <button id="cslgMergeClearButton" class="btn btn-warning">Clear</button>
                             <button id="cslgMergeDownloadButton" class="btn btn-success">Download</button>
-                        </span>
-                        <p style="margin-top: 30px">1. Load some songs into the table in the song list tab<br>2. Come back to this tab<br>3. Click "merge" to add everything from that list to a new combined list<br>4. Repeat steps 1-3 as many times as you want<br>5. Click "download" to download the new json file<br>6. Upload the file in the song list tab and play</p>
+                        </div>
+                        <div style="height: 400px; margin: 5px 0; overflow-y: scroll;">
+                            <table id="cslgMergedSongListTable" class="styledTable">
+                                <thead>
+                                    <tr>
+                                        <th class="number">#</th>
+                                        <th class="anime">Anime</th>
+                                        <th class="songType">Type</th>
+                                        <th class="action"></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                </tbody>
+                            </table>
+                        </div>
+                        <p style="margin-top: 30px; display: none;">1. Load some songs into the table in the song list tab<br>2. Come back to this tab<br>3. Click "merge" to add everything from that list to a new combined list<br>4. Repeat steps 1-3 as many times as you want<br>5. Click "download" to download the new json file<br>6. Upload the file in the song list tab and play</p>
+                    </div>
+                    <div id="cslgHotkeyContainer">
+                        <table id="cslgHotkeyTable">
+                            <thead>
+                                <tr>
+                                    <th>Action</th>
+                                    <th>Modifier</th>
+                                    <th>Key</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            </tbody>
+                        </table>
                     </div>
                     <div id="cslgMultiplayerContainer" style="text-align: center; margin: 10px 0;">
                         <div style="font-size: 20px; margin: 20px 0;">WORK IN PROGRESS</div>
@@ -274,6 +317,9 @@ $("#gameContainer").append($(`
     </div>
 `));
 
+createHotkeyElement("Start CSL", "start", "cslgStartHotkeySelect", "cslgStartHotkeyInput");
+//createHotkeyElement("Merge All", "mergeAll", "cslgMergeAllHotkeySelect", "cslgMergeAllHotkeyInput");
+
 $("#lobbyPage .topMenuBar").append(`<div id="lnCustomSongListButton" class="clickAble topMenuButton topMenuMediumButton"><h3>CSL</h3></div>`);
 $("#lnCustomSongListButton").click(() => { openSettingsModal() });
 $("#cslgSongListTab").click(() => {
@@ -295,6 +341,11 @@ $("#cslgMergeTab").click(() => {
     tabReset();
     $("#cslgMergeTab").addClass("selected");
     $("#cslgMergeContainer").show();
+});
+$("#cslgHotkeyTab").click(() => {
+    tabReset();
+    $("#cslgHotkeyTab").addClass("selected");
+    $("#cslgHotkeyContainer").show();
 });
 $("#cslgMultiplayerTab").click(() => {
     tabReset();
@@ -324,6 +375,38 @@ $("#cslgFileUpload").on("change", function() {
         });
     }
 });
+$("#cslgMergeAllButton").click(() => {
+    mergedSongList = Array.from(new Set(mergedSongList.concat(songList).map((x) => JSON.stringify(x)))).map((x) => JSON.parse(x));
+    createMergedSongListTable();
+}).popover({
+    content: "Add all to merged",
+    trigger: "hover",
+    placement: "bottom"
+});
+$("#cslgClearSongListButton").click(() => {
+    songList = [];
+    createSongListTable();
+}).popover({
+    content: "Clear song list",
+    trigger: "hover",
+    placement: "bottom"
+});
+$("#cslgTransferSongListButton").click(() => {
+    songList = Array.from(mergedSongList);
+    createSongListTable();
+}).popover({
+    content: "Transfer from merged",
+    trigger: "hover",
+    placement: "bottom"
+});
+$("#cslgTableModeButton").click(() => {
+    songListTableMode = (songListTableMode + 1) % 3;
+    createSongListTable();
+}).popover({
+    content: "Table mode",
+    trigger: "hover",
+    placement: "bottom"
+});
 $("#cslgSongOrderSelect").on("change", function() {
     songOrderType = this.value;
 });
@@ -332,11 +415,11 @@ $("#cslgHostOverrideSelect").on("change", function() {
 });
 $("#cslgMergeButton").click(() => {
     mergedSongList = Array.from(new Set(mergedSongList.concat(songList).map((x) => JSON.stringify(x)))).map((x) => JSON.parse(x));
-    $("#cslgMergeTotalCount").text(`Merged JSON file: ${mergedSongList.length} song${mergedSongList.length === 1 ? "" : "s"}`);
+    createMergedSongListTable();
 });
 $("#cslgMergeClearButton").click(() => {
     mergedSongList = [];
-    $("#cslgMergeTotalCount").text("Merged JSON file: 0 songs");
+    createMergedSongListTable();
 });
 $("#cslgMergeDownloadButton").click(() => {
     if (mergedSongList.length) {
@@ -379,91 +462,27 @@ $("#cslgAutocompleteButton").click(() => {
     }
 });
 $("#cslgStartButton").click(() => {
-    songOrder = {};
-    if (!lobby.isHost) {
-        return messageDisplayer.displayMessage("Unable to start", "must be host");
-    }
-    if (lobby.numberOfPlayers !== lobby.numberOfPlayersReady) {
-        return messageDisplayer.displayMessage("Unable to start", "all players must be ready");
-    }
-    if (!songList || !songList.length) {
-        return messageDisplayer.displayMessage("Unable to start", "no songs");
-    }
-    if (autocomplete.length === 0) {
-        return messageDisplayer.displayMessage("Unable to start", "autocomplete list empty");
-    }
-    let numSongs = parseInt($("#cslgSettingsSongs").val());
-    if (isNaN(numSongs) || numSongs < 1) {
-        return messageDisplayer.displayMessage("Unable to start", "invalid number of songs");
-    }
-    guessTime = parseInt($("#cslgSettingsGuessTime").val());
-    if (isNaN(guessTime) || guessTime < 1 || guessTime > 99) {
-        return messageDisplayer.displayMessage("Unable to start", "invalid guess time");
-    }
-    extraGuessTime = parseInt($("#cslgSettingsExtraGuessTime").val());
-    if (isNaN(extraGuessTime) || extraGuessTime < 0 || extraGuessTime > 15) {
-        return messageDisplayer.displayMessage("Unable to start", "invalid extra guess time");
-    }
-    let startPointText = $("#cslgSettingsStartPoint").val().trim();
-    if (/^[0-9]+$/.test(startPointText)) {
-        startPointRange = [parseInt(startPointText), parseInt(startPointText)];
-    }
-    else if (/^[0-9]+[\s-]+[0-9]+$/.test(startPointText)) {
-        startPointRange = [parseInt(/^([0-9]+)[\s-]+[0-9]+$/.exec(startPointText)[1]), parseInt(/^[0-9]+[\s-]+([0-9]+)$/.exec(startPointText)[1])];
-    }
-    else {
-        return messageDisplayer.displayMessage("Unable to start", "song start sample must be a number or range 0-100");
-    }
-    if (startPointRange[0] < 0 || startPointRange[0] > 100 || startPointRange[1] < 0 || startPointRange[1] > 100 || startPointRange[0] > startPointRange[1]) {
-        return messageDisplayer.displayMessage("Unable to start", "song start sample must be a number or range 0-100");
-    }
-    let difficultyText = $("#cslgSettingsDifficulty").val().trim();
-    if (/^[0-9]+[\s-]+[0-9]+$/.test(difficultyText)) {
-        difficultyRange = [parseInt(/^([0-9]+)[\s-]+[0-9]+$/.exec(difficultyText)[1]), parseInt(/^[0-9]+[\s-]+([0-9]+)$/.exec(difficultyText)[1])];
-    }
-    else {
-        return messageDisplayer.displayMessage("Unable to start", "difficulty must be a range 0-100");
-    }
-    if (difficultyRange[0] < 0 || difficultyRange[0] > 100 || difficultyRange[1] < 0 || difficultyRange[1] > 100 || difficultyRange[0] > difficultyRange[1]) {
-        return messageDisplayer.displayMessage("Unable to start", "difficulty must be a range 0-100");
-    }
-    let ops = $("#cslgSettingsOPCheckbox").prop("checked");
-    let eds = $("#cslgSettingsEDCheckbox").prop("checked");
-    let ins = $("#cslgSettingsINCheckbox").prop("checked");
-    let tv = $("#cslgSettingsTVCheckbox").prop("checked");
-    let movie = $("#cslgSettingsMovieCheckbox").prop("checked");
-    let ova = $("#cslgSettingsOVACheckbox").prop("checked");
-    let ona = $("#cslgSettingsONACheckbox").prop("checked");
-    let special = $("#cslgSettingsSpecialCheckbox").prop("checked");
-    let correctGuesses = $("#cslgSettingsCorrectGuessCheckbox").prop("checked");
-    let incorrectGuesses = $("#cslgSettingsIncorrectGuessCheckbox").prop("checked");
-    let songKeys = Object.keys(songList)
-        .filter((key) => songTypeFilter(songList[key], ops, eds, ins))
-        .filter((key) => animeTypeFilter(songList[key], tv, movie, ova, ona, special))
-        .filter((key) => difficultyFilter(songList[key], difficultyRange[0], difficultyRange[1]))
-        .filter((key) => guessTypeFilter(songList[key], correctGuesses, incorrectGuesses));
-    if (songOrderType === "random") shuffleArray(songKeys);
-    else if (songOrderType === "descending") songKeys.reverse();
-    songKeys.slice(0, numSongs).forEach((key, i) => { songOrder[i + 1] = parseInt(key) });
-    totalSongs = Object.keys(songOrder).length;
-    if (totalSongs === 0) {
-        return messageDisplayer.displayMessage("Unable to start", "no songs");
-    }
-    fastSkip = $("#cslgSettingsFastSkip").prop("checked");
-    $("#cslgSettingsModal").modal("hide");
-    //console.log(songOrder);
-    if (lobby.soloMode) {
-        startQuiz();
-    }
-    else if (lobby.isHost) {
-        cslMessage("§CSL0" + btoa(`${showSelection}§${currentSong}§${totalSongs}§${guessTime}§${extraGuessTime}§${fastSkip ? "1" : "0"}`));
-    }
+    validateStart();
 });
 $("#cslgSongListTable").on("click", "i.fa-trash", (event) => {
     let index = parseInt(event.target.parentElement.parentElement.querySelector("td.number").innerText) - 1;
     songList.splice(index, 1);
     createSongListTable();
     createAnswerTable();
+}).on("mouseenter", "i.fa-trash", (event) => {
+    event.target.parentElement.parentElement.classList.add("selected");
+}).on("mouseleave", "i.fa-trash", (event) => {
+    event.target.parentElement.parentElement.classList.remove("selected");
+});
+$("#cslgSongListTable").on("click", "i.fa-plus", (event) => {
+    let index = parseInt(event.target.parentElement.parentElement.querySelector("td.number").innerText) - 1;
+    mergedSongList.push(songList[index]);
+    mergedSongList = Array.from(new Set(mergedSongList.map((x) => JSON.stringify(x)))).map((x) => JSON.parse(x));
+    createMergedSongListTable();
+}).on("mouseenter", "i.fa-plus", (event) => {
+    event.target.parentElement.parentElement.classList.add("selected");
+}).on("mouseleave", "i.fa-plus", (event) => {
+    event.target.parentElement.parentElement.classList.remove("selected");
 });
 $("#cslgAnswerButtonAdd").click(() => {
     let oldName = $("#cslgOldAnswerInput").val().trim();
@@ -481,14 +500,69 @@ $("#cslgAnswerTable").on("click", "i.fa-pencil", (event) => {
     $("#cslgOldAnswerInput").val(oldName);
     $("#cslgNewAnswerInput").val(newName);
 });
-$("#cslgModeAnisongdbRadio").prop("checked", true);
+$("#cslgMergedSongListTable").on("click", "i.fa-chevron-up", (event) => {
+    let index = parseInt(event.target.parentElement.parentElement.querySelector("td.number").innerText) - 1;
+    if (index !== 0) {
+        [mergedSongList[index], mergedSongList[index - 1]] = [mergedSongList[index - 1], mergedSongList[index]];
+        createMergedSongListTable();
+    }
+}).on("mouseenter", "i.fa-chevron-up", (event) => {
+    event.target.parentElement.parentElement.classList.add("selected");
+}).on("mouseleave", "i.fa-chevron-up", (event) => {
+    event.target.parentElement.parentElement.classList.remove("selected");
+});
+$("#cslgMergedSongListTable").on("click", "i.fa-chevron-down", (event) => {
+    let index = parseInt(event.target.parentElement.parentElement.querySelector("td.number").innerText) - 1;
+    if (index !== mergedSongList.length - 1) {
+        [mergedSongList[index], mergedSongList[index + 1]] = [mergedSongList[index + 1], mergedSongList[index]];
+        createMergedSongListTable();
+    }
+}).on("mouseenter", "i.fa-chevron-down", (event) => {
+    event.target.parentElement.parentElement.classList.add("selected");
+}).on("mouseleave", "i.fa-chevron-down", (event) => {
+    event.target.parentElement.parentElement.classList.remove("selected");
+});
+$("#cslgMergedSongListTable").on("click", "i.fa-trash", (event) => {
+    let index = parseInt(event.target.parentElement.parentElement.querySelector("td.number").innerText) - 1;
+    mergedSongList.splice(index, 1);
+    createMergedSongListTable();
+}).on("mouseenter", "i.fa-trash", (event) => {
+    event.target.parentElement.parentElement.classList.add("selected");
+}).on("mouseleave", "i.fa-trash", (event) => {
+    event.target.parentElement.parentElement.classList.remove("selected");
+});
+$("#cslgSongListModeSelect").val("Anisongdb").on("change", function() {
+    songList = [];
+    $("#cslgSongListTable tbody").empty();
+    $("#cslgMergeCurrentCount").text("Current song list: 0 songs");
+    $("#cslgSongListCount").text("Songs: 0");
+    if (this.value === "Anisongdb") {
+        $("#cslgFileUploadRow").hide();
+        $("#cslgAnisongdbSearchRow").show();
+        $("#cslgFileUploadRow input").val("");
+    }
+    else if (this.value === "Load File") {
+        $("#cslgAnisongdbSearchRow").hide();
+        $("#cslgFileUploadRow").show();
+        $("#cslgAnisongdbQueryInput").val("");
+    }
+});
 $("#cslgAnisongdbModeSelect").val("Artist");
+/*$("#cslgAnisongdbModeSelect").val("Artist").on("change", function() {
+    if (this.value === "Composer") {
+        $("#cslgAnisongdbArrangementCheckbox").parent().show();
+    }
+    else {
+        $("#cslgAnisongdbArrangementCheckbox").parent().hide();
+    }
+});*/
 $("#cslgAnisongdbPartialCheckbox").prop("checked", true);
 $("#cslgAnisongdbOPCheckbox").prop("checked", true);
 $("#cslgAnisongdbEDCheckbox").prop("checked", true);
 $("#cslgAnisongdbINCheckbox").prop("checked", true);
 $("#cslgAnisongdbMaxOtherPeopleInput").val("99");
 $("#cslgAnisongdbMinGroupMembersInput").val("0");
+//$("#cslgAnisongdbArrangementCheckbox").parent().hide();
 $("#cslgSettingsSongs").val("20");
 $("#cslgSettingsGuessTime").val("20");
 $("#cslgSettingsExtraGuessTime").val("0");
@@ -506,28 +580,6 @@ $("#cslgSettingsStartPoint").val("0-100");
 $("#cslgSettingsDifficulty").val("0-100");
 $("#cslgSettingsFastSkip").prop("checked", false);
 $("#cslgFileUploadRow").hide();
-$("#cslgModeAnisongdbRadio").click(() => {
-    songList = [];
-    $("#cslgFileUploadRow").hide();
-    $("#cslgAnisongdbSearchRow").show();
-    $("#cslgSongListCount").text("Total Songs: 0");
-    $("#cslgFileUploadRow input").val("");
-    $("#cslgSongListTable tbody").empty();
-    $("#cslgMergeCurrentCount").text("Found 0 songs in the current song list");
-});
-$("#cslgModeFileUploadRadio").click(() => {
-    songList = [];
-    $("#cslgAnisongdbSearchRow").hide();
-    $("#cslgFileUploadRow").show();
-    $("#cslgSongListCount").text("Total Songs: 0");
-    $("#cslgAnisongdbQueryInput").val("");
-    $("#cslgSongListTable tbody").empty();
-    $("#cslgMergeCurrentCount").text("Found 0 songs in the current song list");
-});
-$("#cslgTableModeButton").click(() => {
-    songListTableMode = (songListTableMode + 1) % 3;
-    createSongListTable();
-});
 $("#cslgCSLButtonCSSInput").val(CSLButtonCSS);
 $("#cslgResetCSSButton").click(() => {
     CSLButtonCSS = "calc(25% - 250px)";
@@ -811,6 +863,19 @@ function setup() {
         }
 	}
 
+    document.body.addEventListener("keydown", (event) => {
+        const key = event.key;
+        const altKey = event.altKey;
+        const ctrlKey = event.ctrlKey;
+        if (testHotkey("start", key, altKey, ctrlKey)) {
+            validateStart();
+        }
+        /*if (testHotkey("mergeAll", key, altKey, ctrlKey)) {
+            mergedSongList = Array.from(new Set(mergedSongList.concat(songList).map((x) => JSON.stringify(x)))).map((x) => JSON.parse(x));
+            createMergedSongListTable();
+        }*/
+    });
+
     resultChunk = new Chunk();
     songInfoChunk = new Chunk();
     nextSongChunk = new Chunk();
@@ -833,6 +898,90 @@ function setup() {
         `
     });
     applyStyles();
+}
+
+// validate all settings and attempt to start csl quiz
+function validateStart() {
+    if (!lobby.inLobby) return;
+    songOrder = {};
+    if (!lobby.isHost) {
+        return messageDisplayer.displayMessage("Unable to start", "must be host");
+    }
+    if (lobby.numberOfPlayers !== lobby.numberOfPlayersReady) {
+        return messageDisplayer.displayMessage("Unable to start", "all players must be ready");
+    }
+    if (!songList || !songList.length) {
+        return messageDisplayer.displayMessage("Unable to start", "no songs");
+    }
+    if (autocomplete.length === 0) {
+        return messageDisplayer.displayMessage("Unable to start", "autocomplete list empty");
+    }
+    let numSongs = parseInt($("#cslgSettingsSongs").val());
+    if (isNaN(numSongs) || numSongs < 1) {
+        return messageDisplayer.displayMessage("Unable to start", "invalid number of songs");
+    }
+    guessTime = parseInt($("#cslgSettingsGuessTime").val());
+    if (isNaN(guessTime) || guessTime < 1 || guessTime > 99) {
+        return messageDisplayer.displayMessage("Unable to start", "invalid guess time");
+    }
+    extraGuessTime = parseInt($("#cslgSettingsExtraGuessTime").val());
+    if (isNaN(extraGuessTime) || extraGuessTime < 0 || extraGuessTime > 15) {
+        return messageDisplayer.displayMessage("Unable to start", "invalid extra guess time");
+    }
+    let startPointText = $("#cslgSettingsStartPoint").val().trim();
+    if (/^[0-9]+$/.test(startPointText)) {
+        startPointRange = [parseInt(startPointText), parseInt(startPointText)];
+    }
+    else if (/^[0-9]+[\s-]+[0-9]+$/.test(startPointText)) {
+        startPointRange = [parseInt(/^([0-9]+)[\s-]+[0-9]+$/.exec(startPointText)[1]), parseInt(/^[0-9]+[\s-]+([0-9]+)$/.exec(startPointText)[1])];
+    }
+    else {
+        return messageDisplayer.displayMessage("Unable to start", "song start sample must be a number or range 0-100");
+    }
+    if (startPointRange[0] < 0 || startPointRange[0] > 100 || startPointRange[1] < 0 || startPointRange[1] > 100 || startPointRange[0] > startPointRange[1]) {
+        return messageDisplayer.displayMessage("Unable to start", "song start sample must be a number or range 0-100");
+    }
+    let difficultyText = $("#cslgSettingsDifficulty").val().trim();
+    if (/^[0-9]+[\s-]+[0-9]+$/.test(difficultyText)) {
+        difficultyRange = [parseInt(/^([0-9]+)[\s-]+[0-9]+$/.exec(difficultyText)[1]), parseInt(/^[0-9]+[\s-]+([0-9]+)$/.exec(difficultyText)[1])];
+    }
+    else {
+        return messageDisplayer.displayMessage("Unable to start", "difficulty must be a range 0-100");
+    }
+    if (difficultyRange[0] < 0 || difficultyRange[0] > 100 || difficultyRange[1] < 0 || difficultyRange[1] > 100 || difficultyRange[0] > difficultyRange[1]) {
+        return messageDisplayer.displayMessage("Unable to start", "difficulty must be a range 0-100");
+    }
+    let ops = $("#cslgSettingsOPCheckbox").prop("checked");
+    let eds = $("#cslgSettingsEDCheckbox").prop("checked");
+    let ins = $("#cslgSettingsINCheckbox").prop("checked");
+    let tv = $("#cslgSettingsTVCheckbox").prop("checked");
+    let movie = $("#cslgSettingsMovieCheckbox").prop("checked");
+    let ova = $("#cslgSettingsOVACheckbox").prop("checked");
+    let ona = $("#cslgSettingsONACheckbox").prop("checked");
+    let special = $("#cslgSettingsSpecialCheckbox").prop("checked");
+    let correctGuesses = $("#cslgSettingsCorrectGuessCheckbox").prop("checked");
+    let incorrectGuesses = $("#cslgSettingsIncorrectGuessCheckbox").prop("checked");
+    let songKeys = Object.keys(songList)
+        .filter((key) => songTypeFilter(songList[key], ops, eds, ins))
+        .filter((key) => animeTypeFilter(songList[key], tv, movie, ova, ona, special))
+        .filter((key) => difficultyFilter(songList[key], difficultyRange[0], difficultyRange[1]))
+        .filter((key) => guessTypeFilter(songList[key], correctGuesses, incorrectGuesses));
+    if (songOrderType === "random") shuffleArray(songKeys);
+    else if (songOrderType === "descending") songKeys.reverse();
+    songKeys.slice(0, numSongs).forEach((key, i) => { songOrder[i + 1] = parseInt(key) });
+    totalSongs = Object.keys(songOrder).length;
+    if (totalSongs === 0) {
+        return messageDisplayer.displayMessage("Unable to start", "no songs");
+    }
+    fastSkip = $("#cslgSettingsFastSkip").prop("checked");
+    $("#cslgSettingsModal").modal("hide");
+    //console.log(songOrder);
+    if (lobby.soloMode) {
+        startQuiz();
+    }
+    else if (lobby.isHost) {
+        cslMessage("§CSL0" + btoa(`${showSelection}§${currentSong}§${totalSongs}§${guessTime}§${extraGuessTime}§${fastSkip ? "1" : "0"}`));
+    }
 }
 
 // start quiz and load first song
@@ -1683,15 +1832,16 @@ function anisongdbDataSearch() {
     let ins = $("#cslgAnisongdbINCheckbox").prop("checked");
     let partial = $("#cslgAnisongdbPartialCheckbox").prop("checked");
     let ignoreDuplicates = $("#cslgAnisongdbIgnoreDuplicatesCheckbox").prop("checked");
+    let arrangement = $("#cslgAnisongdbArrangementCheckbox").prop("checked");
     let maxOtherPeople = parseInt($("#cslgAnisongdbMaxOtherPeopleInput").val());
     let minGroupMembers = parseInt($("#cslgAnisongdbMinGroupMembersInput").val());
     if (query && !isNaN(maxOtherPeople) && !isNaN(minGroupMembers)) {
-        getAnisongdbData(mode, query, ops, eds, ins, partial, ignoreDuplicates, maxOtherPeople, minGroupMembers);
+        getAnisongdbData(mode, query, ops, eds, ins, partial, ignoreDuplicates, arrangement, maxOtherPeople, minGroupMembers);
     }
 }
 
 // send anisongdb request
-function getAnisongdbData(mode, query, ops, eds, ins, partial, ignoreDuplicates, maxOtherPeople, minGroupMembers) {
+function getAnisongdbData(mode, query, ops, eds, ins, partial, ignoreDuplicates, arrangement, maxOtherPeople, minGroupMembers) {
     $("#cslgSongListCount").text("Loading...");
     $("#cslgSongListTable tbody").empty();
     let json = {
@@ -1725,7 +1875,7 @@ function getAnisongdbData(mode, query, ops, eds, ins, partial, ignoreDuplicates,
         json.composer_search_filter = {
             search: query,
             partial_match: partial,
-            arrangement: false
+            arrangement: arrangement
         };
     }
     fetch("https://anisongdb.com/api/search_request", {
@@ -1736,8 +1886,8 @@ function getAnisongdbData(mode, query, ops, eds, ins, partial, ignoreDuplicates,
         handleData(json);
         setSongListTableSort();
         if (songList.length === 0 && (ranked.currentState === ranked.RANKED_STATE_IDS.RUNNING || ranked.currentState === ranked.RANKED_STATE_IDS.CHAMP_RUNNING)) {
-            $("#cslgSongListCount").text("Total Songs: 0");
-            $("#cslgMergeCurrentCount").text("Found 0 songs in the current song list");
+            $("#cslgSongListCount").text("Songs: 0");
+            $("#cslgMergeCurrentCount").text("Current song list: 0 songs");
             $("#cslgSongListTable tbody").empty();
             $("#cslgSongListWarning").text("AnisongDB is not available during ranked");
         }
@@ -1748,8 +1898,8 @@ function getAnisongdbData(mode, query, ops, eds, ins, partial, ignoreDuplicates,
     }).catch(res => {
         songList = [];
         setSongListTableSort();
-        $("#cslgSongListCount").text("Total Songs: 0");
-        $("#cslgMergeCurrentCount").text("Found 0 songs in the current song list");
+        $("#cslgSongListCount").text("Songs: 0");
+        $("#cslgMergeCurrentCount").text("Current song list: 0 songs");
         $("#cslgSongListTable tbody").empty();
         $("#cslgSongListWarning").text(res.toString());
     });
@@ -1927,8 +2077,8 @@ function handleData(data) {
 
 // create song list table
 function createSongListTable() {
-    $("#cslgSongListCount").text("Total Songs: " + songList.length);
-    $("#cslgMergeCurrentCount").text(`Found ${songList.length} song${songList.length === 1 ? "" : "s"} in the current song list`);
+    $("#cslgSongListCount").text("Songs: " + songList.length);
+    $("#cslgMergeCurrentCount").text(`Current song list: ${songList.length} song${songList.length === 1 ? "" : "s"}`);
     $("#cslgSongListWarning").text("");
     let $thead = $("#cslgSongListTable thead");
     let $tbody = $("#cslgSongListTable tbody");
@@ -2007,7 +2157,7 @@ function createSongListTable() {
             setSongListTableSort(2);
             createSongListTable();
         }));
-        $row.append($(`<th class="trash"></th>`));
+        $row.append($(`<th class="action"></th>`));
         $thead.append($row);
         songList.forEach((song, i) => {
             let $row = $("<tr></tr>");
@@ -2015,7 +2165,7 @@ function createSongListTable() {
             $row.append($("<td></td>").addClass("song").text(song.songName));
             $row.append($("<td></td>").addClass("artist").text(song.songArtist));
             $row.append($("<td></td>").addClass("difficulty").text(Number.isFinite(song.songDifficulty) ? Math.floor(song.songDifficulty) : ""));
-            $row.append($("<td></td>").addClass("trash clickAble").append(`<i class="fa fa-trash" aria-hidden="true"></i>`));
+            $row.append($("<td></td>").addClass("action").append(`<i class="fa fa-plus clickAble" aria-hidden="true"></i> <i class="fa fa-trash clickAble" aria-hidden="true"></i>`));
             $tbody.append($row);
         });
     }
@@ -2034,7 +2184,7 @@ function createSongListTable() {
             setSongListTableSort(5);
             createSongListTable();
         }));
-        $row.append($(`<th class="trash"></th>`));
+        $row.append($(`<th class="action"></th>`));
         $thead.append($row);
         songList.forEach((song, i) => {
             let $row = $("<tr></tr>");
@@ -2042,7 +2192,7 @@ function createSongListTable() {
             $row.append($("<td></td>").addClass("anime").text(options.useRomajiNames ? song.animeRomajiName : song.animeEnglishName));
             $row.append($("<td></td>").addClass("songType").text(songTypeText(song.songType, song.songTypeNumber)));
             $row.append($("<td></td>").addClass("vintage").text(song.animeVintage));
-            $row.append($("<td></td>").addClass("trash clickAble").append(`<i class="fa fa-trash" aria-hidden="true"></i>`));
+            $row.append($("<td></td>").addClass("action").append(`<i class="fa fa-plus clickAble" aria-hidden="true"></i> <i class="fa fa-trash clickAble" aria-hidden="true"></i>`));
             $tbody.append($row);
         });
     }
@@ -2061,7 +2211,7 @@ function createSongListTable() {
             setSongListTableSort(8);
             createSongListTable();
         }));
-        $row.append($(`<th class="trash"></th>`));
+        $row.append($(`<th class="action"></th>`));
         $thead.append($row);
         songList.forEach((song, i) => {
             let $row = $("<tr></tr>");
@@ -2069,10 +2219,26 @@ function createSongListTable() {
             $row.append($("<td></td>").addClass("link").append(createLinkElement(song.audio)));
             $row.append($("<td></td>").addClass("link").append(createLinkElement(song.video480)));
             $row.append($("<td></td>").addClass("link").append(createLinkElement(song.video720)));
-            $row.append($("<td></td>").addClass("trash clickAble").append(`<i class="fa fa-trash" aria-hidden="true"></i>`));
+            $row.append($("<td></td>").addClass("action").append(`<i class="fa fa-plus clickAble" aria-hidden="true"></i> <i class="fa fa-trash clickAble" aria-hidden="true"></i>`));
             $tbody.append($row);
         });
     }
+}
+
+// create merged song list table
+function createMergedSongListTable() {
+    $("#cslgMergedSongListCount").text("Merged: " + mergedSongList.length);
+    $("#cslgMergeTotalCount").text(`Merged JSON file: ${mergedSongList.length} song${mergedSongList.length === 1 ? "" : "s"}`);
+    let $tbody = $("#cslgMergedSongListTable tbody");
+    $tbody.empty();
+    mergedSongList.forEach((song, i) => {
+        let $row = $("<tr></tr>");
+        $row.append($("<td></td>").addClass("number").text(i + 1));
+        $row.append($("<td></td>").addClass("anime").text(options.useRomajiNames ? song.animeRomajiName : song.animeEnglishName));
+        $row.append($("<td></td>").addClass("songType").text(songTypeText(song.songType, song.songTypeNumber)));
+        $row.append($("<td></td>").addClass("action").append(`<i class="fa fa-chevron-up clickAble" aria-hidden="true"></i><i class="fa fa-chevron-down clickAble" aria-hidden="true"></i> <i class="fa fa-trash clickAble" aria-hidden="true"></i>`));
+        $tbody.append($row);
+    });
 }
 
 // create answer table
@@ -2164,12 +2330,14 @@ function tabReset() {
     $("#cslgQuizSettingsTab").removeClass("selected");
     $("#cslgAnswerTab").removeClass("selected");
     $("#cslgMergeTab").removeClass("selected");
+    $("#cslgHotkeyTab").removeClass("selected");
     $("#cslgMultiplayerTab").removeClass("selected");
     $("#cslgInfoTab").removeClass("selected");
     $("#cslgSongListContainer").hide();
     $("#cslgQuizSettingsContainer").hide();
     $("#cslgAnswerContainer").hide();
     $("#cslgMergeContainer").hide();
+    $("#cslgHotkeyContainer").hide();
     $("#cslgMultiplayerContainer").hide();
     $("#cslgInfoContainer").hide();
 }
@@ -2204,6 +2372,42 @@ function createCatboxLinkObject(audio, video480, video720) {
         if (video720) links["720"] = "https://" + catboxHostDict[fileHostOverride] + "/" + video720.split("/").slice(-1)[0];
     }
     return links;
+}
+
+// create hotkey element
+function createHotkeyElement(title, key, selectID, inputID) {
+    let $tr = $(`<tr></tr>`);
+    let $select = $(`<select id="${selectID}" style="padding: 3px 0;"></select>`).append(`<option>ALT</option>`).append(`<option>CTRL</option>`).append(`<option>CTRL ALT</option>`);
+    let $input = $(`<input id="${inputID}" type="text" maxlength="1" style="width: 40px;">`).val(hotKeys[key].key);
+    $select.on("change", () => {
+        hotKeys[key] = {
+            "altKey": $select.val().includes("ALT"),
+            "ctrlKey": $select.val().includes("CTRL"),
+            "key": $input.val().toLowerCase()
+        }
+        saveSettings();
+    });
+    $input.blur(() => {
+        hotKeys[key] = {
+            "altKey": $select.val().includes("ALT"),
+            "ctrlKey": $select.val().includes("CTRL"),
+            "key": $input.val().toLowerCase()
+        }
+        saveSettings();
+    })
+    if (hotKeys[key].altKey && hotKeys[key].ctrlKey) $select.val("CTRL ALT");
+    else if (hotKeys[key].altKey) $select.val("ALT");
+    else if (hotKeys[key].ctrlKey) $select.val("CTRL");
+    $tr.append($(`<td></td>`).text(title));
+    $tr.append($(`<td></td>`).append($select));
+    $tr.append($(`<td></td>`).append($input));
+    $("#cslgHotkeyTable tbody").append($tr);
+}
+
+// test hotkey
+function testHotkey(action, key, altKey, ctrlKey) {
+    let hotkey = hotKeys[action];
+    return key === hotkey.key && altKey === hotkey.altKey && ctrlKey === hotkey.ctrlKey;
 }
 
 // return true if you are in a ranked lobby or quiz
@@ -2313,13 +2517,15 @@ function saveSettings() {
     localStorage.setItem("customSongListGame", JSON.stringify({
         replacedAnswers: replacedAnswers,
         CSLButtonCSS: CSLButtonCSS,
-        debug: debug
+        debug: debug,
+        hotKeys: hotKeys
     }));
 }
 
 // apply styles
 function applyStyles() {
     $("#customSongListStyle").remove();
+    let tableHighlightColor = getComputedStyle(document.documentElement).getPropertyValue("--accentColorContrast") || "#4497ea";
     let style = document.createElement("style");
     style.type = "text/css";
     style.id = "customSongListStyle";
@@ -2350,7 +2556,6 @@ function applyStyles() {
             table-layout: fixed;
         }
         #cslgSongListTable thead tr {
-            background-color: #282828;
             font-weight: bold;
         }
         #cslgSongListTable .number {
@@ -2365,20 +2570,48 @@ function applyStyles() {
         #cslgSongListTable .vintage {
             width: 100px;
         }
-        #cslgSongListTable .trash {
-            width: 20px;
+        #cslgSongListTable .action {
+            width: 35px;
         }
-        #cslgSongListTable tbody i.fa-trash:hover {
-            opacity: .8;
+        #cslgSongListTable .action i.fa-plus:hover {
+            color: #5cb85c;
+        }
+        #cslgSongListTable .action i.fa-trash:hover {
+            color: #d9534f;
         }
         #cslgSongListTable th, #cslgSongListTable td {
             padding: 0 4px;
         }
-        #cslgSongListTable tbody tr:nth-child(odd) {
-            background-color: #424242;
+        #cslgSongListTable tr.selected td:not(.action) {
+            color: ${tableHighlightColor};
         }
-        #cslgSongListTable tbody tr:nth-child(even) {
-            background-color: #353535;
+        #cslgMergedSongListTable {
+            width: 100%;
+            table-layout: fixed;
+        }
+        #cslgMergedSongListTable thead tr {
+            font-weight: bold;
+        }
+        #cslgMergedSongListTable .number {
+            width: 30px;
+        }
+        #cslgMergedSongListTable .songType {
+            width: 45px;
+        }
+        #cslgMergedSongListTable .action {
+            width: 55px;
+        }
+        #cslgMergedSongListTable .action i.fa-chevron-up:hover, #cslgMergedSongListTable .action i.fa-chevron-down:hover {
+            color: #f0ad4e;
+        }
+        #cslgMergedSongListTable .action i.fa-trash:hover {
+            color: #d9534f;
+        }
+        #cslgMergedSongListTable th, #cslgMergedSongListTable td {
+            padding: 0 4px;
+        }
+        #cslgMergedSongListTable tr.selected td:not(.action) {
+            color: ${tableHighlightColor};
         }
         #cslgQuizSettingsContainer input[type="text"] {
             color: black;
@@ -2404,7 +2637,6 @@ function applyStyles() {
             table-layout: fixed;
         }
         #cslgAnswerTable thead tr {
-            background-color: #282828;
             font-weight: bold;
         }
         #cslgAnswerTable .edit {
@@ -2416,10 +2648,23 @@ function applyStyles() {
         #cslgAnswerTable th, #cslgAnswerTable td {
             padding: 0 4px;
         }
-        #cslgAnswerTable tbody tr:nth-child(odd) {
+        #cslgHotkeyTable th {
+            font-weight: bold;
+            padding: 0 20px 5px 0;
+        }
+        #cslgHotkeyTable td {
+            padding: 2px 20px 2px 0;
+        }
+        #cslgHotkeyTable select, #cslgHotkeyTable input {
+            color: black;
+        }
+        table.styledTable thead tr {
+            background-color: #282828;
+        }
+        table.styledTable tbody tr:nth-child(odd) {
             background-color: #424242;
         }
-        #cslgAnswerTable tbody tr:nth-child(even) {
+        table.styledTable tbody tr:nth-child(even) {
             background-color: #353535;
         }
     `;
