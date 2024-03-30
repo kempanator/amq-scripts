@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Answer Stats
 // @namespace    https://github.com/kempanator
-// @version      0.27
+// @version      0.28
 // @description  Adds a window to display quiz answer stats
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -30,7 +30,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.27";
+const version = "0.28";
 const regionDictionary = {E: "Eastern", C: "Central", W: "Western"};
 const saveData = validateLocalStorage("answerStats");
 const saveData2 = validateLocalStorage("highlightFriendsSettings");
@@ -762,7 +762,7 @@ function displaySongHistoryResults(songNumber) {
         <p>${escapeHtml(song.songTypeText)} (${escapeHtml(song.songDifficulty.toFixed(1))}) ${escapeHtml(song.animeVintage)}</p>
     `;
     answerHistoryWindow.panels[0].clear();
-    let $table = $(`<table id="answerHistoryTable" class="songMode"></table>`);
+    let $table = $(`<table id="answerHistoryTable" class="styledTable songMode"></table>`);
     let $thead = $("<thead></thead>");
     let $tbody = $("<tbody></tbody>");
     let $row = $(`<tr></tr>`);
@@ -922,7 +922,7 @@ function displayPlayerHistoryResults(id) {
         <p>Average Speed: ${Math.round(player.averageSpeed)}</p>
     `;
     answerHistoryWindow.panels[0].clear();
-    let $table = $(`<table id="answerHistoryTable" class="playerMode"></table>`);
+    let $table = $(`<table id="answerHistoryTable" class="styledTable playerMode"></table>`);
     let $thead = $("<thead></thead>");
     let $tbody = $("<tbody></tbody>");
     let $row = $(`<tr></tr>`);
@@ -1001,7 +1001,7 @@ function displayFastestSpeedResults() {
     answerHistoryWindow.window.find(".infoButton, .arrowButton, .filterButton, #answerHistoryCurrentPlayer").hide();
     answerHistoryWindow.window.find(".backButton").show();
     answerHistoryWindow.panels[0].clear();
-    let $table = $(`<table id="answerHistoryTable" class="speedMode"></table>`);
+    let $table = $(`<table id="answerHistoryTable" class="styledTable speedMode"></table>`);
     let $thead = $("<thead></thead>");
     let $tbody = $("<tbody></tbody>");
     let $row = $(`<tr></tr>`);
@@ -1056,7 +1056,7 @@ function displayAnswerCompareResults(text) {
     }
     let highlightCorrect = $("#answerCompareHighlightCorrectCheckbox").prop("checked");
     let highlightWrong = $("#answerCompareHighlightWrongCheckbox").prop("checked");
-    let $table = $(`<table id="answerCompareTable"></table>`);
+    let $table = $(`<table id="answerCompareTable" class="styledTable"></table>`);
     let $thead = $("<thead></thead>");
     let $tbody = $("<tbody></tbody>");
     let $row = $(`<tr><th class="songNumber">#</th></tr>`);
@@ -1405,14 +1405,7 @@ function applyStyles() {
         #answerHistoryTable th, #answerHistoryTable td {
             padding: 0 4px;
         }
-        #answerHistoryTable tbody tr:nth-child(odd) {
-            background-color: #424242;
-        }
-        #answerHistoryTable tbody tr:nth-child(even) {
-            background-color: #353535;
-        }
         #answerHistoryTable thead tr {
-            background-color: #282828;
             font-weight: bold;
             position: sticky;
             top: 0;
@@ -1508,14 +1501,7 @@ function applyStyles() {
         #answerCompareTable th, #answerCompareTable td {
             word-wrap: break-word;
         }
-        #answerCompareTable tbody tr:nth-child(odd) {
-            background-color: #424242;
-        }
-        #answerCompareTable tbody tr:nth-child(even) {
-            background-color: #353535;
-        }
         #answerCompareTable thead tr {
-            background-color: #282828;
             font-weight: bold;
             position: sticky;
             top: 0;
@@ -1540,6 +1526,15 @@ function applyStyles() {
         #asDistributionTable td {
             text-align: left;
             padding: 0 4px;
+        }
+        table.styledTable thead tr {
+            background-color: #282828;
+        }
+        table.styledTable tbody tr:nth-child(odd) {
+            background-color: #424242;
+        }
+        table.styledTable tbody tr:nth-child(even) {
+            background-color: #353535;
         }
     `;
     if (showPlayerColor) text += `

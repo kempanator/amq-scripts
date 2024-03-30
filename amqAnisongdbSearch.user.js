@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Anisongdb Search
 // @namespace    https://github.com/kempanator
-// @version      0.6
+// @version      0.7
 // @description  Adds a window to search anisongdb.com in game
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -27,7 +27,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.6";
+const version = "0.7";
 let anisongdbWindow;
 let injectSearchButtons = true;
 let anisongdbSort = {animeSortAscending: false, artistSortAscending: false, songSortAscending: false, typeSortAscending: false, vintageSortAscending: false};
@@ -163,7 +163,7 @@ function getAnisongdbData(mode, query, partial) {
 function createTable(json) {
     anisongdbSort = {animeSortAscending: false, artistSortAscending: false, songSortAscending: false, typeSortAscending: false, vintageSortAscending: false};
     $("#anisongdbInfoText").remove();
-    let $table = $(`<table id="anisongdbTable"></table>`);
+    let $table = $(`<table id="anisongdbTable" class="styledTable"></table>`);
     let $thead = $("<thead></thead>");
     let $tbody = $("<tbody></tbody>");
     let $row = $("<tr></tr>");
@@ -273,7 +273,6 @@ function applyStyles() {
         #anisongdbSearchButtonRow button:hover {
             opacity: .8;
         }
-        
         #anisongdbWindow select {
             color: black;
             padding: 2px 0;
@@ -302,14 +301,7 @@ function applyStyles() {
         #anisongdbTable th, #anisongdbTable td {
             padding: 0 2px;
         }
-        #anisongdbTable tbody tr:nth-child(odd) {
-            background-color: #424242;
-        }
-        #anisongdbTable tbody tr:nth-child(even) {
-            background-color: #353535;
-        }
         #anisongdbTable thead tr {
-            background-color: #282828;
             font-weight: bold;
             cursor: pointer;
             user-select: none;
@@ -331,6 +323,15 @@ function applyStyles() {
         }
         #anisongdbTable .vintage {
             width: 15%;
+        }
+        table.styledTable thead tr {
+            background-color: #282828;
+        }
+        table.styledTable tbody tr:nth-child(odd) {
+            background-color: #424242;
+        }
+        table.styledTable tbody tr:nth-child(even) {
+            background-color: #353535;
         }
     `));
     document.head.appendChild(style);
