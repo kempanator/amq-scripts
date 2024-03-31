@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.113
+// @version      0.114
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -103,7 +103,7 @@ OTHER
 
 "use strict";
 if (typeof Listener === "undefined") return;
-const version = "0.113";
+const version = "0.114";
 const saveData = validateLocalStorage("megaCommands");
 const originalOrder = {qb: [], gm: []};
 if (typeof saveData.alerts?.hiddenPlayers === "boolean") delete saveData.alerts;
@@ -274,6 +274,7 @@ const dqMap = {
     "Vivy: Fluorite Eye's Song": {genre: [1, 4, 10, 14, 18], years: [2021, 2021], seasons: [1, 1]},
     "Monogatari Series Second Season": {genre: [3, 4, 11, 12, 13, 17], years: [2013, 2013], seasons: [2, 2]},
     "Hikaru no Go": {genre: [3, 16, 17], years: [2001, 2001], seasons: [3, 3]},
+    "Dorohedoro": {genre: [1, 2, 3, 6, 7, 11], years: [2020, 2020], seasons: [0, 0]},
     "Akame ga Kill!": {genre: [1, 2, 4, 6, 7, 12, 18], years: [2014, 2014], seasons: [2, 2]},
     "Magical Girl Site": {genre: [1, 4, 7, 8, 12, 17], years: [2018, 2018], seasons: [1, 1]},
     "Made in Abyss": {genre: [2, 4, 6, 7, 11, 14], years: [2017, 2017], seasons: [2, 2]},
@@ -311,24 +312,30 @@ function setup() {
             socialTab.chatBar.activeChats[0].object.selected();
         }, 100);
     }
+    if (autoStatus === "do not disturb") {
+        setTimeout(() => { socialTab.socialStatus.changeSocialStatus(socialTab.socialStatus.STATUS_IDS.DO_NO_DISTURB) }, 1500);
+    }
+    else if (autoStatus === "away") {
+        setTimeout(() => { socialTab.socialStatus.changeSocialStatus(socialTab.socialStatus.STATUS_IDS.AWAY) }, 1500);
+    }
+    else if (autoStatus === "offline" || autoStatus === "invisible") {
+        setTimeout(() => { socialTab.socialStatus.changeSocialStatus(socialTab.socialStatus.STATUS_IDS.INVISIBLE) }, 1500);
+    }
     if (loopVideo) {
         for (let videoPlayer of quizVideoController.moePlayers) {
             videoPlayer.$player[0].loop = true;
         }
     }
-    if (autoStatus === "do not disturb") socialTab.socialStatus.changeSocialStatus(2);
-    else if (autoStatus === "away") socialTab.socialStatus.changeSocialStatus(3);
-    else if (autoStatus === "offline" || autoStatus === "invisible") socialTab.socialStatus.changeSocialStatus(4);
     document.body.addEventListener("keydown", (event) => {
         const key = event.key;
         const which = event.which;
         const altKey = event.altKey;
         const ctrlKey = event.ctrlKey;
-        if (which === 9) {
+        /*if (which === 9) {
             if (tabSwitch && quiz.inQuiz) {
                 toggleTextInputFocus();
             }
-        }
+        }*/
         if (testHotkey("autoKey", key, altKey, ctrlKey)) {
             autoKey = !autoKey;
             saveSettings();
@@ -935,7 +942,7 @@ function setup() {
 
     $("#gameContainer").append($(`
         <div class="modal fade tab-modal" id="mcSettingsModal" tabindex="-1" role="dialog">
-            <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-dialog" role="document" style="width: 800px">
                 <div class="modal-content">
                     <div class="modal-header" style="padding: 3px 0 0 0">
                         <button type="button" class="close" data-dismiss="modal" aria-label="Close">
@@ -1065,10 +1072,6 @@ function setup() {
                                 <button id="mcDropDownButton" class="btn mcCommandButton"></button>
                                 <span class="mcCommandTitle">Drop Down</span>
                             </div>
-                            <div class="mcCommandRow">
-                                <button id="mcDropDownInSpecButton" class="btn mcCommandButton"></button>
-                                <span class="mcCommandTitle">Drop Down In Spec</span>
-                            </div>
                         </div>
                         <div id="mcHotkeyContainer" style="margin: 10px 0;">
                             <table id="mcHotkeyTable">
@@ -1132,6 +1135,9 @@ function setup() {
                             <div style="margin: 10px 0"><button id="mcLocalStorageImportButton" style="color: black; margin-right: 10px;">Import</button><button id="mcLocalStorageExportButton" style="color: black; margin-right: 10px;">Export</button><button id="mcLocalStorageClearButton" style="color: black;">Clear</button></div>
                             <h4 style="margin-top: 20px;">MAL Client ID</h4>
                             <div style="margin: 10px 0"><input id="mcMalClientIdInput" type="text" style="width: 300px; color: black;"></div>
+                            <div class="customCheckbox"><input type="checkbox" id="mcDropdownInSpecCheckbox"><label for="mcDropdownInSpecCheckbox"><i class="fa fa-check" aria-hidden="true"></i></label></div><span style="margin: 0 10px 0 3px; vertical-align: 5px;">Dropdown in spectator</span>
+                            <div class="customCheckbox"><input type="checkbox" id="mcProfileButtonsCheckbox"><label for="mcProfileButtonsCheckbox"><i class="fa fa-check" aria-hidden="true"></i></label></div><span style="margin: 0 10px 0 3px; vertical-align: 5px;">All profile buttons</span>
+                            <div class="customCheckbox"><input type="checkbox" id="mcSelfDMCheckbox"><label for="mcSelfDMCheckbox"><i class="fa fa-check" aria-hidden="true"></i></label></div><span style="margin: 0 0 0 3px; vertical-align: 5px;">Open self DM</span>
                         </div>
                     </div>
                     <div class="modal-footer">
@@ -1476,12 +1482,6 @@ function setup() {
         sendSystemMessage(`drop down ${dropdown ? "enabled" : "disabled"}`);
         toggleCommandButton($(this), dropdown);
     });
-    $("#mcDropDownInSpecButton").click(function() {
-        dropdownInSpec = !dropdownInSpec;
-        saveSettings();
-        sendSystemMessage(`drop down in spec ${dropdownInSpec ? "enabled" : "disabled"}`);
-        toggleCommandButton($(this), dropdownInSpec);
-    });
 
     createHotkeyElement("Toggle Autokey", "autoKey", "mcAutokeyHotkeySelect", "mcAutokeyHotkeyInput");
     createHotkeyElement("Toggle Dropdown", "dropdown", "mcDropdownHotkeySelect", "mcDropdownHotkeyInput");
@@ -1524,6 +1524,21 @@ function setup() {
     });
     $("#mcMalClientIdInput").val(malClientId || "").blur(() => {
         malClientId = $(this).val().trim();
+    });
+    $("#mcDropdownInSpecCheckbox").prop("checked", dropdownInSpec).click(() => {
+        dropdownInSpec = !dropdownInSpec;
+        saveSettings();
+        sendSystemMessage(`drop down in spec ${dropdownInSpec ? "enabled" : "disabled"}`);
+    });
+    $("#mcProfileButtonsCheckbox").prop("checked", enableAllProfileButtons).click(() => {
+        enableAllProfileButtons = !enableAllProfileButtons;
+        saveSettings();
+        sendSystemMessage(`profile buttons ${enableAllProfileButtons ? "are now clickable" : "have default behavior"}`);
+    });
+    $("#mcSelfDMCheckbox").prop("checked", selfDM).click(() => {
+        selfDM = !selfDM;
+        saveSettings();
+        sendSystemMessage(`open self dm on log in: ${selfDM ? "enabled" : "disabled"}`);
     });
     
     tabReset();
@@ -1758,9 +1773,6 @@ function updateCommandListWindow(type) {
     }
     if (!type || type === "dropdown") {
         toggleCommandButton($("#mcDropDownButton"), dropdown);
-    }
-    if (!type || type === "dropdownInSpec") {
-        toggleCommandButton($("#mcDropDownInSpecButton"), dropdownInSpec);
     }
 }
 
@@ -2682,25 +2694,25 @@ async function parseCommand(content, type, target) {
     }
     else if (/^\/autostatus .+$/i.test(content)) {
         let option = /^\S+ (.+)$/.exec(content)[1].toLowerCase();
-        if (option.startsWith("on") || option === "1") {
+        if (/^(1|on|online)$/.test(option)) {
             autoStatus = "";
             saveSettings();
             sendMessage("auto status removed", type, target, true);
             updateCommandListWindow("autoStatus");
         }
-        if (option.startsWith("d") || option === "2") {
+        else if (/^(2|d|dnd|do ?not ?disturb)$/.test(option)) {
             autoStatus = "do not disturb";
             saveSettings();
             sendMessage(`auto status set to ${autoStatus}`, type, target, true);
             updateCommandListWindow("autoStatus");
         }
-        if (option.startsWith("a") || option === "3") {
+        else if (/^(3|a|away)$/.test(option)) {
             autoStatus = "away";
             saveSettings();
             sendMessage(`auto status set to ${autoStatus}`, type, target, true);
             updateCommandListWindow("autoStatus");
         }
-        if (option.startsWith("off") || option.startsWith("i") || option === "4") {
+        else if (/^(4|off|offline|i|inv|invisible)$/.test(option)) {
             autoStatus = "invisible";
             saveSettings();
             sendMessage(`auto status set to ${autoStatus}`, type, target, true);
@@ -2971,6 +2983,24 @@ async function parseCommand(content, type, target) {
         let text = /^\S+ \w+ (.+)$/.exec(content)[1];
         socialTab.startChat(name);
         socket.sendCommand({type: "social", command: "chat message", data: {target: name, message: text}});
+    }
+    else if (/^\/status$/i.test(content)) {
+        sendMessage(socialTab.socialStatus.getSocialStatusInfo(), type, target);
+    }
+    else if (/^\/status .+$/i.test(content)) {
+        let option = /^\S+ (.+)$/.exec(content)[1].toLowerCase();
+        if (/^(1|on|online)$/.test(option)) {
+            socialTab.socialStatus.changeSocialStatus(socialTab.socialStatus.STATUS_IDS.ONLINE);
+        }
+        else if (/^(2|d|dnd|do ?not ?disturb)$/.test(option)) {
+            socialTab.socialStatus.changeSocialStatus(socialTab.socialStatus.STATUS_IDS.DO_NO_DISTURB); 
+        }
+        else if (/^(3|a|away)$/.test(option)) {
+            socialTab.socialStatus.changeSocialStatus(socialTab.socialStatus.STATUS_IDS.AWAY);
+        }
+        else if (/^(4|off|offline|i|inv|invisible)$/.test(option)) {
+            socialTab.socialStatus.changeSocialStatus(socialTab.socialStatus.STATUS_IDS.INVISIBLE);
+        }  
     }
     else if (/^\/(prof|profile) \w+$/i.test(content)) {
         let name = /^\S+ (\w+)$/.exec(content)[1].toLowerCase();
@@ -3754,15 +3784,21 @@ function parseIncomingDM(content, sender) {
                 autoList().forEach((text, i) => setTimeout(() => { sendMessage(text, "dm", sender) }, i * 200));
             }
         }
-        if (/^\/(fv|forceversion)$/i.test(content)) {
+        if (/^\/(fv|fver|forceversion)$/i.test(content)) {
             sendMessage(version, "dm", sender);
         }
-        else if (/^\/(fv|forceversion) .+$/i.test(content)) {
+        else if (/^\/(fv|fver|forceversion) .+$/i.test(content)) {
             let option = /^\S+ (.+)$/.exec(content)[1];
             sendMessage(getScriptVersion(option), "dm", sender);
         }
         else if (/^\/(fcs|forcecountscripts)$/i.test(content)) {
             sendMessage($("#installedListContainer h4").length, "dm", sender);
+        }
+        else if (/^\/(fs|forcestatus)$/i.test(content)) {
+            sendMessage(socialTab.socialStatus.getSocialStatusInfo(), "dm", sender);
+        }
+        else if (/^\/(fvol|forcevol|forcevolume)$/i.test(content)) {
+            sendMessage(volumeController.muted ? "🔇" : `🔉 ${Math.round(volumeController.volume * 100)}%`, "dm", sender);
         }
         else if (/^\/whereis \w+$/i.test(content)) {
             if (Object.keys(roomBrowser.activeRooms).length === 0) return;
@@ -3799,7 +3835,7 @@ function parseIncomingDM(content, sender) {
 function parseForceAll(content, type) {
     if (commands) {
         if (/^\/forceall version$/i.test(content)) {
-            sendMessage("0.113", type);
+            sendMessage("0.114", type);
         }
         else if (/^\/forceall version .+$/i.test(content)) {
             let option = /^\S+ \S+ (.+)$/.exec(content)[1];
@@ -3816,6 +3852,9 @@ function parseForceAll(content, type) {
             let low = parseInt(/^\S+ \S+ (-?[0-9]+) -?[0-9]+$/.exec(content)[1]);
             let high = parseInt(/^\S+ \S+ -?[0-9]+ (-?[0-9]+)$/.exec(content)[1]);
             sendMessage("rolls " + (Math.floor(Math.random() * (high - low + 1)) + low), type);
+        }
+        else if (/^\/forceall status$/i.test(content)) {
+            sendMessage(socialTab.socialStatus.getSocialStatusInfo(), type);
         }
         else if (/^\/forceall volume$/i.test(content)) {
             sendMessage(volumeController.muted ? "🔇" : `🔉 ${Math.round(volumeController.volume * 100)}%`, type);
@@ -4345,12 +4384,24 @@ function autoList() {
 // get the version of any script that uses joseph's script info
 function getScriptVersion(input) {
     input = input.toLowerCase();
+    if (/^(ess|elodie'?s? style script)$/.test(input)) {
+        let essVersion = getComputedStyle(document.documentElement).getPropertyValue("--elodieStyleScriptVersion");
+        if (essVersion) {
+            return essVersion;
+        }
+        else if (getComputedStyle(document.documentElement).getPropertyValue("--accentColor")) {
+            return "10.?";
+        }
+        else if (getComputedStyle(document.documentElement).getPropertyValue("--bg")) {
+            return "< 10";
+        }
+    }
     let $items = $("#installedListContainer h4");
     for (let item of $items) {
         let scriptName = $(item).find(".name").text().toLowerCase();
         if (input === scriptName) {
             let scriptVersion = $(item).find(".version").text();
-            return scriptVersion ? scriptVersion : "installed, unknown version";
+            return scriptVersion || "installed, unknown version";
         }
     }
     return "not found";
@@ -4796,6 +4847,8 @@ function applyStyles() {
             background-color: inherit;
             color: inherit;
             border: 0;
+            margin: 0;
+            padding: 0;
         }
     `;
     if (backgroundURL) text += `
@@ -4886,7 +4939,7 @@ IN GAME/LOBBY
 /autocopy [name]          automatically copy a team member's answer
 /automute [seconds]       automatically mute sound during quiz after # of seconds
 /autounmute [seconds]     automatically unmute sound during quiz after # of seconds
-/automutetoggle [list]    start unmuted and automatically toggle mute iterating over a list of # of seconds
+/automutetoggle [list]    start unmuted and automatically toggle mute over a list of # of seconds
 /automuterandom [time]    automatically mute a random time interval during guess phase
 /autounmuterandom [time]  automatically unmute a random time interval during guess phase
 /autoready                automatically ready up in lobby
