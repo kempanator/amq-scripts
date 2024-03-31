@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.51
+// @version      0.52
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -43,7 +43,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.51";
+const version = "0.52";
 const saveData = validateLocalStorage("customSongListGame");
 const catboxHostDict = {1: "files.catbox.moe", 2: "nl.catbox.moe", 3: "nl.catbox.video", 4: "ladist1.catbox.video", 5: "vhdist1.catbox.video"};
 let CSLButtonCSS = saveData.CSLButtonCSS || "calc(25% - 250px)";
@@ -255,7 +255,7 @@ $("#gameContainer").append($(`
                         <h4 style="text-align: center; margin-bottom: 10px;">Merge multiple song lists into 1 JSON file</h4>
                         <div style="width: 400px; display: inline-block;">
                             <div id="cslgMergeCurrentCount" style="font-size: 16px; font-weight: bold;">Current song list: 0 songs</div>
-                            <div id="cslgMergeTotalCount" style="font-size: 16px; font-weight: bold;">Merged JSON file: 0 songs</div>
+                            <div id="cslgMergeTotalCount" style="font-size: 16px; font-weight: bold;">Merged song list: 0 songs</div>
                         </div>
                         <div style="display: inline-block; vertical-align: 13px">
                             <button id="cslgMergeButton" class="btn btn-default">Merge</button>
@@ -1490,10 +1490,10 @@ function parseMessage(content, sender) {
         }
     }
     else if (content === "§CSL21") { //has autocomplete
-        cslMessage("has autocomplete:  " + Boolean(autocomplete.length));
+        cslMessage(`Autocomplete: ${autocomplete.length ? "✔️" : "❌"}`);
     }
     else if (content === "§CSL22") { //version
-        cslMessage("CSL version " + version);
+        cslMessage(`CSL version ${version}`);
     }
     else if (content.startsWith("§CSL3")) { //next song link
         if (quiz.cslActive && isHost) {
@@ -2230,7 +2230,7 @@ function createSongListTable() {
 // create merged song list table
 function createMergedSongListTable() {
     $("#cslgMergedSongListCount").text("Merged: " + mergedSongList.length);
-    $("#cslgMergeTotalCount").text(`Merged JSON file: ${mergedSongList.length} song${mergedSongList.length === 1 ? "" : "s"}`);
+    $("#cslgMergeTotalCount").text(`Merged song list: ${mergedSongList.length} song${mergedSongList.length === 1 ? "" : "s"}`);
     let $tbody = $("#cslgMergedSongListTable tbody");
     $tbody.empty();
     mergedSongList.forEach((song, i) => {
