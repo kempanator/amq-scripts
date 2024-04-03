@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Answer Stats
 // @namespace    https://github.com/kempanator
-// @version      0.28
+// @version      0.29
 // @description  Adds a window to display quiz answer stats
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -30,7 +30,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.28";
+const version = "0.29";
 const regionDictionary = {E: "Eastern", C: "Central", W: "Western"};
 const saveData = validateLocalStorage("answerStats");
 const saveData2 = validateLocalStorage("highlightFriendsSettings");
@@ -233,8 +233,8 @@ function setup() {
             answerStatsWindow.panels[0].clear();
             if (quiz.gameMode === "Ranked") {
                 let roomName = hostModal.$roomName.val();
-                let difficultyList = Object.values(songHistory).map((x) => x.songDifficulty);
-                let songTypeList = Object.values(songHistory).map((x) => x.songType);
+                let difficultyList = songHistoryWindow.currentGameTab.table.rows.map((x) => x.songInfo.animeDifficulty);
+                let songTypeList = songHistoryWindow.currentGameTab.table.rows.map((x) => x.songInfo.type);
                 answerStatsWindow.panels[0].panel.append(`
                     <div style="margin: 0 3px">
                         <span><b>${rankedText()}</b></span>
@@ -249,8 +249,8 @@ function setup() {
                         <span style="margin-left: 10px"><b>ED:</b> ${songTypeList.filter((x) => x === 2).length}</span>
                         <span style="margin-left: 10px"><b>IN:</b> ${songTypeList.filter((x) => x === 3).length}</span>
                         <span style="margin-left: 20px"><b>Easy:</b> ${difficultyList.filter((x) => x >= 60).length}</span>
-                        <span style="margin-left: 10px"><b>Medium:</b> ${difficultyList.filter((x) => x > 25 && x < 60).length}</span>
-                        <span style="margin-left: 10px"><b>Hard:</b> ${difficultyList.filter((x) => x <= 25).length}</span>
+                        <span style="margin-left: 10px"><b>Medium:</b> ${difficultyList.filter((x) => x >= 25 && x < 60).length}</span>
+                        <span style="margin-left: 10px"><b>Hard:</b> ${difficultyList.filter((x) => x < 25).length}</span>
                     </div>
                 `);
                 $("#asDistributionButton").popover({
@@ -265,7 +265,7 @@ function setup() {
             answerStatsWindow.panels[0].panel.append(`
                 <div style="margin: 0 3px">
                     <span><b>Correct:</b> ${numCorrect}/${activePlayers} ${(numCorrect / activePlayers * 100).toFixed(2)}%</span>
-                    <span style="margin-left: 20px"><b>Dif:</b> ${Math.round(payload.songInfo.animeDifficulty)}</span>
+                    <span style="margin-left: 20px"><b>Dif:</b> ${Number(payload.songInfo.animeDifficulty).toFixed(2)}</span>
                     <span style="margin-left: 20px"><b>Rig:</b> ${payload.watched}</span>
                 </div>
             `);
