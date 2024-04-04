@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.52
+// @version      0.53
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -43,7 +43,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.52";
+const version = "0.53";
 const saveData = validateLocalStorage("customSongListGame");
 const catboxHostDict = {1: "files.catbox.moe", 2: "nl.catbox.moe", 3: "nl.catbox.video", 4: "ladist1.catbox.video", 5: "vhdist1.catbox.video"};
 let CSLButtonCSS = saveData.CSLButtonCSS || "calc(25% - 250px)";
@@ -1490,7 +1490,7 @@ function parseMessage(content, sender) {
         }
     }
     else if (content === "§CSL21") { //has autocomplete
-        cslMessage(`Autocomplete: ${autocomplete.length ? "✔️" : "❌"}`);
+        cslMessage(`Autocomplete: ${autocomplete.length ? "✅" : "⛔"}`);
     }
     else if (content === "§CSL22") { //version
         cslMessage(`CSL version ${version}`);
