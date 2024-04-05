@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.114
+// @version      0.115
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -50,6 +50,7 @@ IN GAME/LOBBY
 /automutetoggle [list]    start unmuted and automatically toggle mute iterating over a list of # of seconds
 /automuterandom [time]    automatically mute a random time interval during guess phase
 /autounmuterandom [time]  automatically unmute a random time interval during guess phase
+/autohint [1|2|3]         automatically ask for hint in hint mode
 /autoready                automatically ready up in lobby
 /autostart                automatically start the game when everyone is ready if you are host
 /autohost [name]          automatically promote player to host if you are the current host
@@ -103,7 +104,7 @@ OTHER
 
 "use strict";
 if (typeof Listener === "undefined") return;
-const version = "0.114";
+const version = "0.115";
 const saveData = validateLocalStorage("megaCommands");
 const originalOrder = {qb: [], gm: []};
 if (typeof saveData.alerts?.hiddenPlayers === "boolean") delete saveData.alerts;
@@ -115,6 +116,7 @@ if (autoAcceptInvite === true) autoAcceptInvite = "friends";
 let autoCopy = saveData.autoCopy ?? "";
 let autoDownloadSong = saveData.autoDownloadSong ?? [];
 let autoDownloadJson = saveData.autoDownloadJson ?? [];
+let autoHint = saveData.autoHint ?? "";
 let autoHost = saveData.autoHost ?? "";
 let autoInvite = saveData.autoInvite ?? "";
 let autoJoinRoom = saveData.autoJoinRoom ?? false;
@@ -162,6 +164,7 @@ commandPersist.autoAcceptInvite = saveData.commandPersist?.autoAcceptInvite ?? t
 commandPersist.autoCopy = saveData.commandPersist?.autoCopy ?? false;
 commandPersist.autoDownloadSong = saveData.commandPersist?.autoDownloadSong ?? false;
 commandPersist.autoDownloadJson = saveData.commandPersist?.autoDownloadJson ?? true;
+commandPersist.autoHint = saveData.commandPersist?.autoHint ?? false;
 commandPersist.autoHost = saveData.commandPersist?.autoHost ?? false;
 commandPersist.autoInvite = saveData.commandPersist?.autoInvite ?? false;
 commandPersist.autoKey = saveData.commandPersist?.autoKey ?? true;
@@ -421,23 +424,35 @@ function setup() {
     new Listener("game chat update", (payload) => {
         for (let message of payload.messages) {
             if (!isRankedMode() && message.message.startsWith("/")) {
-                if (message.message.startsWith("/forceall")) parseForceAll(message.message, message.teamMessage ? "teamchat" : "chat");
-                else if (message.message.startsWith("/vote")) parseVote(message.message, message.sender);
-                else if (message.sender === selfName) parseCommand(message.message, message.teamMessage ? "teamchat" : "chat");
+                if (message.message.startsWith("/forceall")) {
+                    parseForceAll(message.message, message.teamMessage ? "teamchat" : "chat");
+                }
+                else if (message.message.startsWith("/vote")) {
+                    parseVote(message.message, message.sender);
+                }
+                else if (message.sender === selfName) {
+                    parseCommand(message.message, message.teamMessage ? "teamchat" : "chat");
+                }
             }
         }
     }).bindListener();
     new Listener("Game Chat Message", (payload) => {
         if (!isRankedMode() && payload.message.startsWith("/")) {
-            if (payload.message.startsWith("/forceall")) parseForceAll(payload.message, payload.teamMessage ? "teamchat" : "chat");
-            else if (payload.sender === selfName) parseCommand(payload.message, payload.teamMessage ? "teamchat" : "chat");
+            if (payload.message.startsWith("/forceall")) {
+                parseForceAll(payload.message, payload.teamMessage ? "teamchat" : "chat");
+            }
+            else if (payload.sender === selfName) {
+                parseCommand(payload.message, payload.teamMessage ? "teamchat" : "chat");
+            }
         }
     }).bindListener();
     new Listener("chat message", (payload) => {
         parseIncomingDM(payload.message, payload.sender);
     }).bindListener();
     new Listener("chat message response", (payload) => {
-        if (payload.msg.startsWith("/")) parseCommand(payload.msg, "dm", payload.target);
+        if (payload.msg.startsWith("/")) {
+            parseCommand(payload.msg, "dm", payload.target);
+        }
     }).bindListener();
     new Listener("play next song", (payload) => {
         if (playbackSpeed.length) {
@@ -447,6 +462,9 @@ function setup() {
         if (muteReplay || muteSubmit) {
             volumeController.setMuted(false);
             volumeController.adjustVolume();
+        }
+        if (autoHint && hostModal.$scoring.slider("getValue") === quiz.SCORE_TYPE_IDS.HINT) {
+            socket.sendCommand({type: "quiz", command: "use hint", data: {hintId: autoHint}});
         }
         if (!quiz.isSpectator && quiz.gameMode !== "Ranked") {
             if (autoThrow.time.length) {
@@ -569,6 +587,7 @@ function setup() {
         else if (autoVoteSkip.length) sendSystemMessage("Auto Vote Skip: Enabled");
         if (autoKey) sendSystemMessage("Auto Key: Enabled");
         if (autoCopy) sendSystemMessage("Auto Copy: " + autoCopy);
+        if (autoHint) sendSystemMessage("Auto Hint: " + autoHint);
         if (autoThrow.text) sendSystemMessage("Auto Throw: " + autoThrow.text);
         if (autoThrow.multichoice) sendSystemMessage("Auto Throwing Multi Choice Option: " + autoThrow.multichoice);
         if (autoMute.mute.length === 1) sendSystemMessage(`Auto Mute: ${autoMute.mute[0] / 1000}s`);
@@ -813,9 +832,15 @@ function setup() {
     }).bindListener();
     new Listener("nexus coop chat message", (payload) => {
         if (payload.message.startsWith("/")) {
-            if (payload.message.startsWith("/forceall")) parseForceAll(payload.message, "nexus");
-            else if (payload.message.startsWith("/vote")) parseVote(payload.message, payload.sender);
-            else if (payload.sender === selfName) parseCommand(payload.message, "nexus");
+            if (payload.message.startsWith("/forceall")) {
+                parseForceAll(payload.message, "nexus");
+            }
+            else if (payload.message.startsWith("/vote")) {
+                parseVote(payload.message, payload.sender);
+            }
+            else if (payload.sender === selfName) {
+                parseCommand(payload.message, "nexus");
+            }
         }
     }).bindListener();
     new Listener("nexus game invite", (payload) => {
@@ -2576,6 +2601,29 @@ async function parseCommand(content, type, target) {
         sendMessage(`auto unmute a random ${option} second interval`, type, target, true);
         updateCommandListWindow("autoMute");
     }
+    else if (/^\/autohint$/i.test(content)) {
+        autoHint = "";
+        sendMessage("auto hint disabled", type, target, true);
+    }
+    else if (/^\/autohint (.+)$/i.test(content)) {
+        let option = /^\S+ (.+)$/.exec(content)[1].toLowerCase();
+        if (/^(0|off|none)$/.test(option)) {
+            autoHint = "";
+            sendMessage("auto hint disabled", type, target, true);
+        }
+        if (/^(1|n|name)$/.test(option)) {
+            autoHint = 1;
+            sendMessage("auto hint set to name", type, target, true);
+        }
+        if (/^(2|i|info)$/.test(option)) {
+            autoHint = 2;
+            sendMessage("auto hint set to song info", type, target, true);
+        }
+        if (/^(3|m|mc|multichoice|multiplechoice)$/.test(option)) {
+            autoHint = 3;
+            sendMessage("auto hint set to multiple choice", type, target, true);
+        }
+    }
     else if (/^\/autoready$/i.test(content)) {
         autoReady = !autoReady;
         saveSettings();
@@ -3725,7 +3773,7 @@ async function parseCommand(content, type, target) {
         sendMessage("mal client id set", type, target, true);
     }
     else if (/^\/lookup/i.test(content)) {
-        if (!animeAutoCompleteLowerCase.length) return sendMessage("missing autocomplete", type, target, true);;
+        if (!animeAutoCompleteLowerCase.length) return sendMessage("missing autocomplete", type, target, true);
         let query = /^\/lookup .+$/i.test(content)
             ? /^\S+ (.+)$/.exec(content)[1].toLowerCase()
             : $("#qpAnimeName").text().split("    ").map((x) => x.replaceAll(/\s/g, "")).join(" ").toLowerCase();
@@ -3835,7 +3883,7 @@ function parseIncomingDM(content, sender) {
 function parseForceAll(content, type) {
     if (commands) {
         if (/^\/forceall version$/i.test(content)) {
-            sendMessage("0.114", type);
+            sendMessage("0.115", type);
         }
         else if (/^\/forceall version .+$/i.test(content)) {
             let option = /^\S+ \S+ (.+)$/.exec(content)[1];
@@ -4359,6 +4407,7 @@ function autoList() {
     else if (autoVoteSkip.length) list.push("Auto Vote Skip: Enabled");
     if (autoKey) list.push("Auto Key: Enabled");
     if (autoCopy) list.push("Auto Copy: " + autoCopy);
+    if (autoHint) list.push("Auto Hint: " + autoHint);
     if (autoThrow.text) list.push("Auto Throw: " + autoThrow.text);
     if (autoThrow.multichoice) list.push("Auto Throwing Multi Choice Option: " + autoThrow.multichoice);
     if (autoMute.mute.length === 1) list.push(`Auto Mute: ${autoMute.mute[0] / 1000}s`);
@@ -4893,6 +4942,7 @@ function saveSettings() {
     if (commandPersist.autoCopy) settings.autoCopy = autoCopy;
     if (commandPersist.autoDownloadSong) settings.autoDownloadSong = autoDownloadSong;
     if (commandPersist.autoDownloadJson) settings.autoDownloadJson = autoDownloadJson;
+    if (commandPersist.autoHint) settings.autoHint = autoHint;
     if (commandPersist.autoHost) settings.autoHost = autoHost;
     if (commandPersist.autoInvite) settings.autoInvite = autoInvite;
     if (commandPersist.autoKey) settings.autoKey = autoKey;
@@ -4942,6 +4992,7 @@ IN GAME/LOBBY
 /automutetoggle [list]    start unmuted and automatically toggle mute over a list of # of seconds
 /automuterandom [time]    automatically mute a random time interval during guess phase
 /autounmuterandom [time]  automatically unmute a random time interval during guess phase
+/autohint [1|2|3]         automatically ask for hint in hint mode
 /autoready                automatically ready up in lobby
 /autostart                automatically start the game when everyone is ready if you are host
 /autohost [name]          automatically promote player to host if you are the current host
