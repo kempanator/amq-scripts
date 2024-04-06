@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Answer Stats
 // @namespace    https://github.com/kempanator
-// @version      0.29
+// @version      0.30
 // @description  Adds a window to display quiz answer stats
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -30,7 +30,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.29";
+const version = "0.30";
 const regionDictionary = {E: "Eastern", C: "Central", W: "Western"};
 const saveData = validateLocalStorage("answerStats");
 const saveData2 = validateLocalStorage("highlightFriendsSettings");
@@ -233,7 +233,7 @@ function setup() {
             answerStatsWindow.panels[0].clear();
             if (quiz.gameMode === "Ranked") {
                 let roomName = hostModal.$roomName.val();
-                let difficultyList = songHistoryWindow.currentGameTab.table.rows.map((x) => x.songInfo.animeDifficulty);
+                let difficultyList = songHistoryWindow.currentGameTab.table.rows.map((x) => parseFloat(x.songInfo.animeDifficulty) || 0);
                 let songTypeList = songHistoryWindow.currentGameTab.table.rows.map((x) => x.songInfo.type);
                 answerStatsWindow.panels[0].panel.append(`
                     <div style="margin: 0 3px">
