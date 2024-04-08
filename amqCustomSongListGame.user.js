@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.53
+// @version      0.54
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -43,7 +43,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.53";
+const version = "0.54";
 const saveData = validateLocalStorage("customSongListGame");
 const catboxHostDict = {1: "files.catbox.moe", 2: "nl.catbox.moe", 3: "nl.catbox.video", 4: "ladist1.catbox.video", 5: "vhdist1.catbox.video"};
 let CSLButtonCSS = saveData.CSLButtonCSS || "calc(25% - 250px)";
@@ -124,7 +124,7 @@ $("#gameContainer").append($(`
                 </div>
                 <div class="modal-body" style="overflow-y: auto; max-height: calc(100vh - 150px);">
                     <div id="cslgSongListContainer">
-                        <div style="margin: 2px 0 3px 0;">
+                        <div id="cslgSongListTopRow" style="margin: 2px 0 3px 0;">
                             <span style="font-size: 20px; font-weight: bold;">Mode</span>
                             <select id="cslgSongListModeSelect" style="color: black; margin-left: 2px; padding: 3px 0;">
                                 <option value="Anisongdb">Anisongdb</option>
@@ -861,7 +861,7 @@ function setup() {
         else {
             oldHandleError.apply(this, arguments);
         }
-	}
+    }
 
     document.body.addEventListener("keydown", (event) => {
         const key = event.key;
@@ -2550,8 +2550,8 @@ function applyStyles() {
             vertical-align: -5px;
             cursor: pointer;
         }
-        #cslgTableModeButton:hover {
-            opacity: .8;
+        #cslgSongListTopRow i.fa:hover {
+            opacity: .7;
         }
         #cslgSongListTable {
             width: 100%;
