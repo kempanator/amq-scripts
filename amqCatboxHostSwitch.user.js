@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Catbox Host Switch
 // @namespace    https://github.com/kempanator
-// @version      0.10
+// @version      0.11
 // @description  Switch your catbox host
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -28,7 +28,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.10";
+const version = "0.11";
 const saveData = validateLocalStorage("catboxHostSwitch");
 const catboxHostDict = {1: "files.catbox.moe", 2: "nl.catbox.moe", 3: "nl.catbox.video", 4: "ladist1.catbox.video", 5: "vhdist1.catbox.video"};
 let catboxHost = saveData.catboxHost ?? "0"; //0: default link, 1: files.catbox.moe, 2: nl.catbox.moe, 3: nl.catbox.video, 4: ladist1.catbox, 5: vhdist1.catbox.video
@@ -70,11 +70,11 @@ function setup() {
                                 songInfo.videoMap.catbox[key] = `https://vhdist1.catbox.video/internals/dist.php?enc=${url}`;
                             }
                         }
-                        else if (!badUrlFlagRaised) {
+                        /*else if (!badUrlFlagRaised) {
                             console.log({songInfo, playLength, startPoint, firstVideo, startTime, playbackSpeed, fullSongRange});
                             popoutMessages.displayPopoutMessage(`<h4 class="text-center">Catbox Host Switch</h4><h5 class="text-center">weird url detected<br>using default link</h5>`);
                             badUrlFlagRaised = true;
-                        }
+                        }*/
                     }
                 }
             }
