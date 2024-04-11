@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.115
+// @version      0.116
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -104,14 +104,15 @@ OTHER
 
 "use strict";
 if (typeof Listener === "undefined") return;
-const version = "0.115";
+const version = "0.116";
 const saveData = validateLocalStorage("megaCommands");
 const originalOrder = {qb: [], gm: []};
 if (typeof saveData.alerts?.hiddenPlayers === "boolean") delete saveData.alerts;
 let alerts = saveData.alerts ?? {};
 let animeList;
 let animeAutoCompleteLowerCase = [];
-let autoAcceptInvite = saveData.autoAcceptInvite ?? false;
+let autoAcceptInvite = saveData.autoAcceptInvite ?? "";
+if (autoAcceptInvite === false) autoAcceptInvite = "";
 if (autoAcceptInvite === true) autoAcceptInvite = "friends";
 let autoCopy = saveData.autoCopy ?? "";
 let autoDownloadSong = saveData.autoDownloadSong ?? [];
@@ -1243,7 +1244,7 @@ function setup() {
             }
         }
         else {
-            autoAcceptInvite = false;
+            autoAcceptInvite = "";
             saveSettings();
             sendSystemMessage("auto accept invite disabled");
             toggleCommandButton($(this), autoAcceptInvite);
@@ -2611,15 +2612,15 @@ async function parseCommand(content, type, target) {
             autoHint = "";
             sendMessage("auto hint disabled", type, target, true);
         }
-        if (/^(1|n|name)$/.test(option)) {
+        else if (/^(1|n|name)$/.test(option)) {
             autoHint = 1;
             sendMessage("auto hint set to name", type, target, true);
         }
-        if (/^(2|i|info)$/.test(option)) {
+        else if (/^(2|i|info)$/.test(option)) {
             autoHint = 2;
             sendMessage("auto hint set to song info", type, target, true);
         }
-        if (/^(3|m|mc|multichoice|multiplechoice)$/.test(option)) {
+        else if (/^(3|m|mc|multichoice|multiplechoice)$/.test(option)) {
             autoHint = 3;
             sendMessage("auto hint set to multiple choice", type, target, true);
         }
@@ -2657,7 +2658,7 @@ async function parseCommand(content, type, target) {
         sendMessage(`auto inviting ${autoInvite}`, type, target, true);
     }
     else if (/^\/(aai|autoaccept|autoacceptinvite)$/i.test(content)) {
-        autoAcceptInvite = false;
+        autoAcceptInvite = "";
         saveSettings();
         sendMessage("auto accept invite disabled", type, target, true);
         updateCommandListWindow("autoAcceptInvite");
@@ -3054,6 +3055,26 @@ async function parseCommand(content, type, target) {
         let name = /^\S+ (\w+)$/.exec(content)[1].toLowerCase();
         playerProfileController.loadProfile(name, $("#gameChatContainer"), {}, () => {}, false, true);
     }
+    else if (/^\/friend$/i.test(content)) {
+        if (type === "dm") {
+            socialTab.sendFriendRequest(target);
+        }
+    }
+    else if (/^\/friend \w+$/i.test(content)) {
+        socialTab.sendFriendRequest(getPlayerNameCorrectCase(/^\S+ (\w+)$/.exec(content)[1]));
+    }
+    else if (/^\/unfriend \w+$/i.test(content)) {
+        socialTab.removeFriend(getPlayerNameCorrectCase(/^\S+ (\w+)$/.exec(content)[1]));
+    }
+    else if (/^\/block \w+$/i.test(content)) {
+        socialTab.blockPlayer(getPlayerNameCorrectCase(/^\S+ (\w+)$/.exec(content)[1]));
+    }
+    else if (/^\/unblock \w+$/i.test(content)) {
+        socialTab.unblockPlayer(getPlayerNameCorrectCase(/^\S+ (\w+)$/.exec(content)[1]));
+    }
+    else if (/^\/blocked$/i.test(content)) {
+        sendMessage(socialTab.blockedPlayers.length ? socialTab.blockedPlayers.join(", ") : "(none)", type, target);
+    }
     else if (/^\/(rules|gamemodes?)$/i.test(content)) {
         sendMessage(Object.keys(rules).join(", "), type, target);
     }
@@ -3228,8 +3249,29 @@ async function parseCommand(content, type, target) {
     else if (/^\/count ?friends?$/i.test(content)) {
         sendMessage(getAllFriends().length, type, target);
     }
+    else if (/^\/count ?blocked$/i.test(content)) {
+        sendMessage(socialTab.blockedPlayers.length, type, target);
+    }
     else if (/^\/count ?scripts?$/i.test(content)) {
         sendMessage($("#installedListContainer h4").length, type, target);
+    }
+    else if (/^\/count ?notes?$/i.test(content)) {
+        sendMessage(xpBar.currentCreditCount, type, target);
+    }
+    else if (/^\/count ?tickets?$/i.test(content)) {
+        sendMessage(xpBar.currentTicketCount, type, target);
+    }
+    else if (/^\/count ?tokens?$/i.test(content)) {
+        sendMessage(storeWindow._avatarTokens, type, target);
+    }
+    else if (/^\/count ?rhythm$/i.test(content)) {
+        sendMessage(storeWindow._rhythm, type, target);
+    }
+    else if (/^\/count ?avatars?$/i.test(content)) {
+        sendMessage(Object.values(storeWindow.characterUnlockCount).reduce((acc, val) => acc + val, 0), type, target);
+    }
+    else if (/^\/count ?emotes?$/i.test(content)) {
+        sendMessage(storeWindow.unlockedEmoteIds.length, type, target);
     }
     else if (/^\/(fil|fiq|fig|fir|friendsinlobby|friendsinquiz|friendsingame|friendsinroom)$/i.test(content)) {
         if (lobby.inLobby) {
@@ -3778,7 +3820,12 @@ async function parseCommand(content, type, target) {
             ? /^\S+ (.+)$/.exec(content)[1].toLowerCase()
             : $("#qpAnimeName").text().split("    ").map((x) => x.replaceAll(/\s/g, "")).join(" ").toLowerCase();
         if (!query.includes("_")) return;
-        let re = new RegExp("^" + query.split("").map((x) => x === "_" ? "\\S" : x).join("") + "$");
+        let regexChar = function(char) {
+            if (char === "_") return "\\S"
+            if (".^$*+?()[]|\\".includes(char)) return "\\" + char;
+            return char;
+        }
+        let re = new RegExp("^" + query.split("").map(regexChar).join("") + "$");
         let results = animeAutoCompleteLowerCase.filter((anime) => re.test(anime));
         if (results.length === 0) {
             sendMessage("no results", type, target);
@@ -3883,7 +3930,7 @@ function parseIncomingDM(content, sender) {
 function parseForceAll(content, type) {
     if (commands) {
         if (/^\/forceall version$/i.test(content)) {
-            sendMessage("0.115", type);
+            sendMessage("0.116", type);
         }
         else if (/^\/forceall version .+$/i.test(content)) {
             let option = /^\S+ \S+ (.+)$/.exec(content)[1];
