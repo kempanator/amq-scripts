@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Quick Load Lists
 // @namespace    https://github.com/kempanator
-// @version      0.5
+// @version      0.6
 // @description  Adds a window for saving and quick loading anime lists
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -26,7 +26,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.5";
+const version = "0.6";
 const saveData = validateLocalStorage("quickLoadLists");
 let savedLists = saveData.savedLists ?? [];
 let windowHotKey = saveData.windowHotKey ?? {key: "q", altKey: true, ctrlKey: false};
@@ -119,15 +119,9 @@ function setup() {
         .append($(`<div id="qllSettingsContainer"></div>`)
             .append($(`<div></div>`)
                 .append($(`<span>Open This Window Hotkey:</span>`))
-                .append($(`<select id="qllSettingsWindowHotkeyModifier" class="form-control"><option value="alt">ALT</option><option value="ctrl">CTRL</option></select>`).on("change", function() {
-                    if (this.value === "alt") {
-                        windowHotKey.altKey = true;
-                        windowHotKey.ctrlKey = false;
-                    }
-                    else if (this.value === "ctrl") {
-                        windowHotKey.altKey = false;
-                        windowHotKey.ctrlKey = true;
-                    }
+                .append($(`<select id="qllSettingsWindowHotkeyModifier" class="form-control"><option>ALT</option><option>CTRL</option><option>CTRL ALT</option></select>`).on("change", function() {
+                    windowHotKey.altKey = this.value.includes("ALT");
+                    windowHotKey.ctrlKey = this.value.includes("CTRL");
                     saveSettings();
                 }))
                 .append($(`<input id="qllSettingsWindowHotkeyKey" class="form-control key" type="text" maxlength="1" value="${windowHotKey.key}">`).blur(function() {
@@ -137,15 +131,9 @@ function setup() {
             )
             .append($(`<div></div>`)
                 .append($(`<span>Open Anime List Modal Hotkey:</span>`))
-                .append($(`<select id="qllSettingsAnimeListModalHotkeyModifier" class="form-control"><option value="alt">ALT</option><option value="ctrl">CTRL</option></select>`).on("change", function() {
-                    if (this.value === "alt") {
-                        animeListModalHotKey.altKey = true;
-                        animeListModalHotKey.ctrlKey = false;
-                    }
-                    else if (this.value === "ctrl") {
-                        animeListModalHotKey.altKey = false;
-                        animeListModalHotKey.ctrlKey = true;
-                    }
+                .append($(`<select id="qllSettingsAnimeListModalHotkeyModifier" class="form-control"><option>ALT</option><option>CTRL</option><option>CTRL ALT</option></select>`).on("change", function() {
+                    windowHotKey.altKey = this.value.includes("ALT");
+                    windowHotKey.ctrlKey = this.value.includes("CTRL");
                     saveSettings();
                 }))
                 .append($(`<input id="qllSettingsAnimeListModalHotkeyKey" class="form-control key" type="text" maxlength="1" value="${animeListModalHotKey.key}">`).blur(function() {
@@ -155,15 +143,9 @@ function setup() {
             )
             .append($(`<div></div>`)
                 .append($(`<span>Remove List Hotkey:</span>`))
-                .append($(`<select id="qllSettingsRemoveListHotkeyModifier" class="form-control"><option value="alt">ALT</option><option value="ctrl">CTRL</option></select>`).on("change", function() {
-                    if (this.value === "alt") {
-                        removeListHotKey.altKey = true;
-                        removeListHotKey.ctrlKey = false;
-                    }
-                    else if (this.value === "ctrl") {
-                        removeListHotKey.altKey = false;
-                        removeListHotKey.ctrlKey = true;
-                    }
+                .append($(`<select id="qllSettingsRemoveListHotkeyModifier" class="form-control"><option>ALT</option><option>CTRL</option><option>CTRL ALT</option></select>`).on("change", function() {
+                    windowHotKey.altKey = this.value.includes("ALT");
+                    windowHotKey.ctrlKey = this.value.includes("CTRL");
                     saveSettings();
                 }))
                 .append($(`<input id="qllSettingsRemoveListHotkeyKey" class="form-control key" type="text" maxlength="1" value="${removeListHotKey.key}">`).blur(function() {
@@ -598,11 +580,6 @@ function applyStyles() {
         #quickLoadListsWindow .modal-header .tabContainer .tab::before {
             box-shadow: none;
         }
-        #quickLoadListsWindow .modal-header .close {
-            top: 15px;
-            right: 15px;
-            position: absolute;
-        }
         #quickLoadListsWindow .modal-header i.fa:hover {
             opacity: .7;
         }
@@ -692,7 +669,7 @@ function applyStyles() {
             margin: 10px 0 0 10px;
         }
         #qllSettingsContainer select.form-control {
-            width: 62px;
+            width: 88px;
             margin-left: 10px;
             padding: 6px 0;
             display: inline-block;
