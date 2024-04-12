@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Anisongdb Search
 // @namespace    https://github.com/kempanator
-// @version      0.8
+// @version      0.9
 // @description  Adds a window to search anisongdb.com in game
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -27,12 +27,13 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.8";
+const version = "0.9";
 const saveData = validateLocalStorage("anisongdbSearch");
 let anisongdbWindow;
 let injectSearchButtons = saveData.injectSearchButtons ?? true;
-let windowHotKey = saveData.windowHotKey ?? {key: "", altKey: false, ctrlKey: false};
 let tableSort = ["anime", true]; // [mode, ascending]
+let hotKeys = saveData.hotKeys ?? {};
+hotKeys.adbsWindow = saveData.hotKeys?.adbsWindow ?? {altKey: false, ctrlKey: false, key: ""};
 
 function setup() {
     new Listener("answer results", (payload) => {
@@ -153,14 +154,11 @@ function setup() {
         .append($(`<div id="adbsSettingsContainer" style="padding: 10px;"></div>`)
             .append($(`<div></div>`)
                 .append($(`<span>Open this window</span>`))
-                .append($(`<select id="adbsWindowHotkeySelect" style="margin-left: 10px; padding: 3px 0;"><option>ALT</option><option>CTRL</option><option>CTRL ALT</option></select>`).on("change", function() {
-                    windowHotKey.altKey = this.value.includes("ALT");
-                    windowHotKey.ctrlKey = this.value.includes("CTRL");
-                    saveSettings();
+                .append($(`<select id="adbsWindowHotkeySelect" style="margin-left: 10px; padding: 3px 0;"><option>ALT</option><option>CTRL</option><option>CTRL ALT</option><option>(none)</option></select>`).on("change", () => {
+                    saveHotKey("adbsWindow", "adbsWindowHotkeySelect", "adbsWindowHotkeyInput");
                 }))
-                .append($(`<input type="text" maxlength="1" style="width: 40px; margin-left: 10px;">`).val(windowHotKey.key).on("change", function() {
-                    windowHotKey.key = this.value.toLowerCase();
-                    saveSettings();
+                .append($(`<input id="adbsWindowHotkeyInput" type="text" maxlength="1" style="width: 40px; margin-left: 10px;">`).val(hotKeys.adbsWindow.key).on("change", () => {
+                    saveHotKey("adbsWindow", "adbsWindowHotkeySelect", "adbsWindowHotkeyInput");
                 }))
             )
             .append($(`<div style="margin-top: 10px;"></div>`)
@@ -173,7 +171,7 @@ function setup() {
         const key = event.key;
         const altKey = event.altKey;
         const ctrlKey = event.ctrlKey;
-        if (key === windowHotKey.key && altKey === windowHotKey.altKey && ctrlKey === windowHotKey.ctrlKey) {
+        if (testHotkey("adbsWindow", key, altKey, ctrlKey)) {
             anisongdbWindow.isVisible() ? anisongdbWindow.close() : anisongdbWindow.open();
         }
     });
@@ -182,6 +180,7 @@ function setup() {
     $("#adbsButtonsCheckbox").prop("checked", injectSearchButtons).click(function() {
         injectSearchButtons = !injectSearchButtons;
         $(this).prop("checked", injectSearchButtons);
+        saveSettings();
     });
     $("#adbsSearchTab").addClass("selected");
     $("#adbsSearchContainer").show();
@@ -312,11 +311,28 @@ function vintageSortValue(vintage) {
     return year + season;
 }
 
+// test hotkey
+function testHotkey(action, key, altKey, ctrlKey) {
+    let hotkey = hotKeys[action];
+    return key === hotkey.key && altKey === hotkey.altKey && ctrlKey === hotkey.ctrlKey;
+}
+
+// save hotkey
+function saveHotKey(action, idSelect, idInput) {
+    let selectValue = $("#" + idSelect).val();
+    hotKeys[action] = {
+        altKey: selectValue.includes("ALT"),
+        ctrlKey: selectValue.includes("CTRL"),
+        key: $("#" + idInput).val()
+    };
+    saveSettings();
+}
+
 // save settings
 function saveSettings() {
     let settings = {
         injectSearchButtons: injectSearchButtons,
-        windowHotKey: windowHotKey
+        hotKeys: hotKeys
     };
     localStorage.setItem("anisongdbSearch", JSON.stringify(settings));
 }
