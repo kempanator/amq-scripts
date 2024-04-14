@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.54
+// @version      0.55
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -43,7 +43,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.54";
+const version = "0.55";
 const saveData = validateLocalStorage("customSongListGame");
 const catboxHostDict = {1: "files.catbox.moe", 2: "nl.catbox.moe", 3: "nl.catbox.video", 4: "ladist1.catbox.video", 5: "vhdist1.catbox.video"};
 let CSLButtonCSS = saveData.CSLButtonCSS || "calc(25% - 250px)";
@@ -2378,8 +2378,7 @@ function createCatboxLinkObject(audio, video480, video720) {
 
 // create hotkey element
 function createHotkeyElement(title, key, selectID, inputID) {
-    let $tr = $(`<tr></tr>`);
-    let $select = $(`<select id="${selectID}" style="padding: 3px 0;"></select>`).append(`<option>ALT</option>`).append(`<option>CTRL</option>`).append(`<option>CTRL ALT</option>`);
+    let $select = $(`<select id="${selectID}" style="padding: 3px 0;"></select>`).append(`<option>ALT</option>`).append(`<option>CTRL</option>`).append(`<option>CTRL ALT</option>`).append(`<option>(none)</option>`);
     let $input = $(`<input id="${inputID}" type="text" maxlength="1" style="width: 40px;">`).val(hotKeys[key].key);
     $select.on("change", () => {
         hotKeys[key] = {
@@ -2389,7 +2388,7 @@ function createHotkeyElement(title, key, selectID, inputID) {
         }
         saveSettings();
     });
-    $input.blur(() => {
+    $input.on("change", () => {
         hotKeys[key] = {
             "altKey": $select.val().includes("ALT"),
             "ctrlKey": $select.val().includes("CTRL"),
@@ -2400,10 +2399,8 @@ function createHotkeyElement(title, key, selectID, inputID) {
     if (hotKeys[key].altKey && hotKeys[key].ctrlKey) $select.val("CTRL ALT");
     else if (hotKeys[key].altKey) $select.val("ALT");
     else if (hotKeys[key].ctrlKey) $select.val("CTRL");
-    $tr.append($(`<td></td>`).text(title));
-    $tr.append($(`<td></td>`).append($select));
-    $tr.append($(`<td></td>`).append($input));
-    $("#cslgHotkeyTable tbody").append($tr);
+    else $select.val("(none)");
+    $("#cslgHotkeyTable tbody").append($(`<tr></tr>`).append($(`<td></td>`).text(title)).append($(`<td></td>`).append($select)).append($(`<td></td>`).append($input)));
 }
 
 // test hotkey
