@@ -1,6 +1,6 @@
 /* ==UserStyle==
 @name         Elodie's AMQ Style Script
-@version      10.2.5
+@version      10.2.6
 @namespace    userstyles.world/user/melodyelodie
 @description  A custom theme for animemusicquiz.com
 @author       melodyelodie
@@ -30,6 +30,8 @@ Changelog:
     - game chat + other backgrounds now support images
     - fixed border color on right/wrong answers
     - fixed readability on autocomplete dropdown
+  10.3
+    - styled boss, hint, jam modes
 
 
 Installing:
@@ -70,7 +72,7 @@ lobbyAvatarNameBackground      background color of player name in lobby
 textColor                      text color of <body>
 textShadowColor                shadow color for text
 boxShadowColor                 shadow color for all windows and containers
-borderRadius:                  border radius for all windows and containers
+borderRadius                   border radius for all windows and containers
 
 primaryColor                   top/bottom menu bars - #1b1b1b
 secondaryColor                 gray stuff in default AMQ - #424242
@@ -162,6 +164,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         --wrongAnswerColorTransparent: color-mix(in srgb, var(--wrongAnswerColor), transparent 80%);
         --songHistoryCorrectColorHover: color-mix(in srgb, var(--songHistoryCorrectColor), white 5%);
         --songHistoryWrongColorHover: color-mix(in srgb, var(--songHistoryWrongColor), white 5%);
+        --elodieStyleScriptVersion: 10.2.6;
     }
     
     
@@ -221,10 +224,11 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         --wrongAnswerColorTransparent: color-mix(in srgb, var(--wrongAnswerColor), transparent 80%);
         --songHistoryCorrectColorHover: color-mix(in srgb, var(--songHistoryCorrectColor), white 15%);
         --songHistoryWrongColorHover: color-mix(in srgb, var(--songHistoryWrongColor), white 15%);
+        --elodieStyleScriptVersion: 10.2.6;
     }
     */
     
-    
+
     /* Basic Defaults */
     body {
         color: var(--textColor);
@@ -816,6 +820,11 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     }
     #guestAccountNoticeContainer {
         text-shadow: 2px 2px 3px var(--textShadowColor);
+    }
+    #loadingScreenQueueMessage {
+        color: var(--textColor);
+        background-color: var(--primaryColorTransparent);
+        box-shadow: 0 0 10px 2px var(--boxShadowColor);
     }
 
 
@@ -1865,6 +1874,77 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     #gcBossModeQueueContainer::before {
         background-color: var(--primaryColor);
         box-shadow: 0 0 10px 0px var(--boxShadowColor);
+    }
+
+
+    /* Hint Mode */
+    #qpAmqHintContainer {
+        color: var(--textColor);
+    }
+    #qpAmqHintSongPointContainer {
+        background-color: var(--accentColorTransparent);
+    }
+    #qpAmqHintText:hover::before {
+       background-color: var(--primaryColor);
+    }
+    .qpAmqHintButtonCost {
+        background-color: var(--accentColorTransparent);
+    }
+    .qpAmqHintButton.inactive:hover::before {
+        background-color: var(--primaryColor);
+    }
+    .qpAmqHintButton.used::before {
+        background-color: var(--accentColor);
+    }
+    .qpPlayerHint::before {
+        background-color: var(--accentColor);
+        box-shadow: 0 0 5px 0px var(--boxShadowColor);
+    }
+
+
+    /* Jam Mode */
+    #qpJamVoteHeader {
+        background-color: var(--primaryColorTransparent);
+    }
+    #qpJamVoteHeader {
+        background-color: var(--primaryColorTransparent);
+    }
+    #qpJamVoteContainer {
+        box-shadow: 0 0 8px 1px var(--boxShadowColor);
+        color: var(--textColor);
+        transition: transform .1s linear;
+    }
+    #qpJamVoteLowerButton {
+        background-color: var(--primaryColorTransparent);
+        transition: transform .1s linear;
+    }
+    #qpJamVoteInnerContainer {
+        background-color: var(--primaryColorTransparent);
+    }
+    .qpJamVoteCategoryVoteInner {
+        background-color: var(--primaryColor);
+        box-shadow: 0 0 6px 0px var(--boxShadowColor);
+    }
+    .qpJamVoteCategoryOption.selected::before {
+        background-color: var(--accentColor);
+    }
+    .qpJamVoteCategoryOption.selected:hover::before {
+        background-color: var(--songHistoryWrongColor);
+    }
+    .qpJamVoteCategoryOption.selected.newClick:hover::before {
+        background-color: var(--accentColor);
+    }
+    #qpJamVoteThemeContainer.displayResult .qpJamVoteCategoryOption::before {
+        background-color: var(--songHistoryWrongColor);
+    }
+    #qpJamVoteThemeContainer.displayResult .qpJamVoteCategoryOptionContainer.winVote .qpJamVoteCategoryOption::before {
+        background-color: var(--songHistoryCorrectColor);
+    }
+    .qpJamVoteCategoryVoteHighlight {
+        box-shadow: 0 0 15px 0px rgba(255, 255, 255, 0.8), 0 0 10px 5px var(--accentColor), 0 0 10px 5px var(--accentColor);
+    }
+    #qpJamThemeOverlay::before, #qpJamThemeOverlay:hover::before {
+        background-color: var(--primaryColorTransparent);
     }
 
 
@@ -3479,6 +3559,17 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     #btnOpenVoiceSetting {
         box-shadow: 1px 3px 10px var(--boxShadowColor) !important;
     }
+    
+    /* Styling for tables in Kempanator's scripts */
+    table.styledTable thead tr {
+        background-color: var(--primaryColor);
+    }
+    table.styledTable tbody tr:nth-child(odd) {
+        background-color: var(--primaryColorContrast2);
+    }
+    table.styledTable tbody tr:nth-child(even) {
+        background-color: var(--primaryColorContrast);
+    }
 
 
     /* Kempanator's Chat Plus Script */
@@ -3512,22 +3603,6 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     .answerStatsButton {
         border: 1px solid var(--textColor);
     }
-    #answerHistoryTable thead tr,
-    #answerCompareTable thead tr {
-        background-color: var(--primaryColor);
-    }
-    #answerHistoryTable tbody tr:nth-child(odd) {
-        background-color: var(--primaryColorContrast2);
-    }
-    #answerHistoryTable tbody tr:nth-child(even) {
-        background-color: var(--primaryColorContrast);
-    }
-    #answerCompareTable tbody tr:nth-child(odd) {
-        background-color: var(--primaryColorContrast2);
-    }
-    #answerCompareTable tbody tr:nth-child(even) {
-        background-color: var(--primaryColorContrast);
-    }
     #answerCompareTable tbody tr.highlightCorrect {
         background-color: var(--songHistoryCorrectColor);
     }
@@ -3537,39 +3612,12 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
 
 
     /* Kempanator's AnisongDB Search Script */
-    #anisongdbTable thead tr {
-        background-color: var(--primaryColor);
-    }
-    #anisongdbTable tbody tr:nth-child(odd) {
-        background-color: var(--primaryColorContrast2);
-    }
-    #anisongdbTable tbody tr:nth-child(even) {
-        background-color: var(--primaryColorContrast);
-    }
     #anisongdbTable tbody tr:hover {
         color: var(--accentColorContrast);
     }
 
 
     /* Kempanator's Custom Song List Game Script */
-    #cslgSongListTable thead tr {
-        background-color: var(--primaryColor);
-    }
-    #cslgSongListTable tbody tr:nth-child(odd) {
-        background-color: var(--primaryColorContrast2);
-    }
-    #cslgSongListTable tbody tr:nth-child(even) {
-        background-color: var(--primaryColorContrast);
-    }
-    #cslgAnswerTable thead tr {
-        background-color: var(--primaryColor);
-    }
-    #cslgAnswerTable tbody tr:nth-child(odd) {
-        background-color: var(--primaryColorContrast2);
-    }
-    #cslgAnswerTable tbody tr:nth-child(even) {
-        background-color: var(--primaryColorContrast);
-    }
 
 
     /* Bully Text */
