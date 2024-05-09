@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.116
+// @version      0.117
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -104,7 +104,7 @@ OTHER
 
 "use strict";
 if (typeof Listener === "undefined") return;
-const version = "0.116";
+const version = "0.117";
 const saveData = validateLocalStorage("megaCommands");
 const originalOrder = {qb: [], gm: []};
 if (typeof saveData.alerts?.hiddenPlayers === "boolean") delete saveData.alerts;
@@ -155,50 +155,55 @@ let tabSwitch = saveData.tabSwitch ?? 0; //0: off, 1: chat first, 2: answerbox f
 let voteOptions = {};
 let votes = {};
 
-alerts.hiddenPlayers = saveData.alerts?.hiddenPlayers ?? {chat: true, popout: true};
-alerts.nameChange = saveData.alerts?.nameChange ?? {chat: true, popout: true};
-alerts.onlineFriends = saveData.alerts?.onlineFriends ?? {chat: false, popout: false};
-alerts.offlineFriends = saveData.alerts?.offlineFriends ?? {chat: false, popout: false};
-alerts.serverStatus = saveData.alerts?.serverStatus ?? {chat: false, popout: false};
-
-commandPersist.autoAcceptInvite = saveData.commandPersist?.autoAcceptInvite ?? true;
-commandPersist.autoCopy = saveData.commandPersist?.autoCopy ?? false;
-commandPersist.autoDownloadSong = saveData.commandPersist?.autoDownloadSong ?? false;
-commandPersist.autoDownloadJson = saveData.commandPersist?.autoDownloadJson ?? true;
-commandPersist.autoHint = saveData.commandPersist?.autoHint ?? false;
-commandPersist.autoHost = saveData.commandPersist?.autoHost ?? false;
-commandPersist.autoInvite = saveData.commandPersist?.autoInvite ?? false;
-commandPersist.autoKey = saveData.commandPersist?.autoKey ?? true;
-commandPersist.autoMute = saveData.commandPersist?.autoMute ?? false;
-commandPersist.autoReady = saveData.commandPersist?.autoReady ?? true;
-commandPersist.autoStart = saveData.commandPersist?.autoStart ?? false;
-commandPersist.autoStatus = saveData.commandPersist?.autoStatus ?? true;
-commandPersist.autoSwitch = saveData.commandPersist?.autoSwitch ?? false;
-commandPersist.autoThrow = saveData.commandPersist?.autoThrow ?? false;
-commandPersist.autoVoteLobby = saveData.commandPersist?.autoVoteLobby ?? true;
-commandPersist.autoVoteSkip = saveData.commandPersist?.autoVoteSkip ?? false;
-commandPersist.continueSample = saveData.commandPersist?.continueSample ?? true;
-commandPersist.dropdown = saveData.commandPersist?.dropdown ?? true;
-commandPersist.dropdownInSpec = saveData.commandPersist?.dropdownInSpec ?? true;
-commandPersist.loopVideo = saveData.commandPersist?.loopVideo ?? true;
-commandPersist.muteReplay = saveData.commandPersist?.muteReplay ?? true;
-commandPersist.muteSubmit = saveData.commandPersist?.muteSubmit ?? true;
-commandPersist.playbackSpeed = saveData.commandPersist?.playbackSpeed ?? false;
-
-hotKeys.autoKey = saveData.hotKeys?.autoKey ?? {altKey: false, ctrlKey: false, key: ""};
-hotKeys.dropdown = saveData.hotKeys?.dropdown ?? {altKey: false, ctrlKey: false, key: ""};
-hotKeys.mute = saveData.hotKeys?.mute ?? {altKey: false, ctrlKey: false, key: ""};
-hotKeys.ready = saveData.hotKeys?.ready ?? {altKey: false, ctrlKey: false, key: ""};
-hotKeys.joinSpectate = saveData.hotKeys?.joinSpectate ?? {altKey: false, ctrlKey: false, key: ""};
-hotKeys.start = saveData.hotKeys?.start ?? {altKey: false, ctrlKey: false, key: ""};
-hotKeys.leave = saveData.hotKeys?.leave ?? {altKey: false, ctrlKey: false, key: ""};
-hotKeys.rejoin = saveData.hotKeys?.rejoin ?? {altKey: false, ctrlKey: false, key: ""};
-hotKeys.lobby = saveData.hotKeys?.lobby ?? {altKey: false, ctrlKey: false, key: ""};
-hotKeys.pause = saveData.hotKeys?.pause ?? {altKey: false, ctrlKey: false, key: ""};
-hotKeys.voteSkip = saveData.hotKeys?.voteSkip ?? {altKey: false, ctrlKey: false, key: ""};
-hotKeys.relog = saveData.hotKeys?.relog ?? {altKey: false, ctrlKey: false, key: ""};
-hotKeys.mcHelpWindow = saveData.hotKeys?.mcHelpWindow ?? {altKey: false, ctrlKey: false, key: ""};
-hotKeys.songHistoryWindow = saveData.hotKeys?.songHistoryWindow ?? {altKey: false, ctrlKey: false, key: ""};
+alerts = {
+    hiddenPlayers: saveData.alerts?.hiddenPlayers ?? {chat: true, popout: true},
+    nameChange: saveData.alerts?.nameChange ?? {chat: true, popout: true},
+    onlineFriends: saveData.alerts?.onlineFriends ?? {chat: false, popout: false},
+    offlineFriends: saveData.alerts?.offlineFriends ?? {chat: false, popout: false},
+    serverStatus: saveData.alerts?.serverStatus ?? {chat: false, popout: false}
+};
+commandPersist = {
+    autoAcceptInvite: saveData.commandPersist?.autoAcceptInvite ?? true,
+    autoCopy: saveData.commandPersist?.autoCopy ?? false,
+    autoDownloadSong: saveData.commandPersist?.autoDownloadSong ?? false,
+    autoDownloadJson: saveData.commandPersist?.autoDownloadJson ?? true,
+    autoHint: saveData.commandPersist?.autoHint ?? false,
+    autoHost: saveData.commandPersist?.autoHost ?? false,
+    autoInvite: saveData.commandPersist?.autoInvite ?? false,
+    autoKey: saveData.commandPersist?.autoKey ?? true,
+    autoMute: saveData.commandPersist?.autoMute ?? false,
+    autoReady: saveData.commandPersist?.autoReady ?? true,
+    autoStart: saveData.commandPersist?.autoStart ?? false,
+    autoStatus: saveData.commandPersist?.autoStatus ?? true,
+    autoSwitch: saveData.commandPersist?.autoSwitch ?? false,
+    autoThrow: saveData.commandPersist?.autoThrow ?? false,
+    autoVoteLobby: saveData.commandPersist?.autoVoteLobby ?? true,
+    autoVoteSkip: saveData.commandPersist?.autoVoteSkip ?? false,
+    continueSample: saveData.commandPersist?.continueSample ?? true,
+    dropdown: saveData.commandPersist?.dropdown ?? true,
+    dropdownInSpec: saveData.commandPersist?.dropdownInSpec ?? true,
+    loopVideo: saveData.commandPersist?.loopVideo ?? true,
+    muteReplay: saveData.commandPersist?.muteReplay ?? true,
+    muteSubmit: saveData.commandPersist?.muteSubmit ?? true,
+    playbackSpeed: saveData.commandPersist?.playbackSpeed ?? false
+};
+hotKeys = {
+    autoKey: saveData.hotKeys?.autoKey ?? {altKey: false, ctrlKey: false, key: ""},
+    dropdown: saveData.hotKeys?.dropdown ?? {altKey: false, ctrlKey: false, key: ""},
+    mute: saveData.hotKeys?.mute ?? {altKey: false, ctrlKey: false, key: ""},
+    ready: saveData.hotKeys?.ready ?? {altKey: false, ctrlKey: false, key: ""},
+    joinSpectate: saveData.hotKeys?.joinSpectate ?? {altKey: false, ctrlKey: false, key: ""},
+    start: saveData.hotKeys?.start ?? {altKey: false, ctrlKey: false, key: ""},
+    leave: saveData.hotKeys?.leave ?? {altKey: false, ctrlKey: false, key: ""},
+    rejoin: saveData.hotKeys?.rejoin ?? {altKey: false, ctrlKey: false, key: ""},
+    lobby: saveData.hotKeys?.lobby ?? {altKey: false, ctrlKey: false, key: ""},
+    pause: saveData.hotKeys?.pause ?? {altKey: false, ctrlKey: false, key: ""},
+    voteSkip: saveData.hotKeys?.voteSkip ?? {altKey: false, ctrlKey: false, key: ""},
+    relog: saveData.hotKeys?.relog ?? {altKey: false, ctrlKey: false, key: ""},
+    mcHelpWindow: saveData.hotKeys?.mcHelpWindow ?? {altKey: false, ctrlKey: false, key: ""},
+    songHistoryWindow: saveData.hotKeys?.songHistoryWindow ?? {altKey: false, ctrlKey: false, key: ""},
+    settingsWindow: saveData.hotKeys?.settingsWindow ?? {altKey: false, ctrlKey: false, key: ""}
+};
 
 const rules = {
     "alien": "https://pastebin.com/LxLMg1nA",
@@ -230,7 +235,7 @@ const scripts = {
     "elodiestyle": "https://userstyles.world/style/1435"
 };
 const info = {
-    "draw": "https://aggie.io",
+    "draw": "https://magma.com",
     "piano": "https://musiclab.chromeexperiments.com/Shared-Piano/#amqpiano",
     "turnofflist": "https://files.catbox.moe/hn1mhw.png"
 };
@@ -420,6 +425,9 @@ function setup() {
         }
         if (testHotkey("songHistoryWindow", key, altKey, ctrlKey)) {
             songHistoryWindow.trigger();
+        }
+        if (testHotkey("settingsWindow", key, altKey, ctrlKey)) {
+            $("#settingModal").is(":visible") ? $("#settingModal").modal("hide") : $("#settingModal").modal("show");
         }
     });
     new Listener("game chat update", (payload) => {
@@ -991,6 +999,9 @@ function setup() {
                             <div id="mcOrderTab" class="tab clickAble">
                                 <h5>Order</h5>
                             </div>
+                            <div id="mcStorageTab" class="tab clickAble">
+                                <h5>Storage</h5>
+                            </div>
                             <div id="mcInfoTab" class="tab clickAble" style="width: 45px; margin-right: -10px; padding-right: 8px; float: right;">
                                 <h5><i class="fa fa-info-circle" aria-hidden="true"></i></h5>
                             </div>
@@ -1152,15 +1163,19 @@ function setup() {
                                 </tbody>
                             </table>
                         </div>
+                        <div id="mcStorageContainer" style="margin: 10px 0;">
+                            <h4 class="text-center">Local Storage</h4>
+                            <div style="margin: 10px 0"><button id="mcLocalStorageImportButton" style="color: black; margin-right: 10px;">Import</button><button id="mcLocalStorageExportButton" style="color: black; margin-right: 10px;">Export</button><button id="mcLocalStorageClearButton" style="color: black;">Clear</button></div>
+                            <ul id="mcStorageList"></ul>
+                        </div>
                         <div id="mcInfoContainer" style="text-align: center; margin: 20px 0;">
                             <h4>Script Info</h4>
                             <div>Created by: kempanator</div>
                             <div>Version: ${version}</div>
                             <div><a href="https://github.com/kempanator/amq-scripts/blob/main/amqMegaCommands.user.js" target="blank">Github</a> <a href="https://github.com/kempanator/amq-scripts/raw/main/amqMegaCommands.user.js" target="blank">Install</a></div>
-                            <h4 style="margin-top: 20px;">Local Storage</h4>
-                            <div style="margin: 10px 0"><button id="mcLocalStorageImportButton" style="color: black; margin-right: 10px;">Import</button><button id="mcLocalStorageExportButton" style="color: black; margin-right: 10px;">Export</button><button id="mcLocalStorageClearButton" style="color: black;">Clear</button></div>
                             <h4 style="margin-top: 20px;">MAL Client ID</h4>
                             <div style="margin: 10px 0"><input id="mcMalClientIdInput" type="text" style="width: 300px; color: black;"></div>
+                            <h4 style="margin-top: 20px;">Other</h4>
                             <div class="customCheckbox"><input type="checkbox" id="mcDropdownInSpecCheckbox"><label for="mcDropdownInSpecCheckbox"><i class="fa fa-check" aria-hidden="true"></i></label></div><span style="margin: 0 10px 0 3px; vertical-align: 5px;">Dropdown in spectator</span>
                             <div class="customCheckbox"><input type="checkbox" id="mcProfileButtonsCheckbox"><label for="mcProfileButtonsCheckbox"><i class="fa fa-check" aria-hidden="true"></i></label></div><span style="margin: 0 10px 0 3px; vertical-align: 5px;">All profile buttons</span>
                             <div class="customCheckbox"><input type="checkbox" id="mcSelfDMCheckbox"><label for="mcSelfDMCheckbox"><i class="fa fa-check" aria-hidden="true"></i></label></div><span style="margin: 0 0 0 3px; vertical-align: 5px;">Open self DM</span>
@@ -1198,6 +1213,12 @@ function setup() {
         tabReset();
         $("#mcOrderTab").addClass("selected");
         $("#mcOrderContainer").show();
+    });
+    $("#mcStorageTab").click(() => {
+        createLocalStorageList();
+        tabReset();
+        $("#mcStorageTab").addClass("selected");
+        $("#mcStorageContainer").show();
     });
     $("#mcInfoTab").click(() => {
         tabReset();
@@ -1523,6 +1544,7 @@ function setup() {
     createHotkeyElement("Relog", "relog", "mcRelogHotkeySelect", "mcRelogHotkeyInput");
     createHotkeyElement("Open This Window", "mcHelpWindow", "mcHelpWindowSelect", "mcHelpWindowInput");
     createHotkeyElement("Open Song History", "songHistoryWindow", "mcSongHistoryWindowSelect", "mcSongHistoryWindowInput");
+    createHotkeyElement("Open Settings", "settingsWindow", "mcSettingsWindowSelect", "mcSettingsWindowInput");
 
     createAlertElement("Online Friends", "onlineFriends", "mcAlertOnlineFriends");
     createAlertElement("Offline Friends", "offlineFriends", "mcAlertOfflineFriends");
@@ -1537,7 +1559,7 @@ function setup() {
         exportLocalStorage();
     });
     $("#mcLocalStorageClearButton").click(() => {
-        displayOption(
+        messageDisplayer.displayOption(
             "Confirm",
             "Clear AMQ local storage for all scripts?",
             "Clear",
@@ -1545,6 +1567,7 @@ function setup() {
             () => {
                 localStorage.clear();
                 messageDisplayer.displayMessage("All local storage cleared");
+                createLocalStorageList();
             }
         );
     });
@@ -1810,8 +1833,7 @@ function testHotkey(action, key, altKey, ctrlKey) {
 
 // create hotkey element
 function createHotkeyElement(title, key, selectID, inputID) {
-    let $tr = $(`<tr></tr>`);
-    let $select = $(`<select id="${selectID}" style="padding: 3px 0;"></select>`).append(`<option>ALT</option>`).append(`<option>CTRL</option>`).append(`<option>CTRL ALT</option>`);
+    let $select = $(`<select id="${selectID}" style="padding: 3px 0;"></select>`).append(`<option>ALT</option>`).append(`<option>CTRL</option>`).append(`<option>CTRL ALT</option>`).append(`<option>(none)</option>`);
     let $input = $(`<input id="${inputID}" type="text" maxlength="1" style="width: 40px;">`).val(hotKeys[key].key);
     $select.on("change", () => {
         hotKeys[key] = {
@@ -1821,7 +1843,7 @@ function createHotkeyElement(title, key, selectID, inputID) {
         }
         saveSettings();
     });
-    $input.blur(() => {
+    $input.on("change", () => {
         hotKeys[key] = {
             "altKey": $select.val().includes("ALT"),
             "ctrlKey": $select.val().includes("CTRL"),
@@ -1832,10 +1854,8 @@ function createHotkeyElement(title, key, selectID, inputID) {
     if (hotKeys[key].altKey && hotKeys[key].ctrlKey) $select.val("CTRL ALT");
     else if (hotKeys[key].altKey) $select.val("ALT");
     else if (hotKeys[key].ctrlKey) $select.val("CTRL");
-    $tr.append($(`<td></td>`).text(title));
-    $tr.append($(`<td></td>`).append($select));
-    $tr.append($(`<td></td>`).append($input));
-    $("#mcHotkeyTable tbody").append($tr);
+    else $select.val("(none)");
+    $("#mcHotkeyTable tbody").append($(`<tr></tr>`).append($(`<td></td>`).text(title)).append($(`<td></td>`).append($select)).append($(`<td></td>`).append($input)));
 }
 
 // create alert element
@@ -1880,14 +1900,74 @@ function tabReset() {
     $("#mcDocumentationTab").removeClass("selected");
     $("#mcAlertsTab").removeClass("selected");
     $("#mcOrderTab").removeClass("selected");
+    $("#mcStorageTab").removeClass("selected");
     $("#mcInfoTab").removeClass("selected");
     $("#mcActiveContainer").hide();
     $("#mcHotkeyContainer").hide();
     $("#mcDocumentationContainer").hide();
     $("#mcAlertsContainer").hide();
     $("#mcOrderContainer").hide();
+    $("#mcStorageContainer").hide();
     $("#mcInfoContainer").hide();
 }
+
+// reorder quiz bar icons
+function reorderQuizBar() {
+    //TODO
+}
+
+// reorder gear menu settings list
+function reorderGearMenu() {
+    //TODO
+}
+
+// create quiz bar icon list in mc settings window
+function createQuizBarList(list) {
+    //TODO
+}
+
+// create gear menu settings list in mc settings window
+function createGearMenuList(list) {
+    //TODO
+}
+
+// create localStorage elements in mcStorageContainer
+function createLocalStorageList() {
+    $mcStorageList = $("#mcStorageList");
+    $mcStorageList.empty();
+    let list = Object.keys(localStorage).sort((a,b) => a.localeCompare(b));
+    $("#mcStorageContainer > h4").text(`Local Storage (${list.length} item${list.length === 1 ? "" : "s"})`);
+    for (let name of list) {
+        let formattedText;
+        try {
+            formattedText = JSON.stringify(JSON.parse(localStorage[name]), null, 2);
+        }
+        catch {
+            formattedText = "bad formatting";
+        }
+        $mcStorageList.append($(`<li></li>`)
+            .append($(`<i class="fa fa-caret-right clickAble" aria-hidden="true"></i>`).click(function() {
+                let $pre = $(this).parent().find("pre");
+                if ($pre.is(":visible")) {
+                    $(this).parent().find(".fa-caret-down").addClass("fa-caret-right").removeClass("fa-caret-down");
+                    $pre.hide();
+                }
+                else {
+                    $(this).parent().find(".fa-caret-right").addClass("fa-caret-down").removeClass("fa-caret-right");
+                    $pre.show();
+                }
+            }))
+            .append($(`<span class="name"></span>`).text(name))
+            .append($(`<span class="size"></span>`).text((new TextEncoder().encode(localStorage[name]).length) + " bytes"))
+            .append($(`<i class="fa fa-trash clickAble" aria-hidden="true"></i>`).click(() => {
+                localStorage.removeItem(name);
+                createLocalStorageList();
+            }))
+            .append($(`<pre></pre>`).text(formattedText).hide())
+        );
+    };
+}
+
 
 /**
  * parse a command
@@ -3930,7 +4010,7 @@ function parseIncomingDM(content, sender) {
 function parseForceAll(content, type) {
     if (commands) {
         if (/^\/forceall version$/i.test(content)) {
-            sendMessage("0.116", type);
+            sendMessage("0.117", type);
         }
         else if (/^\/forceall version .+$/i.test(content)) {
             let option = /^\S+ \S+ (.+)$/.exec(content)[1];
@@ -4835,20 +4915,21 @@ function validateLocalStorage(item) {
 
 // import local storage
 function importLocalStorage() {
-    $("body").remove("#uploadLocalStorageInput").append($(`<input type="file" id="uploadLocalStorageInput" style="display: none"></input>`).on("change", function() {
+    $("body").remove("#mcUploadLocalStorageInput").append($(`<input type="file" id="mcUploadLocalStorageInput" style="display: none"></input>`).on("change", function() {
         if (this.files.length) {
             this.files[0].text().then((data) => {
                 try {
                     let json = JSON.parse(data);
-                    if (typeof json !== "object" || !Object.values(json).every((x) => typeof x === "string")) {
-                        messageDisplayer.displayMessage("Upload Error");
-                    }
-                    else {
+                    if (typeof json === "object" && Object.values(json).every((x) => typeof x === "string")) {
                         let keys = Object.keys(json);
                         for (let key of keys) {
                             localStorage.setItem(key, json[key]);
                         }
+                        createLocalStorageList();
                         messageDisplayer.displayMessage(`${keys.length} item${keys.length === 1 ? "" : "s"} loaded into local storage`);
+                    }
+                    else {
+                        messageDisplayer.displayMessage("Upload Error");
                     }
                 }
                 catch {
@@ -4860,7 +4941,7 @@ function importLocalStorage() {
             });
         }
     }));
-    $("#uploadLocalStorageInput").trigger("click");
+    $("#mcUploadLocalStorageInput").trigger("click");
 }
 
 // export local storage
@@ -4945,6 +5026,32 @@ function applyStyles() {
             border: 0;
             margin: 0;
             padding: 0;
+        }
+        #mcStorageList li i.fa-caret-right, #mcStorageList li i.fa-caret-down {
+            font-size: 20px;
+        }
+        #mcStorageList li span.name {
+            margin-left: 10px;
+        }
+        #mcStorageList li span.size {
+            margin-left: 10px;
+            opacity: .5;
+        }
+        #mcStorageList li i.fa-trash {
+            margin-left: 10px;
+        }
+        #mcStorageList li i.fa-trash:hover {
+            color: #d9534f;
+        }
+        #mcStorageList pre {
+            color: inherit;
+            background-color: inherit;
+            border: 0;
+            border-radius: 0;
+            font-size: 13px;
+            margin: 0;
+            padding: 0;
+            opacity: .8;
         }
     `;
     if (backgroundURL) text += `
