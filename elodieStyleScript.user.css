@@ -2218,6 +2218,9 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         background-color: var(--primaryColor);
         transition: max-height .2s linear;
     }
+    .pmEmojiPreviewName::after {
+        background-image: linear-gradient(to left, var(--primaryColor), transparent);
+    }
     .pmButton {
         background-color: var(--primaryColor);
         box-shadow: 0 0 10px 2px var(--boxShadowColor);
