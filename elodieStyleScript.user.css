@@ -1,6 +1,6 @@
 /* ==UserStyle==
 @name         Elodie's AMQ Style Script
-@version      10.2.6
+@version      10.2.7
 @namespace    userstyles.world/user/melodyelodie
 @description  A custom theme for animemusicquiz.com
 @author       melodyelodie
@@ -164,7 +164,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         --wrongAnswerColorTransparent: color-mix(in srgb, var(--wrongAnswerColor), transparent 80%);
         --songHistoryCorrectColorHover: color-mix(in srgb, var(--songHistoryCorrectColor), white 5%);
         --songHistoryWrongColorHover: color-mix(in srgb, var(--songHistoryWrongColor), white 5%);
-        --elodieStyleScriptVersion: 10.2.6;
+        --elodieStyleScriptVersion: 10.2.7;
     }
     
     
@@ -224,7 +224,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         --wrongAnswerColorTransparent: color-mix(in srgb, var(--wrongAnswerColor), transparent 80%);
         --songHistoryCorrectColorHover: color-mix(in srgb, var(--songHistoryCorrectColor), white 15%);
         --songHistoryWrongColorHover: color-mix(in srgb, var(--songHistoryWrongColor), white 15%);
-        --elodieStyleScriptVersion: 10.2.6;
+        --elodieStyleScriptVersion: 10.2.7;
     }
     */
     
@@ -1007,6 +1007,17 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     }
     .badgePopoverTitle {
         border-bottom: none;
+    }
+    .ppNameOptionsHeader {
+        background: var(--primaryColor);
+    }
+    .ppNameOptionsCategoryItemInner {
+        background-color: var(--secondaryColor);
+    }
+    .ppNameOptionsCategoryItem::before,
+    .ppNameOptionsCategoryItemInner::before,
+    .ppNameOptionsCategoryItemInner::after {
+        background-color: var(--accentColorContrast);
     }
 
 
