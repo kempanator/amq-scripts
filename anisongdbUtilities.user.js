@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Anisongdb Utilities
 // @namespace    https://github.com/kempanator
-// @version      0.6
+// @version      0.7
 // @description  some extra functions for anisongdb.com
 // @author       kempanator
 // @match        https://anisongdb.com/*
@@ -23,9 +23,9 @@ Features:
 */
 
 "use strict";
-const version = "0.6";
+const version = "0.7";
 const saveData = validateLocalStorage("anisongdbUtilities");
-const catboxHostDict = {1: "files.catbox.moe", 2: "nl.catbox.moe", 3: "nl.catbox.video", 4: "ladist1.catbox.video", 5: "vhdist1.catbox.video"};
+const catboxHostDict = {1: "nl.catbox.video", 2: "ladist1.catbox.video", 3: "vhdist1.catbox.video"};
 let catboxHost = saveData.catboxHost ?? "0";
 if (!(catboxHost in catboxHostDict)) catboxHost = "0";
 let autoPlayMP3 = saveData.autoPlayMP3 ?? true;
@@ -35,6 +35,7 @@ let hideAmqText = saveData.hideAmqText ?? false;
 let defaultAdvanced = saveData.defaultAdvanced ?? false;
 let defaultEnglish = saveData.defaultEnglish ?? false;
 let loop = saveData.loop ?? "0"; //0:none, 1:repeat, 2:loop all
+let volume = saveData.volume ?? .5;
 
 let settingsModal;
 let banner;
@@ -79,7 +80,7 @@ function setup() {
     i.setAttribute(`_ngcontent-${key}-c10`, "");
     i.classList.add("fa", "fa-cog");
     i.setAttribute("aria-hidden", "true");
-    i.onclick = () => { toggleSettingsModal(); };
+    i.onclick = () => { toggleSettingsModal() };
     i.style.cursor = "pointer";
     i.style.fontSize = "28px";
     i.style.margin = "0 12px 0 0";
@@ -187,6 +188,10 @@ function setup() {
                 }
                 if (autoPlayMP3) {
                     audioElement.addEventListener("canplay", function() {
+                        if (volume >= 0 && volume <= 1) {
+                            console.log(volume);
+                            audioElement.volume = volume;
+                        }
                         this.play();
                         audioElement.onended = function() {
                             if (loop === "1") {
@@ -235,7 +240,8 @@ function setup() {
             <p><label><input id="auEnglishCheckbox" type="checkbox">English title by default</label></p>
             <p><label><input id="auAdvancedCheckbox" type="checkbox">Advanced view by default</label></p>
             <p><label><input id="auRenameJsonCheckbox" type="checkbox">Rename JSON to search input</label></p>
-            <p><select id="auDownloadJsonSelect" style="padding: 5px 3px;"><option>CTRL</option><option>ALT</option></select><input id="auDownloadJsonInput" type="text" maxlength="1" style="width: 20px; margin: 0 5px; padding: 5px 3px">Download JSON</p>
+            <p><select id="auDownloadJsonSelect" style="padding: 5px 3px;"><option>ALT</option><option>CTRL</option><option>CTRL ALT</option><option>-</option></select><input id="auDownloadJsonInput" type="text" maxlength="1" style="width: 20px; margin: 0 5px; padding: 5px 3px">Download JSON</p>
+            <p><input id="auVolumeInput" type="text" style="width: 40px; margin: 0 5px 0 0; padding: 5px 3px">Default Volume</p>
         </div>
     `;
     document.body.appendChild(settingsModal);
@@ -247,15 +253,19 @@ function setup() {
     let renameJsonCheckbox = document.querySelector("#auRenameJsonCheckbox");
     let downloadJsonSelect = document.querySelector("#auDownloadJsonSelect");
     let downloadJsonInput = document.querySelector("#auDownloadJsonInput");
+    let volumeInput = document.querySelector("#auVolumeInput");
 
     hideTextCheckbox.checked = hideAmqText;
     autoPlayCheckbox.checked = autoPlayMP3;
     englishCheckbox.checked = defaultEnglish;
     advancedCheckbox.checked = defaultAdvanced;
     renameJsonCheckbox.checked = jsonDownloadRename;
-    if (jsonDownloadHotkey.altKey) downloadJsonSelect.value = "ALT";
+    if (jsonDownloadHotkey.altKey && jsonDownloadHotkey.ctrlKey) downloadJsonSelect.value = "CTRL ALT";
+    else if (jsonDownloadHotkey.altKey) downloadJsonSelect.value = "ALT";
     else if (jsonDownloadHotkey.ctrlKey) downloadJsonSelect.value = "CTRL";
+    else downloadJsonSelect.value = "-";
     downloadJsonInput.value = jsonDownloadHotkey.key;
+    volumeInput.value = volume;
 
     hideTextCheckbox.onclick = () => {
         hideAmqText = !hideAmqText;
@@ -282,18 +292,16 @@ function setup() {
         saveSettings();
     }
     downloadJsonSelect.onchange = (event) => {
-        if (event.target.value === "ALT") {
-            jsonDownloadHotkey.altKey = true;
-            jsonDownloadHotkey.ctrlKey = false;
-        }
-        else if (event.target.value === "CTRL") {
-            jsonDownloadHotkey.altKey = false;
-            jsonDownloadHotkey.ctrlKey = true;
-        }
+        jsonDownloadHotkey.altKey = event.target.value.includes("ALT");
+        jsonDownloadHotkey.ctrlKey = event.target.value.includes("CTRL");
         saveSettings();
     }
     downloadJsonInput.onchange = (event) => {
         jsonDownloadHotkey.key = event.target.value.toLowerCase();
+        saveSettings();
+    }
+    volumeInput.onchange = (event) => {
+        volume = parseFloat(event.target.value);
         saveSettings();
     }
 }
@@ -331,14 +339,15 @@ function validateLocalStorage(item) {
 // save settings
 function saveSettings() {
     let settings = {
-        catboxHost: catboxHost,
-        autoPlayMP3: autoPlayMP3,
-        jsonDownloadRename: jsonDownloadRename,
-        jsonDownloadHotkey: jsonDownloadHotkey,
-        hideAmqText: hideAmqText,
-        defaultAdvanced: defaultAdvanced,
-        defaultEnglish: defaultEnglish,
-        loop: loop
+        catboxHost,
+        autoPlayMP3,
+        jsonDownloadRename,
+        jsonDownloadHotkey,
+        hideAmqText,
+        defaultAdvanced,
+        defaultEnglish,
+        loop,
+        volume
     };
     localStorage.setItem("anisongdbUtilities", JSON.stringify(settings));
 }
