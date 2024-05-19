@@ -128,20 +128,19 @@ RoomTile.prototype.createRoomPlayers = function() {
         content: $playerList[0].outerHTML
     })
     .off("mouseenter").on("mouseenter", function() {
-        let thisProgressBar = this;
         $(this).popover("show");
-        $(".popover").off("mouseleave").on("mouseleave", function() {
+        $(".popover").off("mouseleave").on("mouseleave", () => {
             if (!$(`#rbRoom-${thisRoomTile.id}:hover`).length) {
                 $(thisRoomTile.$tile).off("mouseleave");
                 $(".popover").off("mouseleave click");
-                $(thisProgressBar).popover("hide");
+                $(this).popover("hide");
             }
         });
-        $(thisRoomTile.$tile).off("mouseleave").on("mouseleave", function() {
+        $(thisRoomTile.$tile).off("mouseleave").on("mouseleave", () => {
             if (!$(".popover:hover").length) {
                 $(thisRoomTile.$tile).off("mouseleave");
                 $(".popover").off("mouseleave click");
-                $(thisProgressBar).popover("hide");
+                $(this).popover("hide");
             }
         });
         $(".popover").off("click").on("click", "li", function(e) {
