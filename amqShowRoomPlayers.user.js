@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Show Room Players
 // @namespace    https://github.com/kempanator
-// @version      0.19
+// @version      0.20
 // @description  Adds extra functionality to room tiles
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -13,7 +13,7 @@
 
 /*
 New room tile features:
-1. Mouse over players bar to show full player list (friends have color)
+1. Mouse over players bar to show full player list (friends & blocked have color)
 2. Click name in player list to open profile
 3. Click host name to open profile
 4. Invisible friends are no longer hidden
@@ -28,11 +28,12 @@ let loadInterval = setInterval(() => {
         setup();
     }
 }, 500);
-const version = "0.19";
+const version = "0.20";
 //const saveData = validateLocalStorage("showRoomPlayers");
 const saveData2 = validateLocalStorage("highlightFriendsSettings");
 let selfColor = saveData2.smColorSelfColor ?? "#80c7ff";
 let friendColor = saveData2.smColorFriendColor ?? "#80ff80";
+let blockedColor = saveData2.smColorBlockedColor ?? "#ff8080";
 
 function setup() {
     new Listener("New Rooms", (payload) => {
@@ -82,7 +83,11 @@ function setup() {
 // override updateFriends function to also show invisible friends
 RoomTile.prototype.updateFriends = function() {
     this._friendsInGameMap = {};
-    this._players.forEach((player) => { if (socialTab.isFriend(player)) this._friendsInGameMap[player] = true });
+    for (let player of this._players) {
+        if (socialTab.isFriend(player))  {
+            this._friendsInGameMap[player] = true;
+        }
+    }
     this.updateFriendInfo();
 };
 
@@ -108,7 +113,8 @@ RoomTile.prototype.createRoomPlayers = function() {
     for (let player of players) {
         let li = $("<li></li>").addClass("srpPlayer").text(player);
         if (player === selfName) li.addClass("self");
-        else if (this._friendsInGameMap[player]) li.addClass("friend");
+        else if (socialTab.isFriend(player)) li.addClass("friend");
+        else if (socialTab.isBlocked(player)) li.addClass("blocked");
         $playerList.append(li);
     }
     this.$tile.find(".rbrFriendPopover").data("bs.popover").options.placement = "bottom";
@@ -151,7 +157,8 @@ RoomTile.prototype.updateRoomPlayers = function() {
     for (let player of players) {
         let li = $("<li></li>").addClass("srpPlayer").text(player);
         if (player === selfName) li.addClass("self");
-        else if (this._friendsInGameMap[player]) li.addClass("friend");
+        else if (socialTab.isFriend(player)) li.addClass("friend");
+        else if (socialTab.isBlocked(player)) li.addClass("blocked");
         $playerList.append(li);
     }
     this.$tile.find(".rbrProgressContainer").data("bs.popover").options.content = $playerList[0].outerHTML;
@@ -226,6 +233,9 @@ function applyStyles() {
         }
         li.srpPlayer.friend {
             color: ${friendColor};
+        }
+        li.srpPlayer.blocked {
+            color: ${blockedColor};
         }
     `));
     document.head.appendChild(style);
