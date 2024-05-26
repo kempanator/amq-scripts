@@ -1,12 +1,13 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.117
+// @version      0.118
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
 // @grant        unsafeWindow
 // @grant        GM_xmlhttpRequest
+// @connect      catbox.video
 // @connect      myanimelist.net
 // @require      https://github.com/joske2865/AMQ-Scripts/raw/master/common/amqScriptInfo.js
 // @downloadURL  https://github.com/kempanator/amq-scripts/raw/main/amqMegaCommands.user.js
@@ -104,7 +105,7 @@ OTHER
 
 "use strict";
 if (typeof Listener === "undefined") return;
-const version = "0.117";
+const version = "0.118";
 const saveData = validateLocalStorage("megaCommands");
 const originalOrder = {qb: [], gm: []};
 if (typeof saveData.alerts?.hiddenPlayers === "boolean") delete saveData.alerts;
@@ -154,6 +155,11 @@ let selfDM = saveData.selfDM ?? false;
 let tabSwitch = saveData.tabSwitch ?? 0; //0: off, 1: chat first, 2: answerbox first, 3: only chat, 4: only answerbox
 let voteOptions = {};
 let votes = {};
+let audioBuffers = {};
+let audioContext = new window.AudioContext();
+let acPlaybackRate = null;
+let acReverse = false;
+let sourceNode;
 
 alerts = {
     hiddenPlayers: saveData.alerts?.hiddenPlayers ?? {chat: true, popout: true},
@@ -468,6 +474,15 @@ function setup() {
             let speed = playbackSpeed.length === 1 ? playbackSpeed[0] : Math.random() * (playbackSpeed[1] - playbackSpeed[0]) + playbackSpeed[0];
             quizVideoController.moePlayers.forEach((moePlayer) => { moePlayer.playbackRate = speed });
         }
+        if ((acReverse || acPlaybackRate) && audioBuffers[payload.songNumber]) {
+            if (sourceNode) sourceNode.stop();
+            sourceNode = audioContext.createBufferSource();
+            sourceNode.buffer = audioBuffers[payload.songNumber].audioBuffer;
+            let startTime = audioBuffers[payload.songNumber].startPoint / 100 * audioBuffers[payload.songNumber].audioBuffer.duration;
+            if (acPlaybackRate) sourceNode.playbackRate.value = acPlaybackRate;
+            sourceNode.connect(audioContext.destination);
+            sourceNode.start(0, startTime);
+        }
         if (muteReplay || muteSubmit) {
             volumeController.setMuted(false);
             volumeController.adjustVolume();
@@ -612,6 +627,7 @@ function setup() {
         else if (playbackSpeed.length === 2) sendSystemMessage(`Song Playback Speed: random ${playbackSpeed[0]}x - ${playbackSpeed[1]}x`);
         if (autoDownloadSong.length) sendSystemMessage("Auto Download Song: " + autoDownloadSong.join(", "));
         if (hidePlayers) setTimeout(() => { quizHidePlayers() }, 0);
+        audioBuffers = {};
     }).bindListener();
     new Listener("team member answer", (payload) => {
         if (autoCopy && autoCopy === quiz.players[payload.gamePlayerId]._name.toLowerCase()) {
@@ -701,6 +717,7 @@ function setup() {
         setTimeout(() => { checkAutoHost() }, 10);
         if (autoSwitch) setTimeout(() => { checkAutoSwitch() }, 100);
         if (hidePlayers) setTimeout(() => { lobbyHidePlayers() }, 0);
+        if (sourceNode) sourceNode.stop();
     }).bindListener();
     new Listener("quiz end result", (payload) => {
         if (autoDownloadJson.includes("all") || 
@@ -733,6 +750,7 @@ function setup() {
                 if (hidePlayers) setTimeout(() => { quizHidePlayers() }, 0);
             }
         }
+        audioBuffers = {};
     }).bindListener();
     new Listener("Spectate Game", (payload) => {
         if (payload.error) {
@@ -753,6 +771,7 @@ function setup() {
                 if (hidePlayers) setTimeout(() => { quizHidePlayers() }, 0);
             }
         }
+        audioBuffers = {};
     }).bindListener();
     new Listener("New Player", (payload) => {
         setTimeout(() => { checkAutoHost() }, 1);
@@ -793,6 +812,19 @@ function setup() {
         setTimeout(() => { checkAutoHost() }, 1);
         setTimeout(() => { checkAutoReady() }, 1);
         if (hidePlayers) setTimeout(() => { lobbyHidePlayers() }, 0);
+    }).bindListener();
+    new Listener("quiz next video info", async (payload) => {
+        if (acReverse || acPlaybackRate) {
+            let url = formatURL(payload.videoInfo.videoMap?.catbox?.[0]);
+            if (url) {
+                let arrayBuffer = await urlToArrayBuffer(url);
+                let audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+                if (acReverse) {
+                    audioBuffer = reverseAudioBuffer(audioBuffer);
+                }
+                audioBuffers[quiz.infoContainer.currentSongNumber + 1] = {startPoint: payload.startPont, audioBuffer: audioBuffer};
+            }
+        }
     }).bindListener();
     new Listener("game invite", (payload) => {
         if (autoAcceptInvite && !inRoom()) {
@@ -1833,7 +1865,7 @@ function testHotkey(action, key, altKey, ctrlKey) {
 
 // create hotkey element
 function createHotkeyElement(title, key, selectID, inputID) {
-    let $select = $(`<select id="${selectID}" style="padding: 3px 0;"></select>`).append(`<option>ALT</option>`).append(`<option>CTRL</option>`).append(`<option>CTRL ALT</option>`).append(`<option>(none)</option>`);
+    let $select = $(`<select id="${selectID}" style="padding: 3px 0;"></select>`).append(`<option>ALT</option>`).append(`<option>CTRL</option>`).append(`<option>CTRL ALT</option>`).append(`<option>-</option>`);
     let $input = $(`<input id="${inputID}" type="text" maxlength="1" style="width: 40px;">`).val(hotKeys[key].key);
     $select.on("change", () => {
         hotKeys[key] = {
@@ -1854,7 +1886,7 @@ function createHotkeyElement(title, key, selectID, inputID) {
     if (hotKeys[key].altKey && hotKeys[key].ctrlKey) $select.val("CTRL ALT");
     else if (hotKeys[key].altKey) $select.val("ALT");
     else if (hotKeys[key].ctrlKey) $select.val("CTRL");
-    else $select.val("(none)");
+    else $select.val("-");
     $("#mcHotkeyTable tbody").append($(`<tr></tr>`).append($(`<td></td>`).text(title)).append($(`<td></td>`).append($select)).append($(`<td></td>`).append($input)));
 }
 
@@ -3602,6 +3634,10 @@ async function parseCommand(content, type, target) {
         let data = JSON.parse(localStorage.getItem("highlightFriendsSettings"));
         if (data) sendMessage(data.smColorFriendColor, type, target);
     }
+    else if (/^\/blockedcolor$/i.test(content)) {
+        let data = JSON.parse(localStorage.getItem("highlightFriendsSettings"));
+        if (data) sendMessage(data.smColorBlockedColor, type, target);
+    }
     else if (/^\/genreid .+$/i.test(content)) {
         let list = /^\S+ (.+)$/.exec(content)[1].toLowerCase().split(",").map((x) => x.trim()).filter(Boolean);
         let genreDict = Object.assign({}, ...Object.entries(idTranslator.genreNames).map(([a, b]) => ({[b.toLowerCase()]: a})));
@@ -3919,6 +3955,28 @@ async function parseCommand(content, type, target) {
             console.log(`Query: ${query} | ${results.length} Results\n${results.join("\n")}`);
         }
     }
+    else if (/^\/startsourcenode$/i.test(content)) {
+        if (sourceNode) sourceNode.start();
+    }
+    else if (/^\/stopsourcenode$/i.test(content)) {
+        if (sourceNode) sourceNode.stop();
+    }
+    else if (/^\/reverse( ?audio)?$/i.test(content)) {
+        acReverse = !acReverse;
+        sendMessage(`reverse audio ${acReverse ? "enabled" : "disabled"}`, type, target, true);
+    }
+    else if (/^\/pitch$/i.test(content)) {
+        acPlaybackRate = null;
+        if (sourceNode) sourceNode.playbackRate.value = 1;
+        sendMessage("pitch shift disabled", type, target, true);
+    }
+    else if (/^\/pitch [0-9.]+$/i.test(content)) {
+        let option = parseFloat(/^\S+ ([0-9.]+)$/.exec(content)[1]);
+        if (isNaN(option) || option === 0) return;
+        acPlaybackRate = option;
+        if (sourceNode) sourceNode.playbackRate.value = option;
+        sendMessage(`pitch shift set to ${option}`, type, target, true);
+    }
 }
 
 /**
@@ -4010,7 +4068,7 @@ function parseIncomingDM(content, sender) {
 function parseForceAll(content, type) {
     if (commands) {
         if (/^\/forceall version$/i.test(content)) {
-            sendMessage("0.117", type);
+            sendMessage("0.118", type);
         }
         else if (/^\/forceall version .+$/i.test(content)) {
             let option = /^\S+ \S+ (.+)$/.exec(content)[1];
@@ -4890,17 +4948,45 @@ function formatURL(url) {
     }
 }
 
+// input audio url, return array buffer data
+async function urlToArrayBuffer(url) {
+    if (!url) return;
+    return await new Promise((resolve, reject) => {
+        GM_xmlhttpRequest({
+            method: "GET",
+            url: url,
+            responseType: "arraybuffer",
+            onload: (res) => resolve(res.response),
+            onerror: (res) => reject(res)
+        });
+    });
+}
+
 // download audio/video file from url
 async function downloadSong(url) {
     if (!url) return;
-    let blob = await fetch(url).then(response => response.blob()).then(blob => window.URL.createObjectURL(blob));
+    let arrayBuffer = await urlToArrayBuffer(url);
+    let blob = new Blob([arrayBuffer], { type: "audio/mpeg" });
     let fileName = url.split("/").slice(-1)[0];
     let element = document.createElement("a");
-    element.setAttribute("href", blob);
+    element.setAttribute("href", window.URL.createObjectURL(blob));
     element.setAttribute("download", fileName);
     document.body.appendChild(element);
     element.click();
     element.remove();
+}
+
+// input audio buffer, return reversed audio buffer
+function reverseAudioBuffer(audioBuffer) {
+    let reversedBuffer = audioContext.createBuffer(audioBuffer.numberOfChannels, audioBuffer.length, audioBuffer.sampleRate);
+    for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
+        let inputData = audioBuffer.getChannelData(channel);
+        let outputData = reversedBuffer.getChannelData(channel);
+        for (let i = 0; i < audioBuffer.length; i++) {
+            outputData[i] = inputData[audioBuffer.length - i - 1];
+        }
+    }
+    return reversedBuffer;
 }
 
 // validate json data in local storage
@@ -4946,15 +5032,21 @@ function importLocalStorage() {
 
 // export local storage
 function exportLocalStorage() {
+    let date = new Date();
+    let dateFormatted = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, 0)}-${String(date.getDate()).padStart(2, 0)}`;
+    let timeFormatted = `${String(date.getHours()).padStart(2, 0)}.${String(date.getMinutes()).padStart(2, 0)}.${String(date.getSeconds()).padStart(2, 0)}`;
     let storage = {};
     for (let key of Object.keys(localStorage)) {
         storage[key] = localStorage[key];
     }
     delete storage["__paypal_storage__"];
     let data = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(storage));
-    let $element = $("<a></a>").attr("href", data).attr("download", "amq local storage backup.json");
-    $("body").append($element);
-    $element.trigger("click").remove();
+    let element = document.createElement("a");
+    element.setAttribute("href", data);
+    element.setAttribute("download", `amq local storage export - ${selfName} ${dateFormatted} ${timeFormatted}.json`);
+    document.body.appendChild(element);
+    element.click();
+    element.remove();
 }
 
 // apply styles
