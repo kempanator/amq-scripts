@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.118
+// @version      0.119
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -105,7 +105,7 @@ OTHER
 
 "use strict";
 if (typeof Listener === "undefined") return;
-const version = "0.118";
+const version = "0.119";
 const saveData = validateLocalStorage("megaCommands");
 const originalOrder = {qb: [], gm: []};
 if (typeof saveData.alerts?.hiddenPlayers === "boolean") delete saveData.alerts;
@@ -474,14 +474,24 @@ function setup() {
             let speed = playbackSpeed.length === 1 ? playbackSpeed[0] : Math.random() * (playbackSpeed[1] - playbackSpeed[0]) + playbackSpeed[0];
             quizVideoController.moePlayers.forEach((moePlayer) => { moePlayer.playbackRate = speed });
         }
-        if ((acReverse || acPlaybackRate) && audioBuffers[payload.songNumber]) {
+        if ((acReverse || acPlaybackRate)) {
             if (sourceNode) sourceNode.stop();
-            sourceNode = audioContext.createBufferSource();
-            sourceNode.buffer = audioBuffers[payload.songNumber].audioBuffer;
-            let startTime = audioBuffers[payload.songNumber].startPoint / 100 * audioBuffers[payload.songNumber].audioBuffer.duration;
-            if (acPlaybackRate) sourceNode.playbackRate.value = acPlaybackRate;
-            sourceNode.connect(audioContext.destination);
-            sourceNode.start(0, startTime);
+            if (audioBuffers[payload.songNumber]) {
+                sourceNode = audioContext.createBufferSource();
+                sourceNode.buffer = audioBuffers[payload.songNumber].audioBuffer;
+                let songLength = audioBuffers[payload.songNumber].audioBuffer.duration;
+                let startTime = audioBuffers[payload.songNumber].startPoint / 100 * songLength;
+                let bufferTime = (acPlaybackRate || 1) * quiz.nextSongPlayLength;
+                if (startTime + bufferTime > songLength) {
+                    startTime = songLength - bufferTime;
+                }
+                if (startTime < 0) {
+                    startTime = 0;
+                }
+                if (acPlaybackRate) sourceNode.playbackRate.value = acPlaybackRate;
+                sourceNode.connect(audioContext.destination);
+                sourceNode.start(0, startTime);
+            }
         }
         if (muteReplay || muteSubmit) {
             volumeController.setMuted(false);
@@ -3963,6 +3973,10 @@ async function parseCommand(content, type, target) {
     }
     else if (/^\/reverse( ?audio)?$/i.test(content)) {
         acReverse = !acReverse;
+        if (acReverse) {
+            volumeController.setMuted(true);
+            volumeController.adjustVolume();
+        }
         sendMessage(`reverse audio ${acReverse ? "enabled" : "disabled"}`, type, target, true);
     }
     else if (/^\/pitch$/i.test(content)) {
@@ -3975,6 +3989,8 @@ async function parseCommand(content, type, target) {
         if (isNaN(option) || option === 0) return;
         acPlaybackRate = option;
         if (sourceNode) sourceNode.playbackRate.value = option;
+        volumeController.setMuted(true);
+        volumeController.adjustVolume();
         sendMessage(`pitch shift set to ${option}`, type, target, true);
     }
 }
@@ -4068,7 +4084,7 @@ function parseIncomingDM(content, sender) {
 function parseForceAll(content, type) {
     if (commands) {
         if (/^\/forceall version$/i.test(content)) {
-            sendMessage("0.118", type);
+            sendMessage("0.119", type);
         }
         else if (/^\/forceall version .+$/i.test(content)) {
             let option = /^\S+ \S+ (.+)$/.exec(content)[1];
