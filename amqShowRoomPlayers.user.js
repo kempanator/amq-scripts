@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Show Room Players
 // @namespace    https://github.com/kempanator
-// @version      0.20
+// @version      0.21
 // @description  Adds extra functionality to room tiles
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -28,7 +28,7 @@ let loadInterval = setInterval(() => {
         setup();
     }
 }, 500);
-const version = "0.20";
+const version = "0.21";
 //const saveData = validateLocalStorage("showRoomPlayers");
 const saveData2 = validateLocalStorage("highlightFriendsSettings");
 let selfColor = saveData2.smColorSelfColor ?? "#80c7ff";
@@ -69,7 +69,7 @@ function setup() {
         link: "https://github.com/kempanator/amq-scripts/raw/main/amqShowRoomPlayers.user.js",
         description: `
             <ul><b>New room tile features:</b>
-                <li>1. Mouse over players bar to show full player list (friends have color)</li>
+                <li>1. Mouse over players bar to show full player list (friends & blocked have color)</li>
                 <li>2. Click name in player list to open profile</li>
                 <li>3. Click host name to open profile</li>
                 <li>4. Invisible friends are no longer hidden</li>
