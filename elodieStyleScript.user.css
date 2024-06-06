@@ -1,6 +1,6 @@
 /* ==UserStyle==
 @name         Elodie's AMQ Style Script
-@version      10.2.7
+@version      10.2.8
 @namespace    userstyles.world/user/melodyelodie
 @description  A custom theme for animemusicquiz.com
 @author       melodyelodie
@@ -164,7 +164,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         --wrongAnswerColorTransparent: color-mix(in srgb, var(--wrongAnswerColor), transparent 80%);
         --songHistoryCorrectColorHover: color-mix(in srgb, var(--songHistoryCorrectColor), white 5%);
         --songHistoryWrongColorHover: color-mix(in srgb, var(--songHistoryWrongColor), white 5%);
-        --elodieStyleScriptVersion: 10.2.7;
+        --elodieStyleScriptVersion: 10.2.8;
     }
     
     
@@ -224,7 +224,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         --wrongAnswerColorTransparent: color-mix(in srgb, var(--wrongAnswerColor), transparent 80%);
         --songHistoryCorrectColorHover: color-mix(in srgb, var(--songHistoryCorrectColor), white 15%);
         --songHistoryWrongColorHover: color-mix(in srgb, var(--songHistoryWrongColor), white 15%);
-        --elodieStyleScriptVersion: 10.2.7;
+        --elodieStyleScriptVersion: 10.2.8;
     }
     */
     
@@ -3629,9 +3629,17 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     #anisongdbTable tbody tr:hover {
         color: var(--accentColorContrast);
     }
-
-
-    /* Kempanator's Custom Song List Game Script */
+    
+    
+    /* Mshift's S/A Bot Room Integration Script */
+    #sai-container {
+        background-color: var(--primaryColor);
+        border: 1px solid var(--secondaryColor);
+    }
+    #sai-container:hover {
+        background-color: var(--primaryColor);
+        border-color: var(--accentColor);
+    }
 
 
     /* Bully Text */
