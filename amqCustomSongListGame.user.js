@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.55
+// @version      0.56
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -43,7 +43,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.55";
+const version = "0.56";
 const saveData = validateLocalStorage("customSongListGame");
 const catboxHostDict = {1: "files.catbox.moe", 2: "nl.catbox.moe", 3: "nl.catbox.video", 4: "ladist1.catbox.video", 5: "vhdist1.catbox.video"};
 let CSLButtonCSS = saveData.CSLButtonCSS || "calc(25% - 250px)";
@@ -1702,7 +1702,7 @@ function isCorrectAnswer(songNumber, answer) {
     return false;
 }
 
-// get start point value
+// get start point value (0-100)
 function getStartPoint() {
     return Math.floor(Math.random() * (startPointRange[1] - startPointRange[0] + 1)) + startPointRange[0];
 }
@@ -1728,8 +1728,7 @@ function animeTypeFilter(song, tv, movie, ova, ona, special) {
         return false;
     }
     else {
-        if (tv && movie && ova && ona && special) return true;
-        return false;
+        return tv && movie && ova && ona && special;
     }
 }
 
