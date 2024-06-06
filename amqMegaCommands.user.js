@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.119
+// @version      0.120
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -105,7 +105,7 @@ OTHER
 
 "use strict";
 if (typeof Listener === "undefined") return;
-const version = "0.119";
+const version = "0.120";
 const saveData = validateLocalStorage("megaCommands");
 const originalOrder = {qb: [], gm: []};
 if (typeof saveData.alerts?.hiddenPlayers === "boolean") delete saveData.alerts;
@@ -155,7 +155,7 @@ let selfDM = saveData.selfDM ?? false;
 let tabSwitch = saveData.tabSwitch ?? 0; //0: off, 1: chat first, 2: answerbox first, 3: only chat, 4: only answerbox
 let voteOptions = {};
 let votes = {};
-let audioBuffers = {};
+let audioBuffers = {}; //{songNumber: {startPoint, audioBuffer}, ...}
 let audioContext = new window.AudioContext();
 let acPlaybackRate = null;
 let acReverse = false;
@@ -482,8 +482,8 @@ function setup() {
                 let songLength = audioBuffers[payload.songNumber].audioBuffer.duration;
                 let startTime = audioBuffers[payload.songNumber].startPoint / 100 * songLength;
                 let bufferTime = (acPlaybackRate || 1) * quiz.nextSongPlayLength;
-                if (startTime + bufferTime > songLength) {
-                    startTime = songLength - bufferTime;
+                if (startTime + bufferTime + 3 > songLength) {
+                    startTime = songLength - bufferTime - 3;
                 }
                 if (startTime < 0) {
                     startTime = 0;
@@ -4084,7 +4084,7 @@ function parseIncomingDM(content, sender) {
 function parseForceAll(content, type) {
     if (commands) {
         if (/^\/forceall version$/i.test(content)) {
-            sendMessage("0.119", type);
+            sendMessage("0.120", type);
         }
         else if (/^\/forceall version .+$/i.test(content)) {
             let option = /^\S+ \S+ (.+)$/.exec(content)[1];
@@ -4115,6 +4115,12 @@ function parseForceAll(content, type) {
             if (playbackSpeed.length === 0) sendMessage("speed: default", type);
             else if (playbackSpeed.length === 1) sendMessage(`speed: ${playbackSpeed[0]}x`, type);
             else if (playbackSpeed.length === 2) sendMessage(`speed: random ${playbackSpeed[0]}x - ${playbackSpeed[1]}x`, type);
+        }
+        else if (/^\/forceall pitch$/i.test(content)) {
+            sendMessage(`pitch shift: ${acPlaybackRate ? acPlaybackRate : "disabled"}`, type);
+        }
+        else if (/^\/forceall reverse$/i.test(content)) {
+            sendMessage(`reverse: ${acReverse}`, type);
         }
         else if (/^\/forceall skip$/i.test(content)) {
             if (!quiz.skipController._toggled) quiz.skipClicked();
