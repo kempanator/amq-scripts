@@ -23,7 +23,7 @@ click on a script name below to install
 - Add Solo, Multiplayer, Nexus shortcuts to the play button https://imgur.com/a/9nmYmSt
 
 ### [AMQ Quick Load Lists](https://github.com/kempanator/amq-scripts/raw/main/amqQuickLoadLists.user.js)
-- Add a window for quick loading lists + status
+- Add a window for quick loading lists + status https://imgur.com/a/B4ucCYV
 
 ### [AMQ Show All Song Links](https://github.com/kempanator/amq-scripts/raw/main/amqShowAllSongLinks.user.js)
 - Show all song links in the song info container https://imgur.com/a/bfnZoQu
