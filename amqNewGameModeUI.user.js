@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ New Game Mode UI
 // @namespace    https://github.com/kempanator
-// @version      0.25
+// @version      0.26
 // @description  Adds a user interface to new game mode to keep track of guesses
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -22,7 +22,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.25";
+const version = "0.26";
 let ngmWindow;
 let initialGuessCount = []; //list of initial # guesses for your team [5, 5, 5, 5]
 let guessCounter = []; //list of current # guesses for your team [4, 2, 1, 3]
@@ -91,7 +91,7 @@ function setup() {
                     socket.sendCommand({
                         type: "quiz",
                         command: "quiz answer",
-                        data: {answer: String(guessCounter[teamSlot]), isPlaying: true, volumeAtMax: false}
+                        data: {answer: String(guessCounter[teamSlot])}
                     });
                 }, 100);
             }
