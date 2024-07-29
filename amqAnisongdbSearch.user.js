@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Anisongdb Search
 // @namespace    https://github.com/kempanator
-// @version      0.9
+// @version      0.10
 // @description  Adds a window to search anisongdb.com in game
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -27,7 +27,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.9";
+const version = "0.10";
 const saveData = validateLocalStorage("anisongdbSearch");
 let anisongdbWindow;
 let injectSearchButtons = saveData.injectSearchButtons ?? true;
@@ -154,11 +154,14 @@ function setup() {
         .append($(`<div id="adbsSettingsContainer" style="padding: 10px;"></div>`)
             .append($(`<div></div>`)
                 .append($(`<span>Open this window</span>`))
-                .append($(`<select id="adbsWindowHotkeySelect" style="margin-left: 10px; padding: 3px 0;"><option>ALT</option><option>CTRL</option><option>CTRL ALT</option><option>(none)</option></select>`).on("change", () => {
-                    saveHotKey("adbsWindow", "adbsWindowHotkeySelect", "adbsWindowHotkeyInput");
+                .append($(`<select id="adbsWindowHotkeySelect" style="margin-left: 10px; padding: 3px 0;"><option>ALT</option><option>CTRL</option><option>CTRL ALT</option><option>-</option></select>`).on("change", function() {
+                    hotKeys.adbsWindow.altKey = this.value.includes("ALT");
+                    hotKeys.adbsWindow.ctrlKey = this.value.includes("CTRL");
+                    saveSettings();
                 }))
-                .append($(`<input id="adbsWindowHotkeyInput" type="text" maxlength="1" style="width: 40px; margin-left: 10px;">`).val(hotKeys.adbsWindow.key).on("change", () => {
-                    saveHotKey("adbsWindow", "adbsWindowHotkeySelect", "adbsWindowHotkeyInput");
+                .append($(`<input id="adbsWindowHotkeyInput" type="text" maxlength="1" style="width: 40px; margin-left: 10px;">`).on("change", function() {
+                    hotKeys.adbsWindow.key = this.value.toLowerCase();
+                    saveSettings();
                 }))
             )
             .append($(`<div style="margin-top: 10px;"></div>`)
@@ -177,6 +180,11 @@ function setup() {
     });
 
     tabReset();
+    if (hotKeys.adbsWindow.altKey && hotKeys.adbsWindow.ctrlKey) $("#adbsWindowHotkeySelect").val("CTRL ALT");
+    else if (hotKeys.adbsWindow.altKey) $("#adbsWindowHotkeySelect").val("ALT");
+    else if (hotKeys.adbsWindow.ctrlKey) $("#adbsWindowHotkeySelect").val("CTRL");
+    else $("#adbsWindowHotkeySelect").val("-");
+    $("#adbsWindowHotkeyInput").val(hotKeys.adbsWindow.key);
     $("#adbsButtonsCheckbox").prop("checked", injectSearchButtons).click(function() {
         injectSearchButtons = !injectSearchButtons;
         $(this).prop("checked", injectSearchButtons);
@@ -317,22 +325,11 @@ function testHotkey(action, key, altKey, ctrlKey) {
     return key === hotkey.key && altKey === hotkey.altKey && ctrlKey === hotkey.ctrlKey;
 }
 
-// save hotkey
-function saveHotKey(action, idSelect, idInput) {
-    let selectValue = $("#" + idSelect).val();
-    hotKeys[action] = {
-        altKey: selectValue.includes("ALT"),
-        ctrlKey: selectValue.includes("CTRL"),
-        key: $("#" + idInput).val()
-    };
-    saveSettings();
-}
-
 // save settings
 function saveSettings() {
     let settings = {
-        injectSearchButtons: injectSearchButtons,
-        hotKeys: hotKeys
+        injectSearchButtons,
+        hotKeys
     };
     localStorage.setItem("anisongdbSearch", JSON.stringify(settings));
 }
