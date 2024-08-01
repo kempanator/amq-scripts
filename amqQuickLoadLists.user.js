@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Quick Load Lists
 // @namespace    https://github.com/kempanator
-// @version      0.6
+// @version      0.7
 // @description  Adds a window for saving and quick loading anime lists
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -26,7 +26,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.6";
+const version = "0.7";
 const saveData = validateLocalStorage("quickLoadLists");
 let savedLists = saveData.savedLists ?? [];
 let windowHotKey = saveData.windowHotKey ?? {key: "q", altKey: true, ctrlKey: false};
@@ -119,43 +119,43 @@ function setup() {
         .append($(`<div id="qllSettingsContainer"></div>`)
             .append($(`<div></div>`)
                 .append($(`<span>Open This Window Hotkey:</span>`))
-                .append($(`<select id="qllSettingsWindowHotkeyModifier" class="form-control"><option>ALT</option><option>CTRL</option><option>CTRL ALT</option></select>`).on("change", function() {
+                .append($(`<select id="qllSettingsWindowHotkeyModifier" class="form-control"><option>ALT</option><option>CTRL</option><option>CTRL ALT</option><option>-</option></select>`).on("change", function() {
                     windowHotKey.altKey = this.value.includes("ALT");
                     windowHotKey.ctrlKey = this.value.includes("CTRL");
                     saveSettings();
                 }))
-                .append($(`<input id="qllSettingsWindowHotkeyKey" class="form-control key" type="text" maxlength="1" value="${windowHotKey.key}">`).blur(function() {
+                .append($(`<input id="qllSettingsWindowHotkeyKey" class="form-control key" type="text" maxlength="1">`).on("change", function() {
                     windowHotKey.key = this.value.toLowerCase();
                     saveSettings();
                 }))
             )
             .append($(`<div></div>`)
                 .append($(`<span>Open Anime List Modal Hotkey:</span>`))
-                .append($(`<select id="qllSettingsAnimeListModalHotkeyModifier" class="form-control"><option>ALT</option><option>CTRL</option><option>CTRL ALT</option></select>`).on("change", function() {
+                .append($(`<select id="qllSettingsAnimeListModalHotkeyModifier" class="form-control"><option>ALT</option><option>CTRL</option><option>CTRL ALT</option><option>-</option></select>`).on("change", function() {
                     windowHotKey.altKey = this.value.includes("ALT");
                     windowHotKey.ctrlKey = this.value.includes("CTRL");
                     saveSettings();
                 }))
-                .append($(`<input id="qllSettingsAnimeListModalHotkeyKey" class="form-control key" type="text" maxlength="1" value="${animeListModalHotKey.key}">`).blur(function() {
+                .append($(`<input id="qllSettingsAnimeListModalHotkeyKey" class="form-control key" type="text" maxlength="1">`).on("change", function() {
                     animeListModalHotKey.key = this.value.toLowerCase();
                     saveSettings();
                 }))
             )
             .append($(`<div></div>`)
                 .append($(`<span>Remove List Hotkey:</span>`))
-                .append($(`<select id="qllSettingsRemoveListHotkeyModifier" class="form-control"><option>ALT</option><option>CTRL</option><option>CTRL ALT</option></select>`).on("change", function() {
+                .append($(`<select id="qllSettingsRemoveListHotkeyModifier" class="form-control"><option>ALT</option><option>CTRL</option><option>CTRL ALT</option><option>-</option></select>`).on("change", function() {
                     windowHotKey.altKey = this.value.includes("ALT");
                     windowHotKey.ctrlKey = this.value.includes("CTRL");
                     saveSettings();
                 }))
-                .append($(`<input id="qllSettingsRemoveListHotkeyKey" class="form-control key" type="text" maxlength="1" value="${removeListHotKey.key}">`).blur(function() {
+                .append($(`<input id="qllSettingsRemoveListHotkeyKey" class="form-control key" type="text" maxlength="1">`).on("change", function() {
                     removeListHotKey.key = this.value.toLowerCase();
                     saveSettings();
                 }))
             )
             .append($(`<div></div>`)
                 .append($(`<span>Selected Color:</span>`))
-                .append($(`<input id="qllSettingsSelectedColor" class="form-control color" type="color" value="${selectedColor}">`).blur(function() {
+                .append($(`<input id="qllSettingsSelectedColor" class="form-control color" type="color">`).on("change", function() {
                     selectedColor = this.value;
                     saveSettings();
                     applyStyles();
@@ -192,7 +192,7 @@ function setup() {
                                                     animeListModalHotKey = json.animeListModalHotKey ?? {key: "", altKey: true, ctrlKey: false};
                                                     removeListHotKey = json.removeListHotKey ?? {key: "", altKey: true, ctrlKey: false};
                                                     selectedColor = json.selectedColor ?? "#4497ea";
-                                                    updateSettings();
+                                                    updateSettingsUI();
                                                     applyStyles();
                                                 }
                                                 createListTable();
@@ -241,6 +241,7 @@ function setup() {
     $("#qllUseContainer").show();
     createListTable();
     createEditTable();
+    updateSettingsUI();
 
     $("#optionListSettings").before(`<li class="clickAble" onclick="$('#quickLoadListsWindow').show()">Load Lists</li>`);
 
@@ -497,16 +498,22 @@ function createEditRow($table, username, type, watching, completed, hold, droppe
     $table.append($row);
 }
 
-// update settings window with new imported settings
-function updateSettings() {
-    if (windowHotKey.altKey) $("#qllSettingsWindowHotkeyModifier").val("alt");
-    else if (windowHotKey.ctrlKey) $("#qllSettingsWindowHotkeyModifier").val("ctrl");
+// update settings window inputs
+function updateSettingsUI() {
+    if (windowHotKey.altKey && windowHotKey.ctrlKey) $("#qllSettingsWindowHotkeyModifier").val("CTRL ALT");
+    else if (windowHotKey.altKey) $("#qllSettingsWindowHotkeyModifier").val("ALT");
+    else if (windowHotKey.ctrlKey) $("#qllSettingsWindowHotkeyModifier").val("CTRL");
+    else $("#qllSettingsWindowHotkeyModifier").val("-");
     $("#qllSettingsWindowHotkeyKey").val(windowHotKey.key);
-    if (animeListModalHotKey.altKey) $("#qllSettingsAnimeListModalHotkeyModifier").val("alt");
-    else if (animeListModalHotKey.ctrlKey) $("#qllSettingsAnimeListModalHotkeyModifier").val("ctrl");
+    if (animeListModalHotKey.altKey && animeListModalHotKey.ctrlKey) $("#qllSettingsAnimeListModalHotkeyModifier").val("CTRL ALT");
+    else if (animeListModalHotKey.altKey) $("#qllSettingsAnimeListModalHotkeyModifier").val("ALT");
+    else if (animeListModalHotKey.ctrlKey) $("#qllSettingsAnimeListModalHotkeyModifier").val("CTRL");
+    else $("#qllSettingsAnimeListModalHotkeyModifier").val("-");
     $("#qllSettingsAnimeListModalHotkeyKey").val(animeListModalHotKey.key);
-    if (removeListHotKey.altKey) $("#qllSettingsRemoveListHotkeyModifier").val("alt");
-    else if (removeListHotKey.ctrlKey) $("#qllSettingsRemoveListHotkeyModifier").val("ctrl");
+    if (removeListHotKey.altKey && removeListHotKey.ctrlKey) $("#qllSettingsRemoveListHotkeyModifier").val("CTRL ALT");
+    else if (removeListHotKey.altKey) $("#qllSettingsRemoveListHotkeyModifier").val("ALT");
+    else if (removeListHotKey.ctrlKey) $("#qllSettingsRemoveListHotkeyModifier").val("CTRL");
+    else $("#qllSettingsRemoveListHotkeyModifier").val("-");
     $("#qllSettingsRemoveListHotkeyKey").val(removeListHotKey.key);
     $("#qllSettingsSelectedColor").val(selectedColor);
 }
