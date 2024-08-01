@@ -1236,6 +1236,9 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     .qpModFlaggedMessageButtonBan:hover {
         background-color: var(--accentColor);
     }
+    .playerModCommandIcon > h6 {
+        text-shadow: -1px 0 var(--textShadowColor), 0 1px var(--textShadowColor), 1px 0 var(--textShadowColor), 0 -1px var(--textShadowColor);
+    }
 
 
     /* Private Message */
