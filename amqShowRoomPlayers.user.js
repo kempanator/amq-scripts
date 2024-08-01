@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Show Room Players
 // @namespace    https://github.com/kempanator
-// @version      0.21
+// @version      0.22
 // @description  Adds extra functionality to room tiles
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -28,12 +28,12 @@ let loadInterval = setInterval(() => {
         setup();
     }
 }, 500);
-const version = "0.21";
+
+const version = "0.22";
 //const saveData = validateLocalStorage("showRoomPlayers");
-const saveData2 = validateLocalStorage("highlightFriendsSettings");
-let selfColor = saveData2.smColorSelfColor ?? "#80c7ff";
-let friendColor = saveData2.smColorFriendColor ?? "#80ff80";
-let blockedColor = saveData2.smColorBlockedColor ?? "#ff8080";
+let showPlayerColors = true;
+let showCustomColors = true;
+let customColorMap = {};
 
 function setup() {
     new Listener("New Rooms", (payload) => {
@@ -115,6 +115,7 @@ RoomTile.prototype.createRoomPlayers = function() {
         if (player === selfName) li.addClass("self");
         else if (socialTab.isFriend(player)) li.addClass("friend");
         else if (socialTab.isBlocked(player)) li.addClass("blocked");
+        if (customColorMap.hasOwnProperty(player.toLowerCase())) li.addClass("customColor" + customColorMap[player.toLowerCase()]);
         $playerList.append(li);
     }
     this.$tile.find(".rbrFriendPopover").data("bs.popover").options.placement = "bottom";
@@ -124,7 +125,7 @@ RoomTile.prototype.createRoomPlayers = function() {
         placement: "bottom",
         trigger: "manual",
         html: true,
-        title: players.length + " Player" + (players.length === 1 ? "" : "s"),
+        title: `${players.length} Player${players.length === 1 ? "" : "s"}`,
         content: $playerList[0].outerHTML
     })
     .off("mouseenter").on("mouseenter", function() {
@@ -158,10 +159,12 @@ RoomTile.prototype.updateRoomPlayers = function() {
         if (player === selfName) li.addClass("self");
         else if (socialTab.isFriend(player)) li.addClass("friend");
         else if (socialTab.isBlocked(player)) li.addClass("blocked");
+        if (customColorMap.hasOwnProperty(player.toLowerCase())) li.addClass("customColor" + customColorMap[player.toLowerCase()]);
         $playerList.append(li);
     }
-    this.$tile.find(".rbrProgressContainer").data("bs.popover").options.content = $playerList[0].outerHTML;
-    this.$tile.find(".rbrProgressContainer").data("bs.popover").options.title = players.length + " Player" + (players.length === 1 ? "" : "s");
+    let options = this.$tile.find(".rbrProgressContainer").data("bs.popover").options;
+    options.content = $playerList;
+    options.title = `${players.length} Player${players.length === 1 ? "" : "s"}`;
 };
 
 // update the room tile avatar when a new host is promoted
@@ -190,13 +193,7 @@ RoomTile.prototype.updateAvatar = function(avatarInfo) {
         avatarSrcSet,
         false,
         this.AVATAR_SIZE_MOD_SIZES[avatarInfo.avatar.sizeModifier],
-        () => {
-            let $imgContainer = this.$tile.find(".rbrRoomImageContainer");
-            $imgContainer.css(
-                "background-image",
-                'url("' + cdnFormater.newAvatarBackgroundSrc(avatarInfo.background.backgroundHori, cdnFormater.BACKGROUND_ROOM_BROWSER_SIZE) + '")'
-            );
-        },
+        () => {this.$tile.find(".rbrRoomImageContainer").css("background-image", `url("${cdnFormater.newAvatarBackgroundSrc(avatarInfo.background.backgroundHori, cdnFormater.BACKGROUND_ROOM_BROWSER_SIZE)}")`)},
         false,
         $("#rbRoomHider"),
         false,
@@ -217,16 +214,29 @@ function validateLocalStorage(name) {
 // apply styles
 function applyStyles() {
     //$("#showRoomPlayersStyle").remove();
+    const saveData2 = validateLocalStorage("highlightFriendsSettings");
+    let selfColor = saveData2.smColorSelfColor ?? "#80c7ff";
+    let friendColor = saveData2.smColorFriendColor ?? "#80ff80";
+    let blockedColor = saveData2.smColorBlockedColor ?? "#ff8080";
+    let customColors = saveData2.customColors ?? [];
+    customColorMap = {};
+    customColors.forEach((item, index) => {
+        for (let player of item.players) {
+            customColorMap[player] = index;
+        }
+    });
     let style = document.createElement("style");
     style.type = "text/css";
     style.id = "showRoomPlayersStyle";
-    style.appendChild(document.createTextNode(`
+    let text = `
         li.srpPlayer {
             cursor: pointer;
         }
         li.srpPlayer:hover {
             text-shadow: 0 0 6px white;
         }
+    `;
+    if (showPlayerColors) text += `
         li.srpPlayer.self {
             color: ${selfColor};
         }
@@ -236,6 +246,16 @@ function applyStyles() {
         li.srpPlayer.blocked {
             color: ${blockedColor};
         }
-    `));
+    `;
+    if (showCustomColors) {
+        customColors.forEach((item, index) => {
+            text += `
+                li.srpPlayer.customColor${index} {
+                    color: ${item.color};
+                }
+            `;
+        });
+    }
+    style.appendChild(document.createTextNode(text));
     document.head.appendChild(style);
 }
