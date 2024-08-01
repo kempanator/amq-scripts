@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.120
+// @version      0.121
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -105,7 +105,7 @@ OTHER
 
 "use strict";
 if (typeof Listener === "undefined") return;
-const version = "0.120";
+const version = "0.121";
 const saveData = validateLocalStorage("megaCommands");
 const originalOrder = {qb: [], gm: []};
 if (typeof saveData.alerts?.hiddenPlayers === "boolean") delete saveData.alerts;
@@ -474,7 +474,7 @@ function setup() {
             let speed = playbackSpeed.length === 1 ? playbackSpeed[0] : Math.random() * (playbackSpeed[1] - playbackSpeed[0]) + playbackSpeed[0];
             quizVideoController.moePlayers.forEach((moePlayer) => { moePlayer.playbackRate = speed });
         }
-        if ((acReverse || acPlaybackRate)) {
+        if (acReverse || acPlaybackRate) {
             if (sourceNode) sourceNode.stop();
             if (audioBuffers[payload.songNumber]) {
                 sourceNode = audioContext.createBufferSource();
@@ -482,12 +482,8 @@ function setup() {
                 let songLength = audioBuffers[payload.songNumber].audioBuffer.duration;
                 let startTime = audioBuffers[payload.songNumber].startPoint / 100 * songLength;
                 let bufferTime = (acPlaybackRate || 1) * quiz.nextSongPlayLength;
-                if (startTime + bufferTime + 3 > songLength) {
-                    startTime = songLength - bufferTime - 3;
-                }
-                if (startTime < 0) {
-                    startTime = 0;
-                }
+                if (startTime + bufferTime + 3 > songLength) startTime = songLength - bufferTime - 3;
+                if (startTime < 0) startTime = 0;
                 if (acPlaybackRate) sourceNode.playbackRate.value = acPlaybackRate;
                 sourceNode.connect(audioContext.destination);
                 sourceNode.start(0, startTime);
@@ -870,9 +866,10 @@ function setup() {
     new Listener("New Rooms", (payload) => {
         for (let room of payload) {
             if (playerDetection.invisible) {
-                let list = [];
-                room.players.forEach((player) => { if (Object.keys(socialTab.offlineFriends).includes(player)) list.push(player) });
-                if (list.length) popoutMessages.displayStandardMessage(`${list.join(", ")} (invisible)`, `Room ${room.id}: ${room.settings.roomName}`);
+                let list = room.players.filter((player) => socialTab.offlineFriends.hasOwnProperty(player));
+                if (list.length) {
+                    popoutMessages.displayStandardMessage(`${list.join(", ")} (invisible)`, `Room ${room.id}: ${room.settings.roomName}`);
+                }
             }
             if (playerDetection.players.length) {
                 for (let player of playerDetection.players) {
@@ -2413,7 +2410,7 @@ async function parseCommand(content, type, target) {
     }
     else if (/^\/seasons? (winter|spring|summer|fall|0|1|2|3)$/i.test(content)) {
         let seasonMap = {winter: 0, spring: 1, summer: 2, fall: 3, 0: 0, 1: 1, 2: 2, 3: 3};
-        let option = seasonMap[/^\S+ ([0-9]+)$/.exec(content)[1].toLowerCase()];
+        let option = seasonMap[/^\S+ (\w+)$/.exec(content)[1].toLowerCase()];
         let settings = hostModal.getSettings();
         settings.vintage.advancedValueList = [];
         settings.vintage.standardValue.seasons = [option, option];
@@ -3346,7 +3343,7 @@ async function parseCommand(content, type, target) {
     else if (/^\/invisible$/i.test(content)) {
         let handleAllOnlineMessage = new Listener("all online users", (onlineUsers) => {
             let list = Object.keys(socialTab.offlineFriends).filter((name) => onlineUsers.includes(name));
-            sendMessage(list.length > 0 ? list.join(", ") : "no invisible friends detected", type, target);
+            sendMessage(list.length ? list.join(", ") : "no invisible friends detected", type, target);
             handleAllOnlineMessage.unbindListener();
         });
         handleAllOnlineMessage.bindListener();
@@ -4084,7 +4081,7 @@ function parseIncomingDM(content, sender) {
 function parseForceAll(content, type) {
     if (commands) {
         if (/^\/forceall version$/i.test(content)) {
-            sendMessage("0.120", type);
+            sendMessage("0.121", type);
         }
         else if (/^\/forceall version .+$/i.test(content)) {
             let option = /^\S+ \S+ (.+)$/.exec(content)[1];
