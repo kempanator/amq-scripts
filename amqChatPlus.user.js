@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Chat Plus
 // @namespace    https://github.com/kempanator
-// @version      0.30
+// @version      0.31
 // @description  Add new features to chat and messages
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -37,15 +37,12 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.30";
+const version = "0.31";
 const apiKey = "LIVDSRZULELA";
 const saveData = validateLocalStorage("chatPlus");
-const saveData2 = validateLocalStorage("highlightFriendsSettings");
 const imageURLregex = /https?:\/\/\S+\.(?:png|jpe?g|gif|webp|bmp|tiff)/i;
 const audioURLregex = /https?:\/\/\S+\.(?:mp3|ogg|m4a|flac|wav)/i;
 const videoURLregex = /https?:\/\/\S+\.(?:webm|mp4|mkv|avi|mov)/i;
-let selfColor = saveData2.smColorSelfColor ?? "#80c7ff";
-let friendColor = saveData2.smColorFriendColor ?? "#80ff80";
 let gcTimestamps = saveData.gcTimestamps ?? true;
 let ncTimestamps = saveData.ncTimestamps ?? true;
 let dmTimestamps = saveData.dmTimestamps ?? true;
@@ -71,6 +68,8 @@ let tenorQuery;
 let tenorPosition;
 let imagesPerRequest = 20;
 let litterboxUploadTime = "12h";
+let showCustomColors = true;
+let customColorMap = {};
 
 $("#settingsGraphicContainer").append(`
     <div class="row" style="padding-top: 10px">
@@ -550,6 +549,7 @@ function setup() {
                     let name = $node.find(".nexusCoopChatName").text().slice(0, -1);
                     if (name === selfName) $node.find(".nexusCoopChatName").addClass("self");
                     else if (socialTab.isFriend(name)) $node.find(".nexusCoopChatName").addClass("friend");
+                    if (customColorMap.hasOwnProperty(name.toLowerCase())) $node.find(".nexusCoopChatName").addClass("customColor" + customColorMap[sender.toLowerCase()]);
                 }
                 if (atBottom) nexusCoopChat.$chatMessageContainer.scrollTop(nexusCoopChat.$chatMessageContainer.prop("scrollHeight"));
             }
@@ -715,6 +715,7 @@ ChatBox.prototype.writeMessage = function(sender, msg, emojis, allowHtml) {
     let dmUsernameClass = "dmUsername";
     if (sender === selfName) dmUsernameClass += " self";
     else if (socialTab.isFriend(sender)) dmUsernameClass += " friend";
+    if (customColorMap.hasOwnProperty(sender.toLowerCase())) dmUsernameClass += " customColor" + customColorMap[sender.toLowerCase()];
     let newDMFormat;
     if (dmTimestamps) newDMFormat = `\n\t<li>\n\t\t<span class="dmTimestamp">${timestamp}</span> <span class="${dmUsernameClass}">${sender}:</span> ${msg}\n\t</li>\n`;
     else newDMFormat = `\n\t<li>\n\t\t<span class="${dmUsernameClass}">${sender}:</span> ${msg}\n\t</li>\n`;
@@ -826,6 +827,17 @@ function saveSettings() {
 // apply styles
 function applyStyles() {
     $("#chatPlusStyle").remove();
+    const saveData2 = validateLocalStorage("highlightFriendsSettings");
+    let selfColor = saveData2.smColorSelfColor ?? "#80c7ff";
+    let friendColor = saveData2.smColorFriendColor ?? "#80ff80";
+    //let blockedColor = saveData2.smColorBlockedColor ?? "#ff8080";
+    let customColors = saveData2.customColors ?? [];
+    customColorMap = {};
+    customColors.forEach((item, index) => {
+        for (let player of item.players) {
+            customColorMap[player] = index;
+        }
+    });
     let style = document.createElement("style");
     style.type = "text/css";
     style.id = "chatPlusStyle";
@@ -972,27 +984,49 @@ function applyStyles() {
             opacity: .7;
         }
     `;
-    if (dmColor) text += `
-        .dmUsername.self {
-            color: ${selfColor};
-        }
-        .dmUsername.friend {
-            color: ${friendColor};
-        }
-    `;
-    if (ncColor) text += `
-        .nexusCoopChatName.self {
-            color: ${selfColor};
-        }
-        .nexusCoopChatName.friend {
-            color: ${friendColor};
-        }
-    `;
     if (reformatBottomBar) text += `
         #loadBalanceStatusContainer {
             left: ${loadBalancerFromLeft}px;
         }
     `;
+    if (dmColor) {
+        text += `
+            .dmUsername.self {
+                color: ${selfColor};
+            }
+            .dmUsername.friend {
+                color: ${friendColor};
+            }
+        `;
+        if (showCustomColors) {
+            customColors.forEach((item, index) => {
+                text += `
+                    .dmUsername.customColor${index} {
+                        color: ${item.color};
+                    }
+                `;
+            });
+        }
+    }
+    if (ncColor) {
+        text += `
+            .nexusCoopChatName.self {
+                color: ${selfColor};
+            }
+            .nexusCoopChatName.friend {
+                color: ${friendColor};
+            }
+        `;
+        if (showCustomColors) {
+            customColors.forEach((item, index) => {
+                text += `
+                    .nexusCoopChatName.customColor${index} {
+                        color: ${item.color};
+                    }
+                `;
+            });
+        }
+    }
     style.appendChild(document.createTextNode(text));
     document.head.appendChild(style);
 }
