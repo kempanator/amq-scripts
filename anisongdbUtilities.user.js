@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Anisongdb Utilities
 // @namespace    https://github.com/kempanator
-// @version      0.7
+// @version      0.8
 // @description  some extra functions for anisongdb.com
 // @author       kempanator
 // @match        https://anisongdb.com/*
@@ -23,7 +23,7 @@ Features:
 */
 
 "use strict";
-const version = "0.7";
+const version = "0.8";
 const saveData = validateLocalStorage("anisongdbUtilities");
 const catboxHostDict = {1: "nl.catbox.video", 2: "ladist1.catbox.video", 3: "vhdist1.catbox.video"};
 let catboxHost = saveData.catboxHost ?? "0";
@@ -74,7 +74,7 @@ function setup() {
     if (defaultEnglish) {
         languageButton.querySelector("span .left-span").click();
     }
-    
+
     // create settings icon
     let i = document.createElement("i");
     i.setAttribute(`_ngcontent-${key}-c10`, "");
@@ -85,7 +85,7 @@ function setup() {
     i.style.fontSize = "28px";
     i.style.margin = "0 12px 0 0";
     banner.insertBefore(i, languageButton);
-    
+
     // create catbox host select
     let hostSelect = document.createElement("select");
     hostSelect.style.margin = "0 12px 0 0";
@@ -139,19 +139,22 @@ function setup() {
                 let linkElement480 = document.querySelector("#modal-480-link");
                 let linkElementMP3 = document.querySelector("#modal-mp3-link");
                 if (linkElement720) {
-                    let newLink = linkElement720.href.replace(/^https:\/\/[a-z0-9]+\.catbox\.[a-z0-9]+/i, "https://" + catboxHostDict[catboxHost]);
+                    let newLink = linkElement720.href.replace(/^https:\/\/\w+\.catbox\.\w+/, "https://" + catboxHostDict[catboxHost]);
                     linkElement720.textContent = newLink;
                     linkElement720.href = newLink;
+                    linkElement720.parentElement.querySelector("p").onclick = () => navigator.clipboard.writeText(newLink);
                 }
                 if (linkElement480) {
-                    let newLink = linkElement480.href.replace(/^https:\/\/[a-z0-9]+\.catbox\.[a-z0-9]+/i, "https://" + catboxHostDict[catboxHost]);
+                    let newLink = linkElement480.href.replace(/^https:\/\/\w+\.catbox\.\w+/, "https://" + catboxHostDict[catboxHost]);
                     linkElement480.textContent = newLink;
                     linkElement480.href = newLink;
+                    linkElement480.parentElement.querySelector("p").onclick = () => navigator.clipboard.writeText(newLink);
                 }
                 if (linkElementMP3) {
-                    let newLink = linkElementMP3.href.replace(/^https:\/\/[a-z0-9]+\.catbox\.[a-z0-9]+/i, "https://" + catboxHostDict[catboxHost]);
+                    let newLink = linkElementMP3.href.replace(/^https:\/\/\w+\.catbox\.\w+/, "https://" + catboxHostDict[catboxHost]);
                     linkElementMP3.textContent = newLink;
                     linkElementMP3.href = newLink;
+                    linkElementMP3.parentElement.querySelector("p").onclick = () => navigator.clipboard.writeText(newLink);
                 }
             }
         }, 1)
@@ -177,8 +180,7 @@ function setup() {
                 clearInterval(audioInterval);
                 if (catboxHost !== "0") {
                     let oldLink = document.querySelector("audio source").src;
-                    let newLink = oldLink.replace(/^https:\/\/[a-z0-9]+\.catbox\.[a-z0-9]+/i, "https://" + catboxHostDict[catboxHost]);
-                    //console.log({oldLink, newLink});
+                    let newLink = oldLink.replace(/^https:\/\/\w+\.catbox\.\w+/, "https://" + catboxHostDict[catboxHost]);
                     if (oldLink !== newLink) {
                         let sourceElement = document.querySelector("audio source");
                         sourceElement.setAttribute("src", newLink);
@@ -189,7 +191,6 @@ function setup() {
                 if (autoPlayMP3) {
                     audioElement.addEventListener("canplay", function() {
                         if (volume >= 0 && volume <= 1) {
-                            console.log(volume);
                             audioElement.volume = volume;
                         }
                         this.play();
@@ -357,7 +358,7 @@ function applyStyles() {
     //$("#anisongdbUtilitiesStyle").remove();
     let style = document.createElement("style");
     style.type = "text/css";
-    style.id = "megaCommandsStyle";
+    style.id = "anisongdbUtilitiesStyle";
     let text = `
         #auModal {
             background-color: #00000070;
