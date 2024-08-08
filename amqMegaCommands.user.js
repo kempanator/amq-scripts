@@ -3594,7 +3594,7 @@ async function parseCommand(content, type, target) {
     else if (/^\/(vh|video host)$/i.test(content)) {
         let currentVideoPlayer = quizVideoController.getCurrentPlayer();
         if (currentVideoPlayer) {
-            let regex = /^https:\/\/(\w+)\.catbox\.\w+/.exec(currentVideoPlayer.currentVideoUrl)
+            let regex = /^https:\/\/(\w+)\.catbox\.\w+/.exec(currentVideoPlayer.currentVideoUrl);
             if (regex) {
                 sendMessage(regex[1], type, target);
             }
@@ -3605,7 +3605,7 @@ async function parseCommand(content, type, target) {
         if (currentVideoPlayer) {
             let video = currentVideoPlayer.$player[0];
             let host = "?";
-            let regex = /^https:\/\/(\w+)\.catbox\.\w+/.exec(currentVideoPlayer.currentVideoUrl)
+            let regex = /^https:\/\/(\w+)\.catbox\.\w+/.exec(currentVideoPlayer.currentVideoUrl);
             if (regex) host = regex[1].slice(0, 2).toUpperCase();
             let res = currentVideoPlayer.resolution;
             if (res === 0) res = "mp3";
