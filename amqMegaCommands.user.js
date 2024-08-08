@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.121
+// @version      0.122
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -105,7 +105,7 @@ OTHER
 
 "use strict";
 if (typeof Listener === "undefined") return;
-const version = "0.121";
+const version = "0.122";
 const saveData = validateLocalStorage("megaCommands");
 const originalOrder = {qb: [], gm: []};
 if (typeof saveData.alerts?.hiddenPlayers === "boolean") delete saveData.alerts;
@@ -3386,11 +3386,23 @@ async function parseCommand(content, type, target) {
     else if (/^\/count ?rhythm$/i.test(content)) {
         sendMessage(storeWindow._rhythm, type, target);
     }
-    else if (/^\/count ?avatars?$/i.test(content)) {
+    else if (/^\/count ?currency$/i.test(content)) {
+        sendMessage(`${xpBar.currentCreditCount} notes, ${xpBar.currentTicketCount} tickets, ${storeWindow._avatarTokens} tokens, ${storeWindow._rhythm} rhythm`, type, target);
+    }
+    else if (/^\/count ?(avatars?|skins?)$/i.test(content)) {
         sendMessage(Object.values(storeWindow.characterUnlockCount).reduce((acc, val) => acc + val, 0), type, target);
+    }
+    else if (/^\/count ?(all|total) ?(avatars?|skins?)$/i.test(content)) {
+        let characters = storeWindow.topBar.characters.length;
+        let variations = storeWindow.topBar.characters.reduce((acc, val) => acc + val.avatars.length, 0);
+        let colors = storeWindow.topBar.characters.map((x) => x.avatars).flat().reduce((acc, val) => acc + val.colors.length, 0);
+        sendMessage(`${characters} characters, ${variations} variations, ${colors} colors`, type, target);
     }
     else if (/^\/count ?emotes?$/i.test(content)) {
         sendMessage(storeWindow.unlockedEmoteIds.length, type, target);
+    }
+    else if (/^\/count ?(all|total) ?emotes?$/i.test(content)) {
+        sendMessage(Object.keys(storeWindow.topBar.emotes.emoteMap).length, type, target);
     }
     else if (/^\/(fil|fiq|fig|fir|friendsinlobby|friendsinquiz|friendsingame|friendsinroom)$/i.test(content)) {
         if (lobby.inLobby) {
@@ -3498,22 +3510,26 @@ async function parseCommand(content, type, target) {
         updateCommandListWindow("continueSample");
     }
     else if (/^\/video$/i.test(content)) {
-        sendMessage("Options: pause, play, replay, loop", type, target, true);
+        sendMessage("Options: pause, play, replay, loop, length, host", type, target, true);
     }
     else if (/^\/(rv|replay ?video|video replay)$/i.test(content)) {
         let currentVideoPlayer = quizVideoController.getCurrentPlayer();
-        currentVideoPlayer.pauseVideo();
-        currentVideoPlayer.player.currentTime(currentVideoPlayer.startPoint);
-        currentVideoPlayer.player.play();
-        currentVideoPlayer.updateVolume(currentVideoPlayer.videoVolume);
+        if (currentVideoPlayer) {
+            currentVideoPlayer.pauseVideo();
+            currentVideoPlayer.player.currentTime(currentVideoPlayer.startPoint);
+            currentVideoPlayer.player.play();
+            currentVideoPlayer.updateVolume(currentVideoPlayer.videoVolume);
+        }
     }
     else if (/^\/(rv|replay ?video|video replay) [0-9]+$/i.test(content)) {
         let startPoint = parseInt(/^\/(rv|replay ?video|video replay) ([0-9]+)$/.exec(content)[2]);
         let currentVideoPlayer = quizVideoController.getCurrentPlayer();
-        currentVideoPlayer.pauseVideo();
-        currentVideoPlayer.player.currentTime(startPoint);
-        currentVideoPlayer.player.play();
-        currentVideoPlayer.updateVolume(currentVideoPlayer.videoVolume);
+        if (currentVideoPlayer) {
+            currentVideoPlayer.pauseVideo();
+            currentVideoPlayer.player.currentTime(startPoint);
+            currentVideoPlayer.player.play();
+            currentVideoPlayer.updateVolume(currentVideoPlayer.videoVolume);
+        }
     }
     else if (/^\/(pause ?video|stop ?video|video pause|video stop)$/i.test(content)) {
         quizVideoController.getCurrentPlayer().pauseVideo();
@@ -3546,6 +3562,59 @@ async function parseCommand(content, type, target) {
         if (isNaN(low) || isNaN(high) || low >= high) return;
         playbackSpeed = [low, high];
         sendMessage(`song playback speed set to random # between ${low} - ${high}`, type, target, true);
+    }
+    else if (/^\/(vsp|video sp|video start ?point)$/i.test(content)) {
+        let currentVideoPlayer = quizVideoController.getCurrentPlayer();
+        if (currentVideoPlayer) {
+            sendMessage(currentVideoPlayer.startPoint, type, target);
+        }
+    }
+    else if (/^\/(vl|vd|video length|video duration)$/i.test(content)) {
+        let currentVideoPlayer = quizVideoController.getCurrentPlayer();
+        if (currentVideoPlayer) {
+            let minutes = Math.floor(currentVideoPlayer.$player[0].duration / 60);
+            let seconds = Math.round(currentVideoPlayer.$player[0].duration) % 60;
+            sendMessage(`${minutes}:${String(seconds).padStart(2, 0)}`, type, target);
+        }
+    }
+    else if (/^\/(video link|video url|video src)$/i.test(content)) {
+        let currentVideoPlayer = quizVideoController.getCurrentPlayer();
+        if (currentVideoPlayer) {
+            sendMessage(currentVideoPlayer.$player[0].src, type, target);
+        }
+    }
+    else if (/^\/(video res|video resolution)$/i.test(content)) {
+        let currentVideoPlayer = quizVideoController.getCurrentPlayer();
+        if (currentVideoPlayer) {
+            let res = currentVideoPlayer.resolution;
+            if (res === 0) res = "mp3";
+            sendMessage(res, type, target);
+        }
+    }
+    else if (/^\/(vh|video host)$/i.test(content)) {
+        let currentVideoPlayer = quizVideoController.getCurrentPlayer();
+        if (currentVideoPlayer) {
+            let regex = /^https:\/\/(\w+)\.catbox\.\w+/.exec(currentVideoPlayer.currentVideoUrl)
+            if (regex) {
+                sendMessage(regex[1], type, target);
+            }
+        }
+    }
+    else if (/^\/(vi|video info)$/i.test(content)) {
+        let currentVideoPlayer = quizVideoController.getCurrentPlayer();
+        if (currentVideoPlayer) {
+            let video = currentVideoPlayer.$player[0];
+            let host = "?";
+            let regex = /^https:\/\/(\w+)\.catbox\.\w+/.exec(currentVideoPlayer.currentVideoUrl)
+            if (regex) host = regex[1].slice(0, 2).toUpperCase();
+            let res = currentVideoPlayer.resolution;
+            if (res === 0) res = "mp3";
+            let currenMinutes = Math.floor(video.currentTime / 60);
+            let currentSeconds = String(Math.round(video.currentTime) % 60).padStart(2, 0);
+            let totalMinutes = Math.floor(video.duration / 60);
+            let totalSeconds = String(Math.round(video.duration) % 60).padStart(2, 0);
+            sendMessage(`${host} ${res} ${currenMinutes}:${currentSeconds} / ${totalMinutes}:${totalSeconds}`, type, target);
+        }
     }
     else if (/^\/(hp|hideplayers)$/i.test(content)) {
         hidePlayers = !hidePlayers;
@@ -4081,7 +4150,7 @@ function parseIncomingDM(content, sender) {
 function parseForceAll(content, type) {
     if (commands) {
         if (/^\/forceall version$/i.test(content)) {
-            sendMessage("0.121", type);
+            sendMessage("0.122", type);
         }
         else if (/^\/forceall version .+$/i.test(content)) {
             let option = /^\S+ \S+ (.+)$/.exec(content)[1];
