@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.56
+// @version      0.57
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -43,7 +43,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.56";
+const version = "0.57";
 const saveData = validateLocalStorage("customSongListGame");
 const catboxHostDict = {1: "files.catbox.moe", 2: "nl.catbox.moe", 3: "nl.catbox.video", 4: "ladist1.catbox.video", 5: "vhdist1.catbox.video"};
 let CSLButtonCSS = saveData.CSLButtonCSS || "calc(25% - 250px)";
@@ -143,10 +143,12 @@ $("#gameContainer").append($(`
                         <div id="cslgAnisongdbSearchRow">
                             <div>
                                 <select id="cslgAnisongdbModeSelect" style="color: black; padding: 3px 0;">
-                                    <option value="Anime">Anime</option>
-                                    <option value="Artist">Artist</option>
-                                    <option value="Song">Song</option>
-                                    <option value="Composer">Composer</option>
+                                    <option>Anime</option>
+                                    <option>Artist</option>
+                                    <option>Song</option>
+                                    <option>Composer</option>
+                                    <option>Season</option>
+                                    <option>Ann Id</option>
                                 </select>
                                 <input id="cslgAnisongdbQueryInput" type="text" style="color: black; width: 250px;">
                                 <button id="cslgAnisongdbSearchButtonGo" style="color: black">Go</button>
@@ -1845,6 +1847,7 @@ function anisongdbDataSearch() {
 function getAnisongdbData(mode, query, ops, eds, ins, partial, ignoreDuplicates, arrangement, maxOtherPeople, minGroupMembers) {
     $("#cslgSongListCount").text("Loading...");
     $("#cslgSongListTable tbody").empty();
+    let url, data;
     let json = {
         and_logic: false,
         ignore_duplicate: ignoreDuplicates,
@@ -1853,12 +1856,14 @@ function getAnisongdbData(mode, query, ops, eds, ins, partial, ignoreDuplicates,
         insert_filter: ins
     };
     if (mode === "anime") {
+        url = "https://anisongdb.com/api/search_request";
         json.anime_search_filter = {
             search: query,
             partial_match: partial
         };
     }
     else if (mode === "artist") {
+        url = "https://anisongdb.com/api/search_request";
         json.artist_search_filter = {
             search: query,
             partial_match: partial,
@@ -1867,26 +1872,52 @@ function getAnisongdbData(mode, query, ops, eds, ins, partial, ignoreDuplicates,
         };
     }
     else if (mode === "song") {
+        url = "https://anisongdb.com/api/search_request";
         json.song_name_search_filter = {
             search: query,
             partial_match: partial
         };
     }
     else if (mode === "composer") {
+        url = "https://anisongdb.com/api/search_request";
         json.composer_search_filter = {
             search: query,
             partial_match: partial,
             arrangement: arrangement
         };
     }
-    fetch("https://anisongdb.com/api/search_request", {
-        method: "POST",
-        headers: {"Accept": "application/json", "Content-Type": "application/json"},
-        body: JSON.stringify(json)
-    }).then(res => res.json()).then(json => {
+    else if (mode === "season") {
+        query = query.trim();
+        query = query.charAt(0).toUpperCase() + query.slice(1).toLowerCase();
+        url = `https://anisongdb.com/api/filter_season?${new URLSearchParams({season: query})}`;
+    }
+    else if (mode === "ann id") {
+        url = "https://anisongdb.com/api/annId_request";
+        json.annId = parseInt(query);
+    }
+    if (mode === "season") {
+        data = {
+            method: "GET",
+            headers: {"Accept": "application/json", "Content-Type": "application/json"},
+        };
+    }
+    else {
+        data = {
+            method: "POST",
+            headers: {"Accept": "application/json", "Content-Type": "application/json"},
+            body: JSON.stringify(json)
+        };
+    }
+    fetch(url, data).then(res => res.json()).then(json => {
         handleData(json);
         setSongListTableSort();
-        if (songList.length === 0 && (ranked.currentState === ranked.RANKED_STATE_IDS.RUNNING || ranked.currentState === ranked.RANKED_STATE_IDS.CHAMP_RUNNING)) {
+        if (!Array.isArray(json)) {
+            $("#cslgSongListCount").text("Songs: 0");
+            $("#cslgMergeCurrentCount").text("Current song list: 0 songs");
+            $("#cslgSongListTable tbody").empty();
+            $("#cslgSongListWarning").text(JSON.stringify(json));
+        }
+        else if (songList.length === 0 && (ranked.currentState === ranked.RANKED_STATE_IDS.RUNNING || ranked.currentState === ranked.RANKED_STATE_IDS.CHAMP_RUNNING)) {
             $("#cslgSongListCount").text("Songs: 0");
             $("#cslgMergeCurrentCount").text("Current song list: 0 songs");
             $("#cslgSongListTable tbody").empty();
