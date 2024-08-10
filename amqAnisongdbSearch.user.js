@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Anisongdb Search
 // @namespace    https://github.com/kempanator
-// @version      0.10
+// @version      0.11
 // @description  Adds a window to search anisongdb.com in game
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -27,7 +27,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.10";
+const version = "0.11";
 const saveData = validateLocalStorage("anisongdbSearch");
 let anisongdbWindow;
 let injectSearchButtons = saveData.injectSearchButtons ?? true;
@@ -100,7 +100,7 @@ function setup() {
     anisongdbWindow.panels[0].panel
         .append($(`<div id="adbsSearchContainer"></div>`)
             .append($(`<div id="anisongdbSearchRow"></div>`)
-                .append($(`<select id="adbsQueryMode" style="padding: 2px 0;"><option value="Anime">Anime</option><option value="Artist">Artist</option><option value="Song">Song</option><option value="Composer">Composer</option></select>`))
+                .append($(`<select id="adbsQueryMode" style="padding: 2px 0;"><option>Anime</option><option>Artist</option><option>Song</option><option>Composer</option><option>Season</option><option>Ann Id</option></select>`))
                 .append($(`<input id="adbsQueryInput" type="text" style="width: 300px; padding: 0 2px;">`).keypress((event) => {
                     if (event.which === 13) {
                         doSearch();
@@ -211,22 +211,75 @@ function setup() {
 function getAnisongdbData(mode, query, partial) {
     $("#adbsInfoText").remove();
     anisongdbWindow.panels[0].panel.append(`<p id="adbsInfoText">loading...</p>`);
-    let json = {};
-    json.and_logic = false;
-    json.ignore_duplicate = false;
-    json.opening_filter = true;
-    json.ending_filter = true;
-    json.insert_filter = true;
-    if (mode === "anime") json.anime_search_filter = {search: query, partial_match: partial};
-    else if (mode === "artist") json.artist_search_filter = {search: query, partial_match: partial, group_granularity: 0, max_other_artist: 99};
-    else if (mode === "song") json.song_name_search_filter = {search: query, partial_match: partial};
-    else if (mode === "composer") json.composer_search_filter = {search: query, partial_match: partial, arrangement: false};
-    fetch("https://anisongdb.com/api/search_request", {
-        method: "POST",
-        headers: {"Accept": "application/json", "Content-Type": "application/json"},
-        body: JSON.stringify(json)
-    }).then(res => res.json()).then(json => {
-        if (json.length === 0 && (ranked.currentState === ranked.RANKED_STATE_IDS.RUNNING || ranked.currentState === ranked.RANKED_STATE_IDS.CHAMP_RUNNING)) {
+    let url, data;
+    let json = {
+        and_logic: false,
+        ignore_duplicate: false,
+        opening_filter: true,
+        ending_filter: true,
+        insert_filter: true
+    };
+    if (mode === "anime") {
+        url = "https://anisongdb.com/api/search_request";
+        json.anime_search_filter = {
+            search: query,
+            partial_match: partial
+        };
+    }
+    else if (mode === "artist") {
+        url = "https://anisongdb.com/api/search_request";
+        json.artist_search_filter = {
+            search: query,
+            partial_match: partial,
+            group_granularity: 0,
+            max_other_artist: 99
+        };
+    }
+    else if (mode === "song") {
+        url = "https://anisongdb.com/api/search_request";
+        json.song_name_search_filter = {
+            search: query,
+            partial_match: partial
+        };
+    }
+    else if (mode === "composer") {
+        url = "https://anisongdb.com/api/search_request";
+        json.composer_search_filter = {
+            search: query,
+            partial_match: partial,
+            arrangement: false
+        };
+    }
+    else if (mode === "season") {
+        query = query.trim();
+        query = query.charAt(0).toUpperCase() + query.slice(1).toLowerCase();
+        url = `https://anisongdb.com/api/filter_season?${new URLSearchParams({season: query})}`;
+    }
+    else if (mode === "ann id") {
+        url = "https://anisongdb.com/api/annId_request";
+        json.annId = parseInt(query);
+    }
+    if (mode === "season") {
+        data = {
+            method: "GET",
+            headers: {"Accept": "application/json", "Content-Type": "application/json"},
+        };
+    }
+    else {
+        data = {
+            method: "POST",
+            headers: {"Accept": "application/json", "Content-Type": "application/json"},
+            body: JSON.stringify(json)
+        };
+    }
+    fetch(url, data).then(res => res.json()).then(json => {
+        if (!Array.isArray(json)) {
+            $("#adbsTable tbody").empty();
+            $("#adbsInfoText").remove();
+            anisongdbWindow.panels[0].panel.append($(`<p id="adbsInfoText"></p>`).text(JSON.stringify(json)));
+        }
+        else if (json.length === 0 && (ranked.currentState === ranked.RANKED_STATE_IDS.RUNNING || ranked.currentState === ranked.RANKED_STATE_IDS.CHAMP_RUNNING)) {
+            $("#adbsTable tbody").empty();
             $("#adbsInfoText").remove();
             anisongdbWindow.panels[0].panel.append(`<p id="adbsInfoText">AnisongDB is not available during ranked</p>`);
         }
