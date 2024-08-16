@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.122
+// @version      0.123
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -105,7 +105,7 @@ OTHER
 
 "use strict";
 if (typeof Listener === "undefined") return;
-const version = "0.122";
+const version = "0.123";
 const saveData = validateLocalStorage("megaCommands");
 const originalOrder = {qb: [], gm: []};
 if (typeof saveData.alerts?.hiddenPlayers === "boolean") delete saveData.alerts;
@@ -3334,7 +3334,7 @@ async function parseCommand(content, type, target) {
     else if (/^\/online \w+$/i.test(content)) {
         let name = /^\S+ (\w+)$/.exec(content)[1].toLowerCase();
         let handleAllOnlineMessage = new Listener("all online users", (onlineUsers) => {
-            sendMessage(onlineUsers.localeIncludes(name) ? "online" : "offline", type, target);
+            sendMessage(localeIncludes(onlineUsers, name) ? "online" : "offline", type, target);
             handleAllOnlineMessage.unbindListener();
         });
         handleAllOnlineMessage.bindListener();
@@ -3609,11 +3609,11 @@ async function parseCommand(content, type, target) {
             if (regex) host = regex[1].slice(0, 2).toUpperCase();
             let res = currentVideoPlayer.resolution;
             if (res === 0) res = "mp3";
-            let currenMinutes = Math.floor(video.currentTime / 60);
+            let currentMinutes = Math.floor(video.currentTime / 60);
             let currentSeconds = String(Math.round(video.currentTime) % 60).padStart(2, 0);
             let totalMinutes = Math.floor(video.duration / 60);
             let totalSeconds = String(Math.round(video.duration) % 60).padStart(2, 0);
-            sendMessage(`${host} ${res} ${currenMinutes}:${currentSeconds} / ${totalMinutes}:${totalSeconds}`, type, target);
+            sendMessage(`${host} ${res} ${currentMinutes}:${currentSeconds} / ${totalMinutes}:${totalSeconds}`, type, target);
         }
     }
     else if (/^\/(hp|hideplayers)$/i.test(content)) {
@@ -4118,7 +4118,7 @@ function parseIncomingDM(content, sender) {
         else if (/^\/whereis \w+$/i.test(content)) {
             if (Object.keys(roomBrowser.activeRooms).length === 0) return;
             let name = /^\S+ (\w+)$/.exec(content)[1];
-            let room = Object.values(roomBrowser.activeRooms).find((r) => r._players.localeIncludes(name));
+            let room = Object.values(roomBrowser.activeRooms).find((r) => localeIncludes(r._players, name));
             if (Number.isInteger(room?.id)) {
                 setTimeout(() => sendMessage(`${room._private ? "private" : "public"} room ${room.id}: ${room.settings.roomName}`, "dm", sender), 100);
                 setTimeout(() => sendMessage(`host: ${room.host}, players: ${room._numberOfPlayers}, spectators: ${room._numberOfSpectators}`, "dm", sender), 300);
@@ -4150,7 +4150,7 @@ function parseIncomingDM(content, sender) {
 function parseForceAll(content, type) {
     if (commands) {
         if (/^\/forceall version$/i.test(content)) {
-            sendMessage("0.122", type);
+            sendMessage("0.123", type);
         }
         else if (/^\/forceall version .+$/i.test(content)) {
             let option = /^\S+ \S+ (.+)$/.exec(content)[1];
@@ -4773,10 +4773,10 @@ function toggleTextInputFocus() {
 }
 
 // includes function for array of strings, ignore case
-Array.prototype.localeIncludes = function(s) {
-    s = s.toLowerCase();
-    for (let item of this) {
-        if (item.toLowerCase() === s) return true;
+function localeIncludes(array, str) {
+    str = str.toLowerCase();
+    for (let item of array) {
+        if (item.toLowerCase() === str) return true;
     }
     return false;
 }
