@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.58
+// @version      0.59
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -43,7 +43,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.58";
+const version = "0.59";
 const saveData = validateLocalStorage("customSongListGame");
 const catboxHostDict = {1: "files.catbox.moe", 2: "nl.catbox.moe", 3: "nl.catbox.video", 4: "ladist1.catbox.video", 5: "vhdist1.catbox.video"};
 let CSLButtonCSS = saveData.CSLButtonCSS || "calc(25% - 250px)";
@@ -366,9 +366,14 @@ $("#cslgFileUpload").on("change", function() {
         this.files[0].text().then((data) => {
             try {
                 handleData(JSON.parse(data));
+                if (songList.length === 0) {
+                    messageDisplayer.displayMessage("0 song links found");
+                }
             }
-            catch {
+            catch (error) {
                 songList = [];
+                $(this).val("");
+                console.error(error);
                 messageDisplayer.displayMessage("Upload Error");
             }
             setSongListTableSort();
@@ -2032,9 +2037,9 @@ function handleData(data) {
                 animeTags: song.tags,
                 animeGenre: song.genre,
                 startPoint: song.startSample,
-                audio: song.urls.catbox?.[0] ?? song.urls.openingsmoe?.[0] ?? null,
-                video480: song.urls.catbox?.[480] ?? song.urls.openingsmoe?.[480] ?? null,
-                video720: song.urls.catbox?.[720] ?? song.urls.openingsmoe?.[720] ?? null,
+                audio: song.urls?.catbox?.[0] ?? song.urls?.openingsmoe?.[0] ?? null,
+                video480: song.urls?.catbox?.[480] ?? song.urls?.openingsmoe?.[480] ?? null,
+                video720: song.urls?.catbox?.[720] ?? song.urls?.openingsmoe?.[720] ?? null,
                 correctGuess: song.correct,
                 incorrectGuess: !song.correct
             });
