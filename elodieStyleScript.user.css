@@ -1,6 +1,6 @@
 /* ==UserStyle==
 @name         Elodie's AMQ Style Script
-@version      10.2.8
+@version      10.2.9
 @namespace    userstyles.world/user/melodyelodie
 @description  A custom theme for animemusicquiz.com
 @author       melodyelodie
@@ -32,6 +32,7 @@ Changelog:
     - fixed readability on autocomplete dropdown
   10.3
     - styled boss, hint, jam modes
+    - styled new song library
 
 
 Installing:
@@ -164,7 +165,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         --wrongAnswerColorTransparent: color-mix(in srgb, var(--wrongAnswerColor), transparent 80%);
         --songHistoryCorrectColorHover: color-mix(in srgb, var(--songHistoryCorrectColor), white 5%);
         --songHistoryWrongColorHover: color-mix(in srgb, var(--songHistoryWrongColor), white 5%);
-        --elodieStyleScriptVersion: 10.2.8;
+        --elodieStyleScriptVersion: 10.2.9;
     }
     
     
@@ -224,7 +225,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         --wrongAnswerColorTransparent: color-mix(in srgb, var(--wrongAnswerColor), transparent 80%);
         --songHistoryCorrectColorHover: color-mix(in srgb, var(--songHistoryCorrectColor), white 15%);
         --songHistoryWrongColorHover: color-mix(in srgb, var(--songHistoryWrongColor), white 15%);
-        --elodieStyleScriptVersion: 10.2.8;
+        --elodieStyleScriptVersion: 10.2.9;
     }
     */
     
@@ -537,6 +538,10 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     #loginPage {
         background-image: var(--mainBackground);
         background-size: cover;
+        color: var(--textColor);
+    }
+    #startPage {
+        background-image: var(--mainBackground);
         color: var(--textColor);
     }
     #lpTopBackground img {
@@ -2167,6 +2172,114 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     #elFAQIndexContainer {
         border-bottom: none;
     }
+    #elExpandButton:hover {
+        background-color: var(--secondaryColor);
+    }
+    #elExpandUploadCount {
+        background-color: var(--primaryColor);
+    }
+    .elSamplePlayerController {
+        background-color: var(--primaryColor);
+        box-shadow: 0 0px 10px 4px var(--boxShadowColor);
+    }
+    .elSamplePlayerControllerProgressBar {
+        background-color: var(--secondaryColor);
+    }
+    .elSamplePlayerControllerProgressBarInner {
+        background-color: var(--accentColor);
+    }
+    .elSamplePlayerControllerProgressBarInnerEnd {
+        background-color: var(--accentColor);
+    }
+    .elSamplePlayerControllerVolumeSliderContainer {
+        background-color: var(--primaryColorTransparent);
+        box-shadow: 0 0px 6px 2px var(--boxShadowColor);
+    }
+    .elSamplePlayerControllerVolumeSlider {
+        background-color: var(--secondaryColor);
+    }
+    .elSamplePlayerControllerVolumeSliderInner {
+        background-color: var(--accentColor);
+    }
+    .elSamplePlayerControllerVolumeSliderEnd {
+        background-color: var(--accentColor);
+    }
+    .elFilterContainer {
+        background-color: var(--primaryColorTransparent);
+        box-shadow: 0 0 10px 2px var(--boxShadowColor);
+        color: var(--textColor);
+    }
+    .elFilterOptionButton.selected {
+        background-color: var(--secondaryColor);
+    }
+    .elFilterOptionButton {
+        background-color: var(--primaryColor);
+        box-shadow: 0 0 5px 0px var(--boxShadowColor);
+    }
+    .elFilterOptionButton:hover {
+        background-color: var(--primaryColorContrast);
+    }
+    .elFilterVintageContainer .mhSeasonSelector {
+        color: var(--textColor);
+    }
+    .elFilterSearchTargetDropdown {
+        background-color: var(--primaryColor);
+    }
+    .elFilterSearchInput {
+        background-color: var(--primaryColor);
+    }
+    .elExpandInnerLine {
+        background-color: var(--accentColor);
+    }
+    .elExpandLine::before {
+        color: var(--accentColor);
+    }
+    .elExpandButton {
+        border: 3px solid var(--accentColor);
+    }
+    .elEntryContainer {
+        background-color: var(--primaryColorTransparent);
+        box-shadow: 0 0 10px 2px var(--boxShadowColor);
+    }
+    .elAnimeEntry {
+        background-color: var(--primaryColor);
+        color: var(--textColor);
+        box-shadow: 0 0px 5px 1px var(--boxShadowColor);
+    }
+    .elAnimeEntryHeader:hover {
+        background-color: var(--secondaryColor);
+    }
+    .elSongEntryHeader:hover {
+        background-color: var(--secondaryColor);
+    }
+    .elSongEntryTypeContainer::before {
+        background-color: var(--primaryColor);
+        box-shadow: 0 0 10px 0px var(--boxShadowColor);
+    }
+    .elGenreTag {
+        background-color: var(--accentColor);
+    }
+    .elSongExpandInput {
+        background-color: var(--secondaryColor);
+    }
+    .elSongExpandSubmitButton {
+        background-color: var(--accentColor);
+    }
+    .elSongExpandInputIcon {
+        color: var(--accentColor);
+    }
+    .elSongExpandLink > a:hover,
+    .elSongExpandLink > a:visited {
+        color: white;
+    }
+    .aicTrigger {
+        color: var(--accentColorContrast);
+    }
+    .artistInfoContainer {
+        background-color: var(--windowBackground);
+        box-shadow: 0 0 10px 2px var(--boxShadowColor);
+        color: var(--textColor);
+    }
 
 
     /* Tutorial */
@@ -3638,6 +3751,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     #sai-container {
         background-color: var(--primaryColor);
         border: 1px solid var(--secondaryColor);
+        z-index: 1;
     }
     #sai-container:hover {
         background-color: var(--primaryColor);
