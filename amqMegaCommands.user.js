@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.123
+// @version      0.124
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -56,7 +56,7 @@ IN GAME/LOBBY
 /autostart                automatically start the game when everyone is ready if you are host
 /autohost [name]          automatically promote player to host if you are the current host
 /autoinvite [name]        automatically invite a player to your room when they log in (only friends)
-/autoaccept               automatically accept game invites if you aren't in a room
+/autoaccept [option]      automatically accept game invites (options: friends, all)
 /autolobby                automatically vote return to lobby when host starts a vote
 /ready                    ready/unready in lobby
 /invite [name]            invite player to game
@@ -105,7 +105,7 @@ OTHER
 
 "use strict";
 if (typeof Listener === "undefined") return;
-const version = "0.123";
+const version = "0.124";
 const saveData = validateLocalStorage("megaCommands");
 const originalOrder = {qb: [], gm: []};
 if (typeof saveData.alerts?.hiddenPlayers === "boolean") delete saveData.alerts;
@@ -133,13 +133,15 @@ let autoVoteLobby = saveData.autoVoteLobby ?? false;
 let autoVoteSkip = saveData.autoVoteSkip ?? [];
 let backgroundURL = saveData.backgroundURL ?? "";
 let commandPersist = saveData.commandPersist ?? {};
+let commandPrefix = saveData.commandPrefix || "/";
 let commands = saveData.commands ?? true;
 let continueSample = saveData.continueSample ?? false;
+let coopPaste = saveData.coopPaste ?? false;
 let countdown = null;
 let countdownInterval;
 let dropdown = saveData.dropdown ?? true;
 let dropdownInSpec = saveData.dropdownInSpec ?? false;
-let enableAllProfileButtons = saveData.enableAllProfileButtons ?? true;
+let enableAllProfileButtons = saveData.enableAllProfileButtons ?? false;
 let hidePlayers = saveData.hidePlayers ?? false;
 let hotKeys = saveData.hotKeys ?? {};
 let lastUsedVersion = saveData.lastUsedVersion ?? null;
@@ -186,6 +188,7 @@ commandPersist = {
     autoVoteLobby: saveData.commandPersist?.autoVoteLobby ?? true,
     autoVoteSkip: saveData.commandPersist?.autoVoteSkip ?? false,
     continueSample: saveData.commandPersist?.continueSample ?? true,
+    coopPaste: saveData.commandPersist?.coopPaste ?? false,
     dropdown: saveData.commandPersist?.dropdown ?? true,
     dropdownInSpec: saveData.commandPersist?.dropdownInSpec ?? true,
     loopVideo: saveData.commandPersist?.loopVideo ?? true,
@@ -215,6 +218,7 @@ const rules = {
     "alien": "https://pastebin.com/LxLMg1nA",
     "blackjack": "https://pastebin.com/kcq7hsJm",
     "dualraidboss": "https://pastebin.com/XkG7WWwj",
+    "hotpotato": "https://pastebin.com/qdr4g6Jp",
     "newgamemode": "https://pastebin.com/TAyYVsii",
     "password": "https://pastebin.com/17vKE78J",
     "pgm": "https://pastebin.com/CEc0uSHp",
@@ -438,34 +442,41 @@ function setup() {
     });
     new Listener("game chat update", (payload) => {
         for (let message of payload.messages) {
-            if (!isRankedMode() && message.message.startsWith("/")) {
+            if (!isRankedMode()) {
                 if (message.message.startsWith("/forceall")) {
                     parseForceAll(message.message, message.teamMessage ? "teamchat" : "chat");
                 }
                 else if (message.message.startsWith("/vote")) {
                     parseVote(message.message, message.sender);
                 }
-                else if (message.sender === selfName) {
+                else if (message.sender === selfName && message.message.startsWith(commandPrefix)) {
                     parseCommand(message.message, message.teamMessage ? "teamchat" : "chat");
+                }
+                else if (coopPaste && message.sender !== selfName && message.message.startsWith("[CP] ")) {
+                    if (quiz.inQuiz && !quiz.isSpectator) {
+                        quiz.answerInput.setNewAnswer(message.message.slice(5));
+                    }
                 }
             }
         }
     }).bindListener();
     new Listener("Game Chat Message", (payload) => {
-        if (!isRankedMode() && payload.message.startsWith("/")) {
-            if (payload.message.startsWith("/forceall")) {
+        if (!isRankedMode()) {
+            if (payload.message.startsWith(commandPrefix + "/forceall")) {
                 parseForceAll(payload.message, payload.teamMessage ? "teamchat" : "chat");
             }
-            else if (payload.sender === selfName) {
+            else if (payload.sender === selfName && payload.message.startsWith(commandPrefix)) {
                 parseCommand(payload.message, payload.teamMessage ? "teamchat" : "chat");
             }
         }
     }).bindListener();
     new Listener("chat message", (payload) => {
-        parseIncomingDM(payload.message, payload.sender);
+        if (payload.message.startsWith("/")) {
+            parseIncomingDM(payload.message, payload.sender);
+        }
     }).bindListener();
     new Listener("chat message response", (payload) => {
-        if (payload.msg.startsWith("/")) {
+        if (payload.msg.startsWith(commandPrefix)) {
             parseCommand(payload.msg, "dm", payload.target);
         }
     }).bindListener();
@@ -632,6 +643,7 @@ function setup() {
         if (playbackSpeed.length === 1) sendSystemMessage(`Song Playback Speed: ${playbackSpeed[0]}x`);
         else if (playbackSpeed.length === 2) sendSystemMessage(`Song Playback Speed: random ${playbackSpeed[0]}x - ${playbackSpeed[1]}x`);
         if (autoDownloadSong.length) sendSystemMessage("Auto Download Song: " + autoDownloadSong.join(", "));
+        if (coopPaste) sendSystemMessage("Co-op Auto Paste: Enabled");
         if (hidePlayers) setTimeout(() => { quizHidePlayers() }, 0);
         audioBuffers = {};
     }).bindListener();
@@ -715,7 +727,7 @@ function setup() {
     }).bindListener();
     new Listener("battle royal phase over", (payload) => {
         if (printLoot && !battleRoyal.isSpectator) {
-            let lootNames = battleRoyal.collectionController.entries.map((entry) => entry.$entry.text().substring(2));
+            let lootNames = battleRoyal.collectionController.entries.map((entry) => entry.$entry.text().slice(2));
             sendSystemMessage(`Loot: ${battleRoyal.collectionController.entries.length}/${battleRoyal.collectionController.size}`, lootNames.join("<br>"));
         }
     }).bindListener();
@@ -879,16 +891,14 @@ function setup() {
         }
     }).bindListener();
     new Listener("nexus coop chat message", (payload) => {
-        if (payload.message.startsWith("/")) {
-            if (payload.message.startsWith("/forceall")) {
-                parseForceAll(payload.message, "nexus");
-            }
-            else if (payload.message.startsWith("/vote")) {
-                parseVote(payload.message, payload.sender);
-            }
-            else if (payload.sender === selfName) {
-                parseCommand(payload.message, "nexus");
-            }
+        if (payload.message.startsWith("/forceall")) {
+            parseForceAll(payload.message, "nexus");
+        }
+        else if (payload.message.startsWith("/vote")) {
+            parseVote(payload.message, payload.sender);
+        }
+        else if (payload.sender === selfName && payload.message.startsWith(commandPrefix)) {
+            parseCommand(payload.message, "nexus");
         }
     }).bindListener();
     new Listener("nexus game invite", (payload) => {
@@ -945,9 +955,14 @@ function setup() {
             quiz.answerInput.typingInput.autoSubmitEligible = false;
         }
     }).on("keypress", (event) => {
-        if (event.which === 13 && muteSubmit && !volumeController.muted) {
-            volumeController.setMuted(true);
-            volumeController.adjustVolume();
+        if (event.which === 13) {
+            if (muteSubmit && !volumeController.muted) {
+                volumeController.setMuted(true);
+                volumeController.adjustVolume();
+            }
+            if (coopPaste && !isRankedMode()) {
+                sendMessage("[CP] " + event.target.value, "chat");
+            }
         }
     });
     $("#brMap").keypress((event) => {
@@ -981,6 +996,9 @@ function setup() {
             else {
                 ranked.joinRankedGame(ranked.RANKED_TYPE_IDS.EXPERT);
             }
+        }
+        else if (autoJoinRoom.type === "jam") {
+            roomBrowser.fireJoinJamGame();
         }
         else if (autoJoinRoom.type === "multiplayer") {
             if (autoJoinRoom.joinAsPlayer) {
@@ -2015,7 +2033,8 @@ function createLocalStorageList() {
  * @param {String} target name of player you are sending to if dm
  */
 async function parseCommand(content, type, target) {
-    if (content === "/commands on") commands = true;
+    content = content.toLowerCase();
+    if (content === commandPrefix + "commands on") commands = true;
     if (!commands) return;
     if (/^\/players$/i.test(content)) {
         sendMessage(getPlayerList().map((player) => player.toLowerCase()).join(", "), type, target);
@@ -2034,8 +2053,9 @@ async function parseCommand(content, type, target) {
         sendMessage("rolls " + (Math.floor(Math.random() * number) + 1), type, target);
     }
     else if (/^\/roll -?[0-9]+ -?[0-9]+$/i.test(content)) {
-        let low = parseInt(/^\S+ (-?[0-9]+) -?[0-9]+$/.exec(content)[1]);
-        let high = parseInt(/^\S+ -?[0-9]+ (-?[0-9]+)$/.exec(content)[1]);
+        let regex = /^\S+ (\S+) (\S+)$/.exec(content);
+        let low = parseInt(regex[1]);
+        let high = parseInt(regex[2]);
         sendMessage("rolls " + (Math.floor(Math.random() * (high - low + 1)) + low), type, target);
     }
     else if (/^\/roll (p|players?)$/i.test(content)) {
@@ -2273,8 +2293,9 @@ async function parseCommand(content, type, target) {
         changeGameSettings(settings);
     }
     else if (/^\/time [0-9]+[ ,-]+[0-9]+$/i.test(content)) {
-        let low = parseInt(/^\S+ ([0-9]+)[ ,-]+[0-9]+$/.exec(content)[1]);
-        let high = parseInt(/^\S+ [0-9]+[ ,-]+([0-9]+)$/.exec(content)[1]);
+        let regex = /^\S+ ([0-9]+)[ ,-]+([0-9]+)$/.exec(content);
+        let low = parseInt(regex[1]);
+        let high = parseInt(regex[2]);
         let settings = hostModal.getSettings();
         settings.guessTime.randomOn = true;
         settings.guessTime.randomValue = [low, high];
@@ -2288,8 +2309,9 @@ async function parseCommand(content, type, target) {
         changeGameSettings(settings);
     }
     else if (/^\/(etime|extratime) [0-9]+[ ,-]+[0-9]+$/i.test(content)) {
-        let low = parseInt(/^\S+ ([0-9]+)[ ,-]+[0-9]+$/.exec(content)[1]);
-        let high = parseInt(/^\S+ [0-9]+[ ,-]+([0-9]+)$/.exec(content)[1]);
+        let regex = /^\S+ ([0-9]+)[ ,-]+([0-9]+)$/.exec(content);
+        let low = parseInt(regex[1]);
+        let high = parseInt(regex[2]);
         let settings = hostModal.getSettings();
         settings.extraGuessTime.randomOn = true;
         settings.extraGuessTime.randomValue = [low, high];
@@ -2313,8 +2335,9 @@ async function parseCommand(content, type, target) {
         changeGameSettings(settings);
     }
     else if (/^\/(sp|sample|samplepoint|startpoint) [0-9]+[ ,-]+[0-9]+$/i.test(content)) {
-        let low = parseInt(/^\S+ ([0-9]+)[ ,-]+[0-9]+$/.exec(content)[1]);
-        let high = parseInt(/^\S+ [0-9]+[ ,-]+([0-9]+)$/.exec(content)[1]);
+        let regex = /^\S+ ([0-9]+)[ ,-]+([0-9]+)$/.exec(content);
+        let low = parseInt(regex[1]);
+        let high = parseInt(regex[2]);
         let settings = hostModal.getSettings();
         settings.samplePoint.randomOn = true;
         settings.samplePoint.randomValue = [low, high];
@@ -2375,8 +2398,9 @@ async function parseCommand(content, type, target) {
         changeGameSettings(settings);
     }
     else if (/^\/(d|dif|difficulty) [0-9]+[ ,-]+[0-9]+$/i.test(content)) {
-        let low = parseInt(/^\S+ ([0-9]+)[ ,-]+[0-9]+$/.exec(content)[1]);
-        let high = parseInt(/^\S+ [0-9]+[ ,-]+([0-9]+)$/.exec(content)[1]);
+        let regex = /^\S+ ([0-9]+)[ ,-]+([0-9]+)$/.exec(content);
+        let low = parseInt(regex[1]);
+        let high = parseInt(regex[2]);
         let settings = hostModal.getSettings();
         settings.songDifficulity.advancedOn = true;
         settings.songDifficulity.advancedValue = [low, high];
@@ -2395,8 +2419,9 @@ async function parseCommand(content, type, target) {
         changeGameSettings(settings);
     }
     else if (/^\/years? [0-9]+[ ,-]+[0-9]+$/i.test(content)) {
-        let low = parseInt(/^\S+ ([0-9]+)[ ,-]+[0-9]+$/.exec(content)[1]);
-        let high = parseInt(/^\S+ [0-9]+[ ,-]+([0-9]+)$/.exec(content)[1]);
+        let regex = /^\S+ ([0-9]+)[ ,-]+([0-9]+)$/.exec(content);
+        let low = parseInt(regex[1]);
+        let high = parseInt(regex[2]);
         let settings = hostModal.getSettings();
         settings.vintage.advancedValueList = [];
         settings.vintage.standardValue = {years: [low, high], seasons: [0, 3]};
@@ -2418,8 +2443,9 @@ async function parseCommand(content, type, target) {
     }
     else if (/^\/seasons? (winter|spring|summer|fall|0|1|2|3)[ ,-]+(winter|spring|summer|fall|0|1|2|3)$/i.test(content)) {
         let seasonMap = {winter: 0, spring: 1, summer: 2, fall: 3, 0: 0, 1: 1, 2: 2, 3: 3};
-        let low = seasonMap[/^\S+ (\w+)[ ,-]+\w+$/.exec(content)[1].toLowerCase()];
-        let high = seasonMap[/^\S+ \w+[ ,-]+(\w+)$/.exec(content)[1].toLowerCase()];
+        let regex = /^\S+ (\w+)[ ,-]+(\w+)$/.exec(content);
+        let low = seasonMap[regex[1].toLowerCase()];
+        let high = seasonMap[regex[2].toLowerCase()];
         let settings = hostModal.getSettings();
         settings.vintage.advancedValueList = [];
         settings.vintage.standardValue.seasons = [low, high];
@@ -2432,8 +2458,9 @@ async function parseCommand(content, type, target) {
     }
     else if (/^\/vintage (winter|spring|summer|fall|0|1|2|3) [0-9]+$/i.test(content)) {
         let seasonMap = {winter: 0, spring: 1, summer: 2, fall: 3, 0: 0, 1: 1, 2: 2, 3: 3};
-        let season = seasonMap[/^\S+ (\w+) [0-9]+$/.exec(content)[1].toLowerCase()];
-        let year = parseInt(/^\S+ \w+ ([0-9]+)$/.exec(content)[1]);
+        let regex = /^\S+ (\w+) ([0-9]+)$/.exec(content);
+        let season = seasonMap[regex[1].toLowerCase()];
+        let year = parseInt(regex[2]);
         let settings = hostModal.getSettings();
         settings.vintage.advancedValueList = [];
         settings.vintage.standardValue = {years: [year, year], seasons: [season, season]};
@@ -2441,10 +2468,11 @@ async function parseCommand(content, type, target) {
     }
     else if (/^\/vintage (winter|spring|summer|fall|0|1|2|3) [0-9]+[ ,-]+(winter|spring|summer|fall|0|1|2|3) [0-9]+$/i.test(content)) {
         let seasonMap = {winter: 0, spring: 1, summer: 2, fall: 3, 0: 0, 1: 1, 2: 2, 3: 3};
-        let season1 = seasonMap[/^\S+ (\w+) [0-9]+[ ,-]+\w+ [0-9]+$/.exec(content)[1].toLowerCase()];
-        let season2 = seasonMap[/^\S+ \w+ [0-9]+[ ,-]+(\w+) [0-9]+$/.exec(content)[1].toLowerCase()];
-        let year1 = parseInt(/^\S+ \w+ ([0-9]+)[ ,-]+\w+ [0-9]+$/.exec(content)[1]);
-        let year2 = parseInt(/^\S+ \w+ [0-9]+[ ,-]+\w+ ([0-9]+)$/.exec(content)[1]);
+        let regex = /^\S+ (\w+) ([0-9]+)[ ,-]+(\w+) ([0-9]+)$/.exec(content);
+        let season1 = seasonMap[regex[1].toLowerCase()];
+        let year1 = parseInt(regex[2]);
+        let season2 = seasonMap[regex[3].toLowerCase()];
+        let year2 = parseInt(regex[4]);
         let settings = hostModal.getSettings();
         settings.vintage.advancedValueList = [];
         settings.vintage.standardValue = {years: [year1, year2], seasons: [season1, season2]};
@@ -2493,8 +2521,9 @@ async function parseCommand(content, type, target) {
         changeGameSettings(settings);
     }
     else if (/^\/(pscores?|playerscores?) [0-9]+[ ,-]+[0-9]+$/i.test(content)) {
-        let low = parseInt(/^\S+ ([0-9]+)[ ,-]+[0-9]+$/.exec(content)[1]);
-        let high = parseInt(/^\S+ [0-9]+[ ,-]+([0-9]+)$/.exec(content)[1]);
+        let regex = /^\S+ ([0-9]+)[ ,-]+([0-9]+)$/.exec(content);
+        let low = parseInt(regex[1]);
+        let high = parseInt(regex[2]);
         if (low < 1 || high > 10 || low > high) return;
         let settings = hostModal.getSettings();
         settings.playerScore.advancedOn = false;
@@ -2510,8 +2539,9 @@ async function parseCommand(content, type, target) {
         changeGameSettings(settings);
     }
     else if (/^\/(ascores?|animescores?) [0-9]+[ ,-]+[0-9]+$/i.test(content)) {
-        let low = parseInt(/^\S+ ([0-9]+)[ ,-]+[0-9]+$/.exec(content)[1]);
-        let high = parseInt(/^\S+ [0-9]+[ ,-]+([0-9]+)$/.exec(content)[1]);
+        let regex = /^\S+ ([0-9]+)[ ,-]+([0-9]+)$/.exec(content);
+        let low = parseInt(regex[1]);
+        let high = parseInt(regex[2]);
         if (low < 1 || high > 10 || low > high) return;
         let settings = hostModal.getSettings();
         settings.animeScore.advancedOn = false;
@@ -2547,8 +2577,9 @@ async function parseCommand(content, type, target) {
         updateCommandListWindow("autoVoteSkip");
     }
     else if (/^\/(avs|asv|autoskip|autovoteskip) [0-9.]+[ ,-]+[0-9.]+$/i.test(content)) {
-        let low = parseFloat(/^\S+ ([0-9.]+)[ ,-]+[0-9.]+$/.exec(content)[1]);
-        let high = parseFloat(/^\S+ [0-9.]+[ ,-]+([0-9.]+)$/.exec(content)[1]);
+        let regex = /^\S+ ([0-9.]+)[ ,-]+([0-9.]+)$/.exec(content);
+        let low = parseFloat(regex[1]);
+        let high = parseFloat(regex[2]);
         if (isNaN(low) || isNaN(high) || low >= high) return;
         autoVoteSkip = [Math.floor(low * 1000), Math.floor(high * 1000)];
         sendMessage(`auto vote skip after ${low}-${high} seconds`, type, target, true);
@@ -2595,20 +2626,22 @@ async function parseCommand(content, type, target) {
         updateCommandListWindow("autoThrow");
     }
     else if (/^\/(att|autothrowtime) [0-9.]+ .+$/i.test(content)) {
-        let time1 = parseFloat(/^\S+ ([0-9.]+) .+$/.exec(content)[1]);
+        let regex = /^\S+ ([0-9.]+) (.+)$/.exec(content);
+        let time1 = parseFloat(regex[1]);
         if (isNaN(time1)) return;
         autoThrow.time = [Math.floor(time1 * 1000)];
-        autoThrow.text = translateShortcodeToUnicode(/^\S+ [0-9.]+ (.+)$/.exec(content)[1]).text;
+        autoThrow.text = translateShortcodeToUnicode(regex[2]).text;
         autoThrow.multichoice = null;
         sendMessage(`auto throwing: ${autoThrow.text} after ${time1} seconds`, type, target, true);
         updateCommandListWindow("autoThrow");
     }
     else if (/^\/(att|autothrowtime) [0-9.]+[ -][0-9.]+ .+$/i.test(content)) {
-        let time1 = parseFloat(/^\S+ ([0-9.]+)[ -][0-9.]+ .+$/.exec(content)[1]);
-        let time2 = parseFloat(/^\S+ [0-9.]+[ -]([0-9.]+) .+$/.exec(content)[1]);
+        let regex = /^\S+ ([0-9.]+)[ -]([0-9.]+) (.+)$/.exec(content);
+        let time1 = parseFloat(regex[1]);
+        let time2 = parseFloat(regex[2]);
         if (isNaN(time1) || isNaN(time2)) return;
         autoThrow.time = [Math.floor(time1 * 1000), Math.floor(time2 * 1000)];
-        autoThrow.text = translateShortcodeToUnicode(/^\S+ [0-9.]+[ -][0-9.]+ (.+)$/.exec(content)[1]).text;
+        autoThrow.text = translateShortcodeToUnicode(regex[3]).text;
         autoThrow.multichoice = null;
         sendMessage(`auto throwing: ${autoThrow.text} after ${time1}-${time2} seconds`, type, target, true);
         updateCommandListWindow("autoThrow");
@@ -2616,40 +2649,39 @@ async function parseCommand(content, type, target) {
     else if (/^\/(atmc|autothrowmc|autothrowmultichoice|autothrowmultiplechoice) \S+$/i.test(content)) {
         let option = /^\S+ (\S+)$/.exec(content)[1];
         let atmcDict = {"1": 1, "2": 2, "3": 3, "4": 4, "r": "random", "random": "random"};
-        if (option in atmcDict) {
-            autoThrow.time = [100];
-            autoThrow.text = null;
-            autoThrow.multichoice = atmcDict[option];
-            sendMessage(`auto throwing multichoice item: ${autoThrow.multichoice}`, type, target, true);
-            updateCommandListWindow("autoThrow");
-        }
+        if (!atmcDict.hasOwnProperty(option)) return;
+        autoThrow.time = [100];
+        autoThrow.text = null;
+        autoThrow.multichoice = atmcDict[option];
+        sendMessage(`auto throwing multichoice item: ${autoThrow.multichoice}`, type, target, true);
+        updateCommandListWindow("autoThrow");
     }
     else if (/^\/(attmc|autothrowtimemc|autothrowtimemultichoice) [0-9.]+ \S+$/i.test(content)) {
-        let time1 = parseFloat(/^\S+ ([0-9.]+) \S+$/.exec(content)[1]);
+        let regex = /^\S+ ([0-9.]+) (\S+)$/.exec(content);
+        let time1 = parseFloat(regex[1]);
         if (isNaN(time1)) return;
-        let option = /^\S+ [0-9.]+ (\S+)$/.exec(content)[1].toLowerCase();
+        let option = regex[2].toLowerCase();
         let atmcDict = {"1": 1, "2": 2, "3": 3, "4": 4, "r": "random", "random": "random"};
-        if (option in atmcDict) {
-            autoThrow.time = [Math.floor(time1 * 1000)];
-            autoThrow.text = null;
-            autoThrow.multichoice = atmcDict[option];
-            sendMessage(`auto throwing multichoice item: ${autoThrow.multichoice} after ${time1} seconds`, type, target, true);
-            updateCommandListWindow("autoThrow");
-        }
+        if (!atmcDict.hasOwnProperty(option)) return;
+        autoThrow.time = [Math.floor(time1 * 1000)];
+        autoThrow.text = null;
+        autoThrow.multichoice = atmcDict[option];
+        sendMessage(`auto throwing multichoice item: ${autoThrow.multichoice} after ${time1} seconds`, type, target, true);
+        updateCommandListWindow("autoThrow");
     }
     else if (/^\/(attmc|autothrowtimemc|autothrowtimemultichoice) [0-9.]+[ -][0-9.]+ \S+$/i.test(content)) {
-        let time1 = parseFloat(/^\S+ ([0-9.]+)[ -][0-9.]+ \S+$/.exec(content)[1]);
-        let time2 = parseFloat(/^\S+ [0-9.]+[ -]([0-9.]+) \S+$/.exec(content)[1]);
+        let regex = /^\S+ ([0-9.]+)[ -]([0-9.]+) (\S+)$/.exec(content);
+        let time1 = parseFloat(regex[1]);
+        let time2 = parseFloat(regex[2]);
         if (isNaN(time1) || isNaN(time2)) return;
-        let option = /^\S+ [0-9.]+[ -][0-9.]+ (\S+)$/.exec(content)[1].toLowerCase();
+        let option = regex[3].toLowerCase();
         let atmcDict = {"1": 1, "2": 2, "3": 3, "4": 4, "r": "random", "random": "random"};
-        if (option in atmcDict) {
-            autoThrow.time = [Math.floor(time1 * 1000), Math.floor(time2 * 1000)];
-            autoThrow.text = null;
-            autoThrow.multichoice = atmcDict[option];
-            sendMessage(`auto throwing multichoice item: ${autoThrow.multichoice} after ${time1}-${time2} seconds`, type, target, true);
-            updateCommandListWindow("autoThrow");
-        }
+        if (!atmcDict.hasOwnProperty(option)) return;
+        autoThrow.time = [Math.floor(time1 * 1000), Math.floor(time2 * 1000)];
+        autoThrow.text = null;
+        autoThrow.multichoice = atmcDict[option];
+        sendMessage(`auto throwing multichoice item: ${autoThrow.multichoice} after ${time1}-${time2} seconds`, type, target, true);
+        updateCommandListWindow("autoThrow");
     }
     else if (/^\/(ac|autocopy)$/i.test(content)) {
         autoCopy = "";
@@ -3004,7 +3036,12 @@ async function parseCommand(content, type, target) {
         if (isInYourRoom(name)) lobby.changeToSpectator(getPlayerNameCorrectCase(name));
     }
     else if (/^\/join$/i.test(content)) {
-        socket.sendCommand({type: "lobby", command: "change to player"});
+        if (lobby.inLobby) {
+            socket.sendCommand({type: "lobby", command: "change to player"});
+        }
+        else if (quiz.inQuiz) {
+            socket.sendCommand({type: "quiz", command: "late join game"});
+        }
     }
     else if (/^\/join [0-9]+$/i.test(content)) {
         if (inRoom()) return;
@@ -3104,6 +3141,11 @@ async function parseCommand(content, type, target) {
             setTimeout(() => { $(`#chatBox-${target} li`).remove() }, 1);
         }
     }
+    else if (/^\/(cp|coop|cooppaste)$/i.test(content)) {
+        coopPaste = !coopPaste;
+        saveSettings();
+        sendMessage(`co-op auto answer copy/paste ${coopPaste ? "enabled" : "disabled"}`, type, target, true);
+    }
     else if (/^\/(dd|dropdown)$/i.test(content)) {
         dropdown = !dropdown;
         saveSettings();
@@ -3182,8 +3224,16 @@ async function parseCommand(content, type, target) {
     else if (/^\/friend \w+$/i.test(content)) {
         socialTab.sendFriendRequest(getPlayerNameCorrectCase(/^\S+ (\w+)$/.exec(content)[1]));
     }
+    else if (/^\/unfriend$/i.test(content)) {
+        if (type === "dm") {
+            socket.sendCommand({type: "social", command: "remove friend", data: {target: target}});
+            socialTab.removeFriend(target);
+        }
+    }
     else if (/^\/unfriend \w+$/i.test(content)) {
-        socialTab.removeFriend(getPlayerNameCorrectCase(/^\S+ (\w+)$/.exec(content)[1]));
+        let name = getPlayerNameCorrectCase(/^\S+ (\w+)$/.exec(content)[1]);
+        socket.sendCommand({type: "social", command: "remove friend", data: {target: name}});
+        socialTab.removeFriend(name);
     }
     else if (/^\/block \w+$/i.test(content)) {
         socialTab.blockPlayer(getPlayerNameCorrectCase(/^\S+ (\w+)$/.exec(content)[1]));
@@ -3199,21 +3249,21 @@ async function parseCommand(content, type, target) {
     }
     else if (/^\/(rules|gamemodes?) .+$/i.test(content)) {
         let option = /^\S+ (.+)$/.exec(content)[1];
-        if (option in rules) sendMessage(rules[option], type, target);
+        if (rules.hasOwnProperty(option)) sendMessage(rules[option], type, target);
     }
     else if (/^\/scripts?$/i.test(content)) {
         sendMessage(Object.keys(scripts).join(", "), type, target);
     }
     else if (/^\/scripts? .+$/i.test(content)) {
         let option = /^\S+ (.+)$/.exec(content)[1];
-        if (option in scripts) sendMessage(scripts[option], type, target);
+        if (scripts.hasOwnProperty(option)) sendMessage(scripts[option], type, target);
     }
     else if (/^\/info$/i.test(content)) {
         sendMessage(Object.keys(info).join(", "), type, target);
     }
     else if (/^\/info .+$/i.test(content)) {
         let option = /^\S+ (.+)$/.exec(content)[1];
-        if (option in info) sendMessage(info[option], type, target);
+        if (info.hasOwnProperty(option)) sendMessage(info[option], type, target);
     }
     else if (/^\/start$/i.test(content)) {
         if (lobby.inLobby && lobby.isHost) {
@@ -3811,7 +3861,7 @@ async function parseCommand(content, type, target) {
     }
     else if (/^\/(dq|daily|dailies|dailyquests?) ops?$/i.test(content)) {
         let anime = "Detective Conan";
-        if (lobby.inLobby && lobby.isHost && anime in dqMap) {
+        if (lobby.inLobby && lobby.isHost && dqMap.hasOwnProperty(anime)) {
             let settings = hostModal.getSettings();
             let data = dqMap[anime];
             settings.songSelection.standardValue = 1;
@@ -3837,7 +3887,7 @@ async function parseCommand(content, type, target) {
     }
     else if (/^\/(dq|daily|dailies|dailyquests?) eds?$/i.test(content)) {
         let anime = "Detective Conan";
-        if (lobby.inLobby && lobby.isHost && anime in dqMap) {
+        if (lobby.inLobby && lobby.isHost && dqMap.hasOwnProperty(anime)) {
             let settings = hostModal.getSettings();
             let data = dqMap[anime];
             settings.songSelection.standardValue = 1;
@@ -3863,7 +3913,7 @@ async function parseCommand(content, type, target) {
     }
     else if (/^\/(dq|daily|dailies|dailyquests?) ins?$/i.test(content)) {
         let anime = "Initial D";
-        if (lobby.inLobby && lobby.isHost && anime in dqMap) {
+        if (lobby.inLobby && lobby.isHost && dqMap.hasOwnProperty(anime)) {
             let settings = hostModal.getSettings();
             let data = dqMap[anime];
             settings.songSelection.standardValue = 1;
@@ -3909,9 +3959,9 @@ async function parseCommand(content, type, target) {
     }
     else if (/^\/(sd|ds|settings default|default ?settings)$/i.test(content)) {
         let settings = JSON.parse(JSON.stringify(hostModal.DEFUALT_SETTINGS));
-        settings.roomName = hostModal.$roomName.val();
-        settings.privateRoom = hostModal.$privateCheckbox.is(":checked");
-        settings.password = hostModal.$passwordInput.val();
+        delete settings.roomName;
+        delete settings.privateRoom;
+        delete settings.password;
         changeGameSettings(settings);
     }
     else if (/^\/settings (a|ani|anilist) [0-9]+$/i.test(content)) {
@@ -4130,7 +4180,7 @@ function parseIncomingDM(content, sender) {
         else if (/^\/room [0-9]+$/i.test(content)) {
             if (Object.keys(roomBrowser.activeRooms).length === 0) return;
             let roomId = /^\S+ ([0-9]+)$/.exec(content)[1];
-            if (roomId in roomBrowser.activeRooms) {
+            if (roomBrowser.activeRooms.hasOwnProperty(roomId)) {
                 let room = roomBrowser.activeRooms[roomId];
                 setTimeout(() => sendMessage(`${room._private ? "private" : "public"} room: ${room.settings.roomName}`, "dm", sender), 100);
                 setTimeout(() => sendMessage(`host: ${room.host}, players: ${room._numberOfPlayers}, spectators: ${room._numberOfSpectators}`, "dm", sender), 300);
@@ -4150,7 +4200,7 @@ function parseIncomingDM(content, sender) {
 function parseForceAll(content, type) {
     if (commands) {
         if (/^\/forceall version$/i.test(content)) {
-            sendMessage("0.123", type);
+            sendMessage("0.124", type);
         }
         else if (/^\/forceall version .+$/i.test(content)) {
             let option = /^\S+ \S+ (.+)$/.exec(content)[1];
@@ -4208,7 +4258,7 @@ function parseForceAll(content, type) {
 function parseVote(content, sender) {
     if (Object.keys(voteOptions).length) {
         let option = /^\/vote ([0-9]+)$/.exec(content)[1];
-        if (option in voteOptions) votes[sender] = option;
+        if (voteOptions.hasOwnProperty(option)) votes[sender] = option;
     }
 }
 
@@ -4342,24 +4392,34 @@ function getTeamDictionary() {
     let teamDictionary = {};
     if (lobby.inLobby) {
         for (let player of Object.values(lobby.players)) {
-            let name = player._name;
-            let team = player.lobbySlot.$TEAM_DISPLAY_TEXT.text();
-            if (isNaN(parseInt(team))) return {};
-            team in teamDictionary ? teamDictionary[team].push(name) : teamDictionary[team] = [name];
+            let teamNumber = player.lobbySlot.$TEAM_DISPLAY_TEXT.text();
+            if (isNaN(parseInt(teamNumber))) return {};
+            if (teamDictionary.hasOwnProperty(teamNumber)) {
+                teamDictionary[teamNumber].push(player._name);
+            }
+            else {
+                teamDictionary[teamNumber] = [player._name];
+            }
         }
     }
     else if (quiz.inQuiz) {
         for (let player of Object.values(quiz.players)) {
-            let name = player._name;
-            let team = player.teamNumber;
-            team in teamDictionary ? teamDictionary[team].push(name) : teamDictionary[team] = [name];
+            if (teamDictionary.hasOwnProperty(player.teamNumber)) {
+                teamDictionary[player.teamNumber].push(player._name);
+            }
+            else {
+                teamDictionary[player.teamNumber] = [player._name];
+            }
         }
     }
     else if (battleRoyal.inView) {
         for (let player of Object.values(battleRoyal.players)) {
-            let name = player._name;
-            let team = player.teamNumber;
-            team in teamDictionary ? teamDictionary[team].push(name) : teamDictionary[team] = [name];
+            if (teamDictionary.hasOwnProperty(player.teamNumber)) {
+                teamDictionary[player.teamNumber].push(player._name);
+            }
+            else {
+                teamDictionary[player.teamNumber] = [player._name];
+            }
         }
     }
     return teamDictionary;
@@ -4592,6 +4652,12 @@ function relog() {
         unsafeWindow.onbeforeunload = null;
         setTimeout(() => { unsafeWindow.location = "/?forceLogin=True" }, 1);
     }
+    else if (quiz.gameMode === "Jam") {
+        autoJoinRoom = {type: "jam", temp: true, autoLogIn: true};
+        saveSettings();
+        unsafeWindow.onbeforeunload = null;
+        setTimeout(() => { unsafeWindow.location = "/?forceLogin=True" }, 1);
+    }
     else if (lobby.inLobby) {
         let password = hostModal.$passwordInput.val();
         autoJoinRoom = {type: "multiplayer", id: lobby.gameId, password: password, joinAsPlayer: !lobby.isSpectator, temp: true, autoLogIn: true};
@@ -4664,7 +4730,7 @@ function getPlayerNameCorrectCase(name) {
             return player;
         }
     }
-    for (let player in socialTab.allPlayerList._playerEntries) {
+    for (let player of Object.keys(socialTab.allPlayerList._playerEntries)) {
         if (nameLowerCase === player.toLowerCase()) {
             return player;
         }
@@ -4700,6 +4766,7 @@ function autoList() {
     if (autoStatus) list.push("Auto Status: " + autoStatus);
     if (autoJoinRoom) list.push("Auto Join Room: " + autoJoinRoom.id);
     if (autoDownloadSong.length) list.push("Auto Download Song: " + autoDownloadSong.join(", "));
+    if (coopPaste) list.push("Co-op Auto Paste: Enabled");
     return list;
 }
 
@@ -4926,7 +4993,7 @@ function genreLookup(inputGenres) {
 
 // change quiz settings to only get a specific anime
 function matchSettingsToAnime(anime) {
-    if (lobby.inLobby && lobby.isHost && anime in dqMap) {
+    if (lobby.inLobby && lobby.isHost && dqMap.hasOwnProperty(anime)) {
         let settings = hostModal.getSettings();
         let data = dqMap[anime];
         settings.songSelection.standardValue = 1;
@@ -5261,6 +5328,7 @@ function saveSettings() {
     settings.autoJoinRoom = autoJoinRoom;
     settings.backgroundURL = backgroundURL;
     settings.commandPersist = commandPersist;
+    settings.commandPrefix = commandPrefix;
     //settings.commands = commands;
     //settings.hidePlayers = hidePlayers;
     settings.enableAllProfileButtons = enableAllProfileButtons;
@@ -5289,6 +5357,7 @@ function saveSettings() {
     if (commandPersist.autoVoteLobby) settings.autoVoteLobby = autoVoteLobby;
     if (commandPersist.autoVoteSkip) settings.autoVoteSkip = autoVoteSkip;
     if (commandPersist.continueSample) settings.continueSample = continueSample;
+    if (commandPersist.coopPaste) settings.coopPaste = coopPaste;
     if (commandPersist.dropdown) settings.dropdown = dropdown;
     if (commandPersist.dropdownInSpec) settings.dropdownInSpec = dropdownInSpec;
     if (commandPersist.loopVideo) settings.loopVideo = loopVideo;
@@ -5331,7 +5400,7 @@ IN GAME/LOBBY
 /autostart                automatically start the game when everyone is ready if you are host
 /autohost [name]          automatically promote player to host if you are the current host
 /autoinvite [name]        automatically invite a player to your room when they log in (only friends)
-/autoaccept               automatically accept game invites if you aren't in a room
+/autoaccept [option]      automatically accept game invites (options: friends, all)
 /autolobby                automatically vote return to lobby when host starts a vote
 /ready                    ready/unready in lobby
 /invite [name]            invite player to game
