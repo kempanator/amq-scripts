@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.59
+// @version      0.60
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -43,7 +43,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.59";
+const version = "0.60";
 const saveData = validateLocalStorage("customSongListGame");
 const catboxHostDict = {1: "files.catbox.moe", 2: "nl.catbox.moe", 3: "nl.catbox.video", 4: "ladist1.catbox.video", 5: "vhdist1.catbox.video"};
 let CSLButtonCSS = saveData.CSLButtonCSS || "calc(25% - 250px)";
@@ -1675,7 +1675,7 @@ function parseMessage(content, sender) {
 }
 
 function checkVoteSkip() {
-    let keys = Object.keys(cslMultiplayer.voteSkip).filter((key) => key in quiz.players && !quiz.players[key].avatarDisabled);
+    let keys = Object.keys(cslMultiplayer.voteSkip).filter((key) => quiz.players.hasOwnProperty(key) && !quiz.players[key].avatarDisabled);
     for (let key of keys) {
         if (!cslMultiplayer.voteSkip[key]) return false;
     }
@@ -1915,6 +1915,7 @@ function getAnisongdbData(mode, query, ops, eds, ins, partial, ignoreDuplicates,
     }
     fetch(url, data).then(res => res.json()).then(json => {
         handleData(json);
+        songList = songList.filter((song) => songTypeFilter(song, ops, eds, ins));
         setSongListTableSort();
         if (!Array.isArray(json)) {
             $("#cslgSongListCount").text("Songs: 0");
