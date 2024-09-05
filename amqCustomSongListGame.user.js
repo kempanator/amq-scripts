@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.60
+// @version      0.61
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -43,7 +43,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.60";
+const version = "0.61";
 const saveData = validateLocalStorage("customSongListGame");
 const catboxHostDict = {1: "files.catbox.moe", 2: "nl.catbox.moe", 3: "nl.catbox.video", 4: "ladist1.catbox.video", 5: "vhdist1.catbox.video"};
 let CSLButtonCSS = saveData.CSLButtonCSS || "calc(25% - 250px)";
@@ -1279,6 +1279,8 @@ function endGuessPhase(songNumber) {
                         "animeGenre": song.animeGenre,
                         "altAnimeNames": song.altAnimeNames,
                         "altAnimeNamesAnswers": song.altAnimeNamesAnswers,
+                        "rebroadcast": song.rebroadcast,
+                        "dub": song.dub,
                         "siteIds": {
                             "annId": song.annId,
                             "malId": song.malId,
@@ -1968,6 +1970,8 @@ function handleData(data) {
                 aniListId: song.linked_ids?.anilist,
                 animeTags: [],
                 animeGenre: [],
+                rebroadcast: null,
+                dub: null,
                 startPoint: null,
                 audio: song.audio,
                 video480: song.MQ,
@@ -2007,6 +2011,8 @@ function handleData(data) {
                 aniListId: song.songInfo.siteIds.aniListId,
                 animeTags: song.songInfo.animeTags,
                 animeGenre: song.songInfo.animeGenre,
+                rebroadcast: song.songInfo.rebroadcast || null,
+                dub: song.songInfo.dub || null,
                 startPoint: song.startPoint,
                 audio: String(song.videoUrl).endsWith(".mp3") ? song.videoUrl : null,
                 video480: null,
@@ -2037,6 +2043,8 @@ function handleData(data) {
                 aniListId: song.siteIds.aniListId,
                 animeTags: song.tags,
                 animeGenre: song.genre,
+                rebroadcast: null,
+                dub: null,
                 startPoint: song.startSample,
                 audio: song.urls?.catbox?.[0] ?? song.urls?.openingsmoe?.[0] ?? null,
                 video480: song.urls?.catbox?.[480] ?? song.urls?.openingsmoe?.[480] ?? null,
@@ -2067,6 +2075,8 @@ function handleData(data) {
                 aniListId: song.aniListId,
                 animeTags: [],
                 animeGenre: [],
+                rebroadcast: null,
+                dub: null,
                 startPoint: null,
                 audio: song.LinkMp3,
                 video480: null,
@@ -2097,6 +2107,8 @@ function handleData(data) {
                 aniListId: song.aniListId,
                 animeTags: song.animeTags || [],
                 animeGenre: song.animeGenre || [],
+                rebroadcast: song.rebroadcast || null,
+                dub: song.dub || null,
                 startPoint: null,
                 audio: song.audio,
                 video480: song.video480,
