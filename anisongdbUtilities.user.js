@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Anisongdb Utilities
 // @namespace    https://github.com/kempanator
-// @version      0.8
+// @version      0.9
 // @description  some extra functions for anisongdb.com
 // @author       kempanator
 // @match        https://anisongdb.com/*
@@ -23,18 +23,18 @@ Features:
 */
 
 "use strict";
-const version = "0.8";
+const version = "0.9";
 const saveData = validateLocalStorage("anisongdbUtilities");
 const catboxHostDict = {1: "nl.catbox.video", 2: "ladist1.catbox.video", 3: "vhdist1.catbox.video"};
-let catboxHost = saveData.catboxHost ?? "0";
-if (!(catboxHost in catboxHostDict)) catboxHost = "0";
+let catboxHost = parseInt(saveData.catboxHost) ?? 0;
+if (!catboxHostDict.hasOwnProperty(catboxHost)) catboxHost = 0;
 let autoPlayMP3 = saveData.autoPlayMP3 ?? true;
 let jsonDownloadRename = saveData.jsonDownloadRename ?? true;
 let jsonDownloadHotkey = saveData.jsonDownloadHotkey ?? {altKey: false, ctrlKey: true, key: "b"};
 let hideAmqText = saveData.hideAmqText ?? false;
 let defaultAdvanced = saveData.defaultAdvanced ?? false;
 let defaultEnglish = saveData.defaultEnglish ?? false;
-let loop = saveData.loop ?? "0"; //0:none, 1:repeat, 2:loop all
+let loop = parseInt(saveData.loop) ?? 0; //0:none, 1:repeat, 2:loop all
 let volume = saveData.volume ?? .5;
 
 let settingsModal;
@@ -92,7 +92,7 @@ function setup() {
     hostSelect.style.padding = "7px 3px";
     hostSelect.style.borderRadius = "5px";
     hostSelect.onchange = (event) => {
-        catboxHost = event.target.value;
+        catboxHost = parseInt(event.target.value);
         saveSettings();
     }
     let dict = Object.assign({}, {0: "default link"}, catboxHostDict);
@@ -111,7 +111,7 @@ function setup() {
     loopSelect.style.padding = "7px 3px";
     loopSelect.style.borderRadius = "5px";
     loopSelect.onchange = (event) => {
-        loop = event.target.value;
+        loop = parseInt(event.target.value);
         saveSettings();
     }
     ["none", "repeat", "loop all"].forEach((x, i) => {
@@ -134,25 +134,22 @@ function setup() {
             toggleSettingsModal(false);
         }
         setTimeout(() => {
-            if (catboxHost !== "0" && document.querySelector("#myModal")) {
+            if (catboxHost && document.querySelector("#myModal")) {
                 let linkElement720 = document.querySelector("#modal-720-link");
                 let linkElement480 = document.querySelector("#modal-480-link");
                 let linkElementMP3 = document.querySelector("#modal-mp3-link");
                 if (linkElement720) {
                     let newLink = linkElement720.href.replace(/^https:\/\/\w+\.catbox\.\w+/, "https://" + catboxHostDict[catboxHost]);
-                    linkElement720.textContent = newLink;
                     linkElement720.href = newLink;
                     linkElement720.parentElement.querySelector("p").onclick = () => navigator.clipboard.writeText(newLink);
                 }
                 if (linkElement480) {
                     let newLink = linkElement480.href.replace(/^https:\/\/\w+\.catbox\.\w+/, "https://" + catboxHostDict[catboxHost]);
-                    linkElement480.textContent = newLink;
                     linkElement480.href = newLink;
                     linkElement480.parentElement.querySelector("p").onclick = () => navigator.clipboard.writeText(newLink);
                 }
                 if (linkElementMP3) {
                     let newLink = linkElementMP3.href.replace(/^https:\/\/\w+\.catbox\.\w+/, "https://" + catboxHostDict[catboxHost]);
-                    linkElementMP3.textContent = newLink;
                     linkElementMP3.href = newLink;
                     linkElementMP3.parentElement.querySelector("p").onclick = () => navigator.clipboard.writeText(newLink);
                 }
@@ -178,7 +175,7 @@ function setup() {
             let audioElement = document.querySelector("audio");
             if (audioElement) {
                 clearInterval(audioInterval);
-                if (catboxHost !== "0") {
+                if (catboxHost) {
                     let oldLink = document.querySelector("audio source").src;
                     let newLink = oldLink.replace(/^https:\/\/\w+\.catbox\.\w+/, "https://" + catboxHostDict[catboxHost]);
                     if (oldLink !== newLink) {
@@ -195,10 +192,10 @@ function setup() {
                         }
                         this.play();
                         audioElement.onended = function() {
-                            if (loop === "1") {
+                            if (loop === 1) {
                                 this.play();
                             }
-                            else if (loop === "2") {
+                            else if (loop === 2) {
                                 let tdList = document.querySelectorAll(`td[title="Listen to mp3"]:has(i.fa-music)`);
                                 let index = Array.from(tdList).findIndex(e => e.style.color === "rgb(226, 148, 4)");
                                 if (index >= 0) {
