@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Catbox Host Switch
 // @namespace    https://github.com/kempanator
-// @version      0.11
+// @version      0.12
 // @description  Switch your catbox host
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -28,53 +28,38 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.11";
+const version = "0.12";
 const saveData = validateLocalStorage("catboxHostSwitch");
-const catboxHostDict = {1: "files.catbox.moe", 2: "nl.catbox.moe", 3: "nl.catbox.video", 4: "ladist1.catbox.video", 5: "vhdist1.catbox.video"};
-let catboxHost = saveData.catboxHost ?? "0"; //0: default link, 1: files.catbox.moe, 2: nl.catbox.moe, 3: nl.catbox.video, 4: ladist1.catbox, 5: vhdist1.catbox.video
-if (!(catboxHost in catboxHostDict)) catboxHost = "0";
+const catboxHostDict = {1: "nl.catbox.video", 2: "ladist1.catbox.video", 3: "vhdist1.catbox.video"};
+let catboxHost = parseInt(saveData.catboxHost) ?? 0;
+if (!catboxHostDict.hasOwnProperty(catboxHost)) catboxHost = 0;
 let catboxDownFlagRaised = false;
-let badUrlFlagRaised = false;
 
 //setup
 function setup() {
     $("#settingsVideoHostsContainer .col-xs-6").first()
     .append($(`<h4>Catbox Link</h4>`))
-    .append($(`<select id="chsSelect" class="form-control"><option value="0">default link</option><option value="1">files.catbox.moe</option><option value="2">nl.catbox.moe</option><option value="3">nl.catbox.video</option><option value="4">ladist1.catbox.video</option><option value="5">vhdist1.catbox.video</option></select>`).val(catboxHost).on("change", function() {
-        catboxHost = this.value;
+    .append($(`<select id="chsSelect" class="form-control"><option value="0">default link</option><option value="1">nl.catbox.video</option><option value="2">ladist1.catbox.video</option><option value="3">vhdist1.catbox.video</option></select>`).val(catboxHost).on("change", function() {
+        catboxHost = parseInt(this.value);
         saveSettings();
     }));
 
-    QuizVideoController.prototype.nextVideoInfo = function(songInfo, playLength, startPoint, firstVideo, startTime, playbackSpeed, fullSongRange) {
+    QuizVideoController.prototype.nextVideoInfo = function(songInfo, playLength, startPoint, firstVideo, startTime, playbackSpeed, fullSongRange, forceBuffering) {
         if (songInfo.videoMap.catbox) {
             catboxDownFlagRaised = false;
-            badUrlFlagRaised = false;
-            if (catboxHost !== "0") {
+            if (catboxHost) {
                 for (let key of Object.keys(songInfo.videoMap.catbox)) {
                     let url = songInfo.videoMap.catbox[key];
                     if (url) {
-                        if (/^https:\/\/[a-z0-9]+\.catbox\.[a-z0-9]+\/[a-z0-9]+\.(mp3|webm|mp4|avi|ogg|flac|wav)$/i.test(url)) {
-                            songInfo.videoMap.catbox[key] = url.replace(/^https:\/\/[a-z0-9]+\.catbox\.[a-z0-9]+/i, "https://" + catboxHostDict[catboxHost]);
+                        if (/^https:\/\/\w+\.catbox\.\w+\/\w+\.\w{3,4}$/i.test(url)) {
+                            songInfo.videoMap.catbox[key] = url.replace(/^https:\/\/\w+\.catbox\.\w+/i, "https://" + catboxHostDict[catboxHost]);
                         }
-                        else if (/^[a-z0-9]+\.(mp3|webm|mp4|avi|ogg|flac|wav)$/i.test(url)) { //normal quiz
+                        else if (/^\w+\.\w{3,4}$/i.test(url)) { //normal quiz
                             songInfo.videoMap.catbox[key] = `https://${catboxHostDict[catboxHost]}/${url}`;
                         }
-                        else if (/^[a-z0-9]+:[a-z0-9]+$/i.test(url)) { //encrypted lobby (ranked, event, tournament)
-                            if (catboxHost === "2" || catboxHost === "3") {
-                                songInfo.videoMap.catbox[key] = `https://nl.catbox.video/internals/dist.php?enc=${url}`;
-                            }
-                            else if (catboxHost === "4") {
-                                songInfo.videoMap.catbox[key] = `https://ladist1.catbox.video/internals/dist.php?enc=${url}`;
-                            }
-                            else if (catboxHost === "5") {
-                                songInfo.videoMap.catbox[key] = `https://vhdist1.catbox.video/internals/dist.php?enc=${url}`;
-                            }
+                        else if (/^\w+:\w+$/i.test(url)) { //encrypted lobby (ranked, event, tournament)
+                            songInfo.videoMap.catbox[key] = `https://${catboxHostDict[catboxHost]}/internals/dist.php?enc=${url}`;
                         }
-                        /*else if (!badUrlFlagRaised) {
-                            console.log({songInfo, playLength, startPoint, firstVideo, startTime, playbackSpeed, fullSongRange});
-                            popoutMessages.displayPopoutMessage(`<h4 class="text-center">Catbox Host Switch</h4><h5 class="text-center">weird url detected<br>using default link</h5>`);
-                            badUrlFlagRaised = true;
-                        }*/
                     }
                 }
             }
@@ -94,7 +79,10 @@ function setup() {
             startTime: startTime,
             fullSongRange: fullSongRange
         };
-        if (firstVideo) {
+        if (forceBuffering) {
+            this.loadNextVideo();
+        }
+        else if (firstVideo) {
             this.readyToBufferNextVideo = false;
         }
         else if (this.readyToBufferNextVideo) {
