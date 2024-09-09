@@ -1,6 +1,6 @@
 /* ==UserStyle==
 @name         Elodie's AMQ Style Script
-@version      10.2.9
+@version      10.2.10
 @namespace    userstyles.world/user/melodyelodie
 @description  A custom theme for animemusicquiz.com
 @author       melodyelodie
@@ -165,7 +165,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         --wrongAnswerColorTransparent: color-mix(in srgb, var(--wrongAnswerColor), transparent 80%);
         --songHistoryCorrectColorHover: color-mix(in srgb, var(--songHistoryCorrectColor), white 5%);
         --songHistoryWrongColorHover: color-mix(in srgb, var(--songHistoryWrongColor), white 5%);
-        --elodieStyleScriptVersion: 10.2.9;
+        --elodieStyleScriptVersion: 10.2.10;
     }
     
     
@@ -225,7 +225,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         --wrongAnswerColorTransparent: color-mix(in srgb, var(--wrongAnswerColor), transparent 80%);
         --songHistoryCorrectColorHover: color-mix(in srgb, var(--songHistoryCorrectColor), white 15%);
         --songHistoryWrongColorHover: color-mix(in srgb, var(--songHistoryWrongColor), white 15%);
-        --elodieStyleScriptVersion: 10.2.9;
+        --elodieStyleScriptVersion: 10.2.10;
     }
     */
     
@@ -2276,9 +2276,11 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         color: var(--accentColorContrast);
     }
     .artistInfoContainer {
+        color: var(--textColor);
+    }
+    .artistInfoContainerInner {
         background-color: var(--windowBackground);
         box-shadow: 0 0 10px 2px var(--boxShadowColor);
-        color: var(--textColor);
     }
 
 
