@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Anisongdb Search
 // @namespace    https://github.com/kempanator
-// @version      0.11
+// @version      0.12
 // @description  Adds a window to search anisongdb.com in game
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -27,7 +27,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.11";
+const version = "0.12";
 const saveData = validateLocalStorage("anisongdbSearch");
 let anisongdbWindow;
 let injectSearchButtons = saveData.injectSearchButtons ?? true;
@@ -100,7 +100,7 @@ function setup() {
     anisongdbWindow.panels[0].panel
         .append($(`<div id="adbsSearchContainer"></div>`)
             .append($(`<div id="anisongdbSearchRow"></div>`)
-                .append($(`<select id="adbsQueryMode" style="padding: 2px 0;"><option>Anime</option><option>Artist</option><option>Song</option><option>Composer</option><option>Season</option><option>Ann Id</option></select>`))
+                .append($(`<select id="adbsQueryMode" style="padding: 2px 0;"><option>Anime</option><option>Artist</option><option>Song</option><option>Composer</option><option>Season</option><option>Ann Id</option><option>Mal Id</option></select>`))
                 .append($(`<input id="adbsQueryInput" type="text" style="width: 300px; padding: 0 2px;">`).keypress((event) => {
                     if (event.which === 13) {
                         doSearch();
@@ -258,6 +258,10 @@ function getAnisongdbData(mode, query, partial) {
     else if (mode === "ann id") {
         url = "https://anisongdb.com/api/annId_request";
         json.annId = parseInt(query);
+    }
+    else if (mode === "mal id") {
+        url = "https://anisongdb.com/api/malIDs_request";
+        json.malIds = query.split(/[, ]+/).map(n => parseInt(n)).filter(n => !isNaN(n));
     }
     if (mode === "season") {
         data = {
