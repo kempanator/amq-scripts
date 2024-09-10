@@ -1,14 +1,15 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.61
+// @version      0.62
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
-// @grant        none
 // @require      https://github.com/joske2865/AMQ-Scripts/raw/master/common/amqScriptInfo.js
 // @downloadURL  https://github.com/kempanator/amq-scripts/raw/main/amqCustomSongListGame.user.js
 // @updateURL    https://github.com/kempanator/amq-scripts/raw/main/amqCustomSongListGame.user.js
+// @grant        GM_xmlhttpRequest
+// @connect      myanimelist.net
 // ==/UserScript==
 
 /*
@@ -43,12 +44,13 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.61";
+const version = "0.62";
 const saveData = validateLocalStorage("customSongListGame");
-const catboxHostDict = {1: "files.catbox.moe", 2: "nl.catbox.moe", 3: "nl.catbox.video", 4: "ladist1.catbox.video", 5: "vhdist1.catbox.video"};
+const catboxHostDict = {1: "nl.catbox.video", 2: "ladist1.catbox.video", 3: "vhdist1.catbox.video"};
 let CSLButtonCSS = saveData.CSLButtonCSS || "calc(25% - 250px)";
 let showCSLMessages = saveData.showCSLMessages ?? true;
 let replacedAnswers = saveData.replacedAnswers || {};
+let malClientId = saveData.malClientId ?? "";
 let hotKeys = saveData.hotKeys ?? {};
 let debug = Boolean(saveData.debug);
 let fastSkip = false;
@@ -65,6 +67,7 @@ let songListTableSort = [0, 0, 0, 0, 0, 0, 0, 0, 0] //song, artist, difficulty, 
 let songList = [];
 let songOrder = {}; //{song#: index#, ...}
 let mergedSongList = [];
+let importedSongList = [];
 let songOrderType = "random";
 let startPointRange = [0, 100];
 let difficultyRange = [0, 100];
@@ -74,7 +77,7 @@ let nextVideoReadyInterval;
 let answerTimer;
 let extraGuessTimer;
 let endGuessTimer;
-let fileHostOverride = "0";
+let fileHostOverride = 0;
 let autocomplete = []; //store lowercase version for faster compare speed
 let autocompleteInput;
 let cslMultiplayer = {host: "", songInfo: {}, voteSkip: {}};
@@ -85,8 +88,11 @@ let answerChunks = {}; //store player answer chunks, ids are keys
 let resultChunk;
 let songInfoChunk;
 let nextSongChunk;
+let importRunning = false;
 
 hotKeys.start = saveData.hotKeys?.start ?? {altKey: false, ctrlKey: false, key: ""};
+hotKeys.stop = saveData.hotKeys?.stop ?? {altKey: false, ctrlKey: false, key: ""};
+hotKeys.cslgWindow = saveData.hotKeys?.cslgWindow ?? {altKey: false, ctrlKey: false, key: ""};
 //hotKeys.mergeAll = saveData.hotKeys?.mergeAll ?? {altKey: false, ctrlKey: false, key: ""};
 
 $("#gameContainer").append($(`
@@ -114,8 +120,8 @@ $("#gameContainer").append($(`
                         <div id="cslgHotkeyTab" class="tab clickAble">
                             <h5>Hotkey</h5>
                         </div>
-                        <div id="cslgMultiplayerTab" class="tab clickAble">
-                            <h5>Multiplayer</h5>
+                        <div id="cslgListImportTab" class="tab clickAble">
+                            <h5>List Import</h5>
                         </div>
                         <div id="cslgInfoTab" class="tab clickAble" style="width: 45px; margin-right: -10px; padding-right: 8px; float: right;">
                             <h5><i class="fa fa-info-circle" aria-hidden="true"></i></h5>
@@ -149,6 +155,7 @@ $("#gameContainer").append($(`
                                     <option>Composer</option>
                                     <option>Season</option>
                                     <option>Ann Id</option>
+                                    <option>Mal Id</option>
                                 </select>
                                 <input id="cslgAnisongdbQueryInput" type="text" style="color: black; width: 250px;">
                                 <button id="cslgAnisongdbSearchButtonGo" style="color: black">Go</button>
@@ -221,11 +228,9 @@ $("#gameContainer").append($(`
                             <span style="font-size: 18px; font-weight: bold; margin: 0 10px 0 10px;">Override URL:</span>
                             <select id="cslgHostOverrideSelect" style="color: black; padding: 3px 0;">
                                 <option value="0">default</option>
-                                <option value="1">files.catbox.moe</option>
-                                <option value="2">nl.catbox.moe</option>
-                                <option value="3">nl.catbox.video</option>
-                                <option value="4">ladist1.catbox.video</option>
-                                <option value="5">vhdist1.catbox.video</option>
+                                <option value="1">nl.catbox.video</option>
+                                <option value="2">ladist1.catbox.video</option>
+                                <option value="3">vhdist1.catbox.video</option>
                                 
                             </select>
                         </div>
@@ -293,11 +298,28 @@ $("#gameContainer").append($(`
                             </tbody>
                         </table>
                     </div>
-                    <div id="cslgMultiplayerContainer" style="text-align: center; margin: 10px 0;">
-                        <div style="font-size: 20px; margin: 20px 0;">WORK IN PROGRESS</div>
-                        <div style="margin-top: 15px"><span style="font-size: 16px; margin-right: 10px; vertical-align: middle;">Show CSL Messages</span><div class="customCheckbox" style="vertical-align: middle"><input type="checkbox" id="cslgShowCSLMessagesCheckbox"><label for="cslgShowCSLMessagesCheckbox"><i class="fa fa-check" aria-hidden="true"></i></label></div></div>
-                        <h4 style="margin-top: 20px;">Prompt All Players</h4>
-                        <div style="margin: 10px 0"><button id="cslgPromptAllAutocompleteButton" style="color: black; margin-right: 10px;">Autocomplete</button><button id="cslgPromptAllVersionButton" style="color: black;">Version</button></div>
+                    <div id="cslgListImportContainer" style="text-align: center; margin: 10px 0;">
+                        <h4 style="">Import list from username</h4>
+                        <div>
+                            <select id="cslgListImportSelect" style="padding: 3px 0; color: black;">
+                                <option>myanimelist</option>
+                                <option>anilist</option>
+                            </select>
+                            <input id="cslgListImportUsernameInput" type="text" placeholder="username" style="width: 200px; color: black;">
+                            <button id="cslgListImportStartButton" style="color: black;">Go</button>
+                        </div>
+                        <div style="margin-top: 5px">
+                            <label class="clickAble">Watching<input id="cslgListImportWatchingCheckbox" type="checkbox" checked></label>
+                            <label class="clickAble" style="margin-left: 10px">Completed<input id="cslgListImportCompletedCheckbox" type="checkbox" checked></label>
+                            <label class="clickAble" style="margin-left: 10px">On Hold<input id="cslgListImportHoldCheckbox" type="checkbox" checked></label>
+                            <label class="clickAble" style="margin-left: 10px">Dropped<input id="cslgListImportDroppedCheckbox" type="checkbox" checked></label>
+                            <label class="clickAble" style="margin-left: 10px">Planning<input id="cslgListImportPlanningCheckbox" type="checkbox" checked></label>
+                        </div>
+                        <h4 id="cslgListImportText" style="margin-top: 10px;"></h4>
+                        <div id="cslgListImportActionContainer" style="display: none;">
+                            <button id="cslgListImportMoveButton" style="color: black;">Move To Song List</button>
+                            <button id="cslgListImportDownloadButton" style="color: black;">Download</button>
+                        </div>
                     </div>
                     <div id="cslgInfoContainer" style="text-align: center; margin: 10px 0;">
                         <h4>Script Info</h4>
@@ -307,6 +329,10 @@ $("#gameContainer").append($(`
                         <h4 style="margin-top: 20px;">Custom CSS</h4>
                         <div><span style="font-size: 15px; margin-right: 17px;">#lnCustomSongListButton </span>right: <input id="cslgCSLButtonCSSInput" type="text" style="width: 150px; color: black;"></div>
                         <div style="margin: 10px 0"><button id="cslgResetCSSButton" style="color: black; margin-right: 10px;">Reset</button><button id="cslgApplyCSSButton" style="color: black;">Save</button></div>
+                        <h4 style="margin-top: 20px;">Prompt All Players</h4>
+                        <div style="margin: 10px 0"><button id="cslgPromptAllAutocompleteButton" style="color: black; margin-right: 10px;">Autocomplete</button><button id="cslgPromptAllVersionButton" style="color: black;">Version</button></div>
+                        <div style="margin-top: 15px"><span style="font-size: 16px; margin-right: 10px; vertical-align: middle;">Show CSL Messages</span><div class="customCheckbox" style="vertical-align: middle"><input type="checkbox" id="cslgShowCSLMessagesCheckbox"><label for="cslgShowCSLMessagesCheckbox"><i class="fa fa-check" aria-hidden="true"></i></label></div></div>
+                        <div style="margin: 10px 0"><input id="cslgMalClientIdInput" type="text" placeholder="MAL Client ID" style="width: 300px; color: black;"></div>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -320,6 +346,8 @@ $("#gameContainer").append($(`
 `));
 
 createHotkeyElement("Start CSL", "start", "cslgStartHotkeySelect", "cslgStartHotkeyInput");
+createHotkeyElement("Stop CSL", "stop", "cslgStopHotkeySelect", "cslgStopHotkeyInput");
+createHotkeyElement("Open Window", "cslgWindow", "cslgWindowHotkeySelect", "cslgWindowHotkeyInput");
 //createHotkeyElement("Merge All", "mergeAll", "cslgMergeAllHotkeySelect", "cslgMergeAllHotkeyInput");
 
 $("#lobbyPage .topMenuBar").append(`<div id="lnCustomSongListButton" class="clickAble topMenuButton topMenuMediumButton"><h3>CSL</h3></div>`);
@@ -349,18 +377,24 @@ $("#cslgHotkeyTab").click(() => {
     $("#cslgHotkeyTab").addClass("selected");
     $("#cslgHotkeyContainer").show();
 });
-$("#cslgMultiplayerTab").click(() => {
+$("#cslgListImportTab").click(() => {
     tabReset();
-    $("#cslgMultiplayerTab").addClass("selected");
-    $("#cslgMultiplayerContainer").show();
+    $("#cslgListImportTab").addClass("selected");
+    $("#cslgListImportContainer").show();
 });
 $("#cslgInfoTab").click(() => {
     tabReset();
     $("#cslgInfoTab").addClass("selected");
     $("#cslgInfoContainer").show();
 });
-$("#cslgAnisongdbSearchButtonGo").click(() => { anisongdbDataSearch() });
-$("#cslgAnisongdbQueryInput").keypress((event) => { if (event.which === 13) anisongdbDataSearch() });
+$("#cslgAnisongdbSearchButtonGo").click(() => {
+    anisongdbDataSearch();
+});
+$("#cslgAnisongdbQueryInput").keypress((event) => {
+    if (event.which === 13) {
+        anisongdbDataSearch();
+    }
+});
 $("#cslgFileUpload").on("change", function() {
     if (this.files.length) {
         this.files[0].text().then((data) => {
@@ -418,7 +452,7 @@ $("#cslgSongOrderSelect").on("change", function() {
     songOrderType = this.value;
 });
 $("#cslgHostOverrideSelect").on("change", function() {
-    fileHostOverride = this.value;
+    fileHostOverride = parseInt(this.value);
 });
 $("#cslgMergeButton").click(() => {
     mergedSongList = Array.from(new Set(mergedSongList.concat(songList).map((x) => JSON.stringify(x)))).map((x) => JSON.parse(x));
@@ -467,6 +501,35 @@ $("#cslgAutocompleteButton").click(() => {
     else {
         messageDisplayer.displayMessage("Autocomplete", "For multiplayer, just start the quiz normally and immediately lobby");
     }
+});
+$("#cslgListImportUsernameInput").keypress((event) => {
+    if (event.which === 13) {
+        startImport();
+    }
+});
+$("#cslgListImportStartButton").click(() => {
+    startImport();
+});
+$("#cslgListImportMoveButton").click(() => {
+    if (!importedSongList.length) return;
+    handleData(importedSongList);
+    setSongListTableSort();
+    createSongListTable();
+    createAnswerTable();
+});
+$("#cslgListImportDownloadButton").click(() => {
+    if (!importedSongList.length) return;
+    let listType = $("#cslgListImportSelect").val();
+    let username = $("#cslgListImportUsernameInput").val().trim();
+    let date = new Date();
+    let dateFormatted = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, 0)}-${String(date.getDate()).padStart(2, 0)}`;
+    let data = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(importedSongList));
+    let element = document.createElement("a");
+    element.setAttribute("href", data);
+    element.setAttribute("download", `${username} ${listType} ${dateFormatted} song list.json`);
+    document.body.appendChild(element);
+    element.click();
+    element.remove();
 });
 $("#cslgStartButton").click(() => {
     validateStart();
@@ -611,6 +674,10 @@ $("#cslgPromptAllAutocompleteButton").click(() => {
 });
 $("#cslgPromptAllVersionButton").click(() => {
     cslMessage("§CSL22");
+});
+$("#cslgMalClientIdInput").val(malClientId).on("change", function() {
+    malClientId = this.value;
+    saveSettings();
 });
 tabReset();
 $("#cslgSongListTab").addClass("selected");
@@ -877,6 +944,17 @@ function setup() {
         if (testHotkey("start", key, altKey, ctrlKey)) {
             validateStart();
         }
+        if (testHotkey("stop", key, altKey, ctrlKey)) {
+            quizOver();
+        }
+        if (testHotkey("cslgWindow", key, altKey, ctrlKey)) {
+            if ($("#cslgSettingsModal").is(":visible")) {
+                $("#cslgSettingsModal").modal("hide");
+            }
+            else {
+                openSettingsModal();
+            }
+        }
         /*if (testHotkey("mergeAll", key, altKey, ctrlKey)) {
             mergedSongList = Array.from(new Set(mergedSongList.concat(songList).map((x) => JSON.stringify(x)))).map((x) => JSON.parse(x));
             createMergedSongListTable();
@@ -940,7 +1018,8 @@ function validateStart() {
         startPointRange = [parseInt(startPointText), parseInt(startPointText)];
     }
     else if (/^[0-9]+[\s-]+[0-9]+$/.test(startPointText)) {
-        startPointRange = [parseInt(/^([0-9]+)[\s-]+[0-9]+$/.exec(startPointText)[1]), parseInt(/^[0-9]+[\s-]+([0-9]+)$/.exec(startPointText)[1])];
+        let regex = /^([0-9]+)[\s-]+([0-9]+)$/.exec(startPointText);
+        startPointRange = [parseInt(regex[1]), parseInt(regex[2])];
     }
     else {
         return messageDisplayer.displayMessage("Unable to start", "song start sample must be a number or range 0-100");
@@ -950,7 +1029,8 @@ function validateStart() {
     }
     let difficultyText = $("#cslgSettingsDifficulty").val().trim();
     if (/^[0-9]+[\s-]+[0-9]+$/.test(difficultyText)) {
-        difficultyRange = [parseInt(/^([0-9]+)[\s-]+[0-9]+$/.exec(difficultyText)[1]), parseInt(/^[0-9]+[\s-]+([0-9]+)$/.exec(difficultyText)[1])];
+        let regex = /^([0-9]+)[\s-]+([0-9]+)$/.exec(difficultyText);
+        difficultyRange = [parseInt(regex[1]), parseInt(regex[2])];
     }
     else {
         return messageDisplayer.displayMessage("Unable to start", "difficulty must be a range 0-100");
@@ -1902,6 +1982,10 @@ function getAnisongdbData(mode, query, ops, eds, ins, partial, ignoreDuplicates,
         url = "https://anisongdb.com/api/annId_request";
         json.annId = parseInt(query);
     }
+    else if (mode === "mal id") {
+        url = "https://anisongdb.com/api/malIDs_request";
+        json.malIds = query.split(/[, ]+/).map(n => parseInt(n)).filter(n => !isNaN(n));
+    }
     if (mode === "season") {
         data = {
             method: "GET",
@@ -2333,13 +2417,13 @@ function createLinkElement(link) {
         $a.text(link.includes("catbox") ? link.split("/").slice(-1)[0] : link);
         $a.attr("href", link);
     }
-    else if (/[a-z0-9]+\.(mp3|webm|mp4|avi|ogg|flac|wav)/i.test(link)) {
+    else if (/^\w+\.\w{3,4}$/.test(link)) {
         $a.text(link);
-        if (fileHostOverride === "0") {
-            $a.attr("href", "https://ladist1.catbox.video/" + link);
+        if (fileHostOverride) {
+            $a.attr("href", "https://" + catboxHostDict[fileHostOverride] + "/" + link);
         }
         else {
-            $a.attr("href", "https://" + catboxHostDict[fileHostOverride] + "/" + link);
+            $a.attr("href", "https://ladist1.catbox.video/" + link);
         }
     }
     $a.attr("target", "_blank");
@@ -2381,14 +2465,14 @@ function tabReset() {
     $("#cslgAnswerTab").removeClass("selected");
     $("#cslgMergeTab").removeClass("selected");
     $("#cslgHotkeyTab").removeClass("selected");
-    $("#cslgMultiplayerTab").removeClass("selected");
+    $("#cslgListImportTab").removeClass("selected");
     $("#cslgInfoTab").removeClass("selected");
     $("#cslgSongListContainer").hide();
     $("#cslgQuizSettingsContainer").hide();
     $("#cslgAnswerContainer").hide();
     $("#cslgMergeContainer").hide();
     $("#cslgHotkeyContainer").hide();
-    $("#cslgMultiplayerContainer").hide();
+    $("#cslgListImportContainer").hide();
     $("#cslgInfoContainer").hide();
 }
 
@@ -2411,22 +2495,22 @@ function songTypeText(type, typeNumber) {
 // input 3 links, return formatted catbox link object
 function createCatboxLinkObject(audio, video480, video720) {
     let links = {};
-    if (fileHostOverride === "0") {
-        if (audio) links["0"] = audio;
-        if (video480) links["480"] = video480;
-        if (video720) links["720"] = video720;
-    }
-    else {
+    if (fileHostOverride) {
         if (audio) links["0"] = "https://" + catboxHostDict[fileHostOverride] + "/" + audio.split("/").slice(-1)[0];
         if (video480) links["480"] = "https://" + catboxHostDict[fileHostOverride] + "/" + video480.split("/").slice(-1)[0];
         if (video720) links["720"] = "https://" + catboxHostDict[fileHostOverride] + "/" + video720.split("/").slice(-1)[0];
+    }
+    else {
+        if (audio) links["0"] = audio;
+        if (video480) links["480"] = video480;
+        if (video720) links["720"] = video720;
     }
     return links;
 }
 
 // create hotkey element
 function createHotkeyElement(title, key, selectID, inputID) {
-    let $select = $(`<select id="${selectID}" style="padding: 3px 0;"></select>`).append(`<option>ALT</option>`).append(`<option>CTRL</option>`).append(`<option>CTRL ALT</option>`).append(`<option>(none)</option>`);
+    let $select = $(`<select id="${selectID}" style="padding: 3px 0;"></select>`).append(`<option>ALT</option>`).append(`<option>CTRL</option>`).append(`<option>CTRL ALT</option>`).append(`<option>-</option>`);
     let $input = $(`<input id="${inputID}" type="text" maxlength="1" style="width: 40px;">`).val(hotKeys[key].key);
     $select.on("change", () => {
         hotKeys[key] = {
@@ -2447,7 +2531,7 @@ function createHotkeyElement(title, key, selectID, inputID) {
     if (hotKeys[key].altKey && hotKeys[key].ctrlKey) $select.val("CTRL ALT");
     else if (hotKeys[key].altKey) $select.val("ALT");
     else if (hotKeys[key].ctrlKey) $select.val("CTRL");
-    else $select.val("(none)");
+    else $select.val("-");
     $("#cslgHotkeyTable tbody").append($(`<tr></tr>`).append($(`<td></td>`).text(title)).append($(`<td></td>`).append($select)).append($(`<td></td>`).append($input)));
 }
 
@@ -2549,6 +2633,199 @@ class Chunk {
     }
 }
 
+// input myanimelist username, return list of mal ids
+async function getMalIdsFromMyanimelist(username) {
+    let malIds = [];
+    let statuses = [];
+    if ($("#cslgListImportWatchingCheckbox").prop("checked")) {
+        statuses.push("watching");
+    }
+    if ($("#cslgListImportCompletedCheckbox").prop("checked")) {
+        statuses.push("completed");
+    }
+    if ($("#cslgListImportHoldCheckbox").prop("checked")) {
+        statuses.push("on_hold");
+    }
+    if ($("#cslgListImportDroppedCheckbox").prop("checked")) {
+        statuses.push("dropped");
+    }
+    if ($("#cslgListImportPlanningCheckbox").prop("checked")) {
+        statuses.push("plan_to_watch");
+    }
+    for (let status of statuses) {
+        $("#cslgListImportText").text(`Retrieving Myanimelist: ${status}`);
+        let nextPage = `https://api.myanimelist.net/v2/users/${username}/animelist?offset=0&limit=1000&nsfw=true&status=${status}`;
+        while (nextPage) {
+            let result = await new Promise((resolve, reject) => {
+                GM_xmlhttpRequest({
+                    method: "GET",
+                    url: nextPage,
+                    headers: {"Content-Type": "application/json", "Accept": "application/json", "X-MAL-CLIENT-ID": malClientId},
+                    onload: (res) => resolve(JSON.parse(res.response)),
+                    onerror: (res) => reject(res)
+                });
+            });
+            if (result.error) {
+                nextPage = false;
+                $("#cslgListImportText").text(`MAL API Error: ${result.error}`);
+            }
+            else {
+                for (let anime of result.data) {
+                    malIds.push(anime.node.id);
+                }
+                nextPage = result.paging.next;
+            }
+        }
+    }
+    return malIds;
+}
+
+// input anilist username, return list of mal ids
+async function getMalIdsFromAnilist(username) {
+    let pageNumber = 1;
+    let malIds = [];
+    let statuses = [];
+    if ($("#cslgListImportWatchingCheckbox").prop("checked")) {
+        statuses.push("CURRENT");
+    }
+    if ($("#cslgListImportCompletedCheckbox").prop("checked")) {
+        statuses.push("COMPLETED");
+    }
+    if ($("#cslgListImportHoldCheckbox").prop("checked")) {
+        statuses.push("PAUSED");
+    }
+    if ($("#cslgListImportDroppedCheckbox").prop("checked")) {
+        statuses.push("DROPPED");
+    }
+    if ($("#cslgListImportPlanningCheckbox").prop("checked")) {
+        statuses.push("PLANNING");
+    }
+    for (let status of statuses) {
+        $("#cslgListImportText").text(`Retrieving Anilist: ${status}`);
+        let hasNextPage = true;
+        while (hasNextPage) {
+            let data = await getAnilistData(username, status, pageNumber);
+            if (data) {
+                for (let item of data.mediaList) {
+                    if (item.media.idMal) {
+                        malIds.push(item.media.idMal);
+                    }
+                }
+                if (data.pageInfo.hasNextPage) {
+                    pageNumber += 1;
+                }
+                else {
+                    hasNextPage = false;
+                }
+            }
+            else {
+                $("#cslgListImportText").text("Anilist API Error");
+                hasNextPage = false;
+            }
+        }
+    }
+    return malIds;
+}
+
+// input username, status, and page number
+function getAnilistData(username, status, pageNumber) {
+    let query = `
+        query {
+            Page (page: ${pageNumber}, perPage: 50) {
+                pageInfo {
+                    currentPage
+                    hasNextPage
+                }
+                mediaList (userName: "${username}", type: ANIME, status: ${status}) {
+                    status
+                    media {
+                        id
+                        idMal
+                    }
+                }
+            }
+        }
+    `;
+    let data = {
+        method: "POST",
+        headers: {"Content-Type": "application/json", "Accept": "application/json"},
+        body: JSON.stringify({query: query})
+    }
+    return fetch("https://graphql.anilist.co", data)
+        .then((res) => res.json())
+        .then((json) => json?.data?.Page)
+        .catch((error) => console.log(error));
+}
+
+async function getSongListFromMalIds(malIds) {
+    if (!malIds) malIds = [];
+    importedSongList = [];
+    $("#cslgListImportText").text(`Anime: 0 / ${malIds.length} | Songs: ${importedSongList.length}`);
+    if (malIds.length === 0) return;
+    let url = "https://anisongdb.com/api/malIDs_request";
+    let idsProcessed = 0;
+    for (let i = 0; i < malIds.length; i += 500) {
+        let segment = malIds.slice(i, i + 500);
+        idsProcessed += segment.length;
+        let data = {
+            method: "POST",
+            headers: {"Accept": "application/json", "Content-Type": "application/json"},
+            body: JSON.stringify({"malIds": segment})
+        };
+        await fetch(url, data).then(res => res.json()).then(json => {
+            if (Array.isArray(json)) {
+                importedSongList = importedSongList.concat(json);
+                $("#cslgListImportText").text(`Anime: ${idsProcessed} / ${malIds.length} | Songs: ${importedSongList.length}`);
+            }
+            else {
+                $("#cslgListImportText").text("anisongdb error");
+                console.log(json);
+                throw new Error("did not receive an array from anisongdb");
+            }
+        }).catch(res => {
+            importedSongList = [];
+            $("#cslgListImportText").text("anisongdb error");
+            console.log(res);
+        });
+    }
+}
+
+// start list import process
+async function startImport() {
+    if (importRunning) return;
+    importRunning = true;
+    $("#cslgListImportStartButton").addClass("disabled");
+    $("#cslgListImportActionContainer").hide();
+    if ($("#cslgListImportSelect").val() === "myanimelist") {
+        if (malClientId) {
+            let username = $("#cslgListImportUsernameInput").val().trim();
+            if (username) {
+                let malIds = await getMalIdsFromMyanimelist(username);
+                await getSongListFromMalIds(malIds);
+            }
+            else {
+                $("#cslgListImportText").text("Input Myanimelist Username");
+            }
+        }
+        else {
+            $("#cslgListImportText").text("Missing MAL Client ID");
+        }
+    }
+    else if ($("#cslgListImportSelect").val() === "anilist") {
+        let username = $("#cslgListImportUsernameInput").val().trim();
+        if (username) {
+            let malIds = await getMalIdsFromAnilist(username);
+            await getSongListFromMalIds(malIds);
+        }
+        else {
+            $("#cslgListImportText").text("Input Anilist Username");
+        }
+    }
+    if (importedSongList.length) $("#cslgListImportActionContainer").show();
+    $("#cslgListImportStartButton").removeClass("disabled");
+    importRunning = false;
+}
+
 // validate json data in local storage
 function validateLocalStorage(item) {
     try {
@@ -2562,10 +2839,11 @@ function validateLocalStorage(item) {
 // save settings
 function saveSettings() {
     localStorage.setItem("customSongListGame", JSON.stringify({
-        replacedAnswers: replacedAnswers,
-        CSLButtonCSS: CSLButtonCSS,
-        debug: debug,
-        hotKeys: hotKeys
+        replacedAnswers,
+        CSLButtonCSS,
+        debug,
+        hotKeys,
+        malClientId
     }));
 }
 
@@ -2713,6 +2991,13 @@ function applyStyles() {
         }
         table.styledTable tbody tr:nth-child(even) {
             background-color: #353535;
+        }
+        #cslgListImportContainer input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            margin-left: 3px;
+            vertical-align: -5px;
+            cursor: pointer;
         }
     `;
     style.appendChild(document.createTextNode(text));
