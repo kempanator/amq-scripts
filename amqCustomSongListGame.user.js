@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.62
+// @version      0.63
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -44,7 +44,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.62";
+const version = "0.63";
 const saveData = validateLocalStorage("customSongListGame");
 const catboxHostDict = {1: "nl.catbox.video", 2: "ladist1.catbox.video", 3: "vhdist1.catbox.video"};
 let CSLButtonCSS = saveData.CSLButtonCSS || "calc(25% - 250px)";
@@ -1098,7 +1098,7 @@ function startQuiz() {
         "players": [],
         "multipleChoice": false,
         "quizDescription": {
-            "quizId": "",
+            "quizId": crypto.randomUUID(),
             "startTime": date,
             "roomName": hostModal.$roomName.val()
         }
@@ -1984,7 +1984,7 @@ function getAnisongdbData(mode, query, ops, eds, ins, partial, ignoreDuplicates,
     }
     else if (mode === "mal id") {
         url = "https://anisongdb.com/api/malIDs_request";
-        json.malIds = query.split(/[, ]+/).map(n => parseInt(n)).filter(n => !isNaN(n));
+        json.malIds = query.split(/[\s,]+/).map(n => parseInt(n)).filter(n => !isNaN(n));
     }
     if (mode === "season") {
         data = {
@@ -2752,16 +2752,16 @@ function getAnilistData(username, status, pageNumber) {
         body: JSON.stringify({query: query})
     }
     return fetch("https://graphql.anilist.co", data)
-        .then((res) => res.json())
-        .then((json) => json?.data?.Page)
-        .catch((error) => console.log(error));
+        .then(res => res.json())
+        .then(json => json?.data?.Page)
+        .catch(error => console.log(error));
 }
 
 async function getSongListFromMalIds(malIds) {
-    if (!malIds) malIds = [];
     importedSongList = [];
-    $("#cslgListImportText").text(`Anime: 0 / ${malIds.length} | Songs: ${importedSongList.length}`);
+    if (!malIds) malIds = [];
     if (malIds.length === 0) return;
+    $("#cslgListImportText").text(`Anime: 0 / ${malIds.length} | Songs: ${importedSongList.length}`);
     let url = "https://anisongdb.com/api/malIDs_request";
     let idsProcessed = 0;
     for (let i = 0; i < malIds.length; i += 500) {
@@ -2778,6 +2778,7 @@ async function getSongListFromMalIds(malIds) {
                 $("#cslgListImportText").text(`Anime: ${idsProcessed} / ${malIds.length} | Songs: ${importedSongList.length}`);
             }
             else {
+                importedSongList = [];
                 $("#cslgListImportText").text("anisongdb error");
                 console.log(json);
                 throw new Error("did not receive an array from anisongdb");
