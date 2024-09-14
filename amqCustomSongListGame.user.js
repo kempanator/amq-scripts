@@ -212,6 +212,11 @@ $("#gameContainer").append($(`
                             <label class="clickAble" style="margin-left: 10px">Special<input id="cslgSettingsSpecialCheckbox" type="checkbox"></label>
                         </div>
                         <div style="margin-top: 5px">
+                            <span style="font-size: 18px; font-weight: bold; margin-right: 15px;">Modifiers:</span>
+                            <label class="clickAble">Dub<input id="cslgSettingsDubCheckbox" type="checkbox"></label>
+                            <label class="clickAble" style="margin-left: 10px">Rebroadcast<input id="cslgSettingsRebroadcastCheckbox" type="checkbox"></label>
+                        </div>
+                        <div style="margin-top: 5px">
                             <span style="font-size: 18px; font-weight: bold; margin: 0 10px 0 0;">Sample:</span>
                             <input id="cslgSettingsStartPoint" type="text" style="width: 70px">
                             <span style="font-size: 18px; font-weight: bold; margin: 0 10px 0 40px;">Difficulty:</span>
@@ -646,6 +651,8 @@ $("#cslgSettingsMovieCheckbox").prop("checked", true);
 $("#cslgSettingsOVACheckbox").prop("checked", true);
 $("#cslgSettingsONACheckbox").prop("checked", true);
 $("#cslgSettingsSpecialCheckbox").prop("checked", true);
+$("#cslgSettingsDubCheckbox").prop("checked", true);
+$("#cslgSettingsRebroadcastCheckbox").prop("checked", true);
 $("#cslgSettingsStartPoint").val("0-100");
 $("#cslgSettingsDifficulty").val("0-100");
 $("#cslgSettingsFastSkip").prop("checked", false);
@@ -1046,13 +1053,16 @@ function validateStart() {
     let ova = $("#cslgSettingsOVACheckbox").prop("checked");
     let ona = $("#cslgSettingsONACheckbox").prop("checked");
     let special = $("#cslgSettingsSpecialCheckbox").prop("checked");
+    let dub = $("#cslgSettingsDubCheckbox").prop("checked");
+    let rebroadcast = $("#cslgSettingsRebroadcastCheckbox").prop("checked");
     let correctGuesses = $("#cslgSettingsCorrectGuessCheckbox").prop("checked");
     let incorrectGuesses = $("#cslgSettingsIncorrectGuessCheckbox").prop("checked");
     let songKeys = Object.keys(songList)
         .filter((key) => songTypeFilter(songList[key], ops, eds, ins))
         .filter((key) => animeTypeFilter(songList[key], tv, movie, ova, ona, special))
         .filter((key) => difficultyFilter(songList[key], difficultyRange[0], difficultyRange[1]))
-        .filter((key) => guessTypeFilter(songList[key], correctGuesses, incorrectGuesses));
+        .filter((key) => guessTypeFilter(songList[key], correctGuesses, incorrectGuesses))
+        .filter((key) => modifiersFilter(songList[key], dub, rebroadcast));
     if (songOrderType === "random") shuffleArray(songKeys);
     else if (songOrderType === "descending") songKeys.reverse();
     songKeys.slice(0, numSongs).forEach((key, i) => { songOrder[i + 1] = parseInt(key) });
@@ -1837,6 +1847,13 @@ function guessTypeFilter(song, correctGuesses, incorrectGuesses) {
     return false;
 }
 
+// return true if the song is allowed under the selected modifiers
+function modifiersFilter(song, dub, rebroadcast) {
+  if (!dub && song.dub) return false;
+  if (!rebroadcast && song.rebroadcast) return false;
+  return true;
+}
+
 // clear all intervals and timeouts
 function clearTimeEvents() {
     clearInterval(nextVideoReadyInterval);
@@ -2054,8 +2071,8 @@ function handleData(data) {
                 aniListId: song.linked_ids?.anilist,
                 animeTags: [],
                 animeGenre: [],
-                rebroadcast: null,
-                dub: null,
+                rebroadcast: song.isRebroadcast || null,
+                dub: song.isDub || null,
                 startPoint: null,
                 audio: song.audio,
                 video480: song.MQ,
