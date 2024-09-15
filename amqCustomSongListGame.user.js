@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.64
+// @version      0.65
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -44,7 +44,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.64";
+const version = "0.65";
 const saveData = validateLocalStorage("customSongListGame");
 const catboxHostDict = {1: "nl.catbox.video", 2: "ladist1.catbox.video", 3: "vhdist1.catbox.video"};
 let CSLButtonCSS = saveData.CSLButtonCSS || "calc(25% - 250px)";
@@ -2071,8 +2071,8 @@ function handleData(data) {
                 aniListId: song.linked_ids?.anilist,
                 animeTags: [],
                 animeGenre: [],
-                rebroadcast: song.isRebroadcast || null,
-                dub: song.isDub || null,
+                rebroadcast: song.isRebroadcast ?? null,
+                dub: song.isDub ?? null,
                 startPoint: null,
                 audio: song.audio,
                 video480: song.MQ,
@@ -2112,8 +2112,8 @@ function handleData(data) {
                 aniListId: song.songInfo.siteIds.aniListId,
                 animeTags: song.songInfo.animeTags,
                 animeGenre: song.songInfo.animeGenre,
-                rebroadcast: song.songInfo.rebroadcast || null,
-                dub: song.songInfo.dub || null,
+                rebroadcast: song.songInfo.rebroadcast ?? null,
+                dub: song.songInfo.dub ?? null,
                 startPoint: song.startPoint,
                 audio: String(song.videoUrl).endsWith(".mp3") ? song.videoUrl : null,
                 video480: null,
@@ -2699,9 +2699,10 @@ async function getMalIdsFromMyanimelist(username) {
 
 // input anilist username, return list of mal ids
 async function getMalIdsFromAnilist(username) {
-    let pageNumber = 1;
     let malIds = [];
     let statuses = [];
+    let pageNumber = 1;
+    let hasNextPage = true;
     if ($("#cslgListImportWatchingCheckbox").prop("checked")) {
         statuses.push("CURRENT");
     }
@@ -2717,35 +2718,32 @@ async function getMalIdsFromAnilist(username) {
     if ($("#cslgListImportPlanningCheckbox").prop("checked")) {
         statuses.push("PLANNING");
     }
-    for (let status of statuses) {
-        $("#cslgListImportText").text(`Retrieving Anilist: ${status}`);
-        let hasNextPage = true;
-        while (hasNextPage) {
-            let data = await getAnilistData(username, status, pageNumber);
-            if (data) {
-                for (let item of data.mediaList) {
-                    if (item.media.idMal) {
-                        malIds.push(item.media.idMal);
-                    }
+    while (hasNextPage) {
+        $("#cslgListImportText").text(`Retrieving Anilist: page ${pageNumber}`);
+        let data = await getAnilistData(username, statuses, pageNumber);
+        if (data) {
+            for (let item of data.mediaList) {
+                if (item.media.idMal) {
+                    malIds.push(item.media.idMal);
                 }
-                if (data.pageInfo.hasNextPage) {
-                    pageNumber += 1;
-                }
-                else {
-                    hasNextPage = false;
-                }
+            }
+            if (data.pageInfo.hasNextPage) {
+                pageNumber += 1;
             }
             else {
-                $("#cslgListImportText").text("Anilist API Error");
                 hasNextPage = false;
             }
+        }
+        else {
+            $("#cslgListImportText").text("Anilist API Error");
+            hasNextPage = false;
         }
     }
     return malIds;
 }
 
 // input username, status, and page number
-function getAnilistData(username, status, pageNumber) {
+function getAnilistData(username, statuses, pageNumber) {
     let query = `
         query {
             Page (page: ${pageNumber}, perPage: 50) {
@@ -2753,7 +2751,7 @@ function getAnilistData(username, status, pageNumber) {
                     currentPage
                     hasNextPage
                 }
-                mediaList (userName: "${username}", type: ANIME, status: ${status}) {
+                mediaList (userName: "${username}", type: ANIME, status_in: [${statuses}]) {
                     status
                     media {
                         id
