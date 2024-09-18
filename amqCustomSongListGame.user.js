@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.65
+// @version      0.66
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -44,7 +44,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.65";
+const version = "0.66";
 const saveData = validateLocalStorage("customSongListGame");
 const catboxHostDict = {1: "nl.catbox.video", 2: "ladist1.catbox.video", 3: "vhdist1.catbox.video"};
 let CSLButtonCSS = saveData.CSLButtonCSS || "calc(25% - 250px)";
@@ -62,8 +62,8 @@ let currentSong = 0;
 let totalSongs = 0;
 let currentAnswers = {};
 let score = {};
-let songListTableMode = 0; //0: song + artist, 1: anime + song type + vintage, 2: catbox links
-let songListTableSort = [0, 0, 0, 0, 0, 0, 0, 0, 0] //song, artist, difficulty, anime, type, vintage, mp3, 480, 720 (0: off, 1: ascending, 2: descending)
+let songListTableView = 0; //0: song + artist, 1: anime + song type + vintage, 2: catbox links
+let songListTableSort = {mode: "", ascending: true} //modes: songName, artist, difficulty, anime, songType, vintage, mp3, 480, 720
 let songList = [];
 let songOrder = {}; //{song#: index#, ...}
 let mergedSongList = [];
@@ -133,8 +133,10 @@ $("#gameContainer").append($(`
                         <div id="cslgSongListTopRow" style="margin: 2px 0 3px 0;">
                             <span style="font-size: 20px; font-weight: bold;">Mode</span>
                             <select id="cslgSongListModeSelect" style="color: black; margin-left: 2px; padding: 3px 0;">
-                                <option value="Anisongdb">Anisongdb</option>
-                                <option value="Load File">Load File</option>
+                                <option>Anisongdb</option>
+                                <option>Load File</option>
+                                <option>Previous Game</option>
+                                <option>Filter List</option>
                             </select>
                             <i id="cslgMergeAllButton" class="fa fa-plus clickAble" aria-hidden="true" style="font-size: 20px; margin-left: 100px;"></i>
                             <i id="cslgClearSongListButton" class="fa fa-trash clickAble" aria-hidden="true" style="font-size: 20px; margin-left: 10px;"></i>
@@ -142,9 +144,6 @@ $("#gameContainer").append($(`
                             <i id="cslgTableModeButton" class="fa fa-table clickAble" aria-hidden="true" style="font-size: 20px; margin-left: 10px;"></i>
                             <span id="cslgSongListCount" style="font-size: 20px; font-weight: bold; margin-left: 20px;">Songs: 0</span>
                             <span id="cslgMergedSongListCount" style="font-size: 20px; font-weight: bold; margin-left: 20px;">Merged: 0</span>
-                        </div>
-                        <div id="cslgFileUploadRow">
-                            <label style="vertical-align: -4px"><input id="cslgFileUpload" type="file" style="width: 600px"></label>
                         </div>
                         <div id="cslgAnisongdbSearchRow">
                             <div>
@@ -169,6 +168,37 @@ $("#gameContainer").append($(`
                                 <label class="clickAble" style="margin-left: 10px">Min Group Members<input id="cslgAnisongdbMinGroupMembersInput" type="text" style="color: black; font-weight: normal; width: 40px; margin-left: 3px;"></label>
                                 <label class="clickAble" style="margin-left: 10px">Ignore Duplicates<input id="cslgAnisongdbIgnoreDuplicatesCheckbox" type="checkbox"></label>
                                 <label class="clickAble" style="margin-left: 10px">Arrangement<input id="cslgAnisongdbArrangementCheckbox" type="checkbox"></label>
+                            </div>
+                        </div>
+                        <div id="cslgFileUploadRow">
+                            <label style="vertical-align: -4px"><input id="cslgFileUpload" type="file" style="width: 600px"></label>
+                        </div>
+                        <div id="cslgPreviousGameRow">
+                            <select id="cslgPreviousGameSelect" style="color: black; padding: 3px 0;"></select>
+                            <button id="cslgPreviousGameButtonGo" style="color: black">Go</button>
+                        </div>
+                        <div id="cslgFilterListRow">
+                            <div>
+                                <select id="cslgFilterModeSelect" style="color: black; padding: 3px 0;">
+                                    <option>Keep</option>
+                                    <option>Remove</option>
+                                </select>
+                                <select id="cslgFilterKeySelect" style="color: black; padding: 3px 0;">
+                                    <option>Anime</option>
+                                    <option>Artist</option>
+                                    <option>Song Name</option>
+                                    <option>Song Type</option>
+                                    <option>Anime Type</option>
+                                    <option>Difficulty</option>
+                                    <option>Vintage</option>
+                                    <option>Rebroadcast</option>
+                                    <option>Dub</option>
+                                    <option>Correct</option>
+                                    <option>Incorrect</option>
+                                </select>
+                                <input id="cslgFilterListInput" type="text" style="color: black; width: 250px;">
+                                <button id="cslgFilterListButtonGo" style="color: black">Go</button>
+                                <label class="clickAble" style="margin-left: 10px">Case<input id="cslgFilterListCaseCheckbox" type="checkbox"></label>
                             </div>
                         </div>
                         <div style="height: 400px; margin: 5px 0; overflow-y: scroll;">
@@ -421,6 +451,24 @@ $("#cslgFileUpload").on("change", function() {
         });
     }
 });
+$("#cslgPreviousGameButtonGo").click(() => {
+    let id = $("#cslgPreviousGameSelect").val();
+    let found = Object.values(songHistoryWindow.tabs[2].gameMap).find(game => game.quizId === id);
+    if (found) {
+        handleData(found.songTable.rows);
+        setSongListTableSort();
+        createSongListTable();
+        createAnswerTable();
+    }
+});
+$("#cslgFilterListButtonGo").click(() => {
+    filterSongList();
+});
+$("#cslgFilterListInput").keypress((event) => {
+    if (event.which === 13) {
+        filterSongList();
+    }
+});
 $("#cslgMergeAllButton").click(() => {
     mergedSongList = Array.from(new Set(mergedSongList.concat(songList).map((x) => JSON.stringify(x)))).map((x) => JSON.parse(x));
     createMergedSongListTable();
@@ -446,7 +494,7 @@ $("#cslgTransferSongListButton").click(() => {
     placement: "bottom"
 });
 $("#cslgTableModeButton").click(() => {
-    songListTableMode = (songListTableMode + 1) % 3;
+    songListTableView = (songListTableView + 1) % 3;
     createSongListTable();
 }).popover({
     content: "Table mode",
@@ -607,37 +655,40 @@ $("#cslgMergedSongListTable").on("click", "i.fa-trash", (event) => {
     event.target.parentElement.parentElement.classList.remove("selected");
 });
 $("#cslgSongListModeSelect").val("Anisongdb").on("change", function() {
-    songList = [];
-    $("#cslgSongListTable tbody").empty();
-    $("#cslgMergeCurrentCount").text("Current song list: 0 songs");
-    $("#cslgSongListCount").text("Songs: 0");
     if (this.value === "Anisongdb") {
         $("#cslgFileUploadRow").hide();
+        $("#cslgPreviousGameRow").hide();
+        $("#cslgFilterListRow").hide();
         $("#cslgAnisongdbSearchRow").show();
-        $("#cslgFileUploadRow input").val("");
     }
     else if (this.value === "Load File") {
         $("#cslgAnisongdbSearchRow").hide();
+        $("#cslgPreviousGameRow").hide();
+        $("#cslgFilterListRow").hide();
         $("#cslgFileUploadRow").show();
         $("#cslgAnisongdbQueryInput").val("");
     }
+    else if (this.value === "Previous Game") {
+        $("#cslgAnisongdbSearchRow").hide();
+        $("#cslgFileUploadRow").hide();
+        $("#cslgFilterListRow").hide();
+        $("#cslgPreviousGameRow").show();
+        LoadPreviousGameOptions();
+    }
+    else if (this.value === "Filter List") {
+        $("#cslgAnisongdbSearchRow").hide();
+        $("#cslgFileUploadRow").hide();
+        $("#cslgPreviousGameRow").hide();
+        $("#cslgFilterListRow").show();
+    }
 });
 $("#cslgAnisongdbModeSelect").val("Artist");
-/*$("#cslgAnisongdbModeSelect").val("Artist").on("change", function() {
-    if (this.value === "Composer") {
-        $("#cslgAnisongdbArrangementCheckbox").parent().show();
-    }
-    else {
-        $("#cslgAnisongdbArrangementCheckbox").parent().hide();
-    }
-});*/
 $("#cslgAnisongdbPartialCheckbox").prop("checked", true);
 $("#cslgAnisongdbOPCheckbox").prop("checked", true);
 $("#cslgAnisongdbEDCheckbox").prop("checked", true);
 $("#cslgAnisongdbINCheckbox").prop("checked", true);
 $("#cslgAnisongdbMaxOtherPeopleInput").val("99");
 $("#cslgAnisongdbMinGroupMembersInput").val("0");
-//$("#cslgAnisongdbArrangementCheckbox").parent().hide();
 $("#cslgSettingsSongs").val("20");
 $("#cslgSettingsGuessTime").val("20");
 $("#cslgSettingsExtraGuessTime").val("0");
@@ -657,6 +708,8 @@ $("#cslgSettingsStartPoint").val("0-100");
 $("#cslgSettingsDifficulty").val("0-100");
 $("#cslgSettingsFastSkip").prop("checked", false);
 $("#cslgFileUploadRow").hide();
+$("#cslgPreviousGameRow").hide();
+$("#cslgFilterListRow").hide();
 $("#cslgCSLButtonCSSInput").val(CSLButtonCSS);
 $("#cslgResetCSSButton").click(() => {
     CSLButtonCSS = "calc(25% - 250px)";
@@ -1832,6 +1885,7 @@ function animeTypeFilter(song, tv, movie, ova, ona, special) {
 }
 
 // return true if the song difficulty is in allowed range
+// songs with missing difficulty will only pass if 0-100
 function difficultyFilter(song, low, high) {
     if (low === 0 && high === 100) return true;
     let dif = parseFloat(song.songDifficulty);
@@ -1841,9 +1895,11 @@ function difficultyFilter(song, low, high) {
 }
 
 // return true if guess type is allowed
+// songs with null will only pass if both true
 function guessTypeFilter(song, correctGuesses, incorrectGuesses) {
-    if (correctGuesses && song.correctGuess) return true;
-    if (incorrectGuesses && song.incorrectGuess) return true;
+    if (correctGuesses && incorrectGuesses) return true;
+    if (correctGuesses && song.correctGuess === true) return true;
+    if (incorrectGuesses && song.incorrectGuess === true) return true;
     return false;
 }
 
@@ -1926,7 +1982,25 @@ function openSettingsModal() {
         if (autocomplete.length) {
             $("#cslgAutocompleteButton").removeClass("btn-danger").addClass("btn-success disabled");
         }
+        if ($("#cslgSongListModeSelect").val() === "Previous Game") {
+            LoadPreviousGameOptions();
+        }
         $("#cslgSettingsModal").modal("show");
+    }
+}
+
+// load previous game options in song list window
+function LoadPreviousGameOptions() {
+    let $select = $("#cslgPreviousGameSelect").empty();
+    let games = [];
+    for (let game of Object.values(songHistoryWindow.tabs[2].gameMap)) {
+        if (game.songTable.rows.length) {
+            games.push({roomName: game.roomName, startTime: game.startTime, quizId: game.quizId});
+        }
+    }
+    games.sort((a, b) => b.startTime - a.startTime);
+    for (let game of games) {
+        $select.append($("<option></option>").val(game.quizId).text(`${game.roomName} - ${game.startTime.format("YYYY-MM-DD HH:mm")}`));
     }
 }
 
@@ -2048,182 +2122,102 @@ function getAnisongdbData(mode, query, ops, eds, ins, partial, ignoreDuplicates,
 
 function handleData(data) {
     songList = [];
-    if (!data) return;
-    // anisongdb structure
-    if (Array.isArray(data) && data.length && data[0].animeJPName) {
-        data = data.filter((song) => song.audio || song.MQ || song.HQ);
-        for (let song of data) {
-            songList.push({
-                animeRomajiName: song.animeJPName,
-                animeEnglishName: song.animeENName,
-                altAnimeNames: [].concat(song.animeJPName, song.animeENName, song.animeAltName || []),
-                altAnimeNamesAnswers: [],
-                songArtist: song.songArtist,
-                songName: song.songName,
-                songType: Object({O: 1, E: 2, I: 3})[song.songType[0]],
-                songTypeNumber: song.songType[0] === "I" ? null : parseInt(song.songType.split(" ")[1]),
-                songDifficulty: song.songDifficulty,
-                animeType: song.animeType,
-                animeVintage: song.animeVintage,
-                annId: song.annId,
-                malId: song.linked_ids?.myanimelist,
-                kitsuId: song.linked_ids?.kitsu,
-                aniListId: song.linked_ids?.anilist,
-                animeTags: [],
-                animeGenre: [],
-                rebroadcast: song.isRebroadcast ?? null,
-                dub: song.isDub ?? null,
-                startPoint: null,
-                audio: song.audio,
-                video480: song.MQ,
-                video720: song.HQ,
-                correctGuess: true,
-                incorrectGuess: true
-            });
-        }
-        for (let song of songList) {
-            let otherAnswers = new Set();
-            for (let s of songList) {
-                if (s.songName === song.songName && s.songArtist === song.songArtist) {
-                    s.altAnimeNames.forEach((x) => otherAnswers.add(x));
-                }
+    //remap data to actual song array
+    if (!Array.isArray(data)) {
+        if (typeof data === "object") { 
+            if (data.songs) {
+                data = data.songs;
             }
-            song.altAnimeNamesAnswers = Array.from(otherAnswers).filter((x) => !song.altAnimeNames.includes(x));
+            else if (data.songHistory) {
+                data = Object.values(data.songHistory);
+            }
+            else return;
         }
+        else return;
     }
-    // official amq song export structure
-    else if (typeof data === "object" && data.roomName && data.startTime && data.songs) {
-        for (let song of data.songs) {
+    for (let song of data) {
+        let animeRomajiName = song.animeRomajiName ?? song.animeJPName ?? song.songInfo?.animeNames?.romaji ?? song.anime?.romaji ?? song.animeRomaji ?? "";
+        let animeEnglishName = song.animeEnglishName ?? song.animeENName ?? song.songInfo?.animeNames?.english ?? song.anime?.english ?? song.animeEnglish ?? "";
+        let altAnimeNames = song.altAnimeNames ?? song.songInfo?.altAnimeNames ?? [].concat(animeRomajiName, animeEnglishName, song.animeAltName || []);
+        let altAnimeNamesAnswers = song.altAnimeNamesAnswers ?? song.songInfo?.altAnimeNamesAnswers ?? [];
+        let songArtist = song.songArtist ?? song.artist ?? song.songInfo?.artist ?? "";
+        let songName = song.songName ?? song.name ?? song.songInfo?.songName ?? "";
+        let songType = song.songType ?? song.type ?? song.songInfo?.type ?? null;
+        let songTypeNumber = song.songTypeNumber ?? song.songInfo?.typeNumber ?? null;
+        let songDifficulty = parseFloat(song.songDifficulty ?? song.difficulty ?? song.songInfo?.animeDifficulty) || null;
+        let animeType = song.animeType ?? song.songInfo?.animeType ?? "";
+        let animeVintage = song.animeVintage ?? song.vintage ?? song.songInfo?.vintage ?? null;
+        let annId = song.annId ?? song.siteIds?.annId ?? song.songInfo?.siteIds?.annId ?? null;
+        let malId = song.malId ?? song.linked_ids?.myanimelist ?? song.siteIds?.malId ?? song.songInfo?.siteIds?.malId ?? null;
+        let kitsuId = song.kitsuId ?? song.linked_ids?.kitsu ?? song.siteIds?.kitsuId ?? song.songInfo?.siteIds?.kitsuId ?? null;
+        let aniListId = song.aniListId ?? song.linked_ids?.anilist ?? song.siteIds?.aniListId ?? song.songInfo?.siteIds?.aniListId ?? null;
+        let animeTags = song.animeTags ?? song.tags ?? song.songInfo?.animeTags ?? [];
+        let animeGenre = song.animeGenre ?? song.genre ?? song.songInfo?.animeGenre ?? [];
+        let rebroadcast = song.rebroadcast ?? song.isRebroadcast ?? song.songInfo?.rebroadcast ?? null;
+        let dub = song.dub ?? song.isDub ?? song.songInfo?.dub ?? null;
+        let startPoint = song.startPoint ?? song.startSample ?? null;
+        let audio = song.audio ?? song.videoUrl ?? song.urls?.catbox?.[0] ?? song.songInfo?.videoTargetMap?.catbox?.[0] ?? song.songInfo?.urlMap?.catbox?.[0] ?? song.LinkMp3 ?? "";
+        let video480 = song.video480 ?? song.MQ ?? song.videoUrl ?? song.urls?.catbox?.[480] ?? song.songInfo?.videoTargetMap?.catbox?.[480] ?? song.songInfo?.urlMap?.catbox?.[480] ?? "";
+        let video720 = song.video720 ?? song.HQ ?? song.videoUrl ?? song.urls?.catbox?.[720] ?? song.songInfo?.videoTargetMap?.catbox?.[720] ?? song.songInfo?.urlMap?.catbox?.[720] ?? song.linkVideo ?? "";
+        let correctGuess = song.correctGuess ?? null;
+        let incorrectGuess = song.incorrectGuess ?? null;
+        if (correctGuess === null && typeof song.correct === "boolean") { //joseph script check
+            correctGuess = song.correct;
+            incorrectGuess = !song.correct;
+        }
+        if (typeof songType === "string") { //convert songtype string to amq integers
+            if (songType.startsWith("O")) {
+                songTypeNumber = parseInt(songType.split(" ")[1]) || null;
+                songType = 1;
+            }
+            else if (songType.startsWith("E")) {
+                songTypeNumber = parseInt(songType.split(" ")[1]) || null;
+                songType = 2;
+            }
+            else if (songType.startsWith("I")) {
+                songTypeNumber = null;
+                songType = 3;
+            }
+        }
+        if (audio || video480 || video720) {
             songList.push({
-                animeRomajiName: song.songInfo.animeNames.romaji,
-                animeEnglishName: song.songInfo.animeNames.english,
-                altAnimeNames: song.songInfo.altAnimeNames || [song.songInfo.animeNames.romaji, song.songInfo.animeNames.english],
-                altAnimeNamesAnswers: song.songInfo.altAnimeNamesAnswers || [],
-                songArtist: song.songInfo.artist,
-                songName: song.songInfo.songName,
-                songType: song.songInfo.type,
-                songTypeNumber: song.songInfo.typeNumber,
-                songDifficulty: song.songInfo.animeDifficulty,
-                animeType: song.songInfo.animeType,
-                animeVintage: song.songInfo.vintage,
-                annId: song.songInfo.siteIds.annId,
-                malId: song.songInfo.siteIds.malId,
-                kitsuId: song.songInfo.siteIds.kitsuId,
-                aniListId: song.songInfo.siteIds.aniListId,
-                animeTags: song.songInfo.animeTags,
-                animeGenre: song.songInfo.animeGenre,
-                rebroadcast: song.songInfo.rebroadcast ?? null,
-                dub: song.songInfo.dub ?? null,
-                startPoint: song.startPoint,
-                audio: String(song.videoUrl).endsWith(".mp3") ? song.videoUrl : null,
-                video480: null,
-                video720: String(song.videoUrl).endsWith(".webm") ? song.videoUrl : null,
-                correctGuess: song.correctGuess,
-                incorrectGuess: song.wrongGuess
+                animeRomajiName,
+                animeEnglishName,
+                altAnimeNames,
+                altAnimeNamesAnswers,
+                songArtist,
+                songName,
+                songType,
+                songTypeNumber,
+                songDifficulty,
+                animeType,
+                animeVintage,
+                annId,
+                malId,
+                kitsuId,
+                aniListId,
+                animeTags,
+                animeGenre,
+                rebroadcast,
+                dub,
+                startPoint,
+                audio,
+                video480,
+                video720,
+                correctGuess,
+                incorrectGuess
             });
         }
     }
-    // joseph song export script structure
-    else if (Array.isArray(data) && data.length && data[0].gameMode) {
-        for (let song of data) {
-            songList.push({
-                animeRomajiName: song.anime.romaji,
-                animeEnglishName: song.anime.english,
-                altAnimeNames: song.altAnswers || [song.anime.romaji, song.anime.english],
-                altAnimeNamesAnswers: [],
-                songArtist: song.artist,
-                songName: song.name,
-                songType: Object({O: 1, E: 2, I: 3})[song.type[0]],
-                songTypeNumber: song.type[0] === "I" ? null : parseInt(song.type.split(" ")[1]),
-                songDifficulty: parseFloat(song.difficulty),
-                animeType: song.animeType,
-                animeVintage: song.vintage,
-                annId: song.siteIds.annId,
-                malId: song.siteIds.malId,
-                kitsuId: song.siteIds.kitsuId,
-                aniListId: song.siteIds.aniListId,
-                animeTags: song.tags,
-                animeGenre: song.genre,
-                rebroadcast: null,
-                dub: null,
-                startPoint: song.startSample,
-                audio: song.urls?.catbox?.[0] ?? song.urls?.openingsmoe?.[0] ?? null,
-                video480: song.urls?.catbox?.[480] ?? song.urls?.openingsmoe?.[480] ?? null,
-                video720: song.urls?.catbox?.[720] ?? song.urls?.openingsmoe?.[720] ?? null,
-                correctGuess: song.correct,
-                incorrectGuess: !song.correct
-            });
+    for (let song of songList) {
+        let otherAnswers = new Set();
+        for (let s of songList) {
+            if (s.songName === song.songName && s.songArtist === song.songArtist) {
+                s.altAnimeNames.forEach((x) => otherAnswers.add(x));
+            }
         }
+        song.altAnimeNamesAnswers = Array.from(otherAnswers).filter((x) => !song.altAnimeNames.includes(x));
     }
-    // blissfulyoshi ranked data export structure
-    else if (Array.isArray(data) && data.length && data[0].animeRomaji) {
-        for (let song of data) {
-            songList.push({
-                animeRomajiName: song.animeRomaji,
-                animeEnglishName: song.animeEng,
-                altAnimeNames: [song.animeRomaji, song.animeEng],
-                altAnimeNamesAnswers: [],
-                songArtist: song.artist,
-                songName: song.songName,
-                songType: Object({O: 1, E: 2, I: 3})[song.type[0]],
-                songTypeNumber: song.type[0] === "I" ? null : parseInt(song.type.split(" ")[1]),
-                songDifficulty: song.songDifficulty,
-                animeType: null,
-                animeVintage: song.vintage,
-                annId: song.annId,
-                malId: song.malId,
-                kitsuId: song.kitsuId,
-                aniListId: song.aniListId,
-                animeTags: [],
-                animeGenre: [],
-                rebroadcast: null,
-                dub: null,
-                startPoint: null,
-                audio: song.LinkMp3,
-                video480: null,
-                video720: song.LinkVideo,
-                correctGuess: true,
-                incorrectGuess: true
-            });
-        }
-    }
-    // kempanator answer stats script export structure
-    else if (typeof data === "object" && data.songHistory && data.playerInfo) {
-        for (let song of Object.values(data.songHistory)) {
-            songList.push({
-                animeRomajiName: song.animeRomajiName,
-                animeEnglishName: song.animeEnglishName,
-                altAnimeNames: song.altAnimeNames || [],
-                altAnimeNamesAnswers: song.altAnimeNamesAnswers || [],
-                songArtist: song.songArtist,
-                songName: song.songName,
-                songType: song.songType,
-                songTypeNumber: song.songTypeNumber,
-                songDifficulty: song.songDifficulty,
-                animeType: song.animeType,
-                animeVintage: song.animeVintage,
-                annId: song.annId,
-                malId: song.malId,
-                kitsuId: song.kitsuId,
-                aniListId: song.aniListId,
-                animeTags: song.animeTags || [],
-                animeGenre: song.animeGenre || [],
-                rebroadcast: song.rebroadcast || null,
-                dub: song.dub || null,
-                startPoint: null,
-                audio: song.audio,
-                video480: song.video480,
-                video720: song.video720,
-                correctGuess: true,
-                incorrectGuess: true
-            });
-        }
-    }
-    // this script structure
-    else if (Array.isArray(data) && data.length && data[0].animeRomajiName) {
-        songList = data;
-    }
-    songList = songList.filter((song) => song.audio || song.video480 || song.video720);
 }
 
 // create song list table
@@ -2235,77 +2229,51 @@ function createSongListTable() {
     let $tbody = $("#cslgSongListTable tbody");
     $thead.empty();
     $tbody.empty();
-    if (songListTableSort[0] === 1) { //song name ascending
-        songList.sort((a, b) => (a.songName || "").localeCompare((b.songName || "")));
+    if (songListTableSort.mode === "songName") {
+        songList.sort((a, b) => a.songName.localeCompare(b.songName));
     }
-    else if (songListTableSort[0] === 2) { //song name descending
-        songList.sort((a, b) => (b.songName || "").localeCompare((a.songName || "")));
+    else if (songListTableSort.mode === "artist") {
+        songList.sort((a, b) => a.songArtist.localeCompare(b.songArtist));
     }
-    else if (songListTableSort[1] === 1) { //artist ascending
-        songList.sort((a, b) => (a.songArtist || "").localeCompare((b.songArtist || "")));
-    }
-    else if (songListTableSort[1] === 2) { //artist descending
-        songList.sort((a, b) => (b.songArtist || "").localeCompare((a.songArtist || "")));
-    }
-    else if (songListTableSort[2] === 1) { //difficulty ascending
+    else if (songListTableSort.mode === "difficulty") {
         songList.sort((a, b) => a.songDifficulty - b.songDifficulty);
     }
-    else if (songListTableSort[2] === 2) { //difficulty descending
-        songList.sort((a, b) => b.songDifficulty - a.songDifficulty);
-    }
-    else if (songListTableSort[3] === 1) { //anime ascending
+    else if (songListTableSort.mode === "anime") {
         options.useRomajiNames
-            ? songList.sort((a, b) => (a.animeRomajiName || "").localeCompare((b.animeRomajiName || "")))
-            : songList.sort((a, b) => (a.animeEnglishName || "").localeCompare((b.animeEnglishName || "")));
+            ? songList.sort((a, b) => a.animeRomajiName.localeCompare(b.animeRomajiName))
+            : songList.sort((a, b) => a.animeEnglishName.localeCompare(b.animeEnglishName));
     }
-    else if (songListTableSort[3] === 2) { //anime descending
-        options.useRomajiNames
-            ? songList.sort((a, b) => (b.animeRomajiName || "").localeCompare((a.animeRomajiName || "")))
-            : songList.sort((a, b) => (b.animeEnglishName || "").localeCompare((a.animeEnglishName || "")));
+    else if (songListTableSort.mode === "songType") {
+        songList.sort((a, b) => songTypeSortValue(a, b));
     }
-    else if (songListTableSort[4] === 1) { //song type ascending
-        songList.sort((a, b) => songTypeSortValue(a.songType, a.songTypeNumber) - songTypeSortValue(b.songType, b.songTypeNumber));
+    else if (songListTableSort.mode === "vintage") {
+        songList.sort((a, b) => vintageSortValue(a, b));
     }
-    else if (songListTableSort[4] === 2) { //song type descending
-        songList.sort((a, b) => songTypeSortValue(b.songType, b.songTypeNumber) - songTypeSortValue(a.songType, a.songTypeNumber));
+    else if (songListTableSort.mode === "mp3") {
+        songList.sort((a, b) => a.audio.localeCompare(b.audio));
     }
-    else if (songListTableSort[5] === 1) { //vintage ascending
-        songList.sort((a, b) => vintageSortValue(a.animeVintage) - vintageSortValue(b.animeVintage));
+    else if (songListTableSort.mode === "480") {
+        songList.sort((a, b) => a.video480.localeCompare(b.video480));
     }
-    else if (songListTableSort[5] === 2) { //vintage descending
-        songList.sort((a, b) => vintageSortValue(b.animeVintage) - vintageSortValue(a.animeVintage));
+    else if (songListTableSort.mode === "720") {
+        songList.sort((a, b) => a.video720.localeCompare(b.video720));
     }
-    else if (songListTableSort[6] === 1) { //mp3 link ascending
-        songList.sort((a, b) => (a.audio || "").localeCompare((b.audio || "")));
+    if (!songListTableSort.ascending) {
+        songList.reverse();
     }
-    else if (songListTableSort[6] === 2) { //mp3 link descending
-        songList.sort((a, b) => (b.audio || "").localeCompare((a.audio || "")));
-    }
-    else if (songListTableSort[7] === 1) { //480 link ascending
-        songList.sort((a, b) => (a.video480 || "").localeCompare((b.video480 || "")));
-    }
-    else if (songListTableSort[7] === 2) { //480 link descending
-        songList.sort((a, b) => (b.video480 || "").localeCompare((a.video480 || "")));
-    }
-    else if (songListTableSort[8] === 1) { //720 link ascending
-        songList.sort((a, b) => (a.video720 || "").localeCompare((b.video720 || "")));
-    }
-    else if (songListTableSort[8] === 2) { //720 link descending
-        songList.sort((a, b) => (b.video720 || "").localeCompare((a.video720 || "")));
-    }
-    if (songListTableMode === 0) {
+    if (songListTableView === 0) {
         let $row = $("<tr></tr>");
         $row.append($(`<th class="number">#</th>`));
         $row.append($(`<th class="song clickAble">Song</th>`).click(() => {
-            setSongListTableSort(0);
+            setSongListTableSort("songName");
             createSongListTable();
         }));
         $row.append($(`<th class="artist clickAble">Artist</th>`).click(() => {
-            setSongListTableSort(1);
+            setSongListTableSort("artist");
             createSongListTable();
         }));
         $row.append($(`<th class="difficulty clickAble">Dif</th>`).click(() => {
-            setSongListTableSort(2);
+            setSongListTableSort("difficulty");
             createSongListTable();
         }));
         $row.append($(`<th class="action"></th>`));
@@ -2320,19 +2288,19 @@ function createSongListTable() {
             $tbody.append($row);
         });
     }
-    else if (songListTableMode === 1) {
+    else if (songListTableView === 1) {
         let $row = $("<tr></tr>");
         $row.append($(`<th class="number">#</th>`));
         $row.append($(`<th class="anime clickAble">Anime</th>`).click(() => {
-            setSongListTableSort(3);
+            setSongListTableSort("anime");
             createSongListTable();
         }));
         $row.append($(`<th class="songType clickAble">Type</th>`).click(() => {
-            setSongListTableSort(4);
+            setSongListTableSort("songType");
             createSongListTable();
         }));
         $row.append($(`<th class="vintage clickAble">Vintage</th>`).click(() => {
-            setSongListTableSort(5);
+            setSongListTableSort("vintage");
             createSongListTable();
         }));
         $row.append($(`<th class="action"></th>`));
@@ -2347,19 +2315,19 @@ function createSongListTable() {
             $tbody.append($row);
         });
     }
-    else if (songListTableMode === 2) {
+    else if (songListTableView === 2) {
         let $row = $("<tr></tr>");
         $row.append($(`<th class="number">#</th>`));
         $row.append($(`<th class="link clickAble">MP3</th>`).click(() => {
-            setSongListTableSort(6);
+            setSongListTableSort("mp3");
             createSongListTable();
         }));
         $row.append($(`<th class="link clickAble">480</th>`).click(() => {
-            setSongListTableSort(7);
+            setSongListTableSort("480");
             createSongListTable();
         }));
         $row.append($(`<th class="link clickAble">720</th>`).click(() => {
-            setSongListTableSort(8);
+            setSongListTableSort("720");
             createSongListTable();
         }));
         $row.append($(`<th class="action"></th>`));
@@ -2447,32 +2415,188 @@ function createLinkElement(link) {
     return $a;
 }
 
-// reset all values in table sort options and toggle specified index
-function setSongListTableSort(index) {
-    if (Number.isInteger(index)) {
-        let value = songListTableSort[index];
-        songListTableSort.forEach((x, i) => { songListTableSort[i] = 0 });
-        songListTableSort[index] = value === 1 ? 2 : 1;
+// change sort mode or toggle sort order
+function setSongListTableSort(mode) {
+    if (mode) {
+        if (songListTableSort.mode === mode) {
+            songListTableSort.ascending = !songListTableSort.ascending;
+        }
+        else {
+            songListTableSort.mode = mode;
+            songListTableSort.ascending = true;
+        }
     }
     else {
-        songListTableSort.forEach((x, i) => { songListTableSort[i] = 0 });
+        songListTableSort.mode = "";
+        songListTableSort.ascending = true;
     }
 }
 
 // get sorting value for anime vintage
-function vintageSortValue(vintage) {
-    if (!vintage) return 0;
-    let split = vintage.split(" ");
-    let year = parseInt(split[1]);
-    if (isNaN(year)) return 0;
-    let season = Object({"Winter": .1, "Spring": .2, "Summer": .3, "Fall": .4})[split[0]];
-    if (!season) return 0;
-    return year + season;
+function vintageSortValue(a, b) {
+    if (!a.animeVintage && !b.animeVintage) return 0;
+    if (!a.animeVintage) return 1;
+    if (!b.animeVintage) return -1;
+    let [seasonA, yearA] = a.animeVintage.split(" ");
+    let [seasonB, yearB] = b.animeVintage.split(" ");
+    if (yearA !== yearB) {
+        return yearA - yearB;
+    }
+    let seasonOrder = {"Winter": 1, "Spring": 2, "Summer": 3, "Fall": 4};
+    return seasonOrder[seasonA] - seasonOrder[seasonB];
 }
 
 // get sorting value for song type
-function songTypeSortValue(type, typeNumber) {
-    return (type || 0) * 1000 + (typeNumber || 0);
+function songTypeSortValue(a, b) {
+    if (a.songType !== b.songType) {
+        return a.songType - b.songType;
+    }
+    if (a.songType !== 3 && b.songType !== 3) {
+        return (a.songTypeNumber || 0) - (b.songTypeNumber || 0);
+    }
+    return 0;
+}
+
+// filter the song list
+function filterSongList() {
+    let keep = $("#cslgFilterModeSelect").val() === "Keep";
+    let key = $("#cslgFilterKeySelect").val();
+    let text = $("#cslgFilterListInput").val();
+    let caseSensitive = $("#cslgFilterListCaseCheckbox").prop("checked");
+    let customIncludes = (string, sub) => {
+        return caseSensitive ? string.includes(sub) : string.toLowerCase().includes(sub.toLowerCase());
+    }
+    if (key === "Anime") {
+        if (!text) return;
+        songList = songList.filter((song) => {
+            let result = customIncludes(song.animeRomajiName, text) || customIncludes(song.animeEnglishName, text);
+            return keep ? result : !result;
+        });
+    }
+    else if (key === "Artist") {
+        if (!text) return;
+        songList = songList.filter((song) => {
+            let result = customIncludes(song.songArtist, text);
+            return keep ? result : !result;
+        });
+    }
+    else if (key === "Song Name") {
+        if (!text) return;
+        songList = songList.filter((song) => {
+            let result = customIncludes(song.songName, text);
+            return keep ? result : !result;
+        });
+    }
+    else if (key === "Song Type") {
+        text = text.toLowerCase().trim();
+        if (!text) return;
+        let option;
+        let number = parseInt(text.match(/([0-9]+)/)) || null;
+        if (text.startsWith("o")) {
+            option = {songType: 1, songTypeNumber: number};
+        }
+        else if (text.startsWith("e")) {
+            option = {songType: 2, songTypeNumber: number};
+        }
+        else if (text.startsWith("i")) {
+            option = {songType: 3, songTypeNumber: null};
+        }
+        else return;
+        songList = songList.filter((song) => {
+            let result = false;
+            if (option.songType === song.songType) {
+                if (option.songTypeNumber) {
+                    if (option.songTypeNumber === song.songTypeNumber) {
+                        result = true;
+                    }
+                }
+                else {
+                    result = true;
+                }
+            }
+            return keep ? result : !result;
+        });
+    }
+    else if (key === "Anime Type") {
+        text = text.toLowerCase().trim();
+        if (!text) return;
+        songList = songList.filter((song) => {
+            let result = song.animeType && text === song.animeType.toLowerCase();
+            return keep ? result : !result;
+        });
+    }
+    else if (key === "Difficulty") {
+        text = text.toLowerCase().trim();
+        if (!text) return;
+        if (text === "null") {
+            songList = songList.filter((song) => {
+                let result = song.songDifficulty === null;
+                return keep ? result : !result;
+            });
+        }
+        else {
+            let [low, high] = text.split(/[\s-]+/);
+            if (isNaN(low) || isNaN(high) || low > high) return;
+            songList = songList.filter((song) => {
+                let result = song.songDifficulty && song.songDifficulty >= low && song.songDifficulty <= high;
+                return keep ? result : !result;
+            });
+        }
+    }
+    else if (key === "Vintage") {
+        text = text.toLowerCase().trim();
+        if (!text) return;
+        if (text === "null") {
+            songList = songList.filter((song) => {
+                let result = song.animeVintage === null;
+                return keep ? result : !result;
+            });
+        }
+        else if (/^[0-9]{4}[\s-]+[0-9]{4}$/.test(text)) {
+            let [low, high] = text.split(/[\s-]+/);
+            if (low > high) return;
+            songList = songList.filter((song) => {
+                let result = false;
+                if (song.animeVintage) {
+                    let year = parseInt(song.animeVintage.split(" "));
+                    result = year >= low && year <= high;
+                }
+                return keep ? result : !result;
+            });
+        }
+        else {
+            songList = songList.filter((song) => {
+                let result = song.animeVintage && song.animeVintage.toLowerCase().includes(text);
+                return keep ? result : !result;
+            });
+        }
+    }
+    else if (key === "Rebroadcast") {
+        songList = songList.filter((song) => {
+            let result = Boolean(song.rebroadcast);
+            return keep ? result : !result;
+        });
+    }
+    else if (key === "Dub") {
+        songList = songList.filter((song) => {
+            let result = Boolean(song.dub);
+            return keep ? result : !result;
+        });
+    }
+    else if (key === "Correct") {
+        songList = songList.filter((song) => {
+            let result = song.correctGuess === true;
+            return keep ? result : !result;
+        });
+    }
+    else if (key === "Incorrect") {
+        songList = songList.filter((song) => {
+            let result = song.incorrectGuess === true;
+            return keep ? result : !result;
+        });
+    }
+    createSongListTable();
+    createAnswerTable();
 }
 
 // reset all tabs
@@ -2883,6 +3007,13 @@ function applyStyles() {
             cursor: pointer;
         }
         #cslgAnisongdbSearchRow input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            margin-left: 3px;
+            vertical-align: -5px;
+            cursor: pointer;
+        }
+        #cslgFilterListRow input[type="checkbox"] {
             width: 20px;
             height: 20px;
             margin-left: 3px;
