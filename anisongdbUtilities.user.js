@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Anisongdb Utilities
 // @namespace    https://github.com/kempanator
-// @version      0.9
+// @version      0.10
 // @description  some extra functions for anisongdb.com
 // @author       kempanator
 // @match        https://anisongdb.com/*
@@ -23,7 +23,7 @@ Features:
 */
 
 "use strict";
-const version = "0.9";
+const version = "0.10";
 const saveData = validateLocalStorage("anisongdbUtilities");
 const catboxHostDict = {1: "nl.catbox.video", 2: "ladist1.catbox.video", 3: "vhdist1.catbox.video"};
 let catboxHost = parseInt(saveData.catboxHost) ?? 0;
@@ -34,7 +34,7 @@ let jsonDownloadHotkey = saveData.jsonDownloadHotkey ?? {altKey: false, ctrlKey:
 let hideAmqText = saveData.hideAmqText ?? false;
 let defaultAdvanced = saveData.defaultAdvanced ?? false;
 let defaultEnglish = saveData.defaultEnglish ?? false;
-let loop = parseInt(saveData.loop) ?? 0; //0:none, 1:repeat, 2:loop all
+let loop = parseInt(saveData.loop) || 0; //0:none, 1:repeat, 2:loop all
 let volume = saveData.volume ?? .5;
 
 let settingsModal;
