@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.66
+// @version      0.67
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -44,7 +44,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.66";
+const version = "0.67";
 const saveData = validateLocalStorage("customSongListGame");
 const catboxHostDict = {1: "nl.catbox.video", 2: "ladist1.catbox.video", 3: "vhdist1.catbox.video"};
 let CSLButtonCSS = saveData.CSLButtonCSS || "calc(25% - 250px)";
@@ -2843,6 +2843,10 @@ async function getMalIdsFromAnilist(username) {
         statuses.push("PLANNING");
     }
     while (hasNextPage) {
+        if (pageNumber % 29 === 0) {
+            $("#cslgListImportText").text(`Large list: pausing 1 minute to avoid rate limit`);
+            await new Promise(r => setTimeout(r, 60000));
+        }
         $("#cslgListImportText").text(`Retrieving Anilist: page ${pageNumber}`);
         let data = await getAnilistData(username, statuses, pageNumber);
         if (data) {
