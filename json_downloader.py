@@ -1,6 +1,6 @@
 """
 Download audio or video files from json files
-Version 0.4
+Version 0.5
 
 Instructions:
 1. put song list jsons inside the json folder
@@ -198,6 +198,7 @@ def shorten_type(text):
 
 # download audio from song object
 def download_audio(song):
+    errors = []
     if not os.path.isdir(audio_path):
         os.mkdir(audio_path)
     if song.audio:
@@ -206,20 +207,30 @@ def download_audio(song):
         if not os.path.isfile(audio_path + new_file_name):
             print(new_file_name)
             #print(f"{new_file_name} - {song.animeEnglishName or song.animeRomajiName or "no anime name"} - {song.songType or "no song type"}")
-            urllib.request.urlretrieve(song.audio, audio_path + new_file_name)
-            id3 = eyed3.load(audio_path + new_file_name)
-            id3.initTag()
-            id3.tag.artist = song.songArtist or ""
-            id3.tag.title = song.songName or ""
-            id3.tag.genre = song.songType or ""
-            id3.tag.album = song.animeEnglishName or song.animeRomajiName or ""
-            id3.tag.save()
+            try:
+                urllib.request.urlretrieve(song.audio, audio_path + new_file_name)
+                eyed3.log.setLevel("ERROR")
+                id3 = eyed3.load(audio_path + new_file_name)
+                id3.initTag()
+                id3.tag.artist = song.songArtist or ""
+                id3.tag.title = song.songName or ""
+                id3.tag.genre = song.songType or ""
+                id3.tag.album = song.animeEnglishName or song.animeRomajiName or ""
+                id3.tag.save()
+            except:
+                errors.append(f"{song.animeEnglishName or song.animeRomajiName} {shorten_type(song.songType)} {new_file_name}")
+
     else:
-        print(f"Missing audio: {song.animeEnglishName or song.animeRomajiName} - {song.songType}")
+        print(f"Missing audio: {song.animeEnglishName or song.animeRomajiName} {shorten_type(song.songType)}")
+    if len(errors):
+        print("Error downloading these files:")
+        for e in errors:
+            print(e)
 
 
 # download video from song object
 def download_video(song):
+    errors = []
     if not os.path.isdir(video_path):
         os.mkdir(video_path)
     link = song.video720 or song.video480 or ""
@@ -229,9 +240,16 @@ def download_video(song):
         if not os.path.isfile(video_path + new_file_name):
             print(new_file_name)
             #print(f"{new_file_name} - {song.animeEnglishName or song.animeRomajiName or "no anime name"} - {song.songType or "no song type"}")
-            urllib.request.urlretrieve(link, video_path + new_file_name)
+            try:
+                urllib.request.urlretrieve(link, video_path + new_file_name)
+            except:
+                errors.append(f"{song.animeEnglishName or song.animeRomajiName} {shorten_type(song.songType)} {new_file_name}")
     else:
-        print(f"Missing video: {song.animeEnglishName or song.animeRomajiName} - {song.songType}")
+        print(f"Missing video: {song.animeEnglishName or song.animeRomajiName} {shorten_type(song.songType)}")
+    if len(errors):
+        print("Error downloading these files:")
+        for e in errors:
+            print(e)
 
 
 # main function
