@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Anisongdb Search
 // @namespace    https://github.com/kempanator
-// @version      0.12
+// @version      0.13
 // @description  Adds a window to search anisongdb.com in game
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -27,11 +27,11 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.12";
+const version = "0.13";
 const saveData = validateLocalStorage("anisongdbSearch");
 let anisongdbWindow;
 let injectSearchButtons = saveData.injectSearchButtons ?? true;
-let tableSort = ["anime", true]; // [mode, ascending]
+let tableSort = {mode: "anime", ascending: true};
 let hotKeys = saveData.hotKeys ?? {};
 hotKeys.adbsWindow = saveData.hotKeys?.adbsWindow ?? {altKey: false, ctrlKey: false, key: ""};
 
@@ -115,23 +115,23 @@ function setup() {
                 .append($(`<thead><tr><th class="anime">Anime</th><th class="artist">Artist</th><th class="song">Song</th><th class="type">Type</th><th class="vintage">Vintage</th></tr></thead>`)
                     .on("click", "th", (event) => {
                         if (event.target.classList.contains("anime")) {
-                            tableSort = ["anime", tableSort[0] === "anime" ? !tableSort[1] : true];
+                            tableSortChange("anime");
                             sortAnisongdbTableEntries();
                         }
                         else if (event.target.classList.contains("artist")) {
-                            tableSort = ["artist", tableSort[0] === "artist" ? !tableSort[1] : true];
+                            tableSortChange("artist");
                             sortAnisongdbTableEntries();
                         }
                         else if (event.target.classList.contains("song")) {
-                            tableSort = ["song", tableSort[0] === "song" ? !tableSort[1] : true];
+                            tableSortChange("song");
                             sortAnisongdbTableEntries();
                         }
                         else if (event.target.classList.contains("type")) {
-                            tableSort = ["type", tableSort[0] === "type" ? !tableSort[1] : true];
+                            tableSortChange("type");
                             sortAnisongdbTableEntries();
                         }
                         else if (event.target.classList.contains("vintage")) {
-                            tableSort = ["vintage", tableSort[0] === "vintage" ? !tableSort[1] : true];
+                            tableSortChange("vintage");
                             sortAnisongdbTableEntries();
                         }
                     })
@@ -325,22 +325,22 @@ function createTable(json) {
 // sort table rows that already exist
 function sortAnisongdbTableEntries() {
     let rows = $("#adbsTable tbody tr").toArray();
-    if (tableSort[0] === "anime") {
+    if (tableSort.mode === "anime") {
         rows.sort((a, b) => $(a).find("td.anime").text().localeCompare($(b).find("td.anime").text()));
     }
-    else if (tableSort[0] === "artist") {
+    else if (tableSort.mode === "artist") {
         rows.sort((a, b) => $(a).find("td.artist").text().localeCompare($(b).find("td.artist").text()));
     }
-    else if (tableSort[0] === "song") {
+    else if (tableSort.mode === "song") {
         rows.sort((a, b) => $(a).find("td.song").text().localeCompare($(b).find("td.song").text()));
     }
-    else if (tableSort[0] === "type") {
+    else if (tableSort.mode === "type") {
         rows.sort((a, b) => songTypeSortValue($(a).find("td.type").text()) - songTypeSortValue($(b).find("td.type").text()));
     }
-    else if (tableSort[0] === "vintage") {
+    else if (tableSort.mode === "vintage") {
         rows.sort((a, b) => vintageSortValue($(a).find("td.vintage").text()) - vintageSortValue($(b).find("td.vintage").text()));
     }
-    if (!tableSort[1]) rows.reverse();
+    if (!tableSort.ascending) rows.reverse();
     $("#adbsTable tbody").append(rows);
 }
 
@@ -380,6 +380,17 @@ function vintageSortValue(vintage) {
 function testHotkey(action, key, altKey, ctrlKey) {
     let hotkey = hotKeys[action];
     return key === hotkey.key && altKey === hotkey.altKey && ctrlKey === hotkey.ctrlKey;
+}
+
+// used for sorting table contents when you click a header
+function tableSortChange(mode) {
+    if (tableSort.mode === mode) {
+        tableSort.ascending = !tableSort.ascending;
+    }
+    else {
+        tableSort.mode = mode;
+        tableSort.ascending = true;
+    }
 }
 
 // save settings
