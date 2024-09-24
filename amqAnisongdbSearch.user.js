@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Anisongdb Search
 // @namespace    https://github.com/kempanator
-// @version      0.13
+// @version      0.14
 // @description  Adds a window to search anisongdb.com in game
 // @author       kempanator
 // @match        https://animemusicquiz.com/*
@@ -27,7 +27,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.13";
+const version = "0.14";
 const saveData = validateLocalStorage("anisongdbSearch");
 let anisongdbWindow;
 let injectSearchButtons = saveData.injectSearchButtons ?? true;
@@ -335,10 +335,10 @@ function sortAnisongdbTableEntries() {
         rows.sort((a, b) => $(a).find("td.song").text().localeCompare($(b).find("td.song").text()));
     }
     else if (tableSort.mode === "type") {
-        rows.sort((a, b) => songTypeSortValue($(a).find("td.type").text()) - songTypeSortValue($(b).find("td.type").text()));
+        rows.sort((a, b) => songTypeSortValue(translateTypeText($(a).find("td.type").text()), translateTypeText($(b).find("td.type").text())));
     }
     else if (tableSort.mode === "vintage") {
-        rows.sort((a, b) => vintageSortValue($(a).find("td.vintage").text()) - vintageSortValue($(b).find("td.vintage").text()));
+        rows.sort((a, b) => vintageSortValue($(a).find("td.vintage").text(), $(b).find("td.vintage").text()));
     }
     if (!tableSort.ascending) rows.reverse();
     $("#adbsTable tbody").append(rows);
@@ -357,23 +357,36 @@ function shortenType(type) {
     return type.replace("Opening ", "OP").replace("Ending ", "ED").replace("Insert Song", "IN");
 }
 
+// translate song type text to amq values (input example: Opening 1, ED2)
+function translateTypeText(text) {
+    let songType = ({"O": 1, "E": 2, "I": 3})[text[0]] || null;
+    let songTypeNumber = parseInt(text.match(/([0-9]+)/)) || null;
+    return {songType, songTypeNumber};
+}
+
 // get sorting value for song type
-function songTypeSortValue(songType) {
-    if (!songType) return 0;
-    let type = Object({"O": 0, "E": 1, "I": 2})[songType[0]];
-    let number = parseInt(songType.substring(2));
-    return (type || 0) * 1000 + (number || 0);
+function songTypeSortValue(a, b) {
+    if (a.songType !== b.songType) {
+        return a.songType - b.songType;
+    }
+    if (a.songType !== 3 && b.songType !== 3) {
+        return (a.songTypeNumber || 0) - (b.songTypeNumber || 0);
+    }
+    return 0;
 }
 
 // get sorting value for anime vintage
-function vintageSortValue(vintage) {
-    if (!vintage) return 0;
-    let split = vintage.split(" ");
-    let year = parseInt(split[1]);
-    if (isNaN(year)) return 0;
-    let season = Object({"Winter": .1, "Spring": .2, "Summer": .3, "Fall": .4})[split[0]];
-    if (!season) return 0;
-    return year + season;
+function vintageSortValue(vintageA, vintageB) {
+    if (!vintageA && !vintageB) return 0;
+    if (!vintageA) return 1;
+    if (!vintageB) return -1;
+    let [seasonA, yearA] = vintageA.split(" ");
+    let [seasonB, yearB] = vintageB.split(" ");
+    if (yearA !== yearB) {
+        return yearA - yearB;
+    }
+    let seasonOrder = {"Winter": 1, "Spring": 2, "Summer": 3, "Fall": 4};
+    return seasonOrder[seasonA] - seasonOrder[seasonB];
 }
 
 // test hotkey
