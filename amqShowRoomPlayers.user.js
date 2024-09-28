@@ -1,10 +1,10 @@
 // ==UserScript==
 // @name         AMQ Show Room Players
 // @namespace    https://github.com/kempanator
-// @version      0.22
+// @version      0.23
 // @description  Adds extra functionality to room tiles
 // @author       kempanator
-// @match        https://animemusicquiz.com/*
+// @match        https://*.animemusicquiz.com/*
 // @grant        none
 // @require      https://github.com/joske2865/AMQ-Scripts/raw/master/common/amqScriptInfo.js
 // @downloadURL  https://github.com/kempanator/amq-scripts/raw/main/amqShowRoomPlayers.user.js
@@ -29,7 +29,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.22";
+const version = "0.23";
 //const saveData = validateLocalStorage("showRoomPlayers");
 let showPlayerColors = true;
 let showCustomColors = true;

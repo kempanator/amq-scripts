@@ -1,10 +1,10 @@
 // ==UserScript==
 // @name         AMQ Disable Animated Avatars
 // @namespace    https://github.com/kempanator
-// @version      0.1
+// @version      0.2
 // @description  Disable animated avatars in AMQ
 // @author       kempanator
-// @match        https://animemusicquiz.com/*
+// @match        https://*.animemusicquiz.com/*
 // @grant        none
 // @require      https://github.com/joske2865/AMQ-Scripts/raw/master/common/amqScriptInfo.js
 // @downloadURL  https://github.com/kempanator/amq-scripts/raw/main/amqDisableAnimatedAvatars.user.js
@@ -13,7 +13,7 @@
 
 "use strict";
 if (typeof Listener === "undefined") return;
-const version = "0.1";
+const version = "0.2";
 
 SpineApp.prototype.render = function(canvas) {
     let renderer = canvas.renderer;
