@@ -1,10 +1,10 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.125
+// @version      0.126
 // @description  Commands for AMQ Chat
 // @author       kempanator
-// @match        https://animemusicquiz.com/*
+// @match        https://*.animemusicquiz.com/*
 // @grant        unsafeWindow
 // @grant        GM_xmlhttpRequest
 // @connect      catbox.video
@@ -105,7 +105,7 @@ OTHER
 
 "use strict";
 if (typeof Listener === "undefined") return;
-const version = "0.125";
+const version = "0.126";
 const saveData = validateLocalStorage("megaCommands");
 const originalOrder = {qb: [], gm: []};
 if (typeof saveData.alerts?.hiddenPlayers === "boolean") delete saveData.alerts;
@@ -243,6 +243,7 @@ const scripts = {
     "newgamemodeui": "https://github.com/kempanator/amq-scripts/raw/main/amqNewGameModeUI.user.js",
     "quickloadlists": "https://github.com/kempanator/amq-scripts/raw/main/amqQuickLoadLists.user.js",
     "showroomplayers": "https://github.com/kempanator/amq-scripts/raw/main/amqShowRoomPlayers.user.js",
+    "spy": "https://github.com/ayyu/amq-userscripts/raw/refs/heads/master/userscripts/amqHostSpyMode.user.js",
     "elodiestyle": "https://userstyles.world/style/1435"
 };
 const info = {
@@ -4229,9 +4230,8 @@ async function parseCommand(messageText, type, target) {
             updateCommandListWindow("autoThrow");
         }
         else if (/^\S+ .+$/.test(content)) {
-            let genreDict = Object.assign({}, ...Object.entries(idTranslator.genreNames).map(([a, b]) => ({[b.toLowerCase()]: parseInt(a)})));
-            let list = /^\S+ (.+)$/.exec(content)[1].toLowerCase().split(",").map((x) => genreDict[x.trim()]);
-            if (list.length && list.every(Boolean)) {
+            let idList = /^\S+ (.+)$/.exec(content)[1].split(",").map((x) => getClosestGenre(x).id).filter(Boolean);
+            if (idList.length) {
                 let anime = genreLookup(list);
                 if (anime) {
                     sendMessage(anime, type, target);
@@ -4824,9 +4824,21 @@ function changeGameSettings(settings) {
 
 // input text, return name that matches the closest
 function getClosestNameInRoom(text) {
-    let re = new RegExp(text, "i");
-    let results = getPlayerList().concat(getSpectatorList()).filter((x) => re.test(x));
+    let name = text.toLowerCase();
+    let results = getPlayerList().concat(getSpectatorList()).filter((x) => x.toLowerCase().includes(name));
     return results.length === 1 ? results[0] : text;
+}
+
+// input text, return genre that matches the closest
+function getClosestGenre(text) {
+    text = text.toLowerCase().trim();
+    let list = [];
+    for (let [id, genre] of Object.entries(idTranslator.genreNames)) {
+        if (genre.toLowerCase().includes(text)) {
+            list.push({id: parseInt(id), genre: genre});
+        }
+    }
+    return list.length === 1 ? list[0] : {genre: text, id: null};
 }
 
 // check if all players are ready in lobby
