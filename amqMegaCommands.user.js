@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.126
+// @version      0.127
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -105,7 +105,7 @@ OTHER
 
 "use strict";
 if (typeof Listener === "undefined") return;
-const version = "0.126";
+const version = "0.127";
 const saveData = validateLocalStorage("megaCommands");
 const originalOrder = {qb: [], gm: []};
 if (typeof saveData.alerts?.hiddenPlayers === "boolean") delete saveData.alerts;
@@ -300,7 +300,7 @@ const dqMap = {
     "Made in Abyss": {genre: [2, 4, 6, 7, 11, 14], years: [2017, 2017], seasons: [2, 2]},
     "Girls' Last Tour": {genre: [2, 14, 15], years: [2017, 2017], seasons: [3, 3]},
     "Mirai Nikki": {genre: [1, 7, 11, 12, 17, 18], years: [2011, 2011], seasons: [3, 3]},
-    "MF Ghost": {genre: [14, 16], years: [2023, 2023], seasons: [3, 3]}
+    "The iDOLM@STER Shiny Colors": {genre: [10], tags: [115, 145], years: [2024, 2024], seasons: [1, 1]}
 };
 
 if (document.querySelector("#loginPage")) {
@@ -2759,7 +2759,7 @@ async function parseCommand(messageText, type, target) {
             updateCommandListWindow("autoThrow");
         }
         else if (/^\S+(att|autothrowtime) [0-9.]+ .+$/.test(content)) {
-            let regex = /^\S+ ([0-9.]+) (.+)$/.exec(content);
+            let regex = /^\S+ ([0-9.]+) (.+)$/.exec(messageText);
             let time1 = parseFloat(regex[1]);
             if (isNaN(time1)) return;
             autoThrow.time = [Math.floor(time1 * 1000)];
@@ -2769,7 +2769,7 @@ async function parseCommand(messageText, type, target) {
             updateCommandListWindow("autoThrow");
         }
         else if (/^\S+(att|autothrowtime) [0-9.]+[ -][0-9.]+ .+$/.test(content)) {
-            let regex = /^\S+ ([0-9.]+)[ -]([0-9.]+) (.+)$/.exec(content);
+            let regex = /^\S+ ([0-9.]+)[ -]([0-9.]+) (.+)$/.exec(messageText);
             if (!regex) return;
             let time1 = parseFloat(regex[1]);
             let time2 = parseFloat(regex[2]);
@@ -3812,11 +3812,20 @@ async function parseCommand(messageText, type, target) {
             }
         }
     }
-    else if (command === "continuesample" || command === "cs") {
+    else if (command === "continuesample") {
         continueSample = !continueSample;
         saveSettings();
         sendMessage(`continue sample ${continueSample ? "enabled" : "disabled"}`, type, target, true);
         updateCommandListWindow("continueSample");
+    }
+    else if (command === "loopvideo") {
+        loopVideo = !loopVideo;
+        for (let videoPlayer of quizVideoController.moePlayers) {
+            videoPlayer.$player[0].loop = loopVideo;
+        }
+        saveSettings();
+        sendMessage(`loop video ${loopVideo ? "enabled" : "disabled"}`, type, target, true);
+        updateCommandListWindow("loopVideo");
     }
     else if (command === "video") {
         if (split.length === 1) {
@@ -4165,7 +4174,7 @@ async function parseCommand(messageText, type, target) {
             }
         }
         else if (/^\S+ (k|kutd|keepinguptodate)+$/.test(content)) {
-            let anime = "MF Ghost";
+            let anime = "The iDOLM@STER Shiny Colors";
             sendMessage(anime, type, target);
             matchSettingsToAnime(anime);
             autoThrow = {time: [3000, 5000], text: anime, multichoice: null};
