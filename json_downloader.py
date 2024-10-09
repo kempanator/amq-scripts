@@ -1,6 +1,6 @@
 """
 Download audio or video files from json files
-Version 0.5
+Version 0.6
 
 Instructions:
 1. put song list jsons inside the json folder
@@ -28,7 +28,7 @@ except ModuleNotFoundError:
 
 mode = "both"  # audio, video, both
 host = 1
-host_dict = {1: "nl.catbox.video", 2: "ladist1.catbox.video", 3: "vhdist1.catbox.video"}
+host_dict = {1: "eudist.animemusicquiz.com", 2: "nawdist.animemusicquiz.com", 3: "naedist.animemusicquiz.com"}
 path = ""  # optional custom path
 json_path = path + "json/"
 audio_path = path + "audio/"
