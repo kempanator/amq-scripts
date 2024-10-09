@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.68
+// @version      0.69
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -44,9 +44,9 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.68";
+const version = "0.69";
 const saveData = validateLocalStorage("customSongListGame");
-const catboxHostDict = {1: "nl.catbox.video", 2: "ladist1.catbox.video", 3: "vhdist1.catbox.video"};
+const hostDict = {1: "eudist.animemusicquiz.com", 2: "nawdist.animemusicquiz.com", 3: "naedist.animemusicquiz.com"};
 let CSLButtonCSS = saveData.CSLButtonCSS || "calc(25% - 250px)";
 let showCSLMessages = saveData.showCSLMessages ?? true;
 let replacedAnswers = saveData.replacedAnswers || {};
@@ -62,7 +62,7 @@ let currentSong = 0;
 let totalSongs = 0;
 let currentAnswers = {};
 let score = {};
-let songListTableView = 0; //0: song + artist, 1: anime + song type + vintage, 2: catbox links
+let songListTableView = 0; //0: song + artist, 1: anime + song type + vintage, 2: video/audio links
 let songListTableSort = {mode: "", ascending: true} //modes: songName, artist, difficulty, anime, songType, vintage, mp3, 480, 720
 let songList = [];
 let songOrder = {}; //{song#: index#, ...}
@@ -263,9 +263,9 @@ $("#gameContainer").append($(`
                             <span style="font-size: 18px; font-weight: bold; margin: 0 10px 0 10px;">Override URL:</span>
                             <select id="cslgHostOverrideSelect" style="color: black; padding: 3px 0;">
                                 <option value="0">default</option>
-                                <option value="1">nl.catbox.video</option>
-                                <option value="2">ladist1.catbox.video</option>
-                                <option value="3">vhdist1.catbox.video</option>
+                                <option value="1">eudist.animemusicquiz.com</option>
+                                <option value="2">nawdist.animemusicquiz.com</option>
+                                <option value="3">naedist.animemusicquiz.com</option>
                                 
                             </select>
                         </div>
@@ -2399,16 +2399,16 @@ function createLinkElement(link) {
     if (!link) return "";
     let $a = $("<a></a>");
     if (link.startsWith("http")) {
-        $a.text(link.includes("catbox") ? link.split("/").slice(-1)[0] : link);
+        $a.text(link.includes("animemusicquiz") || link.includes("catbox") ? link.split("/").slice(-1)[0] : link);
         $a.attr("href", link);
     }
     else if (/^\w+\.\w{3,4}$/.test(link)) {
         $a.text(link);
         if (fileHostOverride) {
-            $a.attr("href", "https://" + catboxHostDict[fileHostOverride] + "/" + link);
+            $a.attr("href", "https://" + hostDict[fileHostOverride] + "/" + link);
         }
         else {
-            $a.attr("href", "https://ladist1.catbox.video/" + link);
+            $a.attr("href", "https://naedist.animemusicquiz.com/" + link);
         }
     }
     $a.attr("target", "_blank");
@@ -2637,9 +2637,9 @@ function songTypeText(type, typeNumber) {
 function createCatboxLinkObject(audio, video480, video720) {
     let links = {};
     if (fileHostOverride) {
-        if (audio) links["0"] = "https://" + catboxHostDict[fileHostOverride] + "/" + audio.split("/").slice(-1)[0];
-        if (video480) links["480"] = "https://" + catboxHostDict[fileHostOverride] + "/" + video480.split("/").slice(-1)[0];
-        if (video720) links["720"] = "https://" + catboxHostDict[fileHostOverride] + "/" + video720.split("/").slice(-1)[0];
+        if (audio) links["0"] = "https://" + hostDict[fileHostOverride] + "/" + audio.split("/").slice(-1)[0];
+        if (video480) links["480"] = "https://" + hostDict[fileHostOverride] + "/" + video480.split("/").slice(-1)[0];
+        if (video720) links["720"] = "https://" + hostDict[fileHostOverride] + "/" + video720.split("/").slice(-1)[0];
     }
     else {
         if (audio) links["0"] = audio;
