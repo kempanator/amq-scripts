@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Catbox Host Switch
 // @namespace    https://github.com/kempanator
-// @version      0.13
+// @version      0.14
 // @description  Switch your catbox host
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -16,7 +16,6 @@ Settings are located in: bottom right gear icon > settings > video hosts > catbo
 
 Features:
  - Modify all incoming catbox song links
- - Alert when openingsmoe link is given instead of catbox
 */
 
 "use strict";
@@ -28,18 +27,18 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.13";
+const version = "0.14";
 const saveData = validateLocalStorage("catboxHostSwitch");
-const catboxHostDict = {1: "nl.catbox.video", 2: "ladist1.catbox.video", 3: "vhdist1.catbox.video"};
-let catboxHost = parseInt(saveData.catboxHost) ?? 0;
-if (!catboxHostDict.hasOwnProperty(catboxHost)) catboxHost = 0;
+const hostDict = {1: "eudist.animemusicquiz.com", 2: "nawdist.animemusicquiz.com", 3: "naedist.animemusicquiz.com"};
+let catboxHost = parseInt(saveData.catboxHost);
+if (!hostDict.hasOwnProperty(catboxHost)) catboxHost = 0;
 let catboxDownFlagRaised = false;
 
 //setup
 function setup() {
     $("#settingsVideoHostsContainer .col-xs-6").first()
     .append($(`<h4>Catbox Link</h4>`))
-    .append($(`<select id="chsSelect" class="form-control"><option value="0">default link</option><option value="1">nl.catbox.video</option><option value="2">ladist1.catbox.video</option><option value="3">vhdist1.catbox.video</option></select>`).val(catboxHost).on("change", function() {
+    .append($(`<select id="chsSelect" class="form-control"><option value="0">default link</option><option value="1">eudist.animemusicquiz.com</option><option value="2">nawdist.animemusicquiz.com</option><option value="3">naedist.animemusicquiz.com</option></select>`).val(catboxHost).on("change", function() {
         catboxHost = parseInt(this.value);
         saveSettings();
     }));
@@ -51,25 +50,25 @@ function setup() {
                 for (let key of Object.keys(songInfo.videoMap.catbox)) {
                     let url = songInfo.videoMap.catbox[key];
                     if (url) {
-                        if (/^https:\/\/\w+\.catbox\.\w+\/\w+\.\w{3,4}$/i.test(url)) {
-                            songInfo.videoMap.catbox[key] = url.replace(/^https:\/\/\w+\.catbox\.\w+/i, "https://" + catboxHostDict[catboxHost]);
+                        if (/^https:\/\/\w+\.animemusicquiz\.com\/\w+\.\w{3,4}$/i.test(url)) {
+                            songInfo.videoMap.catbox[key] = url.replace(/^https:\/\/\w+\.animemusicquiz\.com/, `https://${hostDict[catboxHost]}`);
                         }
                         else if (/^\w+\.\w{3,4}$/i.test(url)) { //normal quiz
-                            songInfo.videoMap.catbox[key] = `https://${catboxHostDict[catboxHost]}/${url}`;
+                            songInfo.videoMap.catbox[key] = `https://${hostDict[catboxHost]}/${url}`;
                         }
                         else if (/^\w+:\w+$/i.test(url)) { //encrypted lobby (ranked, event, tournament)
-                            songInfo.videoMap.catbox[key] = `https://${catboxHostDict[catboxHost]}/internals/dist.php?enc=${url}`;
+                            songInfo.videoMap.catbox[key] = `https://${hostDict[catboxHost]}/internals/dist.php?enc=${url}`;
                         }
                     }
                 }
             }
         }
-        else if (songInfo.videoMap.openingsmoe) {
+        /*else if (songInfo.videoMap.openingsmoe) {
             if (!catboxDownFlagRaised && options.getHostPriorityList()[0] === "catbox") {
                 popoutMessages.displayPopoutMessage(`<h4 class="text-center">Catbox Host Switch</h4><h5 class="text-center">openings.moe link detected<br>catbox might be down</h5>`);
                 catboxDownFlagRaised = true;
             }
-        }
+        }*/
         this._nextVideoInfo = {
             songInfo: songInfo,
             playLength: playLength,
