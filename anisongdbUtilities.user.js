@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Anisongdb Utilities
 // @namespace    https://github.com/kempanator
-// @version      0.10
+// @version      0.11
 // @description  some extra functions for anisongdb.com
 // @author       kempanator
 // @match        https://anisongdb.com/*
@@ -23,11 +23,11 @@ Features:
 */
 
 "use strict";
-const version = "0.10";
+const version = "0.11";
 const saveData = validateLocalStorage("anisongdbUtilities");
-const catboxHostDict = {1: "nl.catbox.video", 2: "ladist1.catbox.video", 3: "vhdist1.catbox.video"};
-let catboxHost = parseInt(saveData.catboxHost) ?? 0;
-if (!catboxHostDict.hasOwnProperty(catboxHost)) catboxHost = 0;
+const hostDict = {1: "eudist", 2: "nawdist", 3: "naedist"};
+let catboxHost = parseInt(saveData.catboxHost);
+if (!hostDict.hasOwnProperty(catboxHost)) catboxHost = 0;
 let autoPlayMP3 = saveData.autoPlayMP3 ?? true;
 let jsonDownloadRename = saveData.jsonDownloadRename ?? true;
 let jsonDownloadHotkey = saveData.jsonDownloadHotkey ?? {altKey: false, ctrlKey: true, key: "b"};
@@ -95,7 +95,7 @@ function setup() {
         catboxHost = parseInt(event.target.value);
         saveSettings();
     }
-    let dict = Object.assign({}, {0: "default link"}, catboxHostDict);
+    let dict = Object.assign({}, {0: "default link"}, hostDict);
     for (let key of Object.keys(dict)) {
         let option = document.createElement("option");
         option.value = key;
@@ -139,17 +139,17 @@ function setup() {
                 let linkElement480 = document.querySelector("#modal-480-link");
                 let linkElementMP3 = document.querySelector("#modal-mp3-link");
                 if (linkElement720) {
-                    let newLink = linkElement720.href.replace(/^https:\/\/\w+\.catbox\.\w+/, "https://" + catboxHostDict[catboxHost]);
+                    let newLink = linkElement720.href.replace(/^https:\/\/\w+\.animemusicquiz\.com/, `https://${hostDict[catboxHost]}.animemusicquiz.com`);
                     linkElement720.href = newLink;
                     linkElement720.parentElement.querySelector("p").onclick = () => navigator.clipboard.writeText(newLink);
                 }
                 if (linkElement480) {
-                    let newLink = linkElement480.href.replace(/^https:\/\/\w+\.catbox\.\w+/, "https://" + catboxHostDict[catboxHost]);
+                    let newLink = linkElement480.href.replace(/^https:\/\/\w+\.animemusicquiz\.com/, `https://${hostDict[catboxHost]}.animemusicquiz.com`);
                     linkElement480.href = newLink;
                     linkElement480.parentElement.querySelector("p").onclick = () => navigator.clipboard.writeText(newLink);
                 }
                 if (linkElementMP3) {
-                    let newLink = linkElementMP3.href.replace(/^https:\/\/\w+\.catbox\.\w+/, "https://" + catboxHostDict[catboxHost]);
+                    let newLink = linkElementMP3.href.replace(/^https:\/\/\w+\.animemusicquiz\.com/, `https://${hostDict[catboxHost]}.animemusicquiz.com`);
                     linkElementMP3.href = newLink;
                     linkElementMP3.parentElement.querySelector("p").onclick = () => navigator.clipboard.writeText(newLink);
                 }
@@ -177,7 +177,7 @@ function setup() {
                 clearInterval(audioInterval);
                 if (catboxHost) {
                     let oldLink = document.querySelector("audio source").src;
-                    let newLink = oldLink.replace(/^https:\/\/\w+\.catbox\.\w+/, "https://" + catboxHostDict[catboxHost]);
+                    let newLink = oldLink.replace(/^https:\/\/\w+\.animemusicquiz\.com/, `https://${hostDict[catboxHost]}.animemusicquiz.com`);
                     if (oldLink !== newLink) {
                         let sourceElement = document.querySelector("audio source");
                         sourceElement.setAttribute("src", newLink);
