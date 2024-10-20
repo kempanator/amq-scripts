@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Anisongdb Utilities
 // @namespace    https://github.com/kempanator
-// @version      0.11
+// @version      0.12
 // @description  some extra functions for anisongdb.com
 // @author       kempanator
 // @match        https://anisongdb.com/*
@@ -23,7 +23,7 @@ Features:
 */
 
 "use strict";
-const version = "0.11";
+const version = "0.12";
 const saveData = validateLocalStorage("anisongdbUtilities");
 const hostDict = {1: "eudist", 2: "nawdist", 3: "naedist"};
 let catboxHost = parseInt(saveData.catboxHost);
@@ -34,12 +34,14 @@ let jsonDownloadHotkey = saveData.jsonDownloadHotkey ?? {altKey: false, ctrlKey:
 let hideAmqText = saveData.hideAmqText ?? false;
 let defaultAdvanced = saveData.defaultAdvanced ?? false;
 let defaultEnglish = saveData.defaultEnglish ?? false;
+let defaultComposer = saveData.defaultComposer ?? false;
 let loop = parseInt(saveData.loop) || 0; //0:none, 1:repeat, 2:loop all
 let volume = saveData.volume ?? .5;
 
 let settingsModal;
 let banner;
 let languageButton;
+let composerButton;
 let toggleAdvancedButton;
 let downloadJsonButton;
 
@@ -58,6 +60,7 @@ function setup() {
     downloadJsonButton = document.querySelector("a.showFilter");
     toggleAdvancedButton = document.querySelector("span.showFilter");
     languageButton = document.querySelector(`label[title="Anime title displaying"]`);
+    composerButton = document.querySelector(`label[title="Composer displaying"]`);
 
     // alter the page on load
     if (hideAmqText) {
@@ -74,6 +77,9 @@ function setup() {
     if (defaultEnglish) {
         languageButton.querySelector("span .left-span").click();
     }
+    if (defaultComposer) {
+        composerButton.querySelector("span .left-span").click();
+    }
 
     // create settings icon
     let i = document.createElement("i");
@@ -83,45 +89,8 @@ function setup() {
     i.onclick = () => { toggleSettingsModal() };
     i.style.cursor = "pointer";
     i.style.fontSize = "28px";
-    i.style.margin = "0 12px 0 0";
-    banner.insertBefore(i, languageButton);
-
-    // create catbox host select
-    let hostSelect = document.createElement("select");
-    hostSelect.style.margin = "0 12px 0 0";
-    hostSelect.style.padding = "7px 3px";
-    hostSelect.style.borderRadius = "5px";
-    hostSelect.onchange = (event) => {
-        catboxHost = parseInt(event.target.value);
-        saveSettings();
-    }
-    let dict = Object.assign({}, {0: "default link"}, hostDict);
-    for (let key of Object.keys(dict)) {
-        let option = document.createElement("option");
-        option.value = key;
-        option.textContent = dict[key];
-        hostSelect.appendChild(option);
-    }
-    hostSelect.value = catboxHost;
-    banner.insertBefore(hostSelect, languageButton);
-
-    // create song loop select
-    let loopSelect = document.createElement("select");
-    loopSelect.style.margin = "0 12px 0 0";
-    loopSelect.style.padding = "7px 3px";
-    loopSelect.style.borderRadius = "5px";
-    loopSelect.onchange = (event) => {
-        loop = parseInt(event.target.value);
-        saveSettings();
-    }
-    ["none", "repeat", "loop all"].forEach((x, i) => {
-        let option = document.createElement("option");
-        option.value = i;
-        option.textContent = x;
-        loopSelect.appendChild(option);
-    });
-    loopSelect.value = loop;
-    banner.insertBefore(loopSelect, hostSelect);
+    i.style.margin = "0 18px 0 0";
+    languageButton.insertAdjacentElement("afterend", i);
 
     // keyboard and mouse events
     document.body.addEventListener("keydown", (event) => {
@@ -214,17 +183,6 @@ function setup() {
         }, 10);
     }).observe(document.querySelector("#video-player"), {attributes: true});
 
-    /*
-    // watch table
-    new MutationObserver((mutations) => {
-        for (let mutation of mutations) {
-            if (mutation.addedNodes.length) {
-                //console.log(mutation.addedNodes[0]);
-            }
-        }
-    }).observe(document.querySelector("#table"), {childList: true});
-    */
-
     // create settings modal
     settingsModal = document.createElement("div");
     settingsModal.id = "auModal";
@@ -236,8 +194,11 @@ function setup() {
             <p><label><input id="auHideTextCheckbox" type="checkbox">Hide AMQ text</label></p>
             <p><label><input id="auAutoPlayCheckbox" type="checkbox">Auto play mp3</label></p>
             <p><label><input id="auEnglishCheckbox" type="checkbox">English title by default</label></p>
+            <p><label><input id="auComposerCheckbox" type="checkbox">Hide composer by default</label></p>
             <p><label><input id="auAdvancedCheckbox" type="checkbox">Advanced view by default</label></p>
             <p><label><input id="auRenameJsonCheckbox" type="checkbox">Rename JSON to search input</label></p>
+            <p><select id="auRadioSelect" style="margin-right: 5px; padding: 5px 3px;"><option value="0">none</option><option value="1">repeat</option><option value="2">loop all</option></select>Radio loop mode</p>
+            <p><select id="auHostChangeSelect" style="margin-right: 5px; padding: 5px 3px;"><option value="0">default</option><option value="1">eudist</option><option value="2">nawdist</option><option value="3">naedist</option></select>Change host</p>
             <p><select id="auDownloadJsonSelect" style="padding: 5px 3px;"><option>ALT</option><option>CTRL</option><option>CTRL ALT</option><option>-</option></select><input id="auDownloadJsonInput" type="text" maxlength="1" style="width: 20px; margin: 0 5px; padding: 5px 3px">Download JSON</p>
             <p><input id="auVolumeInput" type="text" style="width: 40px; margin: 0 5px 0 0; padding: 5px 3px">Default Volume</p>
         </div>
@@ -247,8 +208,11 @@ function setup() {
     let hideTextCheckbox = document.querySelector("#auHideTextCheckbox");
     let autoPlayCheckbox = document.querySelector("#auAutoPlayCheckbox");
     let englishCheckbox = document.querySelector("#auEnglishCheckbox");
+    let composerCheckbox = document.querySelector("#auComposerCheckbox");
     let advancedCheckbox = document.querySelector("#auAdvancedCheckbox");
     let renameJsonCheckbox = document.querySelector("#auRenameJsonCheckbox");
+    let radioSelect = document.querySelector("#auRadioSelect");
+    let hostChangeSelect = document.querySelector("#auHostChangeSelect");
     let downloadJsonSelect = document.querySelector("#auDownloadJsonSelect");
     let downloadJsonInput = document.querySelector("#auDownloadJsonInput");
     let volumeInput = document.querySelector("#auVolumeInput");
@@ -256,8 +220,11 @@ function setup() {
     hideTextCheckbox.checked = hideAmqText;
     autoPlayCheckbox.checked = autoPlayMP3;
     englishCheckbox.checked = defaultEnglish;
+    composerCheckbox.checked = defaultComposer;
     advancedCheckbox.checked = defaultAdvanced;
     renameJsonCheckbox.checked = jsonDownloadRename;
+    radioSelect.value = loop;
+    hostChangeSelect.value = catboxHost;
     if (jsonDownloadHotkey.altKey && jsonDownloadHotkey.ctrlKey) downloadJsonSelect.value = "CTRL ALT";
     else if (jsonDownloadHotkey.altKey) downloadJsonSelect.value = "ALT";
     else if (jsonDownloadHotkey.ctrlKey) downloadJsonSelect.value = "CTRL";
@@ -281,12 +248,24 @@ function setup() {
         defaultEnglish = !defaultEnglish;
         saveSettings();
     }
+    composerCheckbox.onclick = () => {
+        defaultComposer = !defaultComposer;
+        saveSettings();
+    }
     advancedCheckbox.onclick = () => {
         defaultAdvanced = !defaultAdvanced;
         saveSettings();
     }
     renameJsonCheckbox.onclick = () => {
         jsonDownloadRename = !jsonDownloadRename;
+        saveSettings();
+    }
+    radioSelect.onchange = (event) => {
+        loop = parseInt(event.target.value);
+        saveSettings();
+    }
+    hostChangeSelect.onchange = (event) => {
+        catboxHost = parseInt(event.target.value);
         saveSettings();
     }
     downloadJsonSelect.onchange = (event) => {
@@ -344,6 +323,7 @@ function saveSettings() {
         hideAmqText,
         defaultAdvanced,
         defaultEnglish,
+        defaultComposer,
         loop,
         volume
     };
