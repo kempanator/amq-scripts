@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.127
+// @version      0.128
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -105,7 +105,7 @@ OTHER
 
 "use strict";
 if (typeof Listener === "undefined") return;
-const version = "0.127";
+const version = "0.128";
 const saveData = validateLocalStorage("megaCommands");
 const originalOrder = {qb: [], gm: []};
 if (typeof saveData.alerts?.hiddenPlayers === "boolean") delete saveData.alerts;
@@ -341,10 +341,13 @@ function setup() {
     else if (autoStatus === "offline" || autoStatus === "invisible") {
         setTimeout(() => { socialTab.socialStatus.changeSocialStatus(socialTab.socialStatus.STATUS_IDS.INVISIBLE) }, 1500);
     }
-    if (loopVideo) {
-        for (let videoPlayer of quizVideoController.moePlayers) {
-            videoPlayer.$player[0].loop = true;
-        }
+    for (let videoPlayer of quizVideoController.moePlayers) {
+        videoPlayer.player.on("ended", () => {
+            if (loopVideo) {
+                videoPlayer.allowSeeking = true;
+                videoPlayer.player.currentTime(0);
+            }
+        });
     }
     document.body.addEventListener("keydown", (event) => {
         const key = event.key;
@@ -463,7 +466,7 @@ function setup() {
     }).bindListener();
     new Listener("Game Chat Message", (payload) => {
         if (!isRankedMode()) {
-            if (payload.message.startsWith(commandPrefix + "/forceall")) {
+            if (payload.message.startsWith("/forceall")) {
                 parseForceAll(payload.message, payload.teamMessage ? "teamchat" : "chat");
             }
             else if (payload.sender === selfName && payload.message.startsWith(commandPrefix)) {
@@ -1574,9 +1577,6 @@ function setup() {
     });
     $("#mcLoopVideoButton").click(function() {
         loopVideo = !loopVideo;
-        for (let videoPlayer of quizVideoController.moePlayers) {
-            videoPlayer.$player[0].loop = loopVideo;
-        }
         saveSettings();
         sendSystemMessage(`loop video ${loopVideo ? "enabled" : "disabled"}`);
         toggleCommandButton($(this), loopVideo);
@@ -3592,7 +3592,8 @@ async function parseCommand(messageText, type, target) {
         if (split.length === 2) {
             let name = split[1];
             let handleAllOnlineMessage = new Listener("all online users", (onlineUsers) => {
-                sendMessage(localeIncludes(onlineUsers, name) ? "online" : "offline", type, target);
+                let isOnline = onlineUsers.some(n => n.toLowerCase() === name);
+                sendMessage(isOnline ? "online" : "offline", type, target);
                 handleAllOnlineMessage.unbindListener();
             });
             handleAllOnlineMessage.bindListener();
@@ -3820,9 +3821,6 @@ async function parseCommand(messageText, type, target) {
     }
     else if (command === "loopvideo") {
         loopVideo = !loopVideo;
-        for (let videoPlayer of quizVideoController.moePlayers) {
-            videoPlayer.$player[0].loop = loopVideo;
-        }
         saveSettings();
         sendMessage(`loop video ${loopVideo ? "enabled" : "disabled"}`, type, target, true);
         updateCommandListWindow("loopVideo");
@@ -3833,9 +3831,9 @@ async function parseCommand(messageText, type, target) {
         }
         else if (split[1] === "replay" || split[1] === "r") {
             let num = parseInt(split[2]);
-            let startPoint = isNaN(num) ? currentVideoPlayer.startPoint : num;
             let currentVideoPlayer = quizVideoController.getCurrentPlayer();
             if (currentVideoPlayer) {
+                let startPoint = isNaN(num) ? currentVideoPlayer.startPoint : num;
                 currentVideoPlayer.pauseVideo();
                 currentVideoPlayer.player.currentTime(startPoint);
                 currentVideoPlayer.player.play();
@@ -3850,9 +3848,6 @@ async function parseCommand(messageText, type, target) {
         }
         else if (split[1] === "loop") {
             loopVideo = !loopVideo;
-            for (let videoPlayer of quizVideoController.moePlayers) {
-                videoPlayer.$player[0].loop = loopVideo;
-            }
             saveSettings();
             sendMessage(`loop video ${loopVideo ? "enabled" : "disabled"}`, type, target, true);
             updateCommandListWindow("loopVideo");
@@ -3915,7 +3910,7 @@ async function parseCommand(messageText, type, target) {
         else if (split[1] === "host") {
             let currentVideoPlayer = quizVideoController.getCurrentPlayer();
             if (currentVideoPlayer) {
-                let regex = /^https:\/\/(\w+)\.catbox\.\w+/.exec(currentVideoPlayer.currentVideoUrl);
+                let regex = /^https:\/\/(\w+)\./.exec(currentVideoPlayer.currentVideoUrl);
                 if (regex) {
                     sendMessage(regex[1], type, target);
                 }
@@ -3926,8 +3921,8 @@ async function parseCommand(messageText, type, target) {
             if (currentVideoPlayer) {
                 let video = currentVideoPlayer.$player[0];
                 let host = "?";
-                let regex = /^https:\/\/(\w+)\.catbox\.\w+/.exec(currentVideoPlayer.currentVideoUrl);
-                if (regex) host = regex[1].slice(0, 2).toUpperCase();
+                let regex = /^https:\/\/(\w+)\./.exec(currentVideoPlayer.currentVideoUrl);
+                if (regex) host = regex[1];
                 let res = currentVideoPlayer.resolution;
                 if (res === 0) res = "mp3";
                 let currentMinutes = Math.floor(video.currentTime / 60);
@@ -3938,7 +3933,7 @@ async function parseCommand(messageText, type, target) {
             }
         }
     }
-    else if (command === "hp" || command === "hideplayers") {
+    else if (command === "hideplayers" || command === "hp") {
         hidePlayers = !hidePlayers;
         if (hidePlayers) {
             if (lobby.inLobby) lobbyHidePlayers();
@@ -3982,7 +3977,7 @@ async function parseCommand(messageText, type, target) {
             }
         }
         else if (split.length === 2) {
-            let option = messageText.split(/\s+/)[1];
+            let option = split[1];
             for (let key of Object.keys(commandPersist)) {
                 if (key.toLowerCase() === option) {
                     sendMessage(String(commandPersist[key]), type, target);
@@ -3990,7 +3985,7 @@ async function parseCommand(messageText, type, target) {
             }
         }
         else if (split.length === 3) {
-            let option = messageText.split(/\s+/)[1];
+            let option = split[1];
             let value = split[2];
             for (let key of Object.keys(commandPersist)) {
                 if (key.toLowerCase() === option) {
@@ -4451,7 +4446,7 @@ function parseIncomingDM(messageText, sender) {
             if (split.length === 2) {
                 if (Object.keys(roomBrowser.activeRooms).length === 0) return;
                 let name = split[1];
-                let room = Object.values(roomBrowser.activeRooms).find((r) => localeIncludes(r._players, name));
+                let room = Object.values(roomBrowser.activeRooms).find(r => r._players.some(p => p.toLowerCase() === name));
                 if (Number.isInteger(room?.id)) {
                     setTimeout(() => sendMessage(`${room._private ? "private" : "public"} room ${room.id}: ${room.settings.roomName}`, "dm", sender), 100);
                     setTimeout(() => sendMessage(`host: ${room.host}, players: ${room._numberOfPlayers}, spectators: ${room._numberOfSpectators}`, "dm", sender), 300);
@@ -5145,15 +5140,6 @@ function toggleTextInputFocus() {
             quiz.answerInput.typingInput.$input.focus();
         }
     }, 10);
-}
-
-// includes function for array of strings, ignore case
-function localeIncludes(array, str) {
-    str = str.toLowerCase();
-    for (let item of array) {
-        if (item.toLowerCase() === str) return true;
-    }
-    return false;
 }
 
 // override changeView function for auto ready
