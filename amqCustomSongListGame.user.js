@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.70
+// @version      0.71
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -44,7 +44,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.70";
+const version = "0.71";
 const saveData = validateLocalStorage("customSongListGame");
 const hostDict = {1: "eudist.animemusicquiz.com", 2: "nawdist.animemusicquiz.com", 3: "naedist.animemusicquiz.com"};
 let CSLButtonCSS = saveData.CSLButtonCSS || "calc(25% - 250px)";
@@ -2159,7 +2159,7 @@ function handleData(data) {
         let annSongId = song.annSongId ?? null;
         let audio = song.audio ?? song.videoUrl ?? song.urls?.catbox?.[0] ?? song.songInfo?.videoTargetMap?.catbox?.[0] ?? song.songInfo?.urlMap?.catbox?.[0] ?? song.LinkMp3 ?? "";
         let video480 = song.video480 ?? song.MQ ?? song.videoUrl ?? song.urls?.catbox?.[480] ?? song.songInfo?.videoTargetMap?.catbox?.[480] ?? song.songInfo?.urlMap?.catbox?.[480] ?? "";
-        let video720 = song.video720 ?? song.HQ ?? song.videoUrl ?? song.urls?.catbox?.[720] ?? song.songInfo?.videoTargetMap?.catbox?.[720] ?? song.songInfo?.urlMap?.catbox?.[720] ?? song.linkVideo ?? "";
+        let video720 = song.video720 ?? song.HQ ?? song.videoUrl ?? song.urls?.catbox?.[720] ?? song.songInfo?.videoTargetMap?.catbox?.[720] ?? song.songInfo?.urlMap?.catbox?.[720] ?? song.LinkVideo ?? "";
         let correctGuess = song.correctGuess ?? null;
         let incorrectGuess = song.incorrectGuess ?? null;
         if (correctGuess === null && typeof song.correct === "boolean") { //joseph script check
