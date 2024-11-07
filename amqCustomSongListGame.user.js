@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.69
+// @version      0.70
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -44,7 +44,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.69";
+const version = "0.70";
 const saveData = validateLocalStorage("customSongListGame");
 const hostDict = {1: "eudist.animemusicquiz.com", 2: "nawdist.animemusicquiz.com", 3: "naedist.animemusicquiz.com"};
 let CSLButtonCSS = saveData.CSLButtonCSS || "calc(25% - 250px)";
@@ -2136,8 +2136,8 @@ function handleData(data) {
         else return;
     }
     for (let song of data) {
-        let animeRomajiName = song.animeRomajiName ?? song.animeJPName ?? song.songInfo?.animeNames?.romaji ?? song.anime?.romaji ?? song.animeRomaji ?? "";
-        let animeEnglishName = song.animeEnglishName ?? song.animeENName ?? song.songInfo?.animeNames?.english ?? song.anime?.english ?? song.animeEnglish ?? "";
+        let animeRomajiName = song.animeRomajiName ?? song.animeJPName ?? song.songInfo?.animeNames?.romaji ?? song.anime?.romaji ?? song.animeRomaji ?? song.animeRom ??"";
+        let animeEnglishName = song.animeEnglishName ?? song.animeENName ?? song.songInfo?.animeNames?.english ?? song.anime?.english ?? song.animeEnglish ?? song.animeEng ?? "";
         let altAnimeNames = song.altAnimeNames ?? song.songInfo?.altAnimeNames ?? [].concat(animeRomajiName, animeEnglishName, song.animeAltName || []);
         let altAnimeNamesAnswers = song.altAnimeNamesAnswers ?? song.songInfo?.altAnimeNamesAnswers ?? [];
         let songArtist = song.songArtist ?? song.artist ?? song.songInfo?.artist ?? "";
@@ -2156,6 +2156,7 @@ function handleData(data) {
         let rebroadcast = song.rebroadcast ?? song.isRebroadcast ?? song.songInfo?.rebroadcast ?? null;
         let dub = song.dub ?? song.isDub ?? song.songInfo?.dub ?? null;
         let startPoint = song.startPoint ?? song.startSample ?? null;
+        let annSongId = song.annSongId ?? null;
         let audio = song.audio ?? song.videoUrl ?? song.urls?.catbox?.[0] ?? song.songInfo?.videoTargetMap?.catbox?.[0] ?? song.songInfo?.urlMap?.catbox?.[0] ?? song.LinkMp3 ?? "";
         let video480 = song.video480 ?? song.MQ ?? song.videoUrl ?? song.urls?.catbox?.[480] ?? song.songInfo?.videoTargetMap?.catbox?.[480] ?? song.songInfo?.urlMap?.catbox?.[480] ?? "";
         let video720 = song.video720 ?? song.HQ ?? song.videoUrl ?? song.urls?.catbox?.[720] ?? song.songInfo?.videoTargetMap?.catbox?.[720] ?? song.songInfo?.urlMap?.catbox?.[720] ?? song.linkVideo ?? "";
@@ -2201,6 +2202,7 @@ function handleData(data) {
                 rebroadcast,
                 dub,
                 startPoint,
+                annSongId,
                 audio,
                 video480,
                 video720,
