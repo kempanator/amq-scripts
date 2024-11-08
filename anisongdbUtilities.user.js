@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Anisongdb Utilities
 // @namespace    https://github.com/kempanator
-// @version      0.12
+// @version      0.13
 // @description  some extra functions for anisongdb.com
 // @author       kempanator
 // @match        https://anisongdb.com/*
@@ -15,28 +15,22 @@ Features:
 - loop songs in a radio playlist
 - replace all links with different catbox host
 - hide "This database is built upon the database of AMQ..."
-- auto play audio when you click the mp3 button for a song
-- enable english titles on page load
 - switch to advanced filters on page load
 - force your json file name to match your search query
 - press a hotkey to download json file
 */
 
 "use strict";
-const version = "0.12";
+const version = "0.13";
 const saveData = validateLocalStorage("anisongdbUtilities");
 const hostDict = {1: "eudist", 2: "nawdist", 3: "naedist"};
 let catboxHost = parseInt(saveData.catboxHost);
 if (!hostDict.hasOwnProperty(catboxHost)) catboxHost = 0;
-let autoPlayMP3 = saveData.autoPlayMP3 ?? true;
 let jsonDownloadRename = saveData.jsonDownloadRename ?? true;
 let jsonDownloadHotkey = saveData.jsonDownloadHotkey ?? {altKey: false, ctrlKey: true, key: "b"};
 let hideAmqText = saveData.hideAmqText ?? false;
 let defaultAdvanced = saveData.defaultAdvanced ?? false;
-let defaultEnglish = saveData.defaultEnglish ?? false;
-let defaultComposer = saveData.defaultComposer ?? false;
 let loop = parseInt(saveData.loop) || 0; //0:none, 1:repeat, 2:loop all
-let volume = saveData.volume ?? .5;
 
 let settingsModal;
 let banner;
@@ -55,7 +49,7 @@ let loadInterval = setInterval(() => {
 // begin setup after the first table loads in
 function setup() {
     applyStyles();
-    let key = Object.values(document.querySelector("app-root").attributes).map((x) => x.name).find((x) => x.startsWith("_nghost")).split("-")[1];
+    let ngKey = Object.values(document.querySelector("app-root").attributes).map((x) => x.name).find((x) => x.startsWith("_nghost")).split("-")[2];
     banner = document.querySelector(`div[role="banner"]`);
     downloadJsonButton = document.querySelector("a.showFilter");
     toggleAdvancedButton = document.querySelector("span.showFilter");
@@ -74,16 +68,10 @@ function setup() {
             toggleAdvancedButton.click();
         }
     }
-    if (defaultEnglish) {
-        languageButton.querySelector("span .left-span").click();
-    }
-    if (defaultComposer) {
-        composerButton.querySelector("span .left-span").click();
-    }
 
     // create settings icon
     let i = document.createElement("i");
-    i.setAttribute(`_ngcontent-${key}-c10`, "");
+    i.setAttribute(`_ngcontent-ng-${ngKey}`, "");
     i.classList.add("fa", "fa-cog");
     i.setAttribute("aria-hidden", "true");
     i.onclick = () => { toggleSettingsModal() };
@@ -124,6 +112,28 @@ function setup() {
                 }
             }
         }, 1)
+        if (event.target.attributes.title?.value === "Listen to mp3") {
+            setTimeout(() => {
+                let audio = document.querySelector("audio");
+                audio.onended = function() {
+                    if (loop === 1) {
+                        this.play();
+                    }
+                    else if (loop === 2) {
+                        let tdList = document.querySelectorAll("i.fa-music");
+                        let index = Array.from(tdList).findIndex(e => getComputedStyle(e).color === "rgb(226, 148, 4)");
+                        if (index >= 0) {
+                            if (index === tdList.length - 1) {
+                                tdList[0].click();
+                            }
+                            else {
+                                tdList[index + 1].click();
+                            }
+                        }
+                    }
+                };
+            }, 1);
+        }
     });
     downloadJsonButton.addEventListener("click", function() {
         if (jsonDownloadRename) {
@@ -138,51 +148,6 @@ function setup() {
         }
     });
 
-    // watch audio player
-    new MutationObserver(() => {
-        let audioInterval = setInterval(() => {
-            let audioElement = document.querySelector("audio");
-            if (audioElement) {
-                clearInterval(audioInterval);
-                if (catboxHost) {
-                    let oldLink = document.querySelector("audio source").src;
-                    let newLink = oldLink.replace(/^https:\/\/\w+\.animemusicquiz\.com/, `https://${hostDict[catboxHost]}.animemusicquiz.com`);
-                    if (oldLink !== newLink) {
-                        let sourceElement = document.querySelector("audio source");
-                        sourceElement.setAttribute("src", newLink);
-                        sourceElement.setAttribute("data-vs", newLink);
-                        audioElement.load();
-                    }
-                }
-                if (autoPlayMP3) {
-                    audioElement.addEventListener("canplay", function() {
-                        if (volume >= 0 && volume <= 1) {
-                            audioElement.volume = volume;
-                        }
-                        this.play();
-                        audioElement.onended = function() {
-                            if (loop === 1) {
-                                this.play();
-                            }
-                            else if (loop === 2) {
-                                let tdList = document.querySelectorAll(`td[title="Listen to mp3"]:has(i.fa-music)`);
-                                let index = Array.from(tdList).findIndex(e => e.style.color === "rgb(226, 148, 4)");
-                                if (index >= 0) {
-                                    if (index === tdList.length - 1) {
-                                        tdList[0].click();
-                                    }
-                                    else {
-                                        tdList[index + 1].click();
-                                    }
-                                }
-                            }
-                        };
-                    });
-                }
-            }
-        }, 10);
-    }).observe(document.querySelector("#video-player"), {attributes: true});
-
     // create settings modal
     settingsModal = document.createElement("div");
     settingsModal.id = "auModal";
@@ -192,35 +157,24 @@ function setup() {
             <h2 style="text-align: center;">AnisongDB Utilities Script Settings</h2>
             <p style="text-align: center;">By: kempanator<br>Version: ${version}<br><a href="https://github.com/kempanator/amq-scripts/blob/main/anisongdbUtilities.user.js" target="_blank">Github</a> <a href="https://github.com/kempanator/amq-scripts/raw/main/anisongdbUtilities.user.js" target="_blank">Install</a></p>
             <p><label><input id="auHideTextCheckbox" type="checkbox">Hide AMQ text</label></p>
-            <p><label><input id="auAutoPlayCheckbox" type="checkbox">Auto play mp3</label></p>
-            <p><label><input id="auEnglishCheckbox" type="checkbox">English title by default</label></p>
-            <p><label><input id="auComposerCheckbox" type="checkbox">Hide composer by default</label></p>
             <p><label><input id="auAdvancedCheckbox" type="checkbox">Advanced view by default</label></p>
             <p><label><input id="auRenameJsonCheckbox" type="checkbox">Rename JSON to search input</label></p>
             <p><select id="auRadioSelect" style="margin-right: 5px; padding: 5px 3px;"><option value="0">none</option><option value="1">repeat</option><option value="2">loop all</option></select>Radio loop mode</p>
             <p><select id="auHostChangeSelect" style="margin-right: 5px; padding: 5px 3px;"><option value="0">default</option><option value="1">eudist</option><option value="2">nawdist</option><option value="3">naedist</option></select>Change host</p>
             <p><select id="auDownloadJsonSelect" style="padding: 5px 3px;"><option>ALT</option><option>CTRL</option><option>CTRL ALT</option><option>-</option></select><input id="auDownloadJsonInput" type="text" maxlength="1" style="width: 20px; margin: 0 5px; padding: 5px 3px">Download JSON</p>
-            <p><input id="auVolumeInput" type="text" style="width: 40px; margin: 0 5px 0 0; padding: 5px 3px">Default Volume</p>
         </div>
     `;
     document.body.appendChild(settingsModal);
 
     let hideTextCheckbox = document.querySelector("#auHideTextCheckbox");
-    let autoPlayCheckbox = document.querySelector("#auAutoPlayCheckbox");
-    let englishCheckbox = document.querySelector("#auEnglishCheckbox");
-    let composerCheckbox = document.querySelector("#auComposerCheckbox");
     let advancedCheckbox = document.querySelector("#auAdvancedCheckbox");
     let renameJsonCheckbox = document.querySelector("#auRenameJsonCheckbox");
     let radioSelect = document.querySelector("#auRadioSelect");
     let hostChangeSelect = document.querySelector("#auHostChangeSelect");
     let downloadJsonSelect = document.querySelector("#auDownloadJsonSelect");
     let downloadJsonInput = document.querySelector("#auDownloadJsonInput");
-    let volumeInput = document.querySelector("#auVolumeInput");
 
     hideTextCheckbox.checked = hideAmqText;
-    autoPlayCheckbox.checked = autoPlayMP3;
-    englishCheckbox.checked = defaultEnglish;
-    composerCheckbox.checked = defaultComposer;
     advancedCheckbox.checked = defaultAdvanced;
     renameJsonCheckbox.checked = jsonDownloadRename;
     radioSelect.value = loop;
@@ -230,7 +184,6 @@ function setup() {
     else if (jsonDownloadHotkey.ctrlKey) downloadJsonSelect.value = "CTRL";
     else downloadJsonSelect.value = "-";
     downloadJsonInput.value = jsonDownloadHotkey.key;
-    volumeInput.value = volume;
 
     hideTextCheckbox.onclick = () => {
         hideAmqText = !hideAmqText;
@@ -238,18 +191,6 @@ function setup() {
         if (amqText && amqText.textContent.startsWith(" This database")) {
             amqText.style.display = hideAmqText ? "none" : "block";
         }
-        saveSettings();
-    }
-    autoPlayCheckbox.onclick = () => {
-        autoPlayMP3 = !autoPlayMP3;
-        saveSettings();
-    }
-    englishCheckbox.onclick = () => {
-        defaultEnglish = !defaultEnglish;
-        saveSettings();
-    }
-    composerCheckbox.onclick = () => {
-        defaultComposer = !defaultComposer;
         saveSettings();
     }
     advancedCheckbox.onclick = () => {
@@ -275,10 +216,6 @@ function setup() {
     }
     downloadJsonInput.onchange = (event) => {
         jsonDownloadHotkey.key = event.target.value.toLowerCase();
-        saveSettings();
-    }
-    volumeInput.onchange = (event) => {
-        volume = parseFloat(event.target.value);
         saveSettings();
     }
 }
@@ -317,15 +254,11 @@ function validateLocalStorage(item) {
 function saveSettings() {
     let settings = {
         catboxHost,
-        autoPlayMP3,
         jsonDownloadRename,
         jsonDownloadHotkey,
         hideAmqText,
         defaultAdvanced,
-        defaultEnglish,
-        defaultComposer,
         loop,
-        volume
     };
     localStorage.setItem("anisongdbUtilities", JSON.stringify(settings));
 }
