@@ -1,6 +1,6 @@
 /* ==UserStyle==
 @name         Elodie's AMQ Style Script
-@version      10.2.11
+@version      10.2.12
 @namespace    userstyles.world/user/melodyelodie
 @description  A custom theme for animemusicquiz.com
 @author       melodyelodie
@@ -165,7 +165,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         --wrongAnswerColorTransparent: color-mix(in srgb, var(--wrongAnswerColor), transparent 80%);
         --songHistoryCorrectColorHover: color-mix(in srgb, var(--songHistoryCorrectColor), white 5%);
         --songHistoryWrongColorHover: color-mix(in srgb, var(--songHistoryWrongColor), white 5%);
-        --elodieStyleScriptVersion: 10.2.11;
+        --elodieStyleScriptVersion: 10.2.12;
     }
     
     
@@ -225,7 +225,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         --wrongAnswerColorTransparent: color-mix(in srgb, var(--wrongAnswerColor), transparent 80%);
         --songHistoryCorrectColorHover: color-mix(in srgb, var(--songHistoryCorrectColor), white 15%);
         --songHistoryWrongColorHover: color-mix(in srgb, var(--songHistoryWrongColor), white 15%);
-        --elodieStyleScriptVersion: 10.2.11;
+        --elodieStyleScriptVersion: 10.2.12;
     }
     */
     
@@ -233,6 +233,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     /* Basic Defaults */
     body {
         color: var(--textColor);
+        background-color: var(--primaryColor);
     }
     a {
         color: var(--accentColorContrast);
@@ -3614,6 +3615,173 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     }
     #nexusTutorialQuitButton {
         text-shadow: 0px 0px 4px var(--textShadowColor);
+    }
+
+
+    /* Custom Quiz */
+    #customQuizSelectorWindow {
+        background-color: var(--secondaryColor);
+        box-shadow: 0 0 10px 2px var(--boxShadowColor);
+        color: var(--textColor);
+    }
+    #cqsHeaderContainer {
+        background-color: var(--primaryColor);
+    }
+    #cqsFilterContainer {
+        background-color: var(--primaryColor);
+    }
+    #cqsCreatorButtonContainer::before {
+        background-color: var(--secondaryColor);
+    }
+    #cqsSideContainer {
+        background-color: var(--primaryColor);
+        box-shadow: -1px 0px 10px var(--boxShadowColor);
+    }
+    .cqsSideContainerOverlayContainer {
+        background-color: var(--primaryColor);
+    }
+    #cqsCloseButton {
+        border-bottom: solid 2px var(--primaryColor);
+        border-left: solid 2px var(--primaryColor);
+    }
+    #cqsCloseButton:hover {
+        background-color: var(--secondaryColor);
+    }
+    .cqsFilterItemContainer {
+        background-color: var(--secondaryColor);
+    }
+    .cqsFilterDropdown {
+        background-color: var(--secondaryColor);
+    }
+    .cqsQuizEntry {
+        background-color: var(--secondaryColor);
+        box-shadow: 0 0 10px var(--boxShadowColor);
+    }
+    .cqsQuizEntry:hover {
+        box-shadow: 0 0 10px 3px var(--accentColor);
+    }
+    .cqsQuizEntry.selected {
+        box-shadow: 0 0 10px 3px var(--accentColor);
+    }
+    .cqsQuizEntryBadgeContainer {
+        background-color: var(--primaryColor);
+    }
+    .cqsQuizEntryBadgeContainerInner {
+        background-color: var(--secondaryColor);
+    }
+    .cqsQuizEntryAuthorContainer {
+        background-color: var(--primaryColor);
+    }
+    .cqsQuizEntryTag {
+        background-color: var(--accentColor);
+    }
+    .cqsSideButton {
+        border-left: solid 2px var(--primaryColor);
+        border-bottom: solid 2px var(--primaryColor);
+    }
+    .cqsSideButton:hover {
+        background-color: var(--secondaryColor);
+    }
+    #cqsSideDescription {
+        background-color: var(--secondaryColor);
+    }
+    .cqsSideTag {
+        background-color: var(--accentColor);
+    }
+    .cqsSideQuizStatContainer {
+        background-color: var(--secondaryColor);
+    }
+    #cqsSideQuizLikeButtonContainer {
+        border-top: 2px solid var(--secondaryColor);
+        border-bottom: 2px solid var(--secondaryColor);
+    }
+    .cqsSideQuizLikeButton {
+        border-left: 1px solid var(--secondaryColor);
+    }
+    .cqsSideQuizLikeButton:hover {
+        background-color: var(--secondaryColor);
+    }
+    #cqsSideQuizFavoriteButton.selected {
+        background-color: var(--accentColor);
+    }
+    #cqsSideQuizFavoriteButton.selected:hover {
+        background-color: var(--accentColorLight);
+    }
+    .cqsOptionTwinButtonContainer {
+        border-top: solid 1px var(--accentColorDark);
+    }
+    .cqsOptionButton {
+        background-color: var(--accentColor);
+        border-top: solid 1px var(--accentColorDark);
+    }
+    .cqsOptionButton:hover {
+        background-color: var(--accentColorLight);
+    }
+    #hostCustomQuizModal {
+        color: var(--textColor);
+    }
+    #hostCustomQuizHostButton {
+        background-color: var(--accentColor);
+    }
+    #hostCustomQuizHostButton:hover {
+        background-color: var(--accentColorLight);
+    }
+    #lnSettingCommunityQuizContainerMessagePopover {
+        background-color: var(--primaryColorTransparent);
+    }
+    #lnSettingCommunityQuizContainer {
+        background-color: var(--primaryColor);
+        box-shadow: 0px 0px 16px var(--boxShadowColor);
+    }
+    .cqsQuizEntryTextOverlayContainer {
+        background-color: var(--primaryColorTransparent);
+    }
+    #cqsSlotInfoContainer::before {
+        background-color: var(--primaryColor);
+    }
+    #cqcQuizCreatorHeader {
+        background-color: var(--primaryColorTransparent);
+        color: var(--textColor);
+        box-shadow: 0 0 10px 2px var(--boxShadowColor);
+    }
+    #cqcQuizCreatorNameContainer {
+        background-color: var(--primaryColor);
+        box-shadow: 0 0 5px 0px var(--boxShadowColor);
+    }
+    #cqcQuizCreatorNameInput {
+        background-color: var(--primaryColor);
+    }
+    .cqcCreationBlock {
+        box-shadow: 0 0 5px 0px var(--boxShadowColor);
+    }
+    #cqcBuildContainer {
+        background-color: var(--primaryColorTransparent);
+        box-shadow: 0 0 10px 2px var(--boxShadowColor);
+    }
+    #cqcBuilderPreviewContainer {
+        background-color: var(--primaryColor);
+        box-shadow: 0 0px 10px 4px var(--boxShadowColor);
+    }
+    #cqcBuilderPreviewCloseContainer {
+        background-color: var(--primaryColor);
+        box-shadow: 0 0px 10px 4px var(--boxShadowColor);
+    }
+    #cqcSaveModal .modal-content {
+        background-color: var(--windowBackground);
+        color: var(--textColor);
+    }
+    #cqcSaveDescriptionInput {
+        background-color: var(--secondaryColor);
+        color: var(--textColor);
+    }
+    .cqcSaveTag {
+        background-color: var(--accentColor);
+    }
+    #cqcSaveButton {
+        background-color: var(--accentColor);
+    }
+    #cqcSaveButton:hover {
+        background-color: var(--accentColorLight);
     }
 
 
