@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.128
+// @version      0.129
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -105,7 +105,7 @@ OTHER
 
 "use strict";
 if (typeof Listener === "undefined") return;
-const version = "0.128";
+const version = "0.129";
 const saveData = validateLocalStorage("megaCommands");
 const originalOrder = {qb: [], gm: []};
 if (typeof saveData.alerts?.hiddenPlayers === "boolean") delete saveData.alerts;
@@ -2929,10 +2929,32 @@ async function parseCommand(messageText, type, target) {
         updateCommandListWindow("autoReady");
     }
     else if (command === "autostart") {
-        autoStart = !autoStart;
-        sendMessage(`auto start game ${autoStart ? "enabled" : "disabled"}`, type, target, true);
-        checkAutoStart();
-        updateCommandListWindow("autoStart");
+        if (split.length === 1) {
+            autoStart = !autoStart;
+            sendMessage(`auto start game ${autoStart ? "enabled" : "disabled"}`, type, target, true);
+            checkAutoStart();
+            updateCommandListWindow("autoStart");
+        }
+        else if (split.length === 2) {
+            if (/^[0-9]+$/.test(split[1])) {
+                autoStart = parseInt(split[1]);
+                sendMessage(`auto start game enabled (${autoStart} tries)`, type, target, true);
+                checkAutoStart();
+                updateCommandListWindow("autoStart");
+            }
+            else if (/^(t|true|on|enabled?)$/.test(split[1])) {
+                autoStart = true;
+                sendMessage(`auto start game enabled`, type, target, true);
+                checkAutoStart();
+                updateCommandListWindow("autoStart");
+            }
+            else if (/^(f|false|off|disabled?)$/.test(split[1])) {
+                autoStart = false;
+                sendMessage(`auto start game disabled`, type, target, true);
+                checkAutoStart();
+                updateCommandListWindow("autoStart");
+            }
+        }
     }
     else if (command === "autohost" || command === "ah") {
         if (split.length === 1) {
@@ -3177,7 +3199,7 @@ async function parseCommand(messageText, type, target) {
     else if (command === "answer") {
         if (split.length > 1) {
             quiz.answerInput.setNewAnswer(messageText.slice(messageText.indexOf(" ")));
-        }  
+        }
     }
     else if (command === "invite" || command === "inv") {
         if (split.length === 1) {
@@ -4062,13 +4084,17 @@ async function parseCommand(messageText, type, target) {
     }
     else if (command === "genreid") {
         let list = content.slice(content.indexOf(" ") + 1).split(",").map((x) => x.trim()).filter(Boolean);
-        let genreDict = Object.assign({}, ...Object.entries(idTranslator.genreNames).map(([a, b]) => ({[b.toLowerCase()]: a})));
-        sendMessage(list.map((x) => isNaN(parseInt(x)) ? genreDict[x] : idTranslator.genreNames[x]).filter(Boolean).join(", "), type, target);
+        let genreList = list.map((x) => getClosestGenre(x)).filter((x) => x.id);
+        if (genreList.length) {
+            sendMessage(genreList.map((x) => `${x.genre}: ${x.id}`).join(", "), type, target);
+        }
     }
     else if (command === "tagid") {
         let list = content.slice(content.indexOf(" ") + 1).split(",").map((x) => x.trim()).filter(Boolean);
-        let tagDict = Object.assign({}, ...Object.entries(idTranslator.tagNames).map(([a, b]) => ({[b.toLowerCase()]: a})));
-        sendMessage(list.map((x) => isNaN(parseInt(x)) ? tagDict[x] : idTranslator.tagNames[x]).filter(Boolean).join(", "), type, target);
+        let tagList = list.map((x) => getClosestTag(x)).filter((x) => x.id);
+        if (tagList.length) {
+            sendMessage(tagList.map((x) => `${x.tag}: ${x.id}`).join(", "), type, target);
+        }
     }
     else if (command === "list") {
         if (split.length === 2) {
@@ -4829,20 +4855,67 @@ function changeGameSettings(settings) {
 // input text, return name that matches the closest
 function getClosestNameInRoom(text) {
     let name = text.toLowerCase();
-    let results = getPlayerList().concat(getSpectatorList()).filter((x) => x.toLowerCase().includes(name));
-    return results.length === 1 ? results[0] : text;
-}
-
-// input text, return genre that matches the closest
-function getClosestGenre(text) {
-    text = text.toLowerCase().trim();
     let list = [];
-    for (let [id, genre] of Object.entries(idTranslator.genreNames)) {
-        if (genre.toLowerCase().includes(text)) {
-            list.push({id: parseInt(id), genre: genre});
+    for (player of getPlayerList().concat(getSpectatorList())) {
+        let lower = player.toLowerCase();
+        if (lower === name) {
+            return player;
+        }
+        else if (lower.includes(name)) {
+            list.push(player);
         }
     }
-    return list.length === 1 ? list[0] : {genre: text, id: null};
+    return list.length === 1 ? list[0] : text;
+}
+
+// input text or id, return genre that matches the closest
+function getClosestGenre(text) {
+    text = text.toLowerCase().trim();
+    let number = Number(text);
+    if (number) {
+        if (idTranslator.genreNames.hasOwnProperty(number)) {
+            return {genre: idTranslator.genreNames[number], id: number}
+        }
+        return {genre: text, id: null};
+    }
+    else {
+        let list = [];
+        for (let [id, genre] of Object.entries(idTranslator.genreNames)) {
+            let lower = genre.toLowerCase();
+            if (lower === text) {
+                return {genre: genre, id: Number(id)};
+            }
+            else if (lower.includes(text)) {
+                list.push({genre: genre, id: Number(id)});
+            }
+        }
+        return list.length === 1 ? list[0] : {genre: text, id: null};
+    }
+}
+
+// input text or id, return tag that matches the closest
+function getClosestTag(text) {
+    text = text.toLowerCase().trim();
+    let number = Number(text);
+    if (number) {
+        if (idTranslator.tagNames.hasOwnProperty(number)) {
+            return {tag: idTranslator.tagNames[number], id: number}
+        }
+        return {tag: text, id: null};
+    }
+    else {
+        let list = [];
+        for (let [id, tag] of Object.entries(idTranslator.tagNames)) {
+            let lower = tag.toLowerCase();
+            if (lower === text) {
+                return {tag: tag, id: Number(id)};
+            }
+            else if (lower.includes(text)) {
+                list.push({tag: tag, id: Number(id)});
+            }
+        }
+        return list.length === 1 ? list[0] : {tag: text, id: null};
+    }
 }
 
 // check if all players are ready in lobby
@@ -4866,6 +4939,7 @@ function checkAutoStart() {
     setTimeout(() => {
         if (autoStart && allPlayersReady() && lobby.isHost) {
             lobby.fireMainButtonEvent();
+            if (Number.isInteger(autoStart) && autoStart > 0) autoStart -= 1;
         }
     }, 1);
 }
