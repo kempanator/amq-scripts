@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.71
+// @version      0.72
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -44,7 +44,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.71";
+const version = "0.72";
 const saveData = validateLocalStorage("customSongListGame");
 const hostDict = {1: "eudist.animemusicquiz.com", 2: "nawdist.animemusicquiz.com", 3: "naedist.animemusicquiz.com"};
 let CSLButtonCSS = saveData.CSLButtonCSS || "calc(25% - 250px)";
@@ -1183,7 +1183,7 @@ function startQuiz() {
             fireListener("quiz next video info", {
                 "playLength": guessTime,
                 "playbackSpeed": 1,
-                "startPont": getStartPoint(),
+                "startPoint": getStartPoint(),
                 "videoInfo": {
                     "id": null,
                     "videoMap": {
@@ -1305,7 +1305,7 @@ function playSong(songNumber) {
                 fireListener("quiz next video info", {
                     "playLength": guessTime,
                     "playbackSpeed": 1,
-                    "startPont": getStartPoint(),
+                    "startPoint": getStartPoint(),
                     "videoInfo": {
                         "id": null,
                         "videoMap": {
@@ -1660,7 +1660,7 @@ function parseMessage(content, sender) {
                         fireListener("quiz next video info", {
                             "playLength": guessTime,
                             "playbackSpeed": 1,
-                            "startPont": parseInt(split[1]),
+                            "startPoint": parseInt(split[1]),
                             "videoInfo": {
                                 "id": null,
                                 "videoMap": {
