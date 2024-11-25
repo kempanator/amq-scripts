@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Catbox Host Switch
 // @namespace    https://github.com/kempanator
-// @version      0.14
+// @version      0.15
 // @description  Switch your catbox host
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -27,7 +27,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.14";
+const version = "0.15";
 const saveData = validateLocalStorage("catboxHostSwitch");
 const hostDict = {1: "eudist.animemusicquiz.com", 2: "nawdist.animemusicquiz.com", 3: "naedist.animemusicquiz.com"};
 let catboxHost = parseInt(saveData.catboxHost);
@@ -43,7 +43,7 @@ function setup() {
         saveSettings();
     }));
 
-    QuizVideoController.prototype.nextVideoInfo = function(songInfo, playLength, startPoint, firstVideo, startTime, playbackSpeed, fullSongRange, forceBuffering) {
+    QuizVideoController.prototype.nextVideoInfo = function(songInfo, playLength, startPoint, firstVideo, startTime, playbackSpeed, fullSongRange, forceBuffering, forcedSamplePoint) {
         if (songInfo.videoMap.catbox) {
             catboxDownFlagRaised = false;
             if (catboxHost) {
@@ -76,7 +76,8 @@ function setup() {
             playbackSpeed: playbackSpeed,
             firstVideo: firstVideo,
             startTime: startTime,
-            fullSongRange: fullSongRange
+            fullSongRange: fullSongRange,
+            forcedSamplePoint: forcedSamplePoint,
         };
         if (forceBuffering) {
             this.loadNextVideo();
