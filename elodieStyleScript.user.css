@@ -1,6 +1,6 @@
 /* ==UserStyle==
 @name         Elodie's AMQ Style Script
-@version      10.2.13
+@version      10.2.14
 @namespace    userstyles.world/user/melodyelodie
 @description  A custom theme for animemusicquiz.com
 @author       melodyelodie
@@ -165,7 +165,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         --wrongAnswerColorTransparent: color-mix(in srgb, var(--wrongAnswerColor), transparent 80%);
         --songHistoryCorrectColorHover: color-mix(in srgb, var(--songHistoryCorrectColor), white 5%);
         --songHistoryWrongColorHover: color-mix(in srgb, var(--songHistoryWrongColor), white 5%);
-        --elodieStyleScriptVersion: 10.2.13;
+        --elodieStyleScriptVersion: 10.2.14;
     }
     
     
@@ -225,7 +225,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         --wrongAnswerColorTransparent: color-mix(in srgb, var(--wrongAnswerColor), transparent 80%);
         --songHistoryCorrectColorHover: color-mix(in srgb, var(--songHistoryCorrectColor), white 15%);
         --songHistoryWrongColorHover: color-mix(in srgb, var(--songHistoryWrongColor), white 15%);
-        --elodieStyleScriptVersion: 10.2.13;
+        --elodieStyleScriptVersion: 10.2.14;
     }
     */
     
@@ -3719,6 +3719,13 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     #cqsSideQuizFavoriteButton.selected:hover {
         background-color: var(--accentColorLight);
     }
+    .cqsHighscoreSelectorItem.selected {
+        color: var(--accentColor);
+        text-shadow: 0 0 5px var(--textShadowColor);
+    }
+    .cqsHighscoreNameColumn {
+        background-color: var(--secondaryColor);
+    }
     .cqsOptionButton {
         background-color: var(--accentColor);
         border-top: solid 1px var(--accentColorDark);
@@ -3754,6 +3761,39 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     }
     #cqsSlotInfoContainer::before {
         background-color: var(--primaryColor);
+    }
+    #cqsSlotBuyButton {
+        border-top: 1px solid var(--secondaryColor);
+    }
+    #cqsSlotBuyButton::before {
+        background-color: var(--primaryColor);
+    }
+    #cqsSlotBuyButton:hover::before {
+        background-color: var(--secondaryColor);
+    }
+    #cqsQuizSlotBuyContainer {
+        background-color: var(--secondaryColor);
+    }
+    .cqsQuizSlotBuyEntry {
+        background-color: var(--primaryColor);
+        box-shadow: 0 0 10px 2px var(--boxShadowColor);
+    }
+    .cqsQuizSlotBuyEntry:hover {
+        box-shadow: 0 0 10px 3px var(--accentColor);
+    }
+    #cqsQuizSlotBuyPatreonPromoButton {
+        background-color: var(--primaryColor);
+        box-shadow: 0 0 10px 2px var(--boxShadowColor);
+    }
+    #cqsQuizSlotBuyPatreonPromoButton:hover {
+        box-shadow: 0 0 10px 3px var(--accentColor);
+    }
+    #cqsQuizSlotBuyCloseButton {
+        background-color: var(--primaryColor);
+        box-shadow: 0 0 10px 2px var(--boxShadowColor);
+    }
+    #cqsQuizSlotBuyCloseButton:hover {
+        box-shadow: 0 0 10px 3px var(--accentColor);
     }
     #cqcQuizCreatorHeader {
         background-color: var(--primaryColorTransparent);
