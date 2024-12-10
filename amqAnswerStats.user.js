@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Answer Stats
 // @namespace    https://github.com/kempanator
-// @version      0.31
+// @version      0.32
 // @description  Adds a window to display quiz answer stats
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -30,7 +30,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.31";
+const version = "0.32";
 const regionDictionary = {E: "Eastern", C: "Central", W: "Western"};
 const saveData = validateLocalStorage("answerStats");
 //const saveData2 = validateLocalStorage("highlightFriendsSettings");
@@ -96,7 +96,7 @@ function setup() {
     }).bindListener();
     new Listener("Join Game", (payload) => {
         if (payload.quizState) {
-            joinRoomUpdate();
+            joinRoomUpdate(payload);
         }
     }).bindListener();
     new Listener("Spectate Game", (payload) => {
@@ -247,6 +247,7 @@ function setup() {
             $("#asRoomInfoRow").empty().append(`
                 <span><b>${roomNameText()}</b></span>
                 <span style="margin-left: 20px"><b>Song:</b> ${songNumber}/${quiz.infoContainer.$totalSongCount.text()}</span>
+                <span style="margin-left: 20px"><b>Host:</b> ${hostText(currentPlayer?.currentVideoUrl)}</span>
             `);
             //<span style="margin-left: 20px"><b>Total Players:</b> ${totalPlayers}</span>
             $("#asSongDistributionRow span").remove();
@@ -267,11 +268,16 @@ function setup() {
                 options.title = "";
                 options.content = "";
             }
+            let currentMinutes = Math.floor(currentPlayer?.startPoint / 60);
+            let currentSeconds = String(Math.round(currentPlayer?.startPoint) % 60).padStart(2, 0);
+            let totalMinutes = Math.floor(currentPlayer?.videoLength / 60);
+            let totalSeconds = String(Math.round(currentPlayer?.videoLength) % 60).padStart(2, 0);
             $("#asSongGuessRow").empty().append(`
                 <span><b>Correct:</b> ${numCorrect}/${activePlayers} ${(numCorrect / activePlayers * 100).toFixed(2)}%</span>
                 <span style="margin-left: 20px"><b>Dif:</b> ${Number(payload.songInfo.animeDifficulty).toFixed(2)}</span>
-                <span style="margin-left: 20px"><b>Rig:</b> ${payload.watched}</span>
+                <span style="margin-left: 20px"><b>Sample:</b> ${currentMinutes}:${currentSeconds} / ${totalMinutes}:${totalSeconds}</span>
             `);
+            //<span style="margin-left: 20px"><b>Rig:</b> ${payload.watched}</span>
             if (numCorrect && !quiz.soloMode && !quiz.teamMode) {
                 let $speedRow = $("#asAnswerSpeedRow").empty().show();
                 $speedRow.append(`<span><b>Average:</b> ${averageSpeed}ms</span><span style="margin-left: 20px"><b>Fastest:</b> ${fastestSpeed}ms - </span>`);
@@ -1135,6 +1141,15 @@ function shortenType(type) {
 // set undefined and glitched out speed times to null
 function validateSpeed(speed) {
     return (speed && speed < 100000) ? speed : null;
+}
+
+function hostText(url) {
+    if (!url) return "?";
+    for (let [key, value] of Object.entries(videoResolver.CATBOX_ENDPOINTS)) {
+        if (url.startsWith(value)) return key;
+    }
+    if (url.startsWith("https://openings.moe/")) return "OM";
+    return "?";
 }
 
 function typeText(type, typeNumber) {
