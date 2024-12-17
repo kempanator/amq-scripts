@@ -1,6 +1,6 @@
 /* ==UserStyle==
 @name         Elodie's AMQ Style Script
-@version      10.2.14
+@version      10.2.15
 @namespace    userstyles.world/user/melodyelodie
 @description  A custom theme for animemusicquiz.com
 @author       melodyelodie
@@ -32,7 +32,7 @@ Changelog:
     - fixed readability on autocomplete dropdown
   10.3
     - styled boss, hint, jam modes
-    - styled new song library
+    - styled new song library and custom quiz creator
 
 
 Installing:
@@ -165,7 +165,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         --wrongAnswerColorTransparent: color-mix(in srgb, var(--wrongAnswerColor), transparent 80%);
         --songHistoryCorrectColorHover: color-mix(in srgb, var(--songHistoryCorrectColor), white 5%);
         --songHistoryWrongColorHover: color-mix(in srgb, var(--songHistoryWrongColor), white 5%);
-        --elodieStyleScriptVersion: 10.2.14;
+        --elodieStyleScriptVersion: 10.2.15;
     }
     
     
@@ -225,7 +225,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         --wrongAnswerColorTransparent: color-mix(in srgb, var(--wrongAnswerColor), transparent 80%);
         --songHistoryCorrectColorHover: color-mix(in srgb, var(--songHistoryCorrectColor), white 15%);
         --songHistoryWrongColorHover: color-mix(in srgb, var(--songHistoryWrongColor), white 15%);
-        --elodieStyleScriptVersion: 10.2.14;
+        --elodieStyleScriptVersion: 10.2.15;
     }
     */
     
@@ -1605,15 +1605,18 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     }
     .qpVoteSkip {
         background-color: var(--primaryColor);
-        border-radius: 20px;
+        width: 70px;
         left: 0;
+        clip-path: polygon(0 0, 100% 0, 57% 100%, 0 100%);
         transform: translateX(-110%) skewX(0);
         transition: transform .1s linear;
     }
     .qpVoteSkip.toggled {
+        width: 70px;
         background-color: var(--accentColor);
     }
     .qpVoteSkip p {
+        margin-right: 16px;
         transform: none;
     }
     .qpVoteState {
@@ -1635,7 +1638,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         box-shadow: 0 0 10px 1px var(--boxShadowColor);
     }
     .qpVoteShadowHider {
-        border-radius: 20px;
+        border-radius: 20px 0 0 20px;
     }
     .qpVoteSkipGlowContainer {
         box-shadow: none;
@@ -2534,6 +2537,17 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     }
     .swRhythmIcon {
         z-index: 1;
+    }
+    #swTicketRedeemCodeContainer > a {
+        background: var(--primaryColor);
+        color: var(--textColor);
+        text-shadow: none;
+        padding: 5px 10px;
+    }
+    #swTicketRedeemCodeContainer > a:hover {
+        box-shadow: 0 0 10px var(--accentColor);
+        color: var(--accentColor);
+        text-shadow: none;
     }
     #swTicketAvatarLockingContainerOuter {
         transition: top .2s linear;
