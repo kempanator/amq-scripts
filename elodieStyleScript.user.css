@@ -726,13 +726,16 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         background-color: var(--containerBackground);
         border-radius: var(--borderRadius);
     }
-    .mpSpringPromoContainer {
+    .mpSpringPromoContainer,
+    .mpExtraPromoContainer {
         background-color: var(--containerBackground);
     }
-    .mpSpringPromoContainer:hover {
-        background-color: var(--primaryColor);
+    .mpSpringPromoContainer:hover, 
+    .mpExtraPromoContainer:hover {
+        background-color: var(--secondaryColor);
     }
-    .mpSpringPromoContainer h3 {
+    .mpSpringPromoContainer h3,
+    .mpExtraPromoInner h3 {
         color: var(--textColor);
         text-shadow: 0 0 3px var(--textShadowColor);
     }
