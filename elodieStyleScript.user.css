@@ -689,6 +689,23 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         box-shadow: 0 0 7px 1px var(--boxShadowColor);
         color: var(--textColor);
     }
+    #quizOfTheDayModal {
+        color: var(--textColor);
+    }
+    #quizOfTheDayScheduleContainer {
+        border-top: 1px solid var(--secondaryColor);
+        border-bottom: 1px solid var(--secondaryColor);
+    }
+    .quizOfTheDayScheduleDay {
+        text-shadow: 0px 0px 5px var(--textShadowColor);
+        border-right: 1px solid var(--secondaryColor);
+    }
+    .quizOfTheDayScheduleDay::before {
+        background: linear-gradient(180deg, transparent 0%, var(--primaryColorTransparent) 75%, var(--primaryColor) 100%);
+    }
+    .quizOfTheDayScheduleDay.active::before {
+        background: linear-gradient(180deg, transparent 0%, var(--accentColorTransparent) 75%, var(--accentColor) 100%);
+    }
     #mpAvatarDriveContainer {
         background-color: var(--containerBackground);
     }
