@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Answer Stats
 // @namespace    https://github.com/kempanator
-// @version      0.32
+// @version      0.33
 // @description  Adds a window to display quiz answer stats
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -30,7 +30,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.32";
+const version = "0.33";
 const regionDictionary = {E: "Eastern", C: "Central", W: "Western"};
 const saveData = validateLocalStorage("answerStats");
 //const saveData2 = validateLocalStorage("highlightFriendsSettings");
@@ -1283,7 +1283,7 @@ function joinRoomUpdate(data) {
     resetHistory();
     answerHistorySettings.roomType = data.settings.gameMode;
     if (answerHistorySettings.roomType === "Ranked") {
-        answerHistorySettings.roomName = regionDictionary[$("#mpRankedTimer h3").text()] + " " + payload.settings.roomName;
+        answerHistorySettings.roomName = regionDictionary[$("#mpRankedTimer h3").text()] + " " + data.settings.roomName;
     }
     else {
         answerHistorySettings.roomName = data.settings.roomName;
