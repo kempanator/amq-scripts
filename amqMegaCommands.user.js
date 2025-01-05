@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.129
+// @version      0.130
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -105,7 +105,7 @@ OTHER
 
 "use strict";
 if (typeof Listener === "undefined") return;
-const version = "0.129";
+const version = "0.130";
 const saveData = validateLocalStorage("megaCommands");
 const originalOrder = {qb: [], gm: []};
 if (typeof saveData.alerts?.hiddenPlayers === "boolean") delete saveData.alerts;
@@ -446,32 +446,34 @@ function setup() {
     });
     new Listener("game chat update", (payload) => {
         for (let message of payload.messages) {
-            if (!isRankedMode()) {
-                if (message.message.startsWith("/forceall")) {
+            if (message.message.startsWith("/forceall")) {
+                if (!isRankedMode()) {
                     parseForceAll(message.message, message.teamMessage ? "teamchat" : "chat");
                 }
-                else if (message.message.startsWith("/vote")) {
+            }
+            else if (message.message.startsWith("/vote")) {
+                if (!isRankedMode()) {
                     parseVote(message.message, message.sender);
                 }
-                else if (message.sender === selfName && message.message.startsWith(commandPrefix)) {
-                    parseCommand(message.message, message.teamMessage ? "teamchat" : "chat");
-                }
-                else if (coopPaste && message.sender !== selfName && message.message.startsWith(coopPrefix)) {
-                    if (quiz.inQuiz && !quiz.isSpectator) {
-                        quiz.answerInput.setNewAnswer(message.message.slice(coopPrefix.length));
-                    }
+            }
+            else if (message.sender === selfName && message.message.startsWith(commandPrefix)) {
+                parseCommand(message.message, message.teamMessage ? "teamchat" : "chat");
+            }
+            else if (coopPaste && message.sender !== selfName && message.message.startsWith(coopPrefix)) {
+                if (quiz.inQuiz && !quiz.isSpectator && quiz.gameMode !== "Ranked") {
+                    quiz.answerInput.setNewAnswer(message.message.slice(coopPrefix.length));
                 }
             }
         }
     }).bindListener();
     new Listener("Game Chat Message", (payload) => {
-        if (!isRankedMode()) {
-            if (payload.message.startsWith("/forceall")) {
+        if (payload.message.startsWith("/forceall")) {
+            if (!isRankedMode()) {
                 parseForceAll(payload.message, payload.teamMessage ? "teamchat" : "chat");
             }
-            else if (payload.sender === selfName && payload.message.startsWith(commandPrefix)) {
-                parseCommand(payload.message, payload.teamMessage ? "teamchat" : "chat");
-            }
+        }
+        else if (payload.sender === selfName && payload.message.startsWith(commandPrefix)) {
+            parseCommand(payload.message, payload.teamMessage ? "teamchat" : "chat");
         }
     }).bindListener();
     new Listener("chat message", (payload) => {
@@ -4920,11 +4922,7 @@ function getClosestTag(text) {
 
 // check if all players are ready in lobby
 function allPlayersReady() {
-    if (!lobby.inLobby) return false;
-    for (let player of Object.values(lobby.players)) {
-        if (!player._ready) return false;
-    }
-    return true;
+    return lobby.numberOfPlayersReady === Object.keys(lobby.players).length;
 }
 
 // check conditions and ready up in lobby
@@ -4937,9 +4935,16 @@ function checkAutoReady() {
 // check conditions and start game
 function checkAutoStart() {
     setTimeout(() => {
-        if (autoStart && allPlayersReady() && lobby.isHost) {
+        if (autoStart && lobby.inLobby && lobby.isHost && allPlayersReady()) {
             lobby.fireMainButtonEvent();
-            if (Number.isInteger(autoStart) && autoStart > 0) autoStart -= 1;
+            if (Number.isInteger(autoStart)) {
+                if (autoStart > 1) {
+                    autoStart -= 1;
+                }
+                else {
+                    autoStart = false;
+                }
+            }
         }
     }, 1);
 }
@@ -4947,8 +4952,12 @@ function checkAutoStart() {
 // check conditions and switch between player and spectator
 function checkAutoSwitch() {
     if (lobby.inLobby) {
-        if (autoSwitch === "player" && lobby.isSpectator) socket.sendCommand({type: "lobby", command: "change to player"});
-        else if (autoSwitch === "spectator" && !lobby.isSpectator) lobby.changeToSpectator(selfName);
+        if (autoSwitch === "player" && lobby.isSpectator) {
+            socket.sendCommand({type: "lobby", command: "change to player"});
+        }
+        else if (autoSwitch === "spectator" && !lobby.isSpectator) {
+            lobby.changeToSpectator(selfName);
+        }
     }
 }
 
