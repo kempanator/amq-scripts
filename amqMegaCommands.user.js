@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.130
+// @version      0.131
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -105,7 +105,7 @@ OTHER
 
 "use strict";
 if (typeof Listener === "undefined") return;
-const version = "0.130";
+const version = "0.131";
 const saveData = validateLocalStorage("megaCommands");
 const originalOrder = {qb: [], gm: []};
 if (typeof saveData.alerts?.hiddenPlayers === "boolean") delete saveData.alerts;
@@ -125,7 +125,7 @@ let autoJoinRoom = saveData.autoJoinRoom ?? false;
 let autoKey = saveData.autoKey ?? false;
 let autoMute = saveData.autoMute ?? {mute: [], unmute: [], toggle: [], randomMute: null, randomUnmute: null};
 let autoReady = saveData.autoReady ?? false;
-let autoStart = saveData.autoStart ?? false;
+let autoStart = saveData.autoStart ?? {delay: 0, remaining: 0, timer: null, timerRunning: false};
 let autoStatus = saveData.autoStatus ?? "";
 let autoSwitch = saveData.autoSwitch ?? "";
 let autoThrow = saveData.autoThrow ?? {time: [], text: null, multichoice: null};
@@ -763,7 +763,7 @@ function setup() {
         else {
             if (payload.inLobby) {
                 if (autoReady) sendSystemMessage("Auto Ready: Enabled");
-                if (autoStart) sendSystemMessage("Auto Start: Enabled");
+                if (autoStart.remaining) sendSystemMessage("Auto Start: Enabled");
                 if (autoHost) sendSystemMessage("Auto Host: " + autoHost);
                 if (autoInvite) sendSystemMessage("Auto Invite: " + autoInvite);
                 if (autoAcceptInvite) sendSystemMessage("Auto Accept Invite: Enabled");
@@ -784,7 +784,7 @@ function setup() {
         else {
             if (payload.inLobby) {
                 if (autoReady) sendSystemMessage("Auto Ready: Enabled");
-                if (autoStart) sendSystemMessage("Auto Start: Enabled");
+                if (autoStart.remaining) sendSystemMessage("Auto Start: Enabled");
                 if (autoHost) sendSystemMessage("Auto Host: " + autoHost);
                 if (autoInvite) sendSystemMessage("Auto Invite: " + autoInvite);
                 if (autoAcceptInvite) sendSystemMessage("Auto Accept Invite: Enabled");
@@ -828,7 +828,11 @@ function setup() {
     }).bindListener();
     new Listener("Spectator Change To Player", (payload) => {
         if (payload.name === selfName) {
-            setTimeout(() => { checkAutoReady(); checkAutoStart(); checkAutoSwitch(); }, 1);
+            setTimeout(() => {
+                checkAutoReady();
+                checkAutoStart();
+                checkAutoSwitch();
+            }, 1);
         }
         if (hidePlayers) setTimeout(() => { lobbyHidePlayers() }, 0);
     }).bindListener();
@@ -1082,6 +1086,8 @@ function setup() {
                             <div class="mcCommandRow">
                                 <button id="mcAutoStartButton" class="btn mcCommandButton"></button>
                                 <span class="mcCommandTitle">Auto Start</span>
+                                <input id="mcAutoStartDelayInput" type="text" placeholder="time" style="width: 50px;">
+                                <input id="mcAutoStartRemainingInput" type="text" placeholder="remaining" style="width: 80px;">
                             </div>
                             <div class="mcCommandRow">
                                 <button id="mcAutoAcceptInviteButton" class="btn mcCommandButton"></button>
@@ -1297,10 +1303,31 @@ function setup() {
         toggleCommandButton($(this), autoReady);
     });
     $("#mcAutoStartButton").click(function() {
-        autoStart = !autoStart;
-        sendSystemMessage(`auto start game ${autoStart ? "enabled" : "disabled"}`);
-        checkAutoStart();
-        toggleCommandButton($(this), autoStart);
+        if ($(this).text() === "Off") {
+            let $delay = $("#mcAutoStartDelayInput");
+            let $remaining = $("#mcAutoStartRemainingInput");
+            if ($delay.val() === "") $delay.val("0");
+            if ($remaining.val() === "") $remaining.val("Infinity");
+            let delay = Number($delay.val());
+            let remaining = Math.floor(Number($remaining.val()));
+            if (!isNaN(delay) && delay >= 0 && !isNaN(remaining) && remaining > 0) {
+                autoStart.delay = Math.floor(delay * 1000);
+                autoStart.remaining = remaining;
+                clearTimeout(autoStart.timer);
+                autoStart.timerRunning = false;
+                sendSystemMessage(`auto start game enabled (delay: ${delay}s, remaining: ${remaining})`);
+                checkAutoStart();
+                toggleCommandButton($(this), true);
+            }
+        }
+        else {
+            autoStart.delay = 0;
+            autoStart.remaining = 0;
+            clearTimeout(autoStart.timer);
+            autoStart.timerRunning = false;
+            sendSystemMessage("auto start game disabled");
+            toggleCommandButton($(this), false);
+        }
     });
     $("#mcAutoAcceptInviteButton").click(function() {
         if ($(this).text() === "Off") {
@@ -1773,7 +1800,9 @@ function updateCommandListWindow(type) {
         toggleCommandButton($("#mcAutoReadyButton"), autoReady);
     }
     if (!type || type === "autoStart") {
-        toggleCommandButton($("#mcAutoStartButton"), autoStart);
+        toggleCommandButton($("#mcAutoStartButton"), autoStart.remaining);
+        //$("#mcAutoStartDelayInput").val(autoStart.delay);
+        //$("#mcAutoStartRemainingInput").val(autoStart.remaining);
     }
     if (!type || type === "autoAcceptInvite") {
         toggleCommandButton($("#mcAutoAcceptInviteButton"), autoAcceptInvite);
@@ -2932,30 +2961,37 @@ async function parseCommand(messageText, type, target) {
     }
     else if (command === "autostart") {
         if (split.length === 1) {
-            autoStart = !autoStart;
-            sendMessage(`auto start game ${autoStart ? "enabled" : "disabled"}`, type, target, true);
+            if (autoStart.remaining) {
+                autoStart.remaining = 0;
+                sendMessage("auto start game disabled", type, target, true);
+            }
+            else {
+                autoStart.remaining = Infinity;
+                sendMessage(`auto start game enabled (delay: ${autoStart.delay}s, remaining: ${autoStart.remaining})`, type, target, true);
+            }
+            autoStart.delay = 0;
+            clearTimeout(autoStart.timer);
+            autoStart.timerRunning = false;
             checkAutoStart();
             updateCommandListWindow("autoStart");
         }
-        else if (split.length === 2) {
-            if (/^[0-9]+$/.test(split[1])) {
-                autoStart = parseInt(split[1]);
-                sendMessage(`auto start game enabled (${autoStart} tries)`, type, target, true);
-                checkAutoStart();
-                updateCommandListWindow("autoStart");
+        else {
+            let delay = split[1] === undefined ? 0 : Number(split[1]);
+            let remaining = split[2] === undefined ? Infinity : Math.floor(Number(split[2]));
+            if (isNaN(delay) || delay < 0) return;
+            if (isNaN(remaining) || remaining < 0) return;
+            if (remaining) {
+                sendMessage(`auto start game enabled (delay: ${autoStart.delay}s, remaining: ${remaining})`, type, target, true);
             }
-            else if (/^(t|true|on|enabled?)$/.test(split[1])) {
-                autoStart = true;
-                sendMessage(`auto start game enabled`, type, target, true);
-                checkAutoStart();
-                updateCommandListWindow("autoStart");
+            else {
+                sendMessage("auto start game disabled", type, target, true);
             }
-            else if (/^(f|false|off|disabled?)$/.test(split[1])) {
-                autoStart = false;
-                sendMessage(`auto start game disabled`, type, target, true);
-                checkAutoStart();
-                updateCommandListWindow("autoStart");
-            }
+            autoStart.delay = Math.floor(delay * 1000);
+            autoStart.remaining = remaining;
+            clearTimeout(autoStart.timer);
+            autoStart.timerRunning = false;
+            checkAutoStart();
+            updateCommandListWindow("autoStart");
         }
     }
     else if (command === "autohost" || command === "ah") {
@@ -4807,17 +4843,19 @@ function sendChatMessage(message, isTeamMessage) {
 
 // send a client side message to game chat
 function sendSystemMessage(message, message2) {
-    if (gameChat.open) {
-        if (message2) {
-            setTimeout(() => { gameChat.systemMessage(String(message), String(message2)) }, 1);
+    setTimeout(() => { 
+        if (gameChat.open) {
+            if (message2) {
+                gameChat.systemMessage(String(message), String(message2));
+            }
+            else {
+                gameChat.systemMessage(String(message));
+            }
         }
-        else {
-            setTimeout(() => { gameChat.systemMessage(String(message)) }, 1);
+        else if (nexus.inCoopLobby) {
+            nexusCoopChat.displayServerMessage({message: String(message)});
         }
-    }
-    else if (nexus.inCoopLobby) {
-        setTimeout(() => { nexusCoopChat.displayServerMessage({message: String(message)}) }, 1);
-    }
+    }, 0);
 }
 
 // send a message in nexus chat
@@ -4935,15 +4973,23 @@ function checkAutoReady() {
 // check conditions and start game
 function checkAutoStart() {
     setTimeout(() => {
-        if (autoStart && lobby.inLobby && lobby.isHost && allPlayersReady()) {
-            lobby.fireMainButtonEvent();
-            if (Number.isInteger(autoStart)) {
-                if (autoStart > 1) {
-                    autoStart -= 1;
+        if (autoStart.remaining > 0 && lobby.inLobby && lobby.isHost) {
+            if (autoStart.delay ) {
+                if (!autoStart.timerRunning) {
+                    sendSystemMessage(`Auto starting in ${autoStart.delay / 1000}s`);
+                    autoStart.timerRunning = true;
+                    autoStart.timer = setTimeout(() => {
+                        if (autoStart.remaining > 0 && lobby.inLobby && lobby.isHost) {
+                            socket.sendCommand({type: "lobby", command: "start game"});
+                            autoStart.remaining -= 1;
+                            autoStart.timerRunning = false;
+                        }
+                    }, autoStart.delay);
                 }
-                else {
-                    autoStart = false;
-                }
+            }
+            else if (allPlayersReady()) {
+                lobby.fireMainButtonEvent(true);
+                autoStart.remaining -= 1;
             }
         }
     }, 1);
@@ -5143,7 +5189,7 @@ function autoList() {
     else if (autoMute.randomMute) list.push(`Auto Mute Random: ${autoMute.randomMute / 1000}s`);
     else if (autoMute.randomUnmute) list.push(`Auto Unmute Random: ${autoMute.randomUnmute / 1000}s`);
     if (autoReady) list.push("Auto Ready: Enabled");
-    if (autoStart) list.push("Auto Start: Enabled");
+    if (autoStart.remaining) list.push("Auto Start: Enabled");
     if (autoHost) list.push("Auto Host: " + autoHost);
     if (autoInvite) list.push("Auto Invite: " + autoInvite);
     if (autoAcceptInvite) list.push("Auto Accept Invite: Enabled");
