@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.131
+// @version      0.132
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -105,7 +105,7 @@ OTHER
 
 "use strict";
 if (typeof Listener === "undefined") return;
-const version = "0.131";
+const version = "0.132";
 const saveData = validateLocalStorage("megaCommands");
 const originalOrder = {qb: [], gm: []};
 if (typeof saveData.alerts?.hiddenPlayers === "boolean") delete saveData.alerts;
@@ -127,7 +127,7 @@ let autoMute = saveData.autoMute ?? {mute: [], unmute: [], toggle: [], randomMut
 let autoReady = saveData.autoReady ?? false;
 let autoStart = saveData.autoStart ?? {delay: 0, remaining: 0, timer: null, timerRunning: false};
 let autoStatus = saveData.autoStatus ?? "";
-let autoSwitch = saveData.autoSwitch ?? "";
+let autoSwitch = saveData.autoSwitch ?? {mode: "", temp: false};
 let autoThrow = saveData.autoThrow ?? {time: [], text: null, multichoice: null};
 let autoVoteLobby = saveData.autoVoteLobby ?? false;
 let autoVoteSkip = saveData.autoVoteSkip ?? [];
@@ -739,7 +739,7 @@ function setup() {
     }).bindListener();
     new Listener("quiz over", (payload) => {
         setTimeout(() => { checkAutoHost() }, 10);
-        if (autoSwitch) setTimeout(() => { checkAutoSwitch() }, 100);
+        if (autoSwitch.mode) setTimeout(() => { checkAutoSwitch() }, 100);
         if (hidePlayers) setTimeout(() => { lobbyHidePlayers() }, 0);
         if (sourceNode) sourceNode.stop();
     }).bindListener();
@@ -767,7 +767,7 @@ function setup() {
                 if (autoHost) sendSystemMessage("Auto Host: " + autoHost);
                 if (autoInvite) sendSystemMessage("Auto Invite: " + autoInvite);
                 if (autoAcceptInvite) sendSystemMessage("Auto Accept Invite: Enabled");
-                if (autoSwitch) setTimeout(() => { checkAutoSwitch() }, 100);
+                if (autoSwitch.mode) setTimeout(() => { checkAutoSwitch() }, 100);
                 if (hidePlayers) setTimeout(() => { lobbyHidePlayers() }, 0);
             }
             else {
@@ -788,7 +788,7 @@ function setup() {
                 if (autoHost) sendSystemMessage("Auto Host: " + autoHost);
                 if (autoInvite) sendSystemMessage("Auto Invite: " + autoInvite);
                 if (autoAcceptInvite) sendSystemMessage("Auto Accept Invite: Enabled");
-                if (autoSwitch) setTimeout(() => { checkAutoSwitch() }, 100);
+                if (autoSwitch.mode) setTimeout(() => { checkAutoSwitch() }, 100);
                 if (hidePlayers) setTimeout(() => { lobbyHidePlayers() }, 0);
             }
             else {
@@ -3087,14 +3087,31 @@ async function parseCommand(messageText, type, target) {
     }
     else if (command === "autoswitch") {
         if (split.length === 1) {
-            autoSwitch = "";
+            autoSwitch.mode = "";
             sendMessage("auto switch disabled", type, target, true);
         }
-        else if (split.length === 2) {
-            if (split[1].startsWith("p")) autoSwitch = "player";
-            else if (split[1].startsWith("s")) autoSwitch = "spectator";
-            else return sendMessage("Options: player, spectator", type, target, true);
-            sendMessage(`auto switching to ${autoSwitch}`, type, target, true);
+        else {
+            if (split[1].startsWith("p")) {
+                autoSwitch.mode = "player";
+            }
+            else if (split[1].startsWith("s")) {
+                autoSwitch.mode = "spectator";
+            }
+            else {
+                return sendMessage("Options: player, spectator", type, target, true);
+            }
+            if (split[2]) {
+                if (split[2].startsWith("t")) {
+                    autoSwitch.temp = true;
+                }
+                if (split[2].startsWith("f")) {
+                    autoSwitch.temp = false;
+                }
+            }
+            else {
+                autoSwitch.temp = false;
+            }
+            sendMessage(`auto switching to ${autoSwitch.mode}`, type, target, true);
             checkAutoSwitch();
         }
     }
@@ -3256,7 +3273,23 @@ async function parseCommand(messageText, type, target) {
     }
     else if (command === "spectate" || command === "spec") {
         if (split.length === 1) {
-            lobby.changeToSpectator(selfName);
+            if (quiz.inQuiz) {
+                if (!quiz.isSpectator) {
+                    if (autoSwitch.temp) {
+                        autoSwitch.mode = "";
+                        autoSwitch.temp = false;
+                        sendMessage("auto switch disabled", type, target, true);
+                    }
+                    else {
+                        autoSwitch.mode = "spectator";
+                        autoSwitch.temp = true;
+                        sendMessage("auto switching to spectator on lobby (single use)", type, target, true);
+                    }
+                }
+            }
+            else {
+                lobby.changeToSpectator(selfName);
+            }
         }
         else if (split.length === 2) {
             let name = getClosestNameInRoom(split[1]);
@@ -3269,7 +3302,23 @@ async function parseCommand(messageText, type, target) {
                 socket.sendCommand({type: "lobby", command: "change to player"});
             }
             else if (quiz.inQuiz) {
-                socket.sendCommand({type: "quiz", command: "late join game"});
+                if (quiz.isSpectator) {
+                    if (quiz.lateJoinButton.$body.is(":visible")) {
+                        socket.sendCommand({type: "quiz", command: "late join game"});
+                    }
+                    else {
+                        if (autoSwitch.temp) {
+                            autoSwitch.mode = "";
+                            autoSwitch.temp = false;
+                            sendMessage("auto switch disabled", type, target, true);
+                        }
+                        else {
+                            autoSwitch.mode = "player";
+                            autoSwitch.temp = true;
+                            sendMessage("auto switching to player on lobby (single use)", type, target, true);
+                        }
+                    }
+                }
             }
         }
         else {
@@ -4998,10 +5047,18 @@ function checkAutoStart() {
 // check conditions and switch between player and spectator
 function checkAutoSwitch() {
     if (lobby.inLobby) {
-        if (autoSwitch === "player" && lobby.isSpectator) {
+        if (autoSwitch.mode === "player" && lobby.isSpectator) {
+            if (autoSwitch.temp) {
+                autoSwitch.mode = "";
+                autoSwitch.temp = false;
+            }
             socket.sendCommand({type: "lobby", command: "change to player"});
         }
-        else if (autoSwitch === "spectator" && !lobby.isSpectator) {
+        else if (autoSwitch.mode === "spectator" && !lobby.isSpectator) {
+            if (autoSwitch.temp) {
+                autoSwitch.mode = "";
+                autoSwitch.temp = false;
+            }
             lobby.changeToSpectator(selfName);
         }
     }
@@ -5084,7 +5141,7 @@ function relog() {
         unsafeWindow.onbeforeunload = null;
         setTimeout(() => { unsafeWindow.location = "/?forceLogin=True" }, 1);
     }
-    else if (quiz.gameMode === "Jam") {
+    else if (quiz.inQuiz && quiz.gameMode === "Jam") {
         autoJoinRoom = {type: "jam", temp: true, autoLogIn: true};
         saveSettings();
         unsafeWindow.onbeforeunload = null;
@@ -5194,7 +5251,7 @@ function autoList() {
     if (autoInvite) list.push("Auto Invite: " + autoInvite);
     if (autoAcceptInvite) list.push("Auto Accept Invite: Enabled");
     if (autoVoteLobby) list.push("Auto Vote Lobby: Enabled");
-    if (autoSwitch) list.push("Auto Switch: " + autoSwitch);
+    if (autoSwitch.mode) list.push("Auto Switch: " + autoSwitch);
     if (autoStatus) list.push("Auto Status: " + autoStatus);
     if (autoJoinRoom) list.push("Auto Join Room: " + autoJoinRoom.id);
     if (autoDownloadSong.length) list.push("Auto Download Song: " + autoDownloadSong.join(", "));
