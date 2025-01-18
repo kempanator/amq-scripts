@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.72
+// @version      0.73
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -44,7 +44,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.72";
+const version = "0.73";
 const saveData = validateLocalStorage("customSongListGame");
 const hostDict = {1: "eudist.animemusicquiz.com", 2: "nawdist.animemusicquiz.com", 3: "naedist.animemusicquiz.com"};
 let CSLButtonCSS = saveData.CSLButtonCSS || "calc(25% - 250px)";
@@ -1943,7 +1943,7 @@ function quizOver() {
     let data = {
         "spectators": [],
         "inLobby": true,
-        "settings": hostModal.getSettings(),
+        "settings": hostModal.getSettings(true),
         "soloMode": quiz.soloMode,
         "inQueue": [],
         "hostName": lobby.hostName,
