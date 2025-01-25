@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.132
+// @version      0.133
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -105,7 +105,7 @@ OTHER
 
 "use strict";
 if (typeof Listener === "undefined") return;
-const version = "0.132";
+const version = "0.133";
 const saveData = validateLocalStorage("megaCommands");
 const originalOrder = {qb: [], gm: []};
 if (typeof saveData.alerts?.hiddenPlayers === "boolean") delete saveData.alerts;
@@ -2295,21 +2295,21 @@ async function parseCommand(messageText, type, target) {
         if (split.length === 2) {
             let option = parseInt(split[1]);
             if (isNaN(option)) return;
-            let settings = hostModal.getSettings();
+            let settings = hostModal.getSettings(true);
             settings.roomSize = option;
             changeGameSettings(settings);
         }
     }
     else if (command === "loot" || command === "looting") {
         if (split.length === 1) {
-            let settings = hostModal.getSettings();
+            let settings = hostModal.getSettings(true);
             settings.showSelection = 2;
             changeGameSettings(settings);
         }
         else if (split.length === 2) {
             let inventorySize = parseInt(split[1]);
             if (isNaN(inventorySize)) return;
-            let settings = hostModal.getSettings();
+            let settings = hostModal.getSettings(true);
             settings.showSelection = 2;
             settings.inventorySize.randomOn = false;
             settings.inventorySize.standardValue = inventorySize;
@@ -2319,7 +2319,7 @@ async function parseCommand(messageText, type, target) {
             let inventorySize = parseInt(split[1]);
             let lootingTime = parseInt(split[2]);
             if (isNaN(inventorySize) || isNaN(lootingTime)) return;
-            let settings = hostModal.getSettings();
+            let settings = hostModal.getSettings(true);
             settings.showSelection = 2;
             settings.inventorySize.randomOn = false;
             settings.inventorySize.standardValue = inventorySize;
@@ -2331,7 +2331,7 @@ async function parseCommand(messageText, type, target) {
     else if (["t", "type", "types", "songtype", "songtypes"].includes(command)) {
         if (split.length === 2) {
             let option = split[1];
-            let settings = hostModal.getSettings();
+            let settings = hostModal.getSettings(true);
             settings.songType.standardValue.openings = option === "all" || option.includes("o");
             settings.songType.standardValue.endings = option === "all" || option.includes("e");
             settings.songType.standardValue.inserts = option === "all" || option.includes("i");
@@ -2345,7 +2345,7 @@ async function parseCommand(messageText, type, target) {
             let option = split[1];
             let value = split[2];
             if (isNaN(value)) return;
-            let settings = hostModal.getSettings();
+            let settings = hostModal.getSettings(true);
             if (option === "all") {
                 settings.songType.advancedValue.openings = value;
                 settings.songType.advancedValue.endings = value;
@@ -2369,19 +2369,19 @@ async function parseCommand(messageText, type, target) {
         }
     }
     else if (command === "random") {
-        let settings = hostModal.getSettings();
+        let settings = hostModal.getSettings(true);
         settings.songSelection.standardValue = 1;
         settings.songSelection.advancedValue = {random: settings.numberOfSongs, unwatched: 0, watched: 0};
         changeGameSettings(settings);
     }
     else if (command === "unwatched") {
-        let settings = hostModal.getSettings();
+        let settings = hostModal.getSettings(true);
         settings.songSelection.standardValue = 2;
         settings.songSelection.advancedValue = {random: 0, unwatched: settings.numberOfSongs, watched: 0};
         changeGameSettings(settings);
     }
     else if (command === "watched") {
-        let settings = hostModal.getSettings();
+        let settings = hostModal.getSettings(true);
         settings.songSelection.standardValue = 3;
         settings.songSelection.advancedValue = {random: 0, unwatched: 0, watched: settings.numberOfSongs};
         changeGameSettings(settings);
@@ -2391,7 +2391,7 @@ async function parseCommand(messageText, type, target) {
             let option = split[1];
             let value = parseInt(split[2]);
             if (isNaN(value)) return;
-            let settings = hostModal.getSettings();
+            let settings = hostModal.getSettings(true);
             if (option === "all") {
                 settings.songSelection.advancedValue.watched = value;
                 settings.songSelection.advancedValue.unwatched = value;
@@ -2413,7 +2413,7 @@ async function parseCommand(messageText, type, target) {
     else if (command === "time" || command === "guesstime") {
         if (/^\S+ [0-9]+$/.test(content)) {
             let option = parseInt(split[1]);
-            let settings = hostModal.getSettings();
+            let settings = hostModal.getSettings(true);
             settings.guessTime.randomOn = false;
             settings.guessTime.standardValue = option;
             changeGameSettings(settings);
@@ -2422,7 +2422,7 @@ async function parseCommand(messageText, type, target) {
             let regex = /^\S+ ([0-9]+)[ ,-]+([0-9]+)$/.exec(content);
             let low = parseInt(regex[1]);
             let high = parseInt(regex[2]);
-            let settings = hostModal.getSettings();
+            let settings = hostModal.getSettings(true);
             settings.guessTime.randomOn = true;
             settings.guessTime.randomValue = [low, high];
             changeGameSettings(settings);
@@ -2431,7 +2431,7 @@ async function parseCommand(messageText, type, target) {
     else if (command === "etime" || command === "extratime" || command === "extraguesstime") {
         if (/^\S+ [0-9]+$/.test(content)) {
             let option = parseInt(split[1]);
-            let settings = hostModal.getSettings();
+            let settings = hostModal.getSettings(true);
             settings.extraGuessTime.randomOn = false;
             settings.extraGuessTime.standardValue = option;
             changeGameSettings(settings);
@@ -2440,7 +2440,7 @@ async function parseCommand(messageText, type, target) {
             let regex = /^\S+ ([0-9]+)[ ,-]+([0-9]+)$/.exec(content);
             let low = parseInt(regex[1]);
             let high = parseInt(regex[2]);
-            let settings = hostModal.getSettings();
+            let settings = hostModal.getSettings(true);
             settings.extraGuessTime.randomOn = true;
             settings.extraGuessTime.randomValue = [low, high];
             changeGameSettings(settings);
@@ -2449,7 +2449,7 @@ async function parseCommand(messageText, type, target) {
     else if (["sp", "sample", "samplepoint", "startpoint"].includes(command)) {
         if (/^\S+ [a-z]+$/.test(content)) {
             let option = split[1];
-            let settings = hostModal.getSettings();
+            let settings = hostModal.getSettings(true);
             settings.samplePoint.randomOn = false;
             if (option.startsWith("s")) settings.samplePoint.standardValue = 1;
             else if (option.startsWith("m")) settings.samplePoint.standardValue = 2;
@@ -2459,7 +2459,7 @@ async function parseCommand(messageText, type, target) {
         }
         else if (/^\S+ [0-9]+$/.test(content)) {
             let option = parseInt(split[1]);
-            let settings = hostModal.getSettings();
+            let settings = hostModal.getSettings(true);
             settings.samplePoint.randomOn = true;
             settings.samplePoint.randomValue = [option, option];
             changeGameSettings(settings);
@@ -2468,7 +2468,7 @@ async function parseCommand(messageText, type, target) {
             let regex = /^\S+ ([0-9]+)[ ,-]+([0-9]+)$/.exec(content);
             let low = parseInt(regex[1]);
             let high = parseInt(regex[2]);
-            let settings = hostModal.getSettings();
+            let settings = hostModal.getSettings(true);
             settings.samplePoint.randomOn = true;
             settings.samplePoint.randomValue = [low, high];
             changeGameSettings(settings);
@@ -2477,7 +2477,7 @@ async function parseCommand(messageText, type, target) {
     else if (command === "lives" || command === "life") {
         if (split.length === 2) {
             let option = parseInt(split[1]);
-            let settings = hostModal.getSettings();
+            let settings = hostModal.getSettings(true);
             settings.scoreType = quiz.SCORE_TYPE_IDS.LIVES;
             settings.lives = option;
             changeGameSettings(settings);
@@ -2485,12 +2485,12 @@ async function parseCommand(messageText, type, target) {
     }
     else if (command === "boss") {
         if (split.length === 1) {
-            let settings = hostModal.getSettings();
+            let settings = hostModal.getSettings(true);
             settings.scoreType = quiz.SCORE_TYPE_IDS.BOSS;
             changeGameSettings(settings);
         }
         else if (/^\S+ [0-9]+ [0-9]+ [0-9]+$/.test(content)) {
-            let settings = hostModal.getSettings();
+            let settings = hostModal.getSettings(true);
             settings.scoreType = quiz.SCORE_TYPE_IDS.BOSS;
             settings.bossLives = parseInt(split[1]);
             settings.bossPowerUps = parseInt(split[2]);
@@ -2500,7 +2500,7 @@ async function parseCommand(messageText, type, target) {
     }
     else if (command === "hint" || command === "hints") {
         if (split.length === 1) {
-            let settings = hostModal.getSettings();
+            let settings = hostModal.getSettings(true);
             settings.scoreType = quiz.SCORE_TYPE_IDS.HINT;
             changeGameSettings(settings);
         }
@@ -2508,21 +2508,21 @@ async function parseCommand(messageText, type, target) {
     else if (["team", "teams", "teamsize"].includes(command)) {
         let option = parseInt(split[1]);
         if (isNaN(option)) return sendMessage("invalid number", type, target, true);
-        let settings = hostModal.getSettings();
+        let settings = hostModal.getSettings(true);
         settings.teamSize = option;
         changeGameSettings(settings);
     }
     else if (["n", "songs", "numsongs"].includes(command)) {
         let option = parseInt(split[1]);
         if (isNaN(option)) return sendMessage("invalid number", type, target, true);
-        let settings = hostModal.getSettings();
+        let settings = hostModal.getSettings(true);
         settings.numberOfSongs = option;
         changeGameSettings(settings);
     }
     else if (["d", "dif", "difficulty"].includes(command)) {
         if (/^\S+ [a-z]+$/.test(content)) {
             let option = split[1];
-            let settings = hostModal.getSettings();
+            let settings = hostModal.getSettings(true);
             settings.songDifficulity.advancedOn = false;
             settings.songDifficulity.standardValue.easy = option.includes("e");
             settings.songDifficulity.standardValue.medium = option.includes("m");
@@ -2531,7 +2531,7 @@ async function parseCommand(messageText, type, target) {
         }
         else if (/^\S+ [0-9]+$/.test(content)) {
             let option = parseInt(split[1]);
-            let settings = hostModal.getSettings();
+            let settings = hostModal.getSettings(true);
             settings.songDifficulity.advancedOn = true;
             settings.songDifficulity.advancedValue = [option, option];
             changeGameSettings(settings);
@@ -2540,7 +2540,7 @@ async function parseCommand(messageText, type, target) {
             let regex = /^\S+ ([0-9]+)[ ,-]+([0-9]+)$/.exec(content);
             let low = parseInt(regex[1]);
             let high = parseInt(regex[2]);
-            let settings = hostModal.getSettings();
+            let settings = hostModal.getSettings(true);
             settings.songDifficulity.advancedOn = true;
             settings.songDifficulity.advancedValue = [low, high];
             changeGameSettings(settings);
@@ -2548,13 +2548,13 @@ async function parseCommand(messageText, type, target) {
     }
     else if (command === "year" || command === "years") {
         if (split.length === 1) {
-            let settings = hostModal.getSettings();
+            let settings = hostModal.getSettings(true);
             settings.vintage = hostModal.DEFUALT_SETTINGS.vintage;
             changeGameSettings(settings);
         }
         else if (/^\S+ [0-9]+$/.test(content)) {
             let option = parseInt(split[1]);
-            let settings = hostModal.getSettings();
+            let settings = hostModal.getSettings(true);
             settings.vintage.advancedValueList = [];
             settings.vintage.standardValue = {years: [option, option], seasons: [0, 3]};
             changeGameSettings(settings);
@@ -2563,7 +2563,7 @@ async function parseCommand(messageText, type, target) {
             let regex = /^\S+ ([0-9]+)[ ,-]+([0-9]+)$/.exec(content);
             let low = parseInt(regex[1]);
             let high = parseInt(regex[2]);
-            let settings = hostModal.getSettings();
+            let settings = hostModal.getSettings(true);
             settings.vintage.advancedValueList = [];
             settings.vintage.standardValue = {years: [low, high], seasons: [0, 3]};
             changeGameSettings(settings);
@@ -2572,7 +2572,7 @@ async function parseCommand(messageText, type, target) {
     else if (command === "season" || command === "seasons") {
         let seasonMap = {winter: 0, spring: 1, summer: 2, fall: 3, 0: 0, 1: 1, 2: 2, 3: 3};
         if (split.length === 1) {
-            let settings = hostModal.getSettings();
+            let settings = hostModal.getSettings(true);
             settings.vintage.advancedValueList = [];
             settings.vintage.standardValue.seasons = [0, 3];
             changeGameSettings(settings);
@@ -2580,7 +2580,7 @@ async function parseCommand(messageText, type, target) {
         else if (/^\S+ \w+$/.test(content)) {
             if (seasonMap.hasOwnProperty(split[1])) {
                 let option = seasonMap[split[1]];
-                let settings = hostModal.getSettings();
+                let settings = hostModal.getSettings(true);
                 settings.vintage.advancedValueList = [];
                 settings.vintage.standardValue.seasons = [option, option];
                 changeGameSettings(settings);
@@ -2591,7 +2591,7 @@ async function parseCommand(messageText, type, target) {
             if (seasonMap.hasOwnProperty(regex[1]) && seasonMap.hasOwnProperty(regex[2])) {
                 let low = seasonMap[regex[1]];
                 let high = seasonMap[regex[2]];
-                let settings = hostModal.getSettings();
+                let settings = hostModal.getSettings(true);
                 settings.vintage.advancedValueList = [];
                 settings.vintage.standardValue.seasons = [low, high];
                 changeGameSettings(settings);
@@ -2601,7 +2601,7 @@ async function parseCommand(messageText, type, target) {
     else if (command === "vintage") {
         let seasonMap = {winter: 0, spring: 1, summer: 2, fall: 3, 0: 0, 1: 1, 2: 2, 3: 3};
         if (split.length === 1) {
-            let settings = hostModal.getSettings();
+            let settings = hostModal.getSettings(true);
             settings.vintage = hostModal.DEFUALT_SETTINGS.vintage;
             changeGameSettings(settings);
         }
@@ -2609,7 +2609,7 @@ async function parseCommand(messageText, type, target) {
             if (seasonMap.hasOwnProperty(split[1])) {
                 let season = seasonMap[split[1]];
                 let year = parseInt(split[2]);
-                let settings = hostModal.getSettings();
+                let settings = hostModal.getSettings(true);
                 settings.vintage.advancedValueList = [];
                 settings.vintage.standardValue = {years: [year, year], seasons: [season, season]};
                 changeGameSettings(settings);
@@ -2622,7 +2622,7 @@ async function parseCommand(messageText, type, target) {
                 let year1 = parseInt(regex[2]);
                 let season2 = seasonMap[regex[3]];
                 let year2 = parseInt(regex[4]);
-                let settings = hostModal.getSettings();
+                let settings = hostModal.getSettings(true);
                 settings.vintage.advancedValueList = [];
                 settings.vintage.standardValue = {years: [year1, year2], seasons: [season1, season2]};
                 changeGameSettings(settings);
@@ -2631,7 +2631,7 @@ async function parseCommand(messageText, type, target) {
     }
     else if (command === "genre" || command === "genres") {
         if (split.length === 1) {
-            let settings = hostModal.getSettings();
+            let settings = hostModal.getSettings(true);
             settings.genre = [];
             changeGameSettings(settings);
         }
@@ -2639,7 +2639,7 @@ async function parseCommand(messageText, type, target) {
             let genres = Object.values(idTranslator.genreNames).map((x) => x.toLowerCase());
             let list = content.slice(content.indexOf(" ") + 1).split(",").map((x) => x.trim()).filter((x) => genres.includes(x));
             if (!list.length) return;
-            let settings = hostModal.getSettings();
+            let settings = hostModal.getSettings(true);
             settings.genre = [];
             for (let genre of list) {
                 let id = Object.keys(idTranslator.genreNames).find((id) => idTranslator.genreNames[id].toLowerCase() === genre);
@@ -2650,7 +2650,7 @@ async function parseCommand(messageText, type, target) {
     }
     else if (command === "tag" || command === "tags") {
         if (split.length === 1) {
-            let settings = hostModal.getSettings();
+            let settings = hostModal.getSettings(true);
             settings.tags = [];
             changeGameSettings(settings);
         }
@@ -2658,7 +2658,7 @@ async function parseCommand(messageText, type, target) {
             let tags = Object.values(idTranslator.tagNames).map((x) => x.toLowerCase());
             let list = content.slice(content.indexOf(" ") + 1).split(",").map((x) => x.trim()).filter((x) => tags.includes(x));
             if (!list.length) return;
-            let settings = hostModal.getSettings();
+            let settings = hostModal.getSettings(true);
             settings.tags = [];
             for (let tag of list) {
                 let id = Object.keys(idTranslator.tagNames).find((id) => idTranslator.tagNames[id].toLowerCase() === tag);
@@ -2671,7 +2671,7 @@ async function parseCommand(messageText, type, target) {
         if (/^\S+ [0-9]+$/.test(content)) {
             let option = parseInt(split[1]);
             if (option < 1 || option > 10) return;
-            let settings = hostModal.getSettings();
+            let settings = hostModal.getSettings(true);
             settings.playerScore.advancedOn = false;
             settings.playerScore.standardValue = [option, option];
             changeGameSettings(settings);
@@ -2681,7 +2681,7 @@ async function parseCommand(messageText, type, target) {
             let low = parseInt(regex[1]);
             let high = parseInt(regex[2]);
             if (low < 1 || high > 10 || low > high) return;
-            let settings = hostModal.getSettings();
+            let settings = hostModal.getSettings(true);
             settings.playerScore.advancedOn = false;
             settings.playerScore.standardValue = [low, high];
             changeGameSettings(settings);
@@ -2691,7 +2691,7 @@ async function parseCommand(messageText, type, target) {
         if (/^\S+ [0-9]+$/.test(content)) {
             let option = parseInt(split[1]);
             if (option < 1 || option > 10) return;
-            let settings = hostModal.getSettings();
+            let settings = hostModal.getSettings(true);
             settings.animeScore.advancedOn = false;
             settings.animeScore.standardValue = [option, option];
             changeGameSettings(settings);
@@ -2701,7 +2701,7 @@ async function parseCommand(messageText, type, target) {
             let low = parseInt(regex[1]);
             let high = parseInt(regex[2]);
             if (low < 1 || high > 10 || low > high) return;
-            let settings = hostModal.getSettings();
+            let settings = hostModal.getSettings(true);
             settings.animeScore.advancedOn = false;
             settings.animeScore.standardValue = [low, high];
             changeGameSettings(settings);
@@ -3502,7 +3502,7 @@ async function parseCommand(messageText, type, target) {
     }
     else if (command === "profile" || command === "prof") {
         let name = /^\S+ (\w+)$/.exec(content)[1].toLowerCase();
-        playerProfileController.loadProfile(name, $("#gameChatContainer"), {}, () => {}, false, true);
+        playerProfileController.loadProfile(name, $("#gameChatContainer"), {}, () => {}, false, false);
     }
     else if (command === "friend") {
         if (split.length === 1) {
@@ -4292,7 +4292,7 @@ async function parseCommand(messageText, type, target) {
         else if (/^\S+ ops?$/.test(content)) {
             let anime = "Detective Conan";
             if (lobby.inLobby && lobby.isHost && dqMap.hasOwnProperty(anime)) {
-                let settings = hostModal.getSettings();
+                let settings = hostModal.getSettings(true);
                 let data = dqMap[anime];
                 settings.songSelection.standardValue = 1;
                 settings.songSelection.advancedValue = {random: settings.numberOfSongs, unwatched: 0, watched: 0};
@@ -4311,7 +4311,7 @@ async function parseCommand(messageText, type, target) {
         else if (/^\S+ eds?$/.test(content)) {
             let anime = "Detective Conan";
             if (lobby.inLobby && lobby.isHost && dqMap.hasOwnProperty(anime)) {
-                let settings = hostModal.getSettings();
+                let settings = hostModal.getSettings(true);
                 let data = dqMap[anime];
                 settings.songSelection.standardValue = 1;
                 settings.songSelection.advancedValue = {random: settings.numberOfSongs, unwatched: 0, watched: 0};
@@ -4330,7 +4330,7 @@ async function parseCommand(messageText, type, target) {
         else if (/^\S+ ins?$/.test(content)) {
             let anime = "Initial D";
             if (lobby.inLobby && lobby.isHost && dqMap.hasOwnProperty(anime)) {
-                let settings = hostModal.getSettings();
+                let settings = hostModal.getSettings(true);
                 let data = dqMap[anime];
                 settings.songSelection.standardValue = 1;
                 settings.songSelection.advancedValue = {random: settings.numberOfSongs, unwatched: 0, watched: 0};
@@ -4391,7 +4391,7 @@ async function parseCommand(messageText, type, target) {
             if (!data) return sendMessage("invalid anilist id", type, target, true);
             let genreDict = Object.assign({}, ...Object.entries(idTranslator.genreNames).map(([a, b]) => ({[b]: a})));
             let seasonDict = {WINTER: 0, SPRING: 1, SUMMER: 2, FALL: 3};
-            let settings = hostModal.getSettings();
+            let settings = hostModal.getSettings(true);
             settings.songSelection.standardValue = 1;
             settings.songSelection.advancedValue = {random: settings.numberOfSongs, unwatched: 0, watched: 0};
             settings.songType.advancedValue = {openings: 0, endings: 0, inserts: 0, random: 20};
@@ -5130,7 +5130,7 @@ function rejoinRoom(time) {
 // log out, log in, and rejoin the room you were in
 function relog() {
     if (isSoloMode()) {
-        autoJoinRoom = {type: "solo", rejoin: quiz.inQuiz, temp: true, settings: hostModal.getSettings(), autoLogIn: true};
+        autoJoinRoom = {type: "solo", rejoin: quiz.inQuiz, temp: true, settings: hostModal.getSettings(true), autoLogIn: true};
         saveSettings();
         unsafeWindow.onbeforeunload = null;
         setTimeout(() => { unsafeWindow.location = "/?forceLogin=True" }, 1);
@@ -5474,7 +5474,7 @@ function genreLookup(inputGenres) {
 // change quiz settings to only get a specific anime
 function matchSettingsToAnime(anime) {
     if (lobby.inLobby && lobby.isHost && dqMap.hasOwnProperty(anime)) {
-        let settings = hostModal.getSettings();
+        let settings = hostModal.getSettings(true);
         let data = dqMap[anime];
         settings.songSelection.standardValue = 1;
         settings.songSelection.advancedValue = {random: settings.numberOfSongs, unwatched: 0, watched: 0};
