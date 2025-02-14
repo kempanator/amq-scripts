@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.133
+// @version      0.134
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -105,7 +105,7 @@ OTHER
 
 "use strict";
 if (typeof Listener === "undefined") return;
-const version = "0.133";
+const version = "0.134";
 const saveData = validateLocalStorage("megaCommands");
 const originalOrder = {qb: [], gm: []};
 if (typeof saveData.alerts?.hiddenPlayers === "boolean") delete saveData.alerts;
@@ -2967,7 +2967,7 @@ async function parseCommand(messageText, type, target) {
             }
             else {
                 autoStart.remaining = Infinity;
-                sendMessage(`auto start game enabled (delay: ${autoStart.delay}s, remaining: ${autoStart.remaining})`, type, target, true);
+                sendMessage(`auto start game enabled (delay: 0s, remaining: Infinity)`, type, target, true);
             }
             autoStart.delay = 0;
             clearTimeout(autoStart.timer);
@@ -2981,7 +2981,7 @@ async function parseCommand(messageText, type, target) {
             if (isNaN(delay) || delay < 0) return;
             if (isNaN(remaining) || remaining < 0) return;
             if (remaining) {
-                sendMessage(`auto start game enabled (delay: ${autoStart.delay}s, remaining: ${remaining})`, type, target, true);
+                sendMessage(`auto start game enabled (delay: ${delay}s, remaining: ${remaining})`, type, target, true);
             }
             else {
                 sendMessage("auto start game disabled", type, target, true);
