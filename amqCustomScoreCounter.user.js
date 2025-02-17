@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Score Counter
 // @namespace    https://github.com/kempanator
-// @version      0.2
+// @version      0.3
 // @description  Adds a user interface to keep track of custom score game modes
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -21,14 +21,15 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.2";
+const version = "0.3";
 const saveData = validateLocalStorage("customScoreCounter");
-let teams = {}; //[1: {number: 1, players: [{0: "name"}], totalCorrect: 0, score: 0}]
+let teams = {}; //[1: {number: 1, players: ["name"], correct: 0, score: 0}]
 let scoreMap = {};
-let hotKeys = saveData.hotKeys ?? {};
+let scoreTableSort = {mode: "team", ascending: true};
+let hotKeys = {
+    cscWindow: saveData.hotKeys?.cscWindow ?? {altKey: false, ctrlKey: false, key: ""}
+};
 let cscWindow;
-
-hotKeys.cscWindow = saveData.hotKeys?.cscWindow ?? {altKey: false, ctrlKey: false, key: ""};
 
 function setup() {
     new Listener("game chat update", (payload) => {
@@ -67,7 +68,7 @@ function setup() {
                 let name = quiz.players[player.gamePlayerId]?.name;
                 let team = Object.values(teams).find(t => t.players.includes(name));
                 if (team) {
-                    team.totalCorrect += 1;
+                    team.correct += 1;
                     totalCorrect[team.number] += 1;
                 }
             }
@@ -86,7 +87,7 @@ function setup() {
     cscWindow = new AMQWindow({
         id: "cscWindow",
         title: "",
-        width: 400,
+        width: 420,
         height: 300,
         minWidth: 10,
         minHeight: 10,
@@ -121,7 +122,9 @@ function setup() {
             cscWindow.isVisible() ? cscWindow.close() : cscWindow.open();
         }
     });
-    
+
+    setupcscWindow();
+    applyStyles();
     AMQ_addScriptData({
         name: "Custom Score Counter",
         author: "kempanator",
@@ -131,8 +134,6 @@ function setup() {
             <p>Type /csc or click the + button in the options bar during quiz to open the custom score counter user interface</p>
         `
     });
-    setupcscWindow();
-    applyStyles();
 }
 
 // parse message
@@ -222,7 +223,7 @@ function updateTeamTable() {
                 teams[teamNumber].players.push(name);
             }
             else {
-                teams[teamNumber] = {number: teamNumber, players: [name], totalCorrect: 0, score: 0};
+                teams[teamNumber] = {number: teamNumber, players: [name], correct: 0, score: 0};
             }
         }
     }
@@ -236,7 +237,7 @@ function shuffleTeams() {
     let numTeams = Math.ceil(players.length / teamSize);
     teams = {};
     for (let i = 1; i <= numTeams; i++) {
-        teams[i] = {number: i, players: [], totalCorrect: 0, score: 0};
+        teams[i] = {number: i, players: [], correct: 0, score: 0};
     }
     let ids = shuffleArray(players.map(p => p.gamePlayerId));
     for (let i = 0; i < ids.length; i++) {
@@ -261,7 +262,7 @@ function importTeamsFromLobby() {
                     teams[teamNumber].players.push(player.name);
                 }
                 else {
-                    teams[teamNumber] = {number: teamNumber, players: [player.name], totalCorrect: 0, score: 0};
+                    teams[teamNumber] = {number: teamNumber, players: [player.name], correct: 0, score: 0};
                 }
             }
         }
@@ -285,7 +286,7 @@ function importTeamsFromChat() {
             let teamNumber = parseInt(regex[1]);
             let names = regex[2].split(/[\s,]+/).filter(Boolean);
             if (!tempTeams.hasOwnProperty(teamNumber)) {
-                tempTeams[teamNumber] = {number: teamNumber, players: names, totalCorrect: 0, score: 0};
+                tempTeams[teamNumber] = {number: teamNumber, players: names, correct: 0, score: 0};
             }
         }
         else if (importStarted) {
@@ -309,8 +310,22 @@ function importTeamsFromChat() {
 function updateScoreTable() {
     if (Object.keys(teams).length === 0) return;
     let $tbody = $("#cscScoreTable tbody").empty();
-    for (let team of Object.values(teams)) {
-        $tbody.append(`<tr><td>${team.number}: ${team.players.join(", ")}</td><td class="correct">${team.totalCorrect}</td><td class="score">${team.score}</td></tr>`);
+    let sortedKeys = Object.keys(teams);
+    if (scoreTableSort.mode === "team") {
+        sortedKeys.sort((a, b) => a - b);
+    }
+    else if (scoreTableSort.mode === "correct") {
+        sortedKeys.sort((a, b) => teams[a].correct - teams[b].correct);
+    }
+    else if (scoreTableSort.mode === "score") {
+        sortedKeys.sort((a, b) => teams[a].score - teams[b].score);
+    }
+    if (!scoreTableSort.ascending) {
+        sortedKeys.reverse();
+    }
+    for (let key of sortedKeys) {
+        let team = teams[key];
+        $tbody.append(`<tr><td>${team.number}: ${team.players.join(", ")}</td><td class="correct">${team.correct}</td><td class="score">${team.score}</td></tr>`);
     }
 }
 
@@ -332,7 +347,7 @@ function updateScoreMap() {
     if (isNaN(teamSize) || teamSize < 1) return;
     scoreMap = {};
     for (let i = 0; i <= teamSize; i++) {
-        scoreMap[i] = parseInt($($inputs[i]).val()) || 0;
+        scoreMap[i] = parseInt($inputs.eq(i).val()) || 0;
     }
 }
 
@@ -340,7 +355,7 @@ function updateScoreMap() {
 function resetScores() {
     if (Object.keys(teams).length === 0) return;
     for (let team of Object.values(teams)) {
-        team.totalCorrect = 0;
+        team.correct = 0;
         team.score = 0;
     }
     updateScoreTable();
@@ -354,6 +369,17 @@ function tabReset() {
     $("#cscTeamContainer").hide();
     $("#cscScoreContainer").hide();
     $("#cscSettingsContainer").hide();
+}
+
+// used for sorting table contents when you click a header
+function tableSortChange(obj, mode) {
+    if (obj.mode === mode) {
+        obj.ascending = !obj.ascending;
+    }
+    else {
+        obj.mode = mode;
+        obj.ascending = true;
+    }
 }
 
 // setup csc window
@@ -393,7 +419,6 @@ function setupcscWindow() {
                 swal({
                     title: "Select Import Method",
                     input: "select",
-                    //inputPlaceholder: " ",
                     inputOptions: {1: "From Chat", 2: "From Lobby Settings", 3: "Text"},
                     showCancelButton: true,
                     cancelButtonText: "Cancel",
@@ -422,7 +447,25 @@ function setupcscWindow() {
             .append($(`<table id="cscTeamTable" style="margin-top: 10px;"><thead><tr><th>Name</th><th class="team">Team #</th></tr></thead><tbody></tbody></table>`))
         )
         .append($(`<div id="cscScoreContainer" style="padding: 10px;"></div>`).hide()
-            .append($(`<table id="cscScoreTable"><thead><tr><th>Team</th><th class="correct">Correct</th><th class="score">Score</th></tr></thead><tbody></tbody></table>`))
+            .append($(`<table id="cscScoreTable"></table>`)
+                .append($(`<thead></thead>`)
+                    .append($(`<tr></tr>`)
+                        .append($(`<th>Team</th>`).click(() => {
+                            tableSortChange(scoreTableSort, "team");
+                            updateScoreTable();
+                        }))
+                        .append($(`<th class="correct">Correct</th>`).click(() => {
+                            tableSortChange(scoreTableSort, "correct");
+                            updateScoreTable();
+                        }))
+                        .append($(`<th class="score">Score</th>`).click(() => {
+                            tableSortChange(scoreTableSort, "score");
+                            updateScoreTable();
+                        }))
+                    )
+                )
+                .append($(`<tbody></tbody>`))
+            )
         )
         .append($(`<div id="cscSettingsContainer" style="padding: 10px;"></div>`).hide()
             .append(`<div></div>`)
@@ -532,6 +575,7 @@ function applyStyles() {
         }
         #cscScoreTable th {
             font-weight: bold;
+            cursor: pointer;
         }
         #cscScoreTable .correct, #cscScoreTable .score {
             padding-left: 10px;
