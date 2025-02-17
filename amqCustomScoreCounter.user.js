@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Score Counter
 // @namespace    https://github.com/kempanator
-// @version      0.1
+// @version      0.2
 // @description  Adds a user interface to keep track of custom score game modes
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -21,7 +21,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.1";
+const version = "0.2";
 const saveData = validateLocalStorage("customScoreCounter");
 let teams = {}; //[1: {number: 1, players: [{0: "name"}], totalCorrect: 0, score: 0}]
 let scoreMap = {};
@@ -58,26 +58,14 @@ function setup() {
             createTeamTable(Object.values(lobby.players));
         }, 0);
     }).bindListener();
-    /*new Listener("quiz over", (payload) => {
-
-    }).bindListener();
-    new Listener("play next song", (payload) => {
-        
-    }).bindListener();
-    new Listener("team member answer", (payload) => {
-        
-    }).bindListener();
-    new Listener("player answers", (payload) => {
-        
-    }).bindListener();*/
     new Listener("answer results", (payload) => {
         if (Object.keys(teams).length === 0) return;
         //let highestValue = Math.max(...Object.keys(scoreMap).map(n => Number(n)));
         let totalCorrect =  Object.fromEntries(Object.keys(teams).map(t => [t, 0]));
         for (let player of payload.players) {
             if (player.correct) {
-                let id = String(player.gamePlayerId);
-                let team = Object.values(teams).find(t => Object.keys(t.players).includes(id));
+                let name = quiz.players[player.gamePlayerId]?.name;
+                let team = Object.values(teams).find(t => t.players.includes(name));
                 if (team) {
                     team.totalCorrect += 1;
                     totalCorrect[team.number] += 1;
@@ -93,7 +81,6 @@ function setup() {
             }*/
         }
         updateScoreTable();
-
     }).bindListener();
 
     cscWindow = new AMQWindow({
@@ -120,7 +107,7 @@ function setup() {
             cscWindow.isVisible() ? cscWindow.close() : cscWindow.open();
         })
         .popover({
-            content: "Custom Score Counter UI",
+            content: "Custom Score Counter",
             trigger: "hover",
             placement: "bottom"
         })
@@ -197,20 +184,28 @@ function testHotkey(action, key, altKey, ctrlKey) {
     return key === hotkey.key && altKey === hotkey.altKey && ctrlKey === hotkey.ctrlKey;
 }
 
+// get players list
+function getPlayers() {
+    if (lobby.inLobby) {
+        return Object.values(lobby.players);
+    }
+    if (quiz.inQuiz) {
+        return Object.values(quiz.players);
+    }
+    return [];
+}
+
 // crteate team table, input array of Player objects
 function createTeamTable(players) {
     if (!players) return;
     let $tbody = $("#cscTeamTable tbody").empty();
     players.sort((a, b) => a.name.localeCompare(b.name));
     for (let player of players) {
-        let id = String(player.gamePlayerId);
-        let team = Object.values(teams).find(t => Object.keys(t.players).includes(id));
+        let team = Object.values(teams).find(t => t.players.includes(player.name));
         $tbody.append($(`<tr></tr>`)
             .append($(`<td class="name"></td>`).text(player.name))
             .append($(`<td class="team"></td>`)
-                .append($(`<input type="text">`).val(team?.number || "").on("change", () => {
-                    updateTeamTable();
-                }))
+                .append($(`<input type="text">`).val(team?.number || ""))
             )
         );
     }
@@ -218,17 +213,16 @@ function createTeamTable(players) {
 
 // update team table
 function updateTeamTable() {
-    let players = quiz.inQuiz ? Object.values(quiz.players) : Object.values(lobby.players);
+    teams = {};
     for (let tr of $("#cscTeamTable tbody tr")) {
         let name = $(tr).find("td.name").text();
         let teamNumber = $(tr).find("input").val();
         if (!isNaN(teamNumber) && teamNumber > 0) {
-            let id = players.find(p => p._name === name)?.gamePlayerId;
             if (teams.hasOwnProperty(teamNumber)) {
-                teams[teamNumber].players[id] = name;
+                teams[teamNumber].players.push(name);
             }
             else {
-                teams[teamNumber] = {number: teamNumber, players: {[id]: name}, totalCorrect: 0, score: 0};
+                teams[teamNumber] = {number: teamNumber, players: [name], totalCorrect: 0, score: 0};
             }
         }
     }
@@ -236,38 +230,38 @@ function updateTeamTable() {
 
 // shuffle teams
 function shuffleTeams() {
-    let players = quiz.inQuiz ? Object.values(quiz.players) : Object.values(lobby.players);
+    let players = getPlayers();
     let teamSize = parseInt($("#cscTeamSizeInput").val());
     if (isNaN(teamSize) || teamSize < 1) return;
     let numTeams = Math.ceil(players.length / teamSize);
     teams = {};
     for (let i = 1; i <= numTeams; i++) {
-        teams[i] = {number: i, players: {}, totalCorrect: 0, score: 0};
+        teams[i] = {number: i, players: [], totalCorrect: 0, score: 0};
     }
     let ids = shuffleArray(players.map(p => p.gamePlayerId));
     for (let i = 0; i < ids.length; i++) {
         let id = ids[i];
         let name = players.find(p => p.gamePlayerId === id)?._name;
-        teams[i % numTeams + 1].players[id] = name;
+        teams[i % numTeams + 1].players.push(name);
     }
     createTeamTable(players);
 }
 
 // import current team setup from lobby
-function importTeams() {
+function importTeamsFromLobby() {
     let teamSize = parseInt(hostModal.$teamSize.val()) || 0;
     if (teamSize > 1) {
         $("#cscTeamSizeInput").val(teamSize);
-        let players = quiz.inQuiz ? Object.values(quiz.players) : Object.values(lobby.players);
+        let players = getPlayers();
         teams = {};
         for (let player of players) {
             let teamNumber = player.teamNumber ?? Number(player.lobbySlot.$TEAM_DISPLAY_TEXT.text());
             if (teamNumber) {
                 if (teams.hasOwnProperty(teamNumber)) {
-                    teams[teamNumber].players[player.gamePlayerId] = player._name;
+                    teams[teamNumber].players.push(player.name);
                 }
                 else {
-                    teams[teamNumber] = {number: teamNumber, players: {[player.gamePlayerId]: player._name}, totalCorrect: 0, score: 0};
+                    teams[teamNumber] = {number: teamNumber, players: [player.name], totalCorrect: 0, score: 0};
                 }
             }
         }
@@ -278,12 +272,45 @@ function importTeams() {
     }
 }
 
+// import current team setup from chat
+function importTeamsFromChat() {
+    let importStarted = false;
+    let players = getPlayers();
+    let tempTeams = {};
+    for (let message of $("#gcMessageContainer .gcMessage").toArray().reverse()) {
+        let text = $(message).text();
+        let regex = /^Team ([0-9]+):(.+) - [0-9]+$/.exec(text);
+        if (regex) {
+            importStarted = true;
+            let teamNumber = parseInt(regex[1]);
+            let names = regex[2].split(/[\s,]+/).filter(Boolean);
+            if (!tempTeams.hasOwnProperty(teamNumber)) {
+                tempTeams[teamNumber] = {number: teamNumber, players: names, totalCorrect: 0, score: 0};
+            }
+        }
+        else if (importStarted) {
+            break;
+        }
+    }
+    if (importStarted) {
+        teams = tempTeams;
+        if (Object.keys(teams).length) {
+            let teamSize = Math.max(...Object.values(teams).map(t => t.players.length));
+            $("#cscTeamSizeInput").val(teamSize);
+        }
+        createTeamTable(players);
+    }
+    else {
+        messageDisplayer.displayMessage("Error", "Couldn't find team list in chat");
+    }
+}
+
 // update score table
 function updateScoreTable() {
     if (Object.keys(teams).length === 0) return;
     let $tbody = $("#cscScoreTable tbody").empty();
     for (let team of Object.values(teams)) {
-        $tbody.append(`<tr><td>${team.number}: ${Object.values(team.players).join(", ")}</td><td class="correct">${team.totalCorrect}</td><td class="score">${team.score}</td></tr>`);
+        $tbody.append(`<tr><td>${team.number}: ${team.players.join(", ")}</td><td class="correct">${team.totalCorrect}</td><td class="score">${team.score}</td></tr>`);
     }
 }
 
@@ -293,7 +320,7 @@ function createScoreMap() {
     let teamSize = parseInt($("#cscTeamSizeInput").val());
     if (isNaN(teamSize) || teamSize < 1) return;
     for (let i = 0; i <= teamSize; i++) {
-        let $input = $(`<input type="text" style="width: 40px; margin: 0 10px 0 3px">`).on("change", updateScoreMap).val(scoreMap[i] ?? "");
+        let $input = $(`<input type="text" style="width: 40px; margin: 0 10px 0 3px">`).val(scoreMap[i] ?? "");
         $container.append(`<span>${i}:</span>`).append($input);
     }
 }
@@ -355,17 +382,41 @@ function setupcscWindow() {
     );
     cscWindow.panels[0].panel
         .append($(`<div id="cscTeamContainer" style="padding: 10px;"></div>`)
+            .append($(`<button id="cscResetButton" style="user-select: none;">Reset</button>`).click(() => {
+                teams = {};
+                createTeamTable(getPlayers());
+            }))
             .append($(`<button id="cscShuffleButton" style="user-select: none;">Shuffle</button>`).click(() => {
                 shuffleTeams();
             }))
             .append($(`<button id="cscImportButton" style="user-select: none;">Import</button>`).click(() => {
-                importTeams();
+                swal({
+                    title: "Select Import Method",
+                    input: "select",
+                    //inputPlaceholder: " ",
+                    inputOptions: {1: "From Chat", 2: "From Lobby Settings", 3: "Text"},
+                    showCancelButton: true,
+                    cancelButtonText: "Cancel",
+                    allowOutsideClick: true
+                }).then((result) => {
+                    if (result.value) {
+                        if (result.value === "1") {
+                            importTeamsFromChat();
+                        }
+                        else if (result.value === "2") {
+                            importTeamsFromLobby();
+                        }
+                        else if (result.value === "3") {
+                            messageDisplayer.displayMessage("not implemented yet");
+                        }
+                    }
+                });
             }))
             .append($(`<span style="margin-left: 15px;">Team size:</span>`))
             .append($(`<input id="cscTeamSizeInput" type="number" min="1" max="99" style="width: 40px; margin-left: 5px;">`).val(4).on("change", createScoreMap))
             .append($(`<button id="cscToChatButton" style="user-select: none; margin-left: 15px;">To Chat</button>`).click(() => {
                 for (let team of Object.values(teams)) {
-                    sendChatMessage(`Team ${team.number}: ${Object.values(team.players).join(", ")} - ${team.score}`);
+                    sendChatMessage(`Team ${team.number}: ${team.players.join(", ")} - ${team.score}`);
                 }
             }))
             .append($(`<table id="cscTeamTable" style="margin-top: 10px;"><thead><tr><th>Name</th><th class="team">Team #</th></tr></thead><tbody></tbody></table>`))
@@ -397,6 +448,21 @@ function setupcscWindow() {
     ;
     createHotkeyElement("Open this window", "cscWindow", "cscWindowSelect", "cscWindowInput");
     createScoreMap();
+
+    $("#cscTeamTable").on("change", "input", (event) => {
+        updateTeamTable();
+    }).on("keydown", "input", (event) => {
+        if (event.key === "ArrowDown" || event.key === "Enter") {
+            let inputs = $("#cscTeamTable input");
+            let index = inputs.index(event.target);
+            inputs.eq(index + 1).focus();
+        }
+        else if (event.key === "ArrowUp") {
+            let inputs = $("#cscTeamTable input");
+            let index = inputs.index(event.target);
+            inputs.eq(index - 1).focus();
+        }
+    });
 }
 
 // save settings
