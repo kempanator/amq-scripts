@@ -455,12 +455,16 @@ function setupcscWindow() {
         if (event.key === "ArrowDown" || event.key === "Enter") {
             let inputs = $("#cscTeamTable input");
             let index = inputs.index(event.target);
-            inputs.eq(index + 1).focus();
+            if (index < inputs.length - 1) {
+                inputs.eq(index + 1).focus();
+            }
         }
         else if (event.key === "ArrowUp") {
             let inputs = $("#cscTeamTable input");
             let index = inputs.index(event.target);
-            inputs.eq(index - 1).focus();
+            if (index > 0) {
+                inputs.eq(index - 1).focus();
+            }
         }
     });
 }
