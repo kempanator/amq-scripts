@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Score Counter
 // @namespace    https://github.com/kempanator
-// @version      0.3
+// @version      0.4
 // @description  Adds a user interface to keep track of custom score game modes
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -21,10 +21,10 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.3";
+const version = "0.4";
 const saveData = validateLocalStorage("customScoreCounter");
 let teams = {}; //[1: {number: 1, players: ["name"], correct: 0, score: 0}]
-let scoreMap = {};
+let scoreMap = {1: {}, 2: {}, 3: {}, 4: {}};
 let scoreTableSort = {mode: "team", ascending: true};
 let hotKeys = {
     cscWindow: saveData.hotKeys?.cscWindow ?? {altKey: false, ctrlKey: false, key: ""}
@@ -61,8 +61,7 @@ function setup() {
     }).bindListener();
     new Listener("answer results", (payload) => {
         if (Object.keys(teams).length === 0) return;
-        //let highestValue = Math.max(...Object.keys(scoreMap).map(n => Number(n)));
-        let totalCorrect =  Object.fromEntries(Object.keys(teams).map(t => [t, 0]));
+        let totalCorrect =  Object.fromEntries(Object.keys(teams).map(t => [t, 0])); //{teamNumber: #correct}
         for (let player of payload.players) {
             if (player.correct) {
                 let name = quiz.players[player.gamePlayerId]?.name;
@@ -73,13 +72,13 @@ function setup() {
                 }
             }
         }
-        for (let n of Object.keys(totalCorrect)) {
-            if (scoreMap.hasOwnProperty(totalCorrect[n])) {
-                teams[n].score += scoreMap[totalCorrect[n]];
+        for (let teamNumber of Object.keys(totalCorrect)) {
+            let teamSize = teams[teamNumber].players.length;
+            if (scoreMap.hasOwnProperty(teamSize)) {
+                if (scoreMap[teamSize].hasOwnProperty(totalCorrect[teamNumber])) {
+                    teams[teamNumber].score += scoreMap[teamSize][totalCorrect[teamNumber]];
+                }
             }
-            /*else if (totalCorrect[n] > highestValue) {
-                teams[n].score += scoreMap[highestValue];
-            }*/
         }
         updateScoreTable();
     }).bindListener();
@@ -89,8 +88,8 @@ function setup() {
         title: "",
         width: 420,
         height: 300,
-        minWidth: 10,
-        minHeight: 10,
+        minWidth: 300,
+        minHeight: 90,
         zIndex: 1060,
         resizable: true,
         draggable: true
@@ -330,24 +329,46 @@ function updateScoreTable() {
 }
 
 // create score map user inputs
-function createScoreMap() {
-    let $container = $("#cscScoreMapContainer").empty();
-    let teamSize = parseInt($("#cscTeamSizeInput").val());
+function createScoreMap(teamSize) {
+    let $thead = $("#cscScoreMapTable thead").empty();
+    let $tbody = $("#cscScoreMapTable tbody").empty();
+    if (teamSize) $("#cscTeamSizeInput").val(teamSize);
+    else teamSize = parseInt($("#cscTeamSizeInput").val());
     if (isNaN(teamSize) || teamSize < 1) return;
+    $thead.append(`<tr><th colspan="${teamSize + 2}" style="text-align: center;"># Correct</th></tr>`);
     for (let i = 0; i <= teamSize; i++) {
-        let $input = $(`<input type="text" style="width: 40px; margin: 0 10px 0 3px">`).val(scoreMap[i] ?? "");
-        $container.append(`<span>${i}:</span>`).append($input);
+        let $tr = $(`<tr></tr>`);
+        for (let j = 0; j <= teamSize + 1; j++) {
+            let $td = $(`<td></td>`);
+            if (i === 0 && j === 0) {
+                //$td.text("");
+            }
+            else if (i === 0) {
+                $td.text(j - 1).css("text-align", "center");
+            }
+            else if (j === 0) {
+                $td.text(i + "P").css("padding-right", "5px");
+            }
+            else if (j - 1 <= i) {
+                $td.append($(`<input type="text" style="width: 40px">`).val(scoreMap[i]?.[j - 1] ?? ""));
+            }
+            $tr.append($td);
+        }
+        $tbody.append($tr);
     }
 }
 
 // read score map user inputs and update score maps
 function updateScoreMap() {
-    let $inputs = $("#cscScoreMapContainer input");
-    let teamSize = parseInt($("#cscTeamSizeInput").val());
-    if (isNaN(teamSize) || teamSize < 1) return;
+    let inputs = $("#cscScoreMapTable input").toArray().map(x => parseFloat(x.value) || 0);
+    if (inputs.length === 0) return;
     scoreMap = {};
-    for (let i = 0; i <= teamSize; i++) {
-        scoreMap[i] = parseInt($inputs.eq(i).val()) || 0;
+    let start = 0;
+    let teamSize = 1;
+    while (start < inputs.length) {
+        scoreMap[teamSize] = Object.assign({}, inputs.slice(start, start + teamSize + 1));
+        start += teamSize + 1;
+        teamSize++;
     }
 }
 
@@ -438,7 +459,7 @@ function setupcscWindow() {
                 });
             }))
             .append($(`<span style="margin-left: 15px;">Team size:</span>`))
-            .append($(`<input id="cscTeamSizeInput" type="number" min="1" max="99" style="width: 40px; margin-left: 5px;">`).val(4).on("change", createScoreMap))
+            .append($(`<input id="cscTeamSizeInput" type="number" min="1" max="99" style="width: 40px; margin-left: 5px;">`).val(4).on("change", () => createScoreMap()))
             .append($(`<button id="cscToChatButton" style="user-select: none; margin-left: 15px;">To Chat</button>`).click(() => {
                 for (let team of Object.values(teams)) {
                     sendChatMessage(`Team ${team.number}: ${team.players.join(", ")} - ${team.score}`);
@@ -479,13 +500,12 @@ function setupcscWindow() {
                         createScoreMap();
                     }
                     else if (this.value === "yashadox") {
-                        $("#cscTeamSizeInput").val(4);
-                        scoreMap = {0: 0, 1: 1, 2: 1.75, 3: 2.25, 4: 2.5};
-                        createScoreMap();
+                        scoreMap = {4: {0: 0, 1: 1, 2: 1.75, 3: 2.25, 4: 2.5}};
+                        createScoreMap(4);
                     }
                 })
             )
-            .append($(`<div id="cscScoreMapContainer" style="margin-top: 10px;"></div>`))
+            .append($(`<table id="cscScoreMapTable" style="margin-top: 10px;"><thead></thead><tbody></tbody></table>`))
             .append(`<table id="cscHotkeyTable" style="margin-top: 20px;"><thead><tr><th>Action</th><th>Modifier</th><th>Key</th></tr></thead><tbody></tbody></table>`)
         )
     ;
@@ -510,6 +530,9 @@ function setupcscWindow() {
             }
         }
     });
+    $("#cscScoreMapTable").on("change", "input", (event) => {
+        updateScoreMap();
+    })
 }
 
 // save settings
@@ -580,6 +603,9 @@ function applyStyles() {
         #cscScoreTable .correct, #cscScoreTable .score {
             padding-left: 10px;
             text-align: right;
+        }
+        #cscScoreMapTable input {
+            margin: 2px;
         }
         #cscHotkeyTable th {
             font-weight: bold;
