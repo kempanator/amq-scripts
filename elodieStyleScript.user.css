@@ -1,6 +1,6 @@
 /* ==UserStyle==
 @name         Elodie's AMQ Style Script
-@version      10.2.16
+@version      10.2.17
 @namespace    userstyles.world/user/melodyelodie
 @description  A custom theme for animemusicquiz.com
 @author       melodyelodie
@@ -165,7 +165,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         --wrongAnswerColorTransparent: color-mix(in srgb, var(--wrongAnswerColor), transparent 80%);
         --songHistoryCorrectColorHover: color-mix(in srgb, var(--songHistoryCorrectColor), white 5%);
         --songHistoryWrongColorHover: color-mix(in srgb, var(--songHistoryWrongColor), white 5%);
-        --elodieStyleScriptVersion: 10.2.16;
+        --elodieStyleScriptVersion: 10.2.17;
     }
     
     
@@ -225,7 +225,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         --wrongAnswerColorTransparent: color-mix(in srgb, var(--wrongAnswerColor), transparent 80%);
         --songHistoryCorrectColorHover: color-mix(in srgb, var(--songHistoryCorrectColor), white 15%);
         --songHistoryWrongColorHover: color-mix(in srgb, var(--songHistoryWrongColor), white 15%);
-        --elodieStyleScriptVersion: 10.2.16;
+        --elodieStyleScriptVersion: 10.2.17;
     }
     */
     
@@ -653,6 +653,16 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     .mainMenuButton {
         background-color: var(--containerBackground);
         border-radius: var(--borderRadius);
+    }
+    #mpAMQAwardsButton.off {
+        box-shadow: 0 0 10px 2px var(--boxShadowColor);
+    }
+    #mpAMQAwardsDescriptionButton {
+        background-color: var(--containerBackground);
+    }
+    #mpAMQAwardsDescriptionButton > h1 {
+        color: var(--textColor);
+        text-shadow: 0px -1px 0px var(--textShadowColor);
     }
     #mpRankedButton.off {
         box-shadow: 0 0 10px 2px var(--boxShadowColor);
@@ -1474,6 +1484,19 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     .lobbyInputModeOption.selected {
         background-color: var(--secondaryColor);
     }
+    #lnTeamSetupContainer {
+        background-color: var(--primaryColor);
+        box-shadow: 0px 0px 16px var(--boxShadowColor);
+    }
+    #lnTeamSetupButtonContainer {
+        border-top: 1px solid var(--primaryColor);
+    }
+    .lnTeamSetupButton {
+        border-right: 1px solid var(--primaryColor);
+    }
+    .lnTeamSetupButton:hover {
+        background-color: var(--secondaryColor);
+    }
 
 
     /* Quiz Top Container */
@@ -1483,6 +1506,10 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     #qpAnimeNameHider {
         background-color: var(--primaryColor);
         border-radius: var(--borderRadius);
+    }
+    #qpThemedTeamSetupContainer {
+        background-color: var(--primaryColor);
+        box-shadow: 0px 0px 16px var(--boxShadowColor);
     }
 
 
@@ -1511,6 +1538,9 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     .qpAnimeNameContainer {
         background-color: var(--containerBackground);
         border-radius: var(--borderRadius);
+    }
+    #qpStandingTeamToggleContainer.active {
+        text-shadow: 0 0 5px #ffffff4a, 0 0 15px var(--glowColor);
     }
 
 
@@ -2364,8 +2394,15 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     }
 
 
+    /* About Modal */
+    #infoFooter {
+        background: var(--primaryColor);
+    }
+
+
     /* Patreon Modal */
     #pmEmojiContainerInner {
+        background-color: var(--primaryColor);
         box-shadow: 0 0 10px 1px var(--boxShadowColor);
     }
     #pmEmojiPreview {
@@ -3875,6 +3912,14 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     }
     #cqcSaveButton:hover {
         background-color: var(--accentColorLight);
+    }
+    #qpVideoCustomQuizResultDisplay {
+        box-shadow: 0 0 10px var(--boxShadowColor);
+        color: var(--textColor);
+    }
+    #qpVideoCustomQuizResultButtonContainer {
+        background-color: var(--primaryColor);
+        border-top: 1px solid var(--secondaryColor);
     }
 
 
