@@ -10,6 +10,9 @@ click on a script name below to install
 ### [AMQ Chat Plus](https://github.com/kempanator/amq-scripts/raw/main/amqChatPlus.user.js)
 - Customizable chat/dms https://imgur.com/FAT78Ep
 
+### [AMQ Custom Score Counter](https://github.com/kempanator/amq-scripts/raw/main/amqCustomScoreCounter.user.js)
+- Set custom teams and weighted scores
+
 ### [AMQ Custom Song List Game](https://github.com/kempanator/amq-scripts/raw/main/amqCustomSongListGame.user.js)
 - Play a solo game with a custom song list https://imgur.com/a/tGzQAeU
 
