@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Score Counter
 // @namespace    https://github.com/kempanator
-// @version      0.4
+// @version      0.5
 // @description  Adds a user interface to keep track of custom score game modes
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -21,9 +21,10 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.4";
+const version = "0.5";
 const saveData = validateLocalStorage("customScoreCounter");
 let teams = {}; //[1: {number: 1, players: ["name"], correct: 0, score: 0}]
+let soloBonus = 0; //bonus points for solo correct guess
 let scoreMap = {1: {}, 2: {}, 3: {}, 4: {}};
 let scoreTableSort = {mode: "team", ascending: true};
 let hotKeys = {
@@ -61,24 +62,30 @@ function setup() {
     }).bindListener();
     new Listener("answer results", (payload) => {
         if (Object.keys(teams).length === 0) return;
-        let totalCorrect =  Object.fromEntries(Object.keys(teams).map(t => [t, 0])); //{teamNumber: #correct}
+        let totalCorrect = 0;
+        let totalCorrectMap =  Object.fromEntries(Object.keys(teams).map(t => [t, 0])); //{teamNumber: #correct}
         for (let player of payload.players) {
             if (player.correct) {
                 let name = quiz.players[player.gamePlayerId]?.name;
                 let team = Object.values(teams).find(t => t.players.includes(name));
                 if (team) {
                     team.correct += 1;
-                    totalCorrect[team.number] += 1;
+                    totalCorrect += 1;
+                    totalCorrectMap[team.number] += 1;
                 }
             }
         }
-        for (let teamNumber of Object.keys(totalCorrect)) {
+        for (let teamNumber of Object.keys(totalCorrectMap)) {
             let teamSize = teams[teamNumber].players.length;
             if (scoreMap.hasOwnProperty(teamSize)) {
-                if (scoreMap[teamSize].hasOwnProperty(totalCorrect[teamNumber])) {
-                    teams[teamNumber].score += scoreMap[teamSize][totalCorrect[teamNumber]];
+                if (scoreMap[teamSize].hasOwnProperty(totalCorrectMap[teamNumber])) {
+                    teams[teamNumber].score += scoreMap[teamSize][totalCorrectMap[teamNumber]];
                 }
             }
+        }
+        if (soloBonus && totalCorrect === 1) {
+            let teamNumber = Object.keys(totalCorrectMap).find(t => totalCorrectMap[t]);
+            if (teamNumber) teams[teamNumber].score += soloBonus;
         }
         updateScoreTable();
     }).bindListener();
@@ -489,21 +496,35 @@ function setupcscWindow() {
             )
         )
         .append($(`<div id="cscSettingsContainer" style="padding: 10px;"></div>`).hide()
-            .append(`<div></div>`)
-            .append($(`<span>Preset:</span>`))
-            .append($(`<select id="cscPresetSelect" style="margin-left: 5px; padding: 4px 2px;"></select>`)
-                .append(`<option>-</option>`)
-                .append(`<option>yashadox</option>`)
-                .on("change", function() {
-                    if (this.value === "-") {
-                        scoreMap = {};
-                        createScoreMap();
-                    }
-                    else if (this.value === "yashadox") {
-                        scoreMap = {4: {0: 0, 1: 1, 2: 1.75, 3: 2.25, 4: 2.5}};
-                        createScoreMap(4);
-                    }
-                })
+            .append($(`<div></div>`)
+                .append($(`<span>Preset:</span>`))
+                .append($(`<select id="cscPresetSelect" style="margin-left: 5px; padding: 4px 2px;"></select>`)
+                    .append(`<option>-</option>`)
+                    .append(`<option>yashadox</option>`)
+                    .on("change", function() {
+                        if (this.value === "-") {
+                            soloBonus = 0;
+                            scoreMap = {};
+                            $("#cscSoloBonusInput").val("");
+                            createScoreMap();
+                        }
+                        else if (this.value === "yashadox") {
+                            soloBonus = 1;
+                            scoreMap = {
+                                1: {0: 0, 1: 1},
+                                2: {0: 0, 1: 1, 2: 1.75},
+                                3: {0: 0, 1: 1, 2: 1.75, 3: 2.25},
+                                4: {0: 0, 1: 1, 2: 1.75, 3: 2.25, 4: 2.5}
+                            };
+                            $("#cscSoloBonusInput").val(soloBonus);
+                            createScoreMap(4);
+                        }
+                    })
+                )
+                .append($(`<span style="margin: 0 5px 0 15px">Solo Bonus:</span>`))
+                .append($(`<input id="cscSoloBonusInput" type="text" style="width: 40px;">`).on("change", function() {
+                    soloBonus = parseFloat(this.value) || 0;
+                }))
             )
             .append($(`<table id="cscScoreMapTable" style="margin-top: 10px;"><thead></thead><tbody></tbody></table>`))
             .append(`<table id="cscHotkeyTable" style="margin-top: 20px;"><thead><tr><th>Action</th><th>Modifier</th><th>Key</th></tr></thead><tbody></tbody></table>`)
