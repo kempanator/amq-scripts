@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.134
+// @version      0.135
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -105,7 +105,7 @@ OTHER
 
 "use strict";
 if (typeof Listener === "undefined") return;
-const version = "0.134";
+const version = "0.135";
 const saveData = validateLocalStorage("megaCommands");
 const originalOrder = {qb: [], gm: []};
 if (typeof saveData.alerts?.hiddenPlayers === "boolean") delete saveData.alerts;
@@ -3511,7 +3511,7 @@ async function parseCommand(messageText, type, target) {
             }
         }
         else if (split.length === 2) {
-            socialTab.sendFriendRequest(getPlayerNameCorrectCase(split)[1]);
+            socialTab.sendFriendRequest(getPlayerNameCorrectCase(split[1]));
         }
     }
     else if (command === "unfriend") {
@@ -4183,7 +4183,21 @@ async function parseCommand(messageText, type, target) {
             sendMessage(tagList.map((x) => `${x.tag}: ${x.id}`).join(", "), type, target);
         }
     }
-    else if (command === "list") {
+    else if (command === "list" || command === "animelist") {
+        if (split.length === 1) {
+            if ($("#aniListUserNameInput").val()) {
+                sendMessage("[myanimelist] " + $("#aniListUserNameInput").val(), type, target);
+            }
+            else if ($("#malUserNameInput").val()) {
+                sendMessage("[anilist] " + $("#malUserNameInput").val(), type, target);
+            }
+            else if ($("#kitsuUserNameInput").val()) {
+                sendMessage("[kitsu] " + $("#kitsuUserNameInput").val(), type, target);
+            }
+            else {
+                sendMessage("[no list]", type, target);
+            }
+        }
         if (split.length === 2) {
             if (["off", "clear", "remove, delete"].includes(split[1])) {
                 removeAllLists();
@@ -4701,7 +4715,8 @@ function isSoloMode() {
 
 // return true if you are in a ranked lobby or quiz
 function isRankedMode() {
-    return (lobby.inLobby && lobby.settings.gameMode === "Ranked") || (quiz.inQuiz && quiz.gameMode === "Ranked");
+    let options = ["Ranked", "Themed"];
+    return (lobby.inLobby && options.includes(lobby.settings.gameMode)) || (quiz.inQuiz && options.includes(quiz.gameMode));
 }
 
 // return true if player is your friend
@@ -5206,6 +5221,7 @@ function relog() {
 
 // input name, return correct case sensitive name of player
 function getPlayerNameCorrectCase(name) {
+    if (!name) return "";
     let nameLowerCase = name.toLowerCase();
     if (inRoom()) {
         for (let player of getPlayerList().concat(getSpectatorList())) {
