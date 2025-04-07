@@ -19,7 +19,7 @@ let host = 1; //only change this for different host
 let hostMap = {1: "eudist", 2: "nawdist", 3: "naedist"};
 
 let regex = /^https:\/\/(\w+)\.animemusicquiz\.com/.exec(window.location.href);
-if (Object.values(hostMap).includes(regex[1]) && hostMap[host] !== regex[1]) {
+if (regex && Object.values(hostMap).includes(regex[1]) && hostMap[host] !== regex[1]) {
     let newURL = window.location.href.replace(/^https:\/\/\w+/, "https://" + hostMap[host]);
     window.location.replace(newURL);
 }
