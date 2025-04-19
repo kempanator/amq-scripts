@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.135
+// @version      0.136
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -105,7 +105,7 @@ OTHER
 
 "use strict";
 if (typeof Listener === "undefined") return;
-const version = "0.135";
+const version = "0.136";
 const saveData = validateLocalStorage("megaCommands");
 const originalOrder = {qb: [], gm: []};
 if (typeof saveData.alerts?.hiddenPlayers === "boolean") delete saveData.alerts;
@@ -260,7 +260,7 @@ const dqMap = {
     "Initial D": {genre: [1, 4, 16], years: [1998, 1998], seasons: [1, 1]},
     "Negima!?": {genre: [2, 3, 5, 6, 13], years: [2006, 2006], seasons: [3, 3]},
     "Urusei Yatsura": {genre: [3, 4, 13, 14, 15], years: [1981, 1981], seasons: [3, 3]},
-    "Touch": {genre: [4, 13, 15, 16], years: [1985, 1985], seasons: [1, 1]},
+    "Touch": {genre: [4, 13, 15, 16], years: [1985, 1985], seasons: [0, 0]},
     "Code Geass: Lelouch of the Rebellion Remake Movies": {genre: [1, 4, 9, 14, 18], years: [2017, 2018], seasons: [3, 1]},
     "High School of the Dead": {genre: [1, 4, 5, 7, 13, 17], years: [2010, 2010], seasons: [2, 2]},
     "Senki Zesshou Symphogear GX": {genre: [1, 4, 8, 10, 14], years: [2015, 2015], seasons: [2, 2]},
@@ -300,7 +300,7 @@ const dqMap = {
     "Made in Abyss": {genre: [2, 4, 6, 7, 11, 14], years: [2017, 2017], seasons: [2, 2]},
     "Girls' Last Tour": {genre: [2, 14, 15], years: [2017, 2017], seasons: [3, 3]},
     "Mirai Nikki": {genre: [1, 7, 11, 12, 17, 18], years: [2011, 2011], seasons: [3, 3]},
-    "The iDOLM@STER Shiny Colors": {genre: [10], tags: [115, 145], years: [2024, 2024], seasons: [1, 1]}
+    "MF Ghost 2nd Season": {genre: [14, 16], years: [2024, 2024], seasons: [3, 3]}
 };
 
 if (document.querySelector("#loginPage")) {
@@ -4296,7 +4296,7 @@ async function parseCommand(messageText, type, target) {
             }
         }
         else if (/^\S+ (k|kutd|keepinguptodate)+$/.test(content)) {
-            let anime = "The iDOLM@STER Shiny Colors";
+            let anime = "MF Ghost 2nd Season";
             sendMessage(anime, type, target);
             matchSettingsToAnime(anime);
             autoThrow = {time: [3000, 5000], text: anime, multichoice: null};
