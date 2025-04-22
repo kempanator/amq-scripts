@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.73
+// @version      0.74
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -44,7 +44,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.73";
+const version = "0.74";
 const saveData = validateLocalStorage("customSongListGame");
 const hostDict = {1: "eudist.animemusicquiz.com", 2: "nawdist.animemusicquiz.com", 3: "naedist.animemusicquiz.com"};
 let CSLButtonCSS = saveData.CSLButtonCSS || "calc(25% - 250px)";
@@ -844,7 +844,7 @@ function setup() {
     }).bindListener();
     new Listener("Game Chat Message", (payload) => {
         if (payload.message.startsWith("§CSL")) {
-            parseMessage(message.message, message.sender);
+            parseMessage(payload.message, payload.sender);
         }
     }).bindListener();
     new Listener("Game Starting", (payload) => {
@@ -1762,7 +1762,7 @@ function parseMessage(content, sender) {
                     "watched": false
                 };
                 let decodedPlayers = [];
-                for (p of split) {
+                for (let p of split) {
                     let playerSplit = p.split(",");
                     decodedPlayers.push({
                         id: parseInt(playerSplit[0]),
@@ -2493,7 +2493,7 @@ function filterSongList() {
         text = text.toLowerCase().trim();
         if (!text) return;
         let option;
-        let number = parseInt(text.match(/([0-9]+)/)) || null;
+        let number = parseInt(text.match(/[0-9]+/)?.[0]) || null;
         if (text.startsWith("o")) {
             option = {songType: 1, songTypeNumber: number};
         }
