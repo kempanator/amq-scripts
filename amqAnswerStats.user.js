@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Answer Stats
 // @namespace    https://github.com/kempanator
-// @version      0.33
+// @version      0.34
 // @description  Adds a window to display quiz answer stats
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -30,7 +30,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.33";
+const version = "0.34";
 const regionDictionary = {E: "Eastern", C: "Central", W: "Western"};
 const saveData = validateLocalStorage("answerStats");
 //const saveData2 = validateLocalStorage("highlightFriendsSettings");
@@ -54,6 +54,7 @@ let songHistorySort = {mode: "position", ascending: true};
 let playerHistorySort = {mode: "number", ascending: true};
 let answerHistorySettings = {mode: "song", songNumber: null, playerId: null, roomType: "", roomName: ""};
 let customColorMap = {};
+let $answerCompareSearchInput;
 
 hotKeys.asWindow = saveData.hotKeys?.asWindow ?? {altKey: false, ctrlKey: false, key: ""};
 hotKeys.historyWindow = saveData.hotKeys?.historyWindow ?? {altKey: false, ctrlKey: false, key: ""};
@@ -238,8 +239,8 @@ function setup() {
         answers = {};
 
         setTimeout(() => {
-            let $asMainContainer = $("#asMainContainer");
-            let totalPlayers = $("#qpScoreBoardEntryContainer .qpStandingItem").length;
+            //let $asMainContainer = $("#asMainContainer");
+            //let totalPlayers = $("#qpScoreBoardEntryContainer .qpStandingItem").length;
             let activePlayers = $("#qpScoreBoardEntryContainer .qpStandingItem:not(.disabled)").length;
             let roomName = hostModal.$roomName.val();
             let difficultyList = songHistoryWindow.currentGameTab.table.rows.map((x) => parseFloat(x.songInfo.animeDifficulty) || 0);
@@ -392,8 +393,8 @@ function setup() {
                 }
             }
 
-            if (answerCompareButton && $("answerCompareSearchInput").text()) {
-                displayAnswerCompareResults();
+            if (answerCompareButton && $answerCompareSearchInput.val()) {
+                displayAnswerCompareResults($answerCompareSearchInput.val());
             }
         }, 1);
     }).bindListener();
@@ -605,7 +606,7 @@ function setup() {
                         if (json.playerInfo && json.songHistory) {
                             // support for older version of this script
                             if (Object.values(json.songHistory)[0].romaji) {
-                                for (song of Object.values(json.songHistory)) {
+                                for (let song of Object.values(json.songHistory)) {
                                     song.animeRomajiName = song.romaji;
                                     delete song.romaji;
                                     song.animeEnglishName = song.english;
@@ -735,12 +736,12 @@ function setup() {
     // setup answer compare window
     $div1 = $(`<div>Answer Compare</div>`).css({"font-size": "23px", "line-height": "normal", "margin": "6px 0 2px 8px"});
     $div2 = $("<div></div>").css({"float": "left", "margin": "3px 0 0 8px"});
-    let $input = $(`<input id="answerCompareSearchInput" type="text">`).keypress((event) => {
+    $answerCompareSearchInput = $(`<input id="answerCompareSearchInput" type="text">`).keypress((event) => {
         if (event.which === 13) {
             displayAnswerCompareResults($("#answerCompareSearchInput").val());
         }
     });
-    let $button = $(`<div id="answerCompareButtonGo" class="answerStatsButton">Go</div>"`).click(() => {
+    let $button = $(`<div id="answerCompareButtonGo" class="answerStatsButton">Go</div>`).click(() => {
         displayAnswerCompareResults($("#answerCompareSearchInput").val());
     });
     let $correctCheckbox = $(`<input id="answerCompareHighlightCorrectCheckbox" type="checkbox"></input>`).click(() => {
@@ -749,7 +750,7 @@ function setup() {
     let $wrongCheckbox = $(`<input id="answerCompareHighlightWrongCheckbox" type="checkbox">`).click(() => {
         setTimeout(() => { displayAnswerCompareResults($("#answerCompareSearchInput").val()) }, 1);
     });
-    $div2.append($input);
+    $div2.append($answerCompareSearchInput);
     $div2.append($button);
     $div2.append($(`<label class="clickAble" style="margin-left: 10px">Correct</label>`).append($correctCheckbox));
     $div2.append($(`<label class="clickAble" style="margin-left: 10px">Wrong</label>`).append($wrongCheckbox));
@@ -965,7 +966,7 @@ function displayPlayerHistoryResults(id) {
     answerHistoryWindow.window.find(".infoButton, .arrowButton, .filterButton").hide();
     answerHistoryWindow.window.find("#answerHistoryCurrentPlayer, .backButton").show();
     answerHistoryWindow.window.find("#answerHistoryCurrentPlayer").data("bs.popover").options.content = `
-        <p>Current Sore: ${player.score}</p>
+        <p>Current Score: ${player.score}</p>
         <p>Level: ${player.level}</p>
         <p>Average Speed: ${Math.round(player.averageSpeed)}</p>
     `;
@@ -1077,6 +1078,7 @@ function displayFastestSpeedResults() {
 }
 
 function displayAnswerCompareResults(text) {
+    if (!text) return;
     answerCompareWindow.panels[0].clear();
     let players = text.split(/[\s,]+/).filter(Boolean).map((x) => x.toLowerCase());
     if (players.length < 2) {
@@ -1357,7 +1359,7 @@ function saveResults() {
     let date = new Date();
     let dateFormatted = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, 0)}-${String(date.getDate()).padStart(2, 0)}`;
     let timeFormatted = `${String(date.getHours()).padStart(2, 0)}.${String(date.getMinutes()).padStart(2, 0)}.${String(date.getSeconds()).padStart(2, 0)}`;
-    let fileName = answerHistorySettings.roomType = "Ranked"
+    let fileName = answerHistorySettings.roomType === "Ranked"
         ? `${dateFormatted} ${answerHistorySettings.roomName} Answer History.json`
         : `${dateFormatted} ${timeFormatted} ${answerHistorySettings.roomType} Answer History.json`;
     let data = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({
@@ -1469,7 +1471,7 @@ function applyStyles() {
     let customColors = saveData2.customColors ?? [];
     customColors.forEach((item, index) => {
         for (let player of item.players) {
-            customColorMap[player] = index;
+            customColorMap[player.toLowerCase()] = index;
         }
     });
     let style = document.createElement("style");
