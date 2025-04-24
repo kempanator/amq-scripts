@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Show Room Players
 // @namespace    https://github.com/kempanator
-// @version      0.23
+// @version      0.24
 // @description  Adds extra functionality to room tiles
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -29,7 +29,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.23";
+const version = "0.24";
 //const saveData = validateLocalStorage("showRoomPlayers");
 let showPlayerColors = true;
 let showCustomColors = true;
@@ -41,7 +41,7 @@ function setup() {
             setTimeout(() => {
                 let room = roomBrowser.activeRooms[item.id];
                 if (room) {
-                    room.createRoomPlayers();
+                    room.refreshRoomPlayers();
                     room.clickHostName(item.host);
                 }
             }, 1);
@@ -53,7 +53,7 @@ function setup() {
                 let room = roomBrowser.activeRooms[payload.roomId];
                 if (room) {
                     room.updateFriends();
-                    room.updateRoomPlayers();
+                    room.refreshRoomPlayers();
                     if (payload.newHost) {
                         room.updateAvatar(payload.newHost.avatar);
                         room.clickHostName(payload.newHost.name);
@@ -81,10 +81,10 @@ function setup() {
 }
 
 // override updateFriends function to also show invisible friends
-RoomTile.prototype.updateFriends = function() {
+RoomTile.prototype.updateFriends = function () {
     this._friendsInGameMap = {};
     for (let player of this._players) {
-        if (socialTab.isFriend(player))  {
+        if (socialTab.isFriend(player)) {
             this._friendsInGameMap[player] = true;
         }
     }
@@ -93,112 +93,155 @@ RoomTile.prototype.updateFriends = function() {
 
 // override removeRoomTile function to also remove room players popover
 const oldRemoveRoomTile = RoomBrowser.prototype.removeRoomTile;
-RoomBrowser.prototype.removeRoomTile = function(tileId) {
+RoomBrowser.prototype.removeRoomTile = function (tileId) {
     $(`#rbRoom-${tileId} .rbrProgressContainer`).popover("destroy");
     oldRemoveRoomTile.apply(this, arguments);
 };
 
 // add click event to host name to open player profile
-RoomTile.prototype.clickHostName = function(host) {
+RoomTile.prototype.clickHostName = function (host) {
     this.$tile.find(".rbrHost").css("cursor", "pointer").off("click").click(() => {
         playerProfileController.loadProfile(host, $(`#rbRoom-${this.id}`), {}, () => {}, false, true);
     });
 };
 
-// create room players popover
-RoomTile.prototype.createRoomPlayers = function() {
-    let thisRoomTile = this;
-    let $playerList = $("<ul></ul>");
-    let players = this._players.sort((a, b) => a.localeCompare(b));
+// create or update room players popover
+RoomTile.prototype.refreshRoomPlayers = function () {
+    let $progress = this.$tile.find(".rbrProgressContainer");
+    let players = [...this._players].sort((a, b) => a.localeCompare(b));
+    let $list = $("<ul></ul>");
     for (let player of players) {
-        let li = $("<li></li>").addClass("srpPlayer").text(player);
-        if (player === selfName) li.addClass("self");
-        else if (socialTab.isFriend(player)) li.addClass("friend");
-        else if (socialTab.isBlocked(player)) li.addClass("blocked");
-        if (customColorMap.hasOwnProperty(player.toLowerCase())) li.addClass("customColor" + customColorMap[player.toLowerCase()]);
-        $playerList.append(li);
+        let $li = $("<li></li>").addClass("srpPlayer").text(player);
+        if (player === selfName) $li.addClass("self");
+        else if (socialTab.isFriend(player)) $li.addClass("friend");
+        else if (socialTab.isBlocked(player)) $li.addClass("blocked");
+        if (customColorMap.hasOwnProperty(player.toLowerCase())) $li.addClass("customColor" + customColorMap[player.toLowerCase()]);
+        $list.append($li);
     }
-    this.$tile.find(".rbrFriendPopover").data("bs.popover").options.placement = "bottom";
-    this.$tile.find(".rbrProgressContainer").tooltip("destroy").removeAttr("data-toggle data-placement data-original-title")
-    .popover({
-        container: "#roomBrowserPage",
-        placement: "bottom",
-        trigger: "manual",
-        html: true,
-        title: `${players.length} Player${players.length === 1 ? "" : "s"}`,
-        content: $playerList[0].outerHTML
-    })
-    .off("mouseenter").on("mouseenter", function() {
-        $(this).popover("show");
-        $(".popover").off("mouseleave").on("mouseleave", () => {
-            if (!$(`#rbRoom-${thisRoomTile.id}:hover`).length) {
-                $(thisRoomTile.$tile).off("mouseleave");
-                $(".popover").off("mouseleave click");
-                $(this).popover("hide");
-            }
-        });
-        $(thisRoomTile.$tile).off("mouseleave").on("mouseleave", () => {
-            if (!$(".popover:hover").length) {
-                $(thisRoomTile.$tile).off("mouseleave");
-                $(".popover").off("mouseleave click");
-                $(this).popover("hide");
-            }
-        });
-        $(".popover").off("click").on("click", "li", function(e) {
-            playerProfileController.loadProfile(e.target.innerText, $(thisRoomTile.$tile), {}, () => {}, false, true);
-        });
-    });
-};
 
-// update room players popover
-RoomTile.prototype.updateRoomPlayers = function() {
-    let $playerList = $("<ul></ul>");
-    let players = this._players.sort((a, b) => a.localeCompare(b));
-    for (let player of players) {
-        let li = $("<li></li>").addClass("srpPlayer").text(player);
-        if (player === selfName) li.addClass("self");
-        else if (socialTab.isFriend(player)) li.addClass("friend");
-        else if (socialTab.isBlocked(player)) li.addClass("blocked");
-        if (customColorMap.hasOwnProperty(player.toLowerCase())) li.addClass("customColor" + customColorMap[player.toLowerCase()]);
-        $playerList.append(li);
+    let title = `${players.length} Player${players.length === 1 ? "" : "s"}`;
+    let pop = $progress.data("bs.popover");
+
+    if (pop) { //update existing pop-over
+        pop.options.title = title;
+        pop.options.content = $list.prop("outerHTML");
+        let popId = $progress.attr("aria-describedby");
+        if (popId) {
+            let $popDom = $("#" + popId);
+            $popDom.find(".popover-title, .popover-header").html(title);
+            $popDom.find(".popover-content, .popover-body").html(pop.options.content);
+        }
     }
-    let options = this.$tile.find(".rbrProgressContainer").data("bs.popover").options;
-    options.content = $playerList;
-    options.title = `${players.length} Player${players.length === 1 ? "" : "s"}`;
+    else { //create new pop-over (first time)
+        $progress
+            .tooltip("destroy")
+            .removeAttr("data-toggle data-placement data-original-title")
+            .popover({
+                container: "#roomBrowserPage",
+                placement: "bottom",
+                trigger: "manual",
+                html: true,
+                title,
+                content: $list.prop("outerHTML")
+            })
+            .off("mouseenter.srp")
+            .on("mouseenter.srp", () => {
+                if ($progress.attr("aria-describedby")) return;
+                $progress.popover("show");
+                let popId = $progress.attr("aria-describedby");
+                if (!popId) return;
+                let $pop = $("#" + popId);
+                let $tile = this.$tile;
+
+                let detach = () => {
+                    $progress.off("mouseleave.srp");
+                    $pop.off(".srp");
+                    $tile.off(".srp");
+                };
+                let closePopover = () => {
+                    if (!$pop.is(":hover") && !$tile.is(":hover") && !$progress.is(":hover")) {
+                        detach();
+                        $progress.popover("hide");
+                    }
+                };
+
+                $progress.on("mouseleave.srp", closePopover);
+                $pop.on("mouseleave.srp", closePopover);
+                $tile.on("mouseleave.srp", closePopover);
+                $pop.on("click.srp", "li", e => {
+                    playerProfileController.loadProfile(
+                        e.target.innerText,
+                        $tile,
+                        {},
+                        () => {},
+                        false,
+                        true
+                    );
+                });
+            });
+    }
 };
 
 // update the room tile avatar when a new host is promoted
-RoomTile.prototype.updateAvatar = function(avatarInfo) {
-    if (this.avatarPreloadImage) this.avatarPreloadImage.cancel();
-    this.$tile.find(".rbrRoomImage").removeAttr("src srcset sizes").removeClass().addClass(`rbrRoomImage sizeMod${avatarInfo.avatar.sizeModifier}`);
-    let avatarSrc = cdnFormater.newAvatarSrc(
-        avatarInfo.avatar.avatarName,
-        avatarInfo.avatar.outfitName,
-        avatarInfo.avatar.optionName,
-        avatarInfo.avatar.optionActive,
-        avatarInfo.avatar.colorName,
-        cdnFormater.AVATAR_POSE_IDS.BASE
-    );
-    let avatarSrcSet = cdnFormater.newAvatarSrcSet(
-        avatarInfo.avatar.avatarName,
-        avatarInfo.avatar.outfitName,
-        avatarInfo.avatar.optionName,
-        avatarInfo.avatar.optionActive,
-        avatarInfo.avatar.colorName,
-        cdnFormater.AVATAR_POSE_IDS.BASE
-    );
-    this.avatarPreloadImage = new PreloadImage(
-        this.$tile.find(".rbrRoomImage"),
-        avatarSrc,
-        avatarSrcSet,
-        false,
-        this.AVATAR_SIZE_MOD_SIZES[avatarInfo.avatar.sizeModifier],
-        () => {this.$tile.find(".rbrRoomImageContainer").css("background-image", `url("${cdnFormater.newAvatarBackgroundSrc(avatarInfo.background.backgroundHori, cdnFormater.BACKGROUND_ROOM_BROWSER_SIZE)}")`)},
-        false,
-        $("#rbRoomHider"),
-        false,
+RoomTile.prototype.updateAvatar = function (avatarInfo) {
+    if (!avatarInfo?.avatar) return;
+    this.avatarDisplayHandler?.cancel();
+    if (this.avatarPreloadImage) {
+        this.avatarPreloadImage.cancel();
+        this.avatarPreloadImage = null;
+    }
+
+    let sizeMod = avatarInfo.avatar.sizeModifier;
+    this.$tile.find(".rbrRoomImage")
+        .removeClass((i, c) => (c.match(/sizeMod\d+/g) || []).join(" ")) //remove old sizeMod
+        .addClass(`sizeMod${sizeMod}`)
+        .removeAttr("src srcset sizes");
+
+    this.avatarDisplayHandler.setSizeMod(sizeMod);
+    let bgUrl = cdnFormater.newAvatarBackgroundSrc(avatarInfo.background.backgroundHori, cdnFormater.BACKGROUND_ROOM_BROWSER_SIZE);
+    let onLoadCb = () => {
         this.$tile
-    );
+            .find(".rbrRoomImageContainer")
+            .css("background-image", `url("${bgUrl}")`);
+    };
+
+    if (avatarInfo.avatar.animated) { // animated sprite
+        this.avatarDisplayHandler.displayAvatarAnimated(
+            cdnFormater.newAnimatedAvatarJsonSrc(avatarInfo.avatar.avatarName, avatarInfo.avatar.outfitName),
+            cdnFormater.newAnimatedAvatarAtlasSrc(avatarInfo.avatar.avatarName, avatarInfo.avatar.outfitName),
+            false,
+            { $lazyLoadContainer: $("#rbRoomHider"), $lazyOffsetParent: this.$tile },
+            onLoadCb,
+            avatarInfo.avatar.optionActive
+        );
+    }
+    else { // static base-pose image
+        this.avatarDisplayHandler.displayAvatarImage(
+            cdnFormater.newAvatarSrc(
+                avatarInfo.avatar.avatarName,
+                avatarInfo.avatar.outfitName,
+                avatarInfo.avatar.optionName,
+                avatarInfo.avatar.optionActive,
+                avatarInfo.avatar.colorName,
+                cdnFormater.AVATAR_POSE_IDS.BASE
+            ),
+            cdnFormater.newAvatarSrcSet(
+                avatarInfo.avatar.avatarName,
+                avatarInfo.avatar.outfitName,
+                avatarInfo.avatar.optionName,
+                avatarInfo.avatar.optionActive,
+                avatarInfo.avatar.colorName,
+                cdnFormater.AVATAR_POSE_IDS.BASE
+            ),
+            {
+                triggerLoad: true,
+                defaultSize: this.AVATAR_SIZE_MOD_SIZES[sizeMod],
+                onloadCallback: onLoadCb,
+                $lazyLoadContainer: $("#rbRoomHider"),
+                $lazyOffsetParent: this.$tile,
+            }
+        );
+    }
 };
 
 // validate json data in local storage
@@ -222,7 +265,7 @@ function applyStyles() {
     customColorMap = {};
     customColors.forEach((item, index) => {
         for (let player of item.players) {
-            customColorMap[player] = index;
+            customColorMap[player.toLowerCase()] = index;
         }
     });
     let style = document.createElement("style");
