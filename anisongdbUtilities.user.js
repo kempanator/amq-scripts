@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Anisongdb Utilities
 // @namespace    https://github.com/kempanator
-// @version      0.13
+// @version      0.14
 // @description  some extra functions for anisongdb.com
 // @author       kempanator
 // @match        https://anisongdb.com/*
@@ -21,7 +21,7 @@ Features:
 */
 
 "use strict";
-const version = "0.13";
+const version = "0.14";
 const saveData = validateLocalStorage("anisongdbUtilities");
 const hostDict = {1: "eudist", 2: "nawdist", 3: "naedist"};
 let catboxHost = parseInt(saveData.catboxHost);
@@ -49,7 +49,7 @@ let loadInterval = setInterval(() => {
 // begin setup after the first table loads in
 function setup() {
     applyStyles();
-    let ngKey = Object.values(document.querySelector("app-root").attributes).map((x) => x.name).find((x) => x.startsWith("_nghost")).split("-")[2];
+    let ngId = Object.values(document.querySelector("app-root").attributes).map((x) => x.name).find((x) => x.startsWith("_nghost")).split("-")[2];
     banner = document.querySelector(`div[role="banner"]`);
     downloadJsonButton = document.querySelector("a.showFilter");
     toggleAdvancedButton = document.querySelector("span.showFilter");
@@ -71,22 +71,22 @@ function setup() {
 
     // create settings icon
     let i = document.createElement("i");
-    i.setAttribute(`_ngcontent-ng-${ngKey}`, "");
-    i.classList.add("fa", "fa-cog");
+    i.setAttribute(`_ngcontent-ng-${ngId}`, "");
     i.setAttribute("aria-hidden", "true");
     i.onclick = () => { toggleSettingsModal() };
+    i.classList.add("fa", "fa-cog");
     i.style.cursor = "pointer";
     i.style.fontSize = "28px";
     i.style.margin = "0 18px 0 0";
     languageButton.insertAdjacentElement("afterend", i);
 
     // keyboard and mouse events
-    document.body.addEventListener("keydown", (event) => {
+    document.addEventListener("keydown", (event) => {
         if (event.altKey === jsonDownloadHotkey.altKey && event.ctrlKey === jsonDownloadHotkey.ctrlKey && event.key === jsonDownloadHotkey.key) {
             downloadJsonButton.click();
         }
     });
-    document.body.addEventListener("click", (event) => {
+    document.addEventListener("click", (event) => {
         if (event.target === settingsModal || event.target === banner) {
             toggleSettingsModal(false);
         }
@@ -152,7 +152,7 @@ function setup() {
     settingsModal = document.createElement("div");
     settingsModal.id = "auModal";
     settingsModal.style.display = "none";
-    settingsModal.innerHTML = `
+    settingsModal.innerHTML = /*html*/`
         <div class="modal-content">
             <h2 style="text-align: center;">AnisongDB Utilities Script Settings</h2>
             <p style="text-align: center;">By: kempanator<br>Version: ${version}<br><a href="https://github.com/kempanator/amq-scripts/blob/main/anisongdbUtilities.user.js" target="_blank">Github</a> <a href="https://github.com/kempanator/amq-scripts/raw/main/anisongdbUtilities.user.js" target="_blank">Install</a></p>
@@ -166,13 +166,13 @@ function setup() {
     `;
     document.body.appendChild(settingsModal);
 
-    let hideTextCheckbox = document.querySelector("#auHideTextCheckbox");
-    let advancedCheckbox = document.querySelector("#auAdvancedCheckbox");
-    let renameJsonCheckbox = document.querySelector("#auRenameJsonCheckbox");
-    let radioSelect = document.querySelector("#auRadioSelect");
-    let hostChangeSelect = document.querySelector("#auHostChangeSelect");
-    let downloadJsonSelect = document.querySelector("#auDownloadJsonSelect");
-    let downloadJsonInput = document.querySelector("#auDownloadJsonInput");
+    const hideTextCheckbox = document.querySelector("#auHideTextCheckbox");
+    const advancedCheckbox = document.querySelector("#auAdvancedCheckbox");
+    const renameJsonCheckbox = document.querySelector("#auRenameJsonCheckbox");
+    const radioSelect = document.querySelector("#auRadioSelect");
+    const hostChangeSelect = document.querySelector("#auHostChangeSelect");
+    const downloadJsonSelect = document.querySelector("#auDownloadJsonSelect");
+    const downloadJsonInput = document.querySelector("#auDownloadJsonInput");
 
     hideTextCheckbox.checked = hideAmqText;
     advancedCheckbox.checked = defaultAdvanced;
@@ -265,11 +265,7 @@ function saveSettings() {
 
 // apply styles
 function applyStyles() {
-    //$("#anisongdbUtilitiesStyle").remove();
-    let style = document.createElement("style");
-    style.type = "text/css";
-    style.id = "anisongdbUtilitiesStyle";
-    let text = `
+    let css = /*css*/ `
         #auModal {
             background-color: #00000070;
             width: 100%;
@@ -302,6 +298,8 @@ function applyStyles() {
             vertical-align: -4px;
         }
     `;
-    style.appendChild(document.createTextNode(text));
+    let style = document.createElement("style");
+    style.id = "anisongdbUtilitiesStyle";
+    style.textContent = css.trim();
     document.head.appendChild(style);
 }
