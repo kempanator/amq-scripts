@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Catbox Host Switch
 // @namespace    https://github.com/kempanator
-// @version      0.15
+// @version      0.16
 // @description  Switch your catbox host
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -27,7 +27,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.15";
+const version = "0.16";
 const saveData = validateLocalStorage("catboxHostSwitch");
 const hostDict = {1: "eudist.animemusicquiz.com", 2: "nawdist.animemusicquiz.com", 3: "naedist.animemusicquiz.com"};
 let catboxHost = parseInt(saveData.catboxHost);
@@ -63,12 +63,6 @@ function setup() {
                 }
             }
         }
-        /*else if (songInfo.videoMap.openingsmoe) {
-            if (!catboxDownFlagRaised && options.getHostPriorityList()[0] === "catbox") {
-                popoutMessages.displayPopoutMessage(`<h4 class="text-center">Catbox Host Switch</h4><h5 class="text-center">openings.moe link detected<br>catbox might be down</h5>`);
-                catboxDownFlagRaised = true;
-            }
-        }*/
         this._nextVideoInfo = {
             songInfo: songInfo,
             playLength: playLength,
@@ -98,7 +92,6 @@ function setup() {
         link: "https://github.com/kempanator/amq-scripts/raw/main/amqCatboxHostSwitch.user.js",
         description: `
             <p>Modify all incoming catbox song links</p>
-            <p>Alert when openingsmoe link is given instead of catbox</p>
             <p>Settings are located in: bottom right gear icon > settings > video hosts > catbox link</p>
         `
     });
@@ -122,16 +115,15 @@ function validateLocalStorage(item) {
 // apply styles
 function applyStyles() {
     //$("#catboxHostSwitchStyle").remove();
-    let style = document.createElement("style");
-    style.type = "text/css";
-    style.id = "catboxHostSwitchStyle";
-    let text = `
+    let css = /*css*/ `
         #chsSelect {
             width: 180px;
             padding: 6px 6px;
             margin: auto;
         }
     `;
-    style.appendChild(document.createTextNode(text));
+    let style = document.createElement("style");
+    style.id = "catboxHostSwitchStyle";
+    style.textContent = css.trim();
     document.head.appendChild(style);
 }
