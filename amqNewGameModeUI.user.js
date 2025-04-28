@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ New Game Mode UI
 // @namespace    https://github.com/kempanator
-// @version      0.27
+// @version      0.28
 // @description  Adds a user interface to new game mode to keep track of guesses
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -22,7 +22,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.27";
+const version = "0.28";
 let ngmWindow;
 let initialGuessCount = []; //list of initial # guesses for your team [5, 5, 5, 5]
 let guessCounter = []; //list of current # guesses for your team [4, 2, 1, 3]
@@ -52,38 +52,38 @@ $("#qpOptionContainer > div").append($(`<div id="qpNGM" class="clickAble qpOptio
 );
 
 function setup() {
-    new Listener("game chat update", (payload) => {
-        for (let message of payload.messages) {
+    new Listener("game chat update", (data) => {
+        for (let message of data.messages) {
             if (message.sender === selfName) parseMessage(message.message);
         }
     }).bindListener();
-    new Listener("Game Chat Message", (payload) => {
-        if (payload.sender === selfName) parseMessage(payload.message);
+    new Listener("Game Chat Message", (data) => {
+        if (data.sender === selfName) parseMessage(data.message);
     }).bindListener();
-    new Listener("Game Starting", (payload) => {
-        let selfPlayer = payload.players.find((player) => player.name === selfName);
+    new Listener("Game Starting", (data) => {
+        let selfPlayer = data.players.find((player) => player.name === selfName);
         if (selfPlayer?.inGame && hostModal.$teamSize.slider("getValue") > 1 && hostModal.$scoring.slider("getValue") === quiz.SCORE_TYPE_IDS.LIVES) {
-            updateWindow(payload.players);
+            updateWindow(data.players);
         }
         else {
             clearWindow();
         }
     }).bindListener();
-    new Listener("Join Game", (payload) => {
-        if (payload.quizState && payload.settings.teamSize > 1 && payload.settings.scoreType === quiz.SCORE_TYPE_IDS.LIVES) {
-            updateWindow(payload.quizState.players);
+    new Listener("Join Game", (data) => {
+        if (data.quizState && data.settings.teamSize > 1 && data.settings.scoreType === quiz.SCORE_TYPE_IDS.LIVES) {
+            updateWindow(data.quizState.players);
         }
         else {
             clearWindow();
         }
     }).bindListener();
-    new Listener("Spectate Game", (payload) => {
+    new Listener("Spectate Game", (data) => {
         clearWindow();
     }).bindListener();
-    new Listener("quiz over", (payload) => {
+    new Listener("quiz over", (data) => {
         clearWindow();
     }).bindListener();
-    new Listener("play next song", (payload) => {
+    new Listener("play next song", (data) => {
         if (quiz.teamMode && !quiz.isSpectator && hostModal.$scoring.slider("getValue") === quiz.SCORE_TYPE_IDS.LIVES) {
             answers = {};
             if (autoThrowSelfCount && guessCounter.length) {
@@ -91,29 +91,29 @@ function setup() {
                     socket.sendCommand({
                         type: "quiz",
                         command: "quiz answer",
-                        data: {answer: String(guessCounter[teamSlot])}
+                        data: { answer: String(guessCounter[teamSlot]) }
                     });
                 }, 100);
             }
         }
     }).bindListener();
-    new Listener("team member answer", (payload) => {
+    new Listener("team member answer", (data) => {
         if (quiz.teamMode && hostModal.$scoring.slider("getValue") === quiz.SCORE_TYPE_IDS.LIVES) {
-            answers[payload.gamePlayerId] = {id: payload.gamePlayerId, text: payload.answer};
+            answers[data.gamePlayerId] = { id: data.gamePlayerId, text: data.answer };
         }
     }).bindListener();
-    new Listener("player answers", (payload) => {
+    new Listener("player answers", (data) => {
         if (quiz.teamMode && !quiz.isSpectator && hostModal.$scoring.slider("getValue") === quiz.SCORE_TYPE_IDS.LIVES) {
             Object.keys(answers).forEach((id) => answers[id].speed = amqAnswerTimesUtility.playerTimes[id]);
         }
     }).bindListener();
-    new Listener("answer results", (payload) => {
+    new Listener("answer results", (data) => {
         if (quiz.teamMode && !quiz.isSpectator && hostModal.$scoring.slider("getValue") === quiz.SCORE_TYPE_IDS.LIVES) {
             let halfMode = halfModeList.some((x) => x === true);
             if (autoTrackCount && Object.keys(answers).length) {
-                let selfPlayer = payload.players.find((player) => player.gamePlayerId === quiz.ownGamePlayerId);
+                let selfPlayer = data.players.find((player) => player.gamePlayerId === quiz.ownGamePlayerId);
                 if (selfPlayer.correct) {
-                    let allCorrectAnime = payload.songInfo.altAnimeNames.concat(payload.songInfo.altAnimeNamesAnswers).map((x) => x.toLowerCase());
+                    let allCorrectAnime = data.songInfo.altAnimeNames.concat(data.songInfo.altAnimeNamesAnswers).map((x) => x.toLowerCase());
                     let correctAnswers = Object.values(answers).filter((answer) => allCorrectAnime.includes(answer.text.toLowerCase()));
                     let fastestSpeed = Math.min(...correctAnswers.map((answer) => answer.speed));
                     let fastestPlayers = correctAnswers.filter((answer) => answer.speed === fastestSpeed);
@@ -135,13 +135,13 @@ function setup() {
                     }
                     else {
                         gameChat.systemMessage("NGM auto track: couldn't determine who answered");
-                        console.log({allCorrectAnime, answers, correctAnswers, fastestSpeed, fastestPlayers});
+                        console.log({ allCorrectAnime, answers, correctAnswers, fastestSpeed, fastestPlayers });
                     }
                 }
                 else {
                     let validAnswers = [];
                     Object.values(answers).forEach((answer) => { answer.valid = autocomplete.includes(answer.text.toLowerCase()) });
-                    if (answerValidation === 0 ) {
+                    if (answerValidation === 0) {
                         validAnswers = Object.values(answers).filter((answer) => answer.text.trim());
                     }
                     else if (answerValidation === 1) {
@@ -169,7 +169,7 @@ function setup() {
                     }
                 }
             }
-            correctGuesses = payload.players.find((player) => player.gamePlayerId === quiz.ownGamePlayerId).correctGuesses;
+            correctGuesses = data.players.find((player) => player.gamePlayerId === quiz.ownGamePlayerId).correctGuesses;
             $("#ngmCorrectAnswers").text(`Correct Answers: ${correctGuesses}`);
             if (halfMode) {
                 remainingGuesses = null;
@@ -237,7 +237,7 @@ function sendChatMessage(text, teamChat) {
     socket.sendCommand({
         type: "lobby",
         command: "game chat message",
-        data: {msg: String(text), teamMessage: Boolean(teamChat)}
+        data: { msg: String(text), teamMessage: Boolean(teamChat) }
     });
 }
 
@@ -377,14 +377,14 @@ function setupNGMWindow() {
         .val("5")
     );
     $row3.append($(`<div class="ngmButton" style="width: 50px; background-color: #ffffff; border-color: #cccccc; color: #000000;">Half</div>`)
-        .click(function() {
+        .click(function () {
             if ($("#ngmHalfGuessInput").hasClass("disabled")) {
-                $(this).css({"background-color": "#4497ea", "border-color": "#006ab7", "color": "#ffffff"});
+                $(this).css({ "background-color": "#4497ea", "border-color": "#006ab7", "color": "#ffffff" });
                 $("#ngmHalfGuessInput").removeClass("disabled");
                 $("#ngmAnswerValidationButton").removeClass("disabled");
             }
             else {
-                $(this).css({"background-color": "#ffffff", "border-color": "#cccccc", "color": "#000000"});
+                $(this).css({ "background-color": "#ffffff", "border-color": "#cccccc", "color": "#000000" });
                 $("#ngmHalfGuessInput").addClass("disabled");
                 $("#ngmAnswerValidationButton").addClass("disabled");
             }
@@ -411,16 +411,16 @@ function setupNGMWindow() {
         })
     );
     $row3.append($(`<div id="ngmAnswerValidationButton" class="ngmButton disabled" style="width: 34px; background-color: #4497ea; border-color: #006ab7; color: #ffffff;"><i class="fa fa-check" aria-hidden="true"></i></div>`)
-        .click(function() {
+        .click(function () {
             answerValidation = (answerValidation + 1) % 3;
             if (answerValidation === 0) {
-                $(this).css({"background-color": "#ffffff", "border-color": "#cccccc", "color": "#333333"});
+                $(this).css({ "background-color": "#ffffff", "border-color": "#cccccc", "color": "#333333" });
             }
             else if (answerValidation === 1) {
-                $(this).css({"background-color": "#4497ea", "border-color": "#006ab7", "color": "#ffffff"});
+                $(this).css({ "background-color": "#4497ea", "border-color": "#006ab7", "color": "#ffffff" });
             }
             else if (answerValidation === 2) {
-                $(this).css({"background-color": "#9444EA", "border-color": "#6C00B7", "color": "#ffffff"});
+                $(this).css({ "background-color": "#9444EA", "border-color": "#6C00B7", "color": "#ffffff" });
             }
         })
         .popover({
@@ -434,15 +434,15 @@ function setupNGMWindow() {
         })
     );
     $row4.append($(`<div class="ngmButton" style="width: 50px; background-color: #ffffff; border-color: #cccccc; color: #000000;">Auto</div>`)
-        .click(function() {
+        .click(function () {
             autoTrackCount = !autoTrackCount;
             if (autoTrackCount) {
-                $(this).css({"background-color": "#4497ea", "border-color": "#006ab7", "color": "#ffffff"});
+                $(this).css({ "background-color": "#4497ea", "border-color": "#006ab7", "color": "#ffffff" });
                 $("#ngmSelfCountButton").removeClass("disabled");
                 $("#ngmTeamCountButton").removeClass("disabled");
             }
             else {
-                $(this).css({"background-color": "#ffffff", "border-color": "#cccccc", "color": "#000000"});
+                $(this).css({ "background-color": "#ffffff", "border-color": "#cccccc", "color": "#000000" });
                 $("#ngmSelfCountButton").addClass("disabled");
                 $("#ngmTeamCountButton").addClass("disabled");
             }
@@ -458,13 +458,13 @@ function setupNGMWindow() {
         })
     );
     $row4.append($(`<div id="ngmSelfCountButton" class="ngmButton disabled" style="width: 34px; background-color: #ffffff; border-color: #cccccc; color: #333333;"><i class="fa fa-user" aria-hidden="true"></i></div>`)
-        .click(function() {
+        .click(function () {
             autoThrowSelfCount = !autoThrowSelfCount;
             if (autoThrowSelfCount) {
-                $(this).css({"background-color": "#4497ea", "border-color": "#006ab7", "color": "#ffffff"});
+                $(this).css({ "background-color": "#4497ea", "border-color": "#006ab7", "color": "#ffffff" });
             }
             else {
-                $(this).css({"background-color": "#ffffff", "border-color": "#cccccc", "color": "#333333"});
+                $(this).css({ "background-color": "#ffffff", "border-color": "#cccccc", "color": "#333333" });
             }
         })
         .popover({
@@ -477,17 +477,17 @@ function setupNGMWindow() {
             html: true
         })
     );
-    $row4.append($(`<div id="ngmTeamCountButton"class="ngmButton disabled" style="width: 34px; background-color: #ffffff; border-color: #cccccc; color: #333333;"><i class="fa fa-comment" aria-hidden="true"></i></div>`)
-        .click(function() {
+    $row4.append($(`<div id="ngmTeamCountButton" class="ngmButton disabled" style="width: 34px; background-color: #ffffff; border-color: #cccccc; color: #333333;"><i class="fa fa-comment" aria-hidden="true"></i></div>`)
+        .click(function () {
             autoSendTeamCount = (autoSendTeamCount + 1) % 3;
             if (autoSendTeamCount === 0) {
-                $(this).css({"background-color": "#ffffff", "border-color": "#cccccc", "color": "#333333"});
+                $(this).css({ "background-color": "#ffffff", "border-color": "#cccccc", "color": "#333333" });
             }
             else if (autoSendTeamCount === 1) {
-                $(this).css({"background-color": "#4497ea", "border-color": "#006ab7", "color": "#ffffff"});
+                $(this).css({ "background-color": "#4497ea", "border-color": "#006ab7", "color": "#ffffff" });
             }
             else if (autoSendTeamCount === 2) {
-                $(this).css({"background-color": "#9444EA", "border-color": "#6C00B7", "color": "#ffffff"});
+                $(this).css({ "background-color": "#9444EA", "border-color": "#6C00B7", "color": "#ffffff" });
             }
         })
         .popover({
@@ -506,10 +506,7 @@ function setupNGMWindow() {
 // apply styles
 function applyStyles() {
     //$("#newGameModeUIStyle").remove();
-    let style = document.createElement("style");
-    style.type = "text/css";
-    style.id = "newGameModeUIStyle";
-    style.appendChild(document.createTextNode(`
+    let css = /*css*/ `
         #qpNGM {
             width: 30px;
             margin-right: 5px;
@@ -604,6 +601,9 @@ function applyStyles() {
             padding: 6px 6px;
             border: 1px solid #cccccc;
         }
-    `));
+    `;
+    let style = document.createElement("style");
+    style.id = "newGameModeUIStyle";
+    style.textContent = css.trim();
     document.head.appendChild(style);
 }
