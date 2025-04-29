@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Quick Load Lists
 // @namespace    https://github.com/kempanator
-// @version      0.8
+// @version      0.9
 // @description  Adds a window for saving and quick loading anime lists
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -26,18 +26,20 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.8";
+const version = "0.9";
 const saveData = validateLocalStorage("quickLoadLists");
 let savedLists = saveData.savedLists ?? [];
-let windowHotKey = saveData.windowHotKey ?? {key: "q", altKey: true, ctrlKey: false};
-let animeListModalHotKey = saveData.animeListModalHotKey ?? {key: "", altKey: true, ctrlKey: false};
-let removeListHotKey = saveData.removeListHotKey ?? {key: "", altKey: true, ctrlKey: false};
 let selectedColor = saveData.selectedColor ?? "#4497ea";
 let quickLoadListsWindow;
+let hotKeys = {
+    qllWindow: loadHotkey("qllWindow", "q", false, true, false),
+    animeListModal: loadHotkey("animeListModal"),
+    removeList: loadHotkey("removeList"),
+};
 
 // setup
 function setup() {
-    new Listener("anime list update result", (payload) => {
+    new Listener("anime list update result", (data) => {
         setTimeout(() => { checkSelectedList() }, 10);
     }).bindListener();
 
@@ -53,20 +55,20 @@ function setup() {
         draggable: true
     });
     quickLoadListsWindow.addPanel({
-        id: "anisongdbPanel",
+        id: "quickLoadListsPanel",
         width: 1.0,
         height: "100%",
-        scrollable: {x: false, y: true}
+        scrollable: { x: false, y: true }
     });
 
     $("#settingsAnimeListContainer > div .row:eq(2)")
         .append($(`<div class="col-xs-6"></div>`)
-            .append($(`<label for="qllSettingsButton">Quick Load Lists Script</label>`))
+            .append($(`<label>Quick Load Lists Script</label>`))
             .append($(`<div></div>`)
-                .append($(`<button id="qllSettingsButton" class="btn btn-primary">Open</button>`).click(() => {
+                .append($(`<button class="btn btn-primary">Open</button>`).click(() => {
                     quickLoadListsWindow.open();
                 }))
-                .append($(`<button id="qllSettingsButton" class="btn btn-danger" style="margin-left: 8px">Clear</button>`).click(() => {
+                .append($(`<button class="btn btn-danger" style="margin-left: 8px">Clear</button>`).click(() => {
                     $("#qllTable .qllRow").removeClass("selected");
                     removeAllLists();
                     messageDisplayer.displayMessage("Current List Cleared");
@@ -88,17 +90,17 @@ function setup() {
         }))
         .append(`<h2>Quick Load Lists</h2>`)
         .append($(`<div class="tabContainer">`)
-            .append($(`<div id="qllUseTab" class="tab clickAble"><span>Use</span></div>`).click(function() {
+            .append($(`<div id="qllUseTab" class="tab clickAble"><span>Use</span></div>`).click(function () {
                 tabReset();
                 $(this).addClass("selected");
                 $("#qllUseContainer").show();
             }))
-            .append($(`<div id="qllEditTab" class="tab clickAble"><span>Edit</span></div>`).click(function() {
+            .append($(`<div id="qllEditTab" class="tab clickAble"><span>Edit</span></div>`).click(function () {
                 tabReset();
                 $(this).addClass("selected");
                 $("#qllEditContainer").show();
             }))
-            .append($(`<div id="qllSettingsTab" class="tab clickAble"><span>Settings</span></div>`).click(function() {
+            .append($(`<div id="qllSettingsTab" class="tab clickAble"><span>Settings</span></div>`).click(function () {
                 tabReset();
                 $(this).addClass("selected");
                 $("#qllSettingsContainer").show();
@@ -112,50 +114,26 @@ function setup() {
                 createListTable();
                 saveSettings();
             }))
-            .append($(`<button class="btn btn-default" style="width: 34px; margin: 6px 2px 2px 2px; padding: 6px 0;"><i class="fa fa-plus" aria-hidden="true"></i></button></button>`).click(() => {
+            .append($(`<button class="btn btn-default" style="width: 34px; margin: 6px 2px 2px 2px; padding: 6px 0;"><i class="fa fa-plus" aria-hidden="true"></i></button>`).click(() => {
                 createEditRow($("#qllEditTable"), "", "anilist", true, true, true, true, true);
             }))
         )
         .append($(`<div id="qllSettingsContainer"></div>`)
-            .append($(`<div></div>`)
-                .append($(`<span>Open This Window Hotkey:</span>`))
-                .append($(`<select id="qllSettingsWindowHotkeyModifier" class="form-control"><option>ALT</option><option>CTRL</option><option>CTRL ALT</option><option>-</option></select>`).on("change", function() {
-                    windowHotKey.altKey = this.value.includes("ALT");
-                    windowHotKey.ctrlKey = this.value.includes("CTRL");
-                    saveSettings();
-                }))
-                .append($(`<input id="qllSettingsWindowHotkeyKey" class="form-control key" type="text" maxlength="1">`).on("change", function() {
-                    windowHotKey.key = this.value.toLowerCase();
-                    saveSettings();
-                }))
-            )
-            .append($(`<div></div>`)
-                .append($(`<span>Open Anime List Modal Hotkey:</span>`))
-                .append($(`<select id="qllSettingsAnimeListModalHotkeyModifier" class="form-control"><option>ALT</option><option>CTRL</option><option>CTRL ALT</option><option>-</option></select>`).on("change", function() {
-                    windowHotKey.altKey = this.value.includes("ALT");
-                    windowHotKey.ctrlKey = this.value.includes("CTRL");
-                    saveSettings();
-                }))
-                .append($(`<input id="qllSettingsAnimeListModalHotkeyKey" class="form-control key" type="text" maxlength="1">`).on("change", function() {
-                    animeListModalHotKey.key = this.value.toLowerCase();
-                    saveSettings();
-                }))
-            )
-            .append($(`<div></div>`)
-                .append($(`<span>Remove List Hotkey:</span>`))
-                .append($(`<select id="qllSettingsRemoveListHotkeyModifier" class="form-control"><option>ALT</option><option>CTRL</option><option>CTRL ALT</option><option>-</option></select>`).on("change", function() {
-                    windowHotKey.altKey = this.value.includes("ALT");
-                    windowHotKey.ctrlKey = this.value.includes("CTRL");
-                    saveSettings();
-                }))
-                .append($(`<input id="qllSettingsRemoveListHotkeyKey" class="form-control key" type="text" maxlength="1">`).on("change", function() {
-                    removeListHotKey.key = this.value.toLowerCase();
-                    saveSettings();
-                }))
-            )
+            .append(`<div id="qllHotkeyContainer">
+                <table id="qllHotkeyTable">
+                    <thead>
+                        <tr>
+                            <th>Action</th>
+                            <th>Key</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    </tbody>
+                </table>
+            </div>`)
             .append($(`<div></div>`)
                 .append($(`<span>Selected Color:</span>`))
-                .append($(`<input id="qllSettingsSelectedColor" class="form-control color" type="color">`).on("change", function() {
+                .append($(`<input id="qllSelectedColor" type="color">`).val(selectedColor).on("change", function () {
                     selectedColor = this.value;
                     saveSettings();
                     applyStyles();
@@ -163,7 +141,7 @@ function setup() {
             )
             .append($(`<div></div>`)
                 .append($(`<label class="btn btn-default">Import</label>`)
-                    .append($(`<input type="file" style="display: none">`).on("change", function() {
+                    .append($(`<input type="file" style="display: none">`).on("change", function () {
                         if (this.files.length) {
                             this.files[0].text().then((data) => {
                                 try {
@@ -174,7 +152,7 @@ function setup() {
                                             title: "Select Import Method",
                                             input: "select",
                                             inputPlaceholder: " ",
-                                            inputOptions: {1: "Append to current lists", 2: "Replace all lists", 3: "Replace lists & settings"},
+                                            inputOptions: { 1: "Append to current lists", 2: "Replace all lists", 3: "Replace lists & settings" },
                                             showCancelButton: true,
                                             cancelButtonText: "Cancel",
                                             allowOutsideClick: true
@@ -188,9 +166,11 @@ function setup() {
                                                 }
                                                 else if (result.value === "3") {
                                                     savedLists = json.savedLists ?? [];
-                                                    windowHotKey = json.windowHotKey ?? {key: "", altKey: true, ctrlKey: false};
-                                                    animeListModalHotKey = json.animeListModalHotKey ?? {key: "", altKey: true, ctrlKey: false};
-                                                    removeListHotKey = json.removeListHotKey ?? {key: "", altKey: true, ctrlKey: false};
+                                                    hotKeys = {
+                                                        qllWindow: json.hotKeys?.qllWindow ?? { key: "q", ctrl: false, alt: true, shift: false },
+                                                        animeListModal: json.hotKeys?.animeListModal ?? { key: "", ctrl: false, alt: false, shift: false },
+                                                        removeList: json.hotKeys?.removeList ?? { key: "", ctrl: false, alt: false, shift: false },
+                                                    }
                                                     selectedColor = json.selectedColor ?? "#4497ea";
                                                     updateSettingsUI();
                                                     applyStyles();
@@ -213,15 +193,9 @@ function setup() {
                         }
                     }))
                 )
-                .append($(`<button class="btn btn-default" style="margin-left: 5px">Export</button>`).click(function() {
+                .append($(`<button class="btn btn-default" style="margin-left: 5px">Export</button>`).click(function () {
                     if (savedLists.length) {
-                        let settings = {
-                            savedLists: savedLists,
-                            windowHotKey: windowHotKey,
-                            animeListModalHotKey: animeListModalHotKey,
-                            removeListHotKey: removeListHotKey,
-                            selectedColor: selectedColor
-                        };
+                        let settings = { savedLists, hotKeys, selectedColor };
                         let data = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(settings));
                         let element = document.createElement("a");
                         element.setAttribute("href", data);
@@ -241,20 +215,45 @@ function setup() {
     $("#qllUseContainer").show();
     createListTable();
     createEditTable();
-    updateSettingsUI();
+    createHotkeyRow("Open This Window", "qllWindow");
+    createHotkeyRow("Open Anime List Modal", "animeListModal");
+    createHotkeyRow("Remove List", "removeList");
 
-    $("#optionListSettings").before(`<li class="clickAble" onclick="$('#quickLoadListsWindow').show()">Load Lists</li>`);
+    $("#optionListSettings").before($(`<li class="clickAble">Load Lists</li>`).click(() => {
+        quickLoadListsWindow.open();
+    }));
 
-    document.querySelector("body").addEventListener("keydown", (event) => {
-        if (event.key === windowHotKey.key && event.altKey === windowHotKey.altKey && event.ctrlKey === windowHotKey.ctrlKey) {
+    const hotkeyActions = {
+        qllWindow: () => {
             quickLoadListsWindow.isVisible() ? quickLoadListsWindow.close() : quickLoadListsWindow.open();
-        }
-        if (event.key === animeListModalHotKey.key && event.altKey === animeListModalHotKey.altKey && event.ctrlKey === animeListModalHotKey.ctrlKey) {
+        },
+        animeListModal: () => {
             $("#settingModal").modal("show");
             options.selectTab("settingsAnimeListContainer", $("#smAnimeListTab"));
-        }
-        if (event.key === removeListHotKey.key && event.altKey === removeListHotKey.altKey && event.ctrlKey === removeListHotKey.ctrlKey) {
+        },
+        removeList: () => {
             removeAllLists();
+        }
+    };
+
+    document.addEventListener("keydown", (event) => {
+        const key = event.key.toUpperCase();
+        const ctrl = event.ctrlKey;
+        const alt = event.altKey;
+        const shift = event.shiftKey;
+        const match = (b) => {
+            if (!b.key) return false;
+            if (key !== b.key) return false;
+            if (ctrl !== b.ctrl) return false;
+            if (alt !== b.alt) return false;
+            if (shift !== b.shift) return false;
+            return true;
+        }
+        for (let [action, bind] of Object.entries(hotKeys)) {
+            if (match(bind) && hotkeyActions.hasOwnProperty(action)) {
+                event.preventDefault();
+                hotkeyActions[action]();
+            }
         }
     });
 
@@ -292,90 +291,50 @@ function shortenType(type) {
     if (type === "kitsu") return "KIT";
 }
 
+// when you click a username in the table
 function loadList($row, username, type, watching, completed, hold, dropped, planning) {
-    if (type === "anilist") {
-        let listener = new Listener("anime list update result", (payload) => {
-            listener.unbindListener();
-            $("#qllTable .qllRow").removeClass("selected");
-            if (payload.success) {
-                $("#aniListUserNameInput").val(username);
-                setAllStatusCheckboxes(watching, completed, hold, dropped, planning);
-                $row.addClass("selected");
-            }
-            else {
-                messageDisplayer.displayMessage("Update Unsuccessful", payload.message);
-                checkSelectedList();
-            }
-            removeMyanimelist();
-            removeKitsu();
-            $row.find("i.fa-spinner").hide();
-        });
-        listener.bindListener();
-        $row.find("i.fa-spinner").show();
-        socket.sendCommand({type: "library", command: "update anime list", data: {newUsername: username, listType: "ANILIST"}});
-    }
-    else if (type === "myanimelist") {
-        let listener = new Listener("anime list update result", (payload) => {
-            listener.unbindListener();
-            $("#qllTable .qllRow").removeClass("selected");
-            if (payload.success) {
-                $("#malUserNameInput").val(username);
-                setAllStatusCheckboxes(watching, completed, hold, dropped, planning);
-                $row.addClass("selected");
-            }
-            else {
-                messageDisplayer.displayMessage("Update Unsuccessful", payload.message);
-                checkSelectedList();
-            }
-            removeAnilist();
-            removeKitsu();
-            $row.find("i.fa-spinner").hide();
-        });
-        listener.bindListener();
-        $row.find("i.fa-spinner").show();
-        socket.sendCommand({type: "library", command: "update anime list", data: {newUsername: username, listType: "MAL"}});
-    }
-    else if (type === "kitsu") {
-        let listener = new Listener("anime list update result", (payload) => {
-            listener.unbindListener();
-            $("#qllTable .qllRow").removeClass("selected");
-            if (payload.success) {
-                $("#kitsuUserNameInput").val(username);
-                setAllStatusCheckboxes(watching, completed, hold, dropped, planning);
-                $row.addClass("selected");
-            }
-            else {
-                messageDisplayer.displayMessage("Update Unsuccessful", payload.message);
-                checkSelectedList();
-            }
-            removeAnilist();
-            removeMyanimelist();
-            $row.find("i.fa-spinner").hide();
-        });
-        listener.bindListener();
-        $row.find("i.fa-spinner").show();
-        socket.sendCommand({type: "library", command: "update anime list", data: {newUsername: username, listType: "KITSU"}});
-    }
+    let listTypeMap = { anilist: "ANILIST", myanimelist: "MAL", kitsu: "KITSU" };
+    let userNameInputMap = { anilist: "#aniListUserNameInput", myanimelist: "#malUserNameInput", kitsu: "#kitsuUserNameInput" };
+    let listener = new Listener("anime list update result", (data) => {
+        listener.unbindListener();
+        $("#qllTable .qllRow").removeClass("selected");
+        if (data.success) {
+            $(userNameInputMap[type]).val(username);
+            setAllStatusCheckboxes(watching, completed, hold, dropped, planning);
+            $row.addClass("selected");
+        }
+        else {
+            messageDisplayer.displayMessage("Update Unsuccessful", data.message);
+            checkSelectedList();
+        }
+        if (type !== "anilist") removeAnilist();
+        if (type !== "myanimelist") removeMyanimelist();
+        if (type !== "kitsu") removeKitsu();
+        $row.find("i.fa-spinner").hide();
+    });
+    listener.bindListener();
+    $row.find("i.fa-spinner").show();
+    socket.sendCommand({ type: "library", command: "update anime list", data: { newUsername: username, listType: listTypeMap[type] } });
 }
 
 function removeAnilist() {
     if ($("#aniListLastUpdateDate").text()) {
         $("#aniListUserNameInput").val("");
-        socket.sendCommand({type: "library", command: "update anime list", data: {newUsername: "", listType: "ANILIST"}});
+        socket.sendCommand({ type: "library", command: "update anime list", data: { newUsername: "", listType: "ANILIST" } });
     }
 }
 
 function removeMyanimelist() {
     if ($("#malLastUpdateDate").text()) {
         $("#malUserNameInput").val("");
-        socket.sendCommand({type: "library", command: "update anime list", data: {newUsername: "", listType: "MAL"}});
+        socket.sendCommand({ type: "library", command: "update anime list", data: { newUsername: "", listType: "MAL" } });
     }
 }
 
 function removeKitsu() {
     if ($("#kitsuLastUpdated").text()) {
         $("#kitsuUserNameInput").val("");
-        socket.sendCommand({type: "library", command: "update anime list", data: {newUsername: "", listType: "KITSU"}});
+        socket.sendCommand({ type: "library", command: "update anime list", data: { newUsername: "", listType: "KITSU" } });
     }
 }
 
@@ -392,14 +351,14 @@ function checkSelectedList() {
         $rows.removeClass("selected");
         savedLists.forEach((list, index) => {
             if (((list.type === "anilist" && list.username.toLowerCase() === $("#aniListUserNameInput").val().toLowerCase()) ||
-            (list.type === "myanimelist" && list.username.toLowerCase() === $("#malUserNameInput").val().toLowerCase()) ||
-            (list.type === "kitsu" && list.username.toLowerCase() === $("#kitsuUserNameInput").val().toLowerCase())) &&
-            list.watching === options.$INCLUDE_WATCHING_CHECKBOX.prop("checked") &&
-            list.completed === options.$INCLUDE_COMPLETED_CHECKBOX.prop("checked") &&
-            list.hold === options.$INCLUDE_ON_HOLD_CHECKBOX.prop("checked") &&
-            list.dropped === options.$INCLUDE_DROPPED_CHECKBOX.prop("checked") &&
-            list.planning === options.$INCLUDE_PLANNING_CHECKBOX.prop("checked")) {
-                $($rows.get(index)).addClass("selected");
+                (list.type === "myanimelist" && list.username.toLowerCase() === $("#malUserNameInput").val().toLowerCase()) ||
+                (list.type === "kitsu" && list.username.toLowerCase() === $("#kitsuUserNameInput").val().toLowerCase())) &&
+                list.watching === options.$INCLUDE_WATCHING_CHECKBOX.prop("checked") &&
+                list.completed === options.$INCLUDE_COMPLETED_CHECKBOX.prop("checked") &&
+                list.hold === options.$INCLUDE_ON_HOLD_CHECKBOX.prop("checked") &&
+                list.dropped === options.$INCLUDE_DROPPED_CHECKBOX.prop("checked") &&
+                list.planning === options.$INCLUDE_PLANNING_CHECKBOX.prop("checked")) {
+                $rows.eq(index).addClass("selected");
             }
         });
     }
@@ -411,7 +370,7 @@ function setStatusCheckbox($checkbox, commandName, status) {
         socket.sendCommand({
             type: "settings",
             command: "update use list entry " + commandName,
-            data: {on: status}
+            data: { on: status }
         });
     }
 }
@@ -424,6 +383,7 @@ function setAllStatusCheckboxes(watching, completed, hold, dropped, planning) {
     setStatusCheckbox(options.$INCLUDE_PLANNING_CHECKBOX, "planning", planning);
 }
 
+// create the table that shows all saved lists
 function createListTable() {
     $("#qllTable").remove();
     let $table = $(`<table id="qllTable"></table>`);
@@ -454,6 +414,7 @@ function createListTable() {
     checkSelectedList();
 }
 
+// create the table where you edit lists
 function createEditTable() {
     $("#qllEditTable").remove();
     let $table = $(`<div id="qllEditTable"></div>`)
@@ -466,31 +427,31 @@ function createEditTable() {
 // create new row in list edit table
 function createEditRow($table, username, type, watching, completed, hold, dropped, planning, comment) {
     let $row = $(`<div class="qllEditRow"></div>`)
-        .append($(`<i class="fa fa-chevron-up arrow clickAble" aria-hidden="true"></i>`).click(function() {
+        .append($(`<i class="fa fa-chevron-up arrow clickAble" aria-hidden="true"></i>`).click(function () {
             $(this).parent().prev().insertAfter($(this).parent());
         }))
-        .append($(`<i class="fa fa-chevron-down arrow clickAble" aria-hidden="true"></i>`).click(function() {
+        .append($(`<i class="fa fa-chevron-down arrow clickAble" aria-hidden="true"></i>`).click(function () {
             $(this).parent().next().insertBefore($(this).parent());
         }))
         .append($(`<input class="form-control username" type="text" placeholder="username">`).val(username))
         .append($(`<select class="form-control type"><option value="anilist">anilist</option><option value="myanimelist">myanimelist</option><option value="kitsu">kitsu</option></select>`))
-        .append($(`<button class="btn btn-default status watching">W</button>`).addClass(watching ? "" : "off").click(function() {
+        .append($(`<button class="btn btn-default status watching">W</button>`).addClass(watching ? "" : "off").click(function () {
             $(this).hasClass("off") ? $(this).removeClass("off") : $(this).addClass("off");
         }))
-        .append($(`<button class="btn btn-default status completed">C</button>`).addClass(completed ? "" : "off").click(function() {
+        .append($(`<button class="btn btn-default status completed">C</button>`).addClass(completed ? "" : "off").click(function () {
             $(this).hasClass("off") ? $(this).removeClass("off") : $(this).addClass("off");
         }))
-        .append($(`<button class="btn btn-default status hold">H</button>`).addClass(hold ? "" : "off").click(function() {
+        .append($(`<button class="btn btn-default status hold">H</button>`).addClass(hold ? "" : "off").click(function () {
             $(this).hasClass("off") ? $(this).removeClass("off") : $(this).addClass("off");
         }))
-        .append($(`<button class="btn btn-default status dropped">D</button>`).addClass(dropped ? "" : "off").click(function() {
+        .append($(`<button class="btn btn-default status dropped">D</button>`).addClass(dropped ? "" : "off").click(function () {
             $(this).hasClass("off") ? $(this).removeClass("off") : $(this).addClass("off");
         }))
-        .append($(`<button class="btn btn-default status planning">P</button>`).addClass(planning ? "" : "off").click(function() {
+        .append($(`<button class="btn btn-default status planning">P</button>`).addClass(planning ? "" : "off").click(function () {
             $(this).hasClass("off") ? $(this).removeClass("off") : $(this).addClass("off");
         }))
         .append($(`<input class="form-control comment" type="text" placeholder="comment">`).val(comment))
-        .append($(`<button class="btn btn-danger delete"><i class="fa fa-minus" aria-hidden="true"></i></button>`).click(function() {
+        .append($(`<button class="btn btn-danger delete"><i class="fa fa-minus" aria-hidden="true"></i></button>`).click(function () {
             $(this).parent().remove();
             saveSettings();
         }))
@@ -498,24 +459,81 @@ function createEditRow($table, username, type, watching, completed, hold, droppe
     $table.append($row);
 }
 
-// update settings window inputs
+// load hotkey from local storage, input optional default values
+function loadHotkey(action, key = "", ctrl = false, alt = false, shift = false) {
+    const item = saveData.hotKeys?.[action];
+    return {
+        key: (item?.key ?? key).toUpperCase(),
+        ctrl: item?.ctrl ?? item?.ctrlKey ?? ctrl,
+        alt: item?.alt ?? item?.altKey ?? alt,
+        shift: item?.shift ?? item?.shiftKey ?? shift
+    }
+}
+
+// create hotkey row and add to table
+function createHotkeyRow(title, action) {
+    let $input = $(`<input type="text" class="hk-input" readonly data-action="${action}">`)
+        .val(bindingToText(hotKeys[action]))
+        .on("click", startHotkeyRecord);
+    $("#qllHotkeyTable tbody").append($(`<tr></tr>`)
+        .append($(`<td></td>`).text(title))
+        .append($(`<td></td>`).append($input)));
+}
+
+// begin hotkey capture on click
+function startHotkeyRecord() {
+    const $input = $(this);
+    if ($input.hasClass("recording")) return;
+    const action = $input.data("action");
+    const capture = (e) => {
+        e.stopImmediatePropagation();
+        e.preventDefault();
+        if (!e.key) return;
+        if (["Shift", "Control", "Alt", "Meta"].includes(e.key)) return;
+        if ((e.key === "Delete" || e.key === "Backspace" || e.key === "Escape") && !e.altKey && !e.ctrlKey && !e.shiftKey && !e.metaKey) {
+            hotKeys[action] = {
+                key: "",
+                ctrl: false,
+                alt: false,
+                shift: false
+            };
+        }
+        else {
+            hotKeys[action] = {
+                key: e.key.toUpperCase(),
+                ctrl: e.ctrlKey,
+                alt: e.altKey,
+                shift: e.shiftKey
+            };
+        }
+        saveSettings();
+        finish();
+    };
+    const finish = () => {
+        document.removeEventListener("keydown", capture, true);
+        $input.removeClass("recording").val(bindingToText(hotKeys[action])).off("blur", finish);
+    };
+    document.addEventListener("keydown", capture, true);
+    $input.addClass("recording").val("Press keys…").on("blur", finish);
+}
+
+// input hotKeys[action] and convert the data to a string for the input field
+function bindingToText(b) {
+    if (!b) return "";
+    let keys = [];
+    if (b.ctrl) keys.push("CTRL");
+    if (b.alt) keys.push("ALT");
+    if (b.shift) keys.push("SHIFT");
+    if (b.key) keys.push(b.key === " " ? "SPACE" : b.key);
+    return keys.join(" + ");
+}
+
+// update settings window inputs on import
 function updateSettingsUI() {
-    if (windowHotKey.altKey && windowHotKey.ctrlKey) $("#qllSettingsWindowHotkeyModifier").val("CTRL ALT");
-    else if (windowHotKey.altKey) $("#qllSettingsWindowHotkeyModifier").val("ALT");
-    else if (windowHotKey.ctrlKey) $("#qllSettingsWindowHotkeyModifier").val("CTRL");
-    else $("#qllSettingsWindowHotkeyModifier").val("-");
-    $("#qllSettingsWindowHotkeyKey").val(windowHotKey.key);
-    if (animeListModalHotKey.altKey && animeListModalHotKey.ctrlKey) $("#qllSettingsAnimeListModalHotkeyModifier").val("CTRL ALT");
-    else if (animeListModalHotKey.altKey) $("#qllSettingsAnimeListModalHotkeyModifier").val("ALT");
-    else if (animeListModalHotKey.ctrlKey) $("#qllSettingsAnimeListModalHotkeyModifier").val("CTRL");
-    else $("#qllSettingsAnimeListModalHotkeyModifier").val("-");
-    $("#qllSettingsAnimeListModalHotkeyKey").val(animeListModalHotKey.key);
-    if (removeListHotKey.altKey && removeListHotKey.ctrlKey) $("#qllSettingsRemoveListHotkeyModifier").val("CTRL ALT");
-    else if (removeListHotKey.altKey) $("#qllSettingsRemoveListHotkeyModifier").val("ALT");
-    else if (removeListHotKey.ctrlKey) $("#qllSettingsRemoveListHotkeyModifier").val("CTRL");
-    else $("#qllSettingsRemoveListHotkeyModifier").val("-");
-    $("#qllSettingsRemoveListHotkeyKey").val(removeListHotKey.key);
-    $("#qllSettingsSelectedColor").val(selectedColor);
+    for (let action of Object.keys(hotKeys)) {
+        $(`#qllHotkeyTable input[data-action="${action}"]`).val(bindingToText(hotKeys[action]));
+    }
+    $("#qllSelectedColor").val(selectedColor);
 }
 
 // save edit table
@@ -530,20 +548,17 @@ function saveEditTable() {
         let dropped = $(row).find(".dropped").hasClass("off") ? false : true;
         let planning = $(row).find(".planning").hasClass("off") ? false : true;
         let comment = $(row).find(".comment").val().trim();
-        savedLists.push({username, type, watching, completed, hold, dropped, planning, comment});
+        savedLists.push({ username, type, watching, completed, hold, dropped, planning, comment });
     }
 }
 
 // save settings
 function saveSettings() {
-    let settings = {
-        savedLists: savedLists,
-        windowHotKey: windowHotKey,
-        animeListModalHotKey: animeListModalHotKey,
-        removeListHotKey: removeListHotKey,
-        selectedColor: selectedColor
-    };
-    localStorage.setItem("quickLoadLists", JSON.stringify(settings));
+    localStorage.setItem("quickLoadLists", JSON.stringify({
+        savedLists,
+        hotKeys,
+        selectedColor
+    }));
 }
 
 function getListURL(username, type) {
@@ -565,10 +580,7 @@ function validateLocalStorage(item) {
 // apply styles
 function applyStyles() {
     $("#quickLoadListsStyle").remove();
-    let style = document.createElement("style");
-    style.type = "text/css";
-    style.id = "quickLoadListsStyle";
-    let text = `
+    let css = /*css*/ `
         #quickLoadListsWindow .modal-header {
             padding: 0;
             height: 74px;
@@ -675,27 +687,28 @@ function applyStyles() {
         #qllSettingsContainer > div {
             margin: 10px 0 0 10px;
         }
-        #qllSettingsContainer select.form-control {
-            width: 88px;
-            margin-left: 10px;
-            padding: 6px 0;
-            display: inline-block;
+        #qllHotkeyTable th {
+            font-weight: bold;
+            padding: 0 20px 5px 0;
         }
-        #qllSettingsContainer input.key {
-            width: 34px;
-            text-align: center;
-            margin-left: 5px;
-            padding: 6px 0;
-            display: inline-block;
+        #qllHotkeyTable td {
+            padding: 2px 20px 2px 0;
         }
-        #qllSettingsContainer input.color {
+        #qllSelectedColor {
             width: 60px;
             margin-left: 10px;
-            padding: 2px 4px;
             display: inline-block;
             vertical-align: middle;
         }
+        #qllHotkeyTable input.hk-input {
+            width: 200px;
+            color: black;
+            cursor: pointer;
+            user-select: none;
+        }
     `;
-    style.appendChild(document.createTextNode(text));
+    let style = document.createElement("style");
+    style.id = "quickLoadListsStyle";
+    style.textContent = css.trim();
     document.head.appendChild(style);
 }
