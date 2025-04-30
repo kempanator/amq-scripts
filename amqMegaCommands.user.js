@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.136
+// @version      0.137
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -105,11 +105,9 @@ OTHER
 
 "use strict";
 if (typeof Listener === "undefined") return;
-const version = "0.136";
+const version = "0.137";
 const saveData = validateLocalStorage("megaCommands");
 const originalOrder = {qb: [], gm: []};
-if (typeof saveData.alerts?.hiddenPlayers === "boolean") delete saveData.alerts;
-let alerts = saveData.alerts ?? {};
 let animeList;
 let animeAutoCompleteLowerCase = [];
 let autoAcceptInvite = saveData.autoAcceptInvite ?? "";
@@ -132,7 +130,6 @@ let autoThrow = saveData.autoThrow ?? {time: [], text: null, multichoice: null};
 let autoVoteLobby = saveData.autoVoteLobby ?? false;
 let autoVoteSkip = saveData.autoVoteSkip ?? [];
 let backgroundURL = saveData.backgroundURL ?? "";
-let commandPersist = saveData.commandPersist ?? {};
 let commandPrefix = saveData.commandPrefix || "/";
 let commands = saveData.commands ?? true;
 let continueSample = saveData.continueSample ?? false;
@@ -144,7 +141,6 @@ let dropdown = saveData.dropdown ?? true;
 let dropdownInSpec = saveData.dropdownInSpec ?? false;
 let enableAllProfileButtons = saveData.enableAllProfileButtons ?? false;
 let hidePlayers = saveData.hidePlayers ?? false;
-let hotKeys = saveData.hotKeys ?? {};
 let lastUsedVersion = saveData.lastUsedVersion ?? null;
 let loopVideo = saveData.loopVideo ?? false;
 let malClientId = saveData.malClientId ?? "";
@@ -164,55 +160,56 @@ let acPlaybackRate = null;
 let acReverse = false;
 let sourceNode;
 
-alerts = {
-    hiddenPlayers: saveData.alerts?.hiddenPlayers ?? {chat: true, popout: true},
-    nameChange: saveData.alerts?.nameChange ?? {chat: true, popout: true},
-    onlineFriends: saveData.alerts?.onlineFriends ?? {chat: false, popout: false},
-    offlineFriends: saveData.alerts?.offlineFriends ?? {chat: false, popout: false},
-    serverStatus: saveData.alerts?.serverStatus ?? {chat: false, popout: false}
+let alerts = {
+    hiddenPlayers: loadAlert("hiddenPlayers", true, true),
+    nameChange: loadAlert("nameChange", true, true),
+    onlineFriends: loadAlert("onlineFriends", false, false),
+    offlineFriends: loadAlert("offlineFriends", false, false),
+    serverStatus: loadAlert("serverStatus", false, false)
 };
-commandPersist = {
-    autoAcceptInvite: saveData.commandPersist?.autoAcceptInvite ?? true,
-    autoCopy: saveData.commandPersist?.autoCopy ?? false,
-    autoDownloadSong: saveData.commandPersist?.autoDownloadSong ?? false,
-    autoDownloadJson: saveData.commandPersist?.autoDownloadJson ?? true,
-    autoHint: saveData.commandPersist?.autoHint ?? false,
-    autoHost: saveData.commandPersist?.autoHost ?? false,
-    autoInvite: saveData.commandPersist?.autoInvite ?? false,
-    autoKey: saveData.commandPersist?.autoKey ?? true,
-    autoMute: saveData.commandPersist?.autoMute ?? false,
-    autoReady: saveData.commandPersist?.autoReady ?? true,
-    autoStart: saveData.commandPersist?.autoStart ?? false,
-    autoStatus: saveData.commandPersist?.autoStatus ?? true,
-    autoSwitch: saveData.commandPersist?.autoSwitch ?? false,
-    autoThrow: saveData.commandPersist?.autoThrow ?? false,
-    autoVoteLobby: saveData.commandPersist?.autoVoteLobby ?? true,
-    autoVoteSkip: saveData.commandPersist?.autoVoteSkip ?? false,
-    continueSample: saveData.commandPersist?.continueSample ?? true,
-    coopPaste: saveData.commandPersist?.coopPaste ?? false,
-    dropdown: saveData.commandPersist?.dropdown ?? true,
-    dropdownInSpec: saveData.commandPersist?.dropdownInSpec ?? true,
-    loopVideo: saveData.commandPersist?.loopVideo ?? true,
-    muteReplay: saveData.commandPersist?.muteReplay ?? true,
-    muteSubmit: saveData.commandPersist?.muteSubmit ?? true,
-    playbackSpeed: saveData.commandPersist?.playbackSpeed ?? false
+let commandPersist = {
+    autoAcceptInvite: loadCommandPersist("autoAcceptInvite", true),
+    autoCopy: loadCommandPersist("autoCopy", false),
+    autoDownloadSong: loadCommandPersist("autoDownloadSong", false),
+    autoDownloadJson: loadCommandPersist("autoDownloadJson", true),
+    autoHint: loadCommandPersist("autoHint", false),
+    autoHost: loadCommandPersist("autoHost", false),
+    autoInvite: loadCommandPersist("autoInvite", false),
+    autoKey: loadCommandPersist("autoKey", true),
+    autoMute: loadCommandPersist("autoMute", false),
+    autoReady: loadCommandPersist("autoReady", true),
+    autoStart: loadCommandPersist("autoStart", false),
+    autoStatus: loadCommandPersist("autoStatus", true),
+    autoSwitch: loadCommandPersist("autoSwitch", false),
+    autoThrow: loadCommandPersist("autoThrow", false),
+    autoVoteLobby: loadCommandPersist("autoVoteLobby", true),
+    autoVoteSkip: loadCommandPersist("autoVoteSkip", false),
+    continueSample: loadCommandPersist("continueSample", true),
+    coopPaste: loadCommandPersist("coopPaste", false),
+    dropdown: loadCommandPersist("dropdown", true),
+    dropdownInSpec: loadCommandPersist("dropdownInSpec", true),
+    loopVideo: loadCommandPersist("loopVideo", true),
+    muteReplay: loadCommandPersist("muteReplay", true),
+    muteSubmit: loadCommandPersist("muteSubmit", true),
+    playbackSpeed: loadCommandPersist("playbackSpeed", false)
 };
-hotKeys = {
-    autoKey: saveData.hotKeys?.autoKey ?? {altKey: false, ctrlKey: false, key: ""},
-    dropdown: saveData.hotKeys?.dropdown ?? {altKey: false, ctrlKey: false, key: ""},
-    mute: saveData.hotKeys?.mute ?? {altKey: false, ctrlKey: false, key: ""},
-    ready: saveData.hotKeys?.ready ?? {altKey: false, ctrlKey: false, key: ""},
-    joinSpectate: saveData.hotKeys?.joinSpectate ?? {altKey: false, ctrlKey: false, key: ""},
-    start: saveData.hotKeys?.start ?? {altKey: false, ctrlKey: false, key: ""},
-    leave: saveData.hotKeys?.leave ?? {altKey: false, ctrlKey: false, key: ""},
-    rejoin: saveData.hotKeys?.rejoin ?? {altKey: false, ctrlKey: false, key: ""},
-    lobby: saveData.hotKeys?.lobby ?? {altKey: false, ctrlKey: false, key: ""},
-    pause: saveData.hotKeys?.pause ?? {altKey: false, ctrlKey: false, key: ""},
-    voteSkip: saveData.hotKeys?.voteSkip ?? {altKey: false, ctrlKey: false, key: ""},
-    relog: saveData.hotKeys?.relog ?? {altKey: false, ctrlKey: false, key: ""},
-    mcHelpWindow: saveData.hotKeys?.mcHelpWindow ?? {altKey: false, ctrlKey: false, key: ""},
-    songHistoryWindow: saveData.hotKeys?.songHistoryWindow ?? {altKey: false, ctrlKey: false, key: ""},
-    settingsWindow: saveData.hotKeys?.settingsWindow ?? {altKey: false, ctrlKey: false, key: ""}
+let hotKeys = {
+    autoKey: loadHotkey("autoKey"),
+    dropdown: loadHotkey("dropdown"),
+    mute: loadHotkey("mute"),
+    ready: loadHotkey("ready"),
+    joinSpectate: loadHotkey("joinSpectate"),
+    start: loadHotkey("start"),
+    leave: loadHotkey("leave"),
+    rejoin: loadHotkey("rejoin"),
+    lobby: loadHotkey("lobby"),
+    pause: loadHotkey("pause"),
+    voteSkip: loadHotkey("voteSkip"),
+    relog: loadHotkey("relog"),
+    mcHelpWindow: loadHotkey("mcHelpWindow"),
+    songHistoryWindow: loadHotkey("songHistoryWindow"),
+    settingsWindow: loadHotkey("settingsWindow"),
+    focusDropdown: loadHotkey("focusDropdown")
 };
 
 const rules = {
@@ -349,37 +346,28 @@ function setup() {
             }
         });
     }
-    document.body.addEventListener("keydown", (event) => {
-        const key = event.key;
-        const which = event.which;
-        const altKey = event.altKey;
-        const ctrlKey = event.ctrlKey;
-        /*if (which === 9) {
-            if (tabSwitch && quiz.inQuiz) {
-                toggleTextInputFocus();
-            }
-        }*/
-        if (testHotkey("autoKey", key, altKey, ctrlKey)) {
+    const hotkeyActions = {
+        autoKey: () => {
             autoKey = !autoKey;
             saveSettings();
             sendSystemMessage(`auto key ${autoKey ? "enabled" : "disabled"}`);
-        }
-        if (testHotkey("dropdown", key, altKey, ctrlKey)) {
+        },
+        dropdown: () => {
             dropdown = !dropdown;
             saveSettings();
             sendSystemMessage(`dropdown ${dropdown ? "enabled" : "disabled"}`);
             quiz.answerInput.typingInput.autoCompleteController.newList();
-        }
-        if (testHotkey("mute", key, altKey, ctrlKey)) {
+        },
+        mute: () => {
             volumeController.setMuted(!volumeController.muted);
             volumeController.adjustVolume();
-        }
-        if (testHotkey("ready", key, altKey, ctrlKey)) {
-            if (lobby.inLobby && !lobby.isHost && !lobby.isSpectator && lobby.settings.gameMode !== "Ranked") {
+        },
+        ready: () => {
+            if (lobby.inLobby && !lobby.isHost && !lobby.isSpectator && !["Ranked", "Themed"].includes(lobby.settings.gameMode)) {
                 lobby.fireMainButtonEvent();
             }
-        }
-        if (testHotkey("joinSpectate", key, altKey, ctrlKey)) {
+        },
+        joinSpectate: () => {
             if (lobby.inLobby) {
                 if (lobby.isSpectator) {
                     socket.sendCommand({type: "lobby", command: "change to player"});
@@ -388,8 +376,8 @@ function setup() {
                     lobby.changeToSpectator(selfName);
                 }
             }
-        }
-        if (testHotkey("start", key, altKey, ctrlKey)) {
+        },
+        start: () => {
             if (lobby.inLobby && lobby.isHost) {
                 lobby.fireMainButtonEvent(true);
             }
@@ -400,8 +388,8 @@ function setup() {
                     data: nexus.cityController.dungeonSelectionWindow.dungeonSetupTab.settingDescription
                 });
             }
-        }
-        if (testHotkey("leave", key, altKey, ctrlKey)) {
+        },
+        leave: () => {
             if (lobby.inLobby || quiz.inQuiz) {
                 if (isRankedMode()) {
                     setTimeout(() => { viewChanger.changeView("main") }, 1);
@@ -410,42 +398,67 @@ function setup() {
                     setTimeout(() => { viewChanger.changeView("roomBrowser") }, 1);
                 }
             }
-        }
-        if (testHotkey("rejoin", key, altKey, ctrlKey)) {
+        },
+        rejoin: () => {
             if (lobby.inLobby || quiz.inQuiz) {
                 rejoinRoom(100);
             }
-        }
-        if (testHotkey("lobby", key, altKey, ctrlKey)) {
+        },
+        lobby: () => {
             if (quiz.inQuiz && quiz.isHost) {
                 socket.sendCommand({type: "quiz", command: "start return lobby vote"});
             }
-        }
-        if (testHotkey("pause", key, altKey, ctrlKey)) {
+        },
+        pause: () => {
             if (quiz.inQuiz) {
                 socket.sendCommand({type: "quiz", command: "quiz " + (quiz.pauseButton.pauseOn ? "unpause" : "pause")});
             }
-        }
-        if (testHotkey("voteSkip", key, altKey, ctrlKey)) {
+        },
+        voteSkip: () => {
             if (quiz.inQuiz && !quiz.skipController._toggled) {
                 quiz.skipClicked();
             }
-        }
-        if (testHotkey("relog", key, altKey, ctrlKey)) {
+        },
+        relog: () => {
             relog();
-        }
-        if (testHotkey("mcHelpWindow", key, altKey, ctrlKey)) {
+        },
+        mcHelpWindow: () => {
             $("#mcSettingsModal").is(":visible") ? $("#mcSettingsModal").modal("hide") : $("#mcSettingsModal").modal("show");
-        }
-        if (testHotkey("songHistoryWindow", key, altKey, ctrlKey)) {
+        },
+        songHistoryWindow: () => {
             songHistoryWindow.trigger();
-        }
-        if (testHotkey("settingsWindow", key, altKey, ctrlKey)) {
+        },
+        settingsWindow: () => {
             $("#settingModal").is(":visible") ? $("#settingModal").modal("hide") : $("#settingModal").modal("show");
+        },
+        focusDropdown: () => {
+            if (quiz.inQuiz) {
+                $("#qpAnswerInput").focus();
+            }
+        },
+    };
+    document.addEventListener("keydown", (event) => {
+        const key = event.key.toUpperCase();
+        const ctrl = event.ctrlKey;
+        const alt = event.altKey;
+        const shift = event.shiftKey;
+        const match = (b) => {
+            if (!b.key) return false;
+            if (key !== b.key) return false;
+            if (ctrl !== b.ctrl) return false;
+            if (alt !== b.alt) return false;
+            if (shift !== b.shift) return false;
+            return true;
+        }
+        for (let [action, bind] of Object.entries(hotKeys)) {
+            if (match(bind) && hotkeyActions.hasOwnProperty(action)) {
+                event.preventDefault();
+                hotkeyActions[action]();
+            }
         }
     });
-    new Listener("game chat update", (payload) => {
-        for (let message of payload.messages) {
+    new Listener("game chat update", (data) => {
+        for (let message of data.messages) {
             if (message.message.startsWith("/forceall")) {
                 if (!isRankedMode()) {
                     parseForceAll(message.message, message.teamMessage ? "teamchat" : "chat");
@@ -466,38 +479,38 @@ function setup() {
             }
         }
     }).bindListener();
-    new Listener("Game Chat Message", (payload) => {
-        if (payload.message.startsWith("/forceall")) {
+    new Listener("Game Chat Message", (data) => {
+        if (data.message.startsWith("/forceall")) {
             if (!isRankedMode()) {
-                parseForceAll(payload.message, payload.teamMessage ? "teamchat" : "chat");
+                parseForceAll(data.message, data.teamMessage ? "teamchat" : "chat");
             }
         }
-        else if (payload.sender === selfName && payload.message.startsWith(commandPrefix)) {
-            parseCommand(payload.message, payload.teamMessage ? "teamchat" : "chat");
+        else if (data.sender === selfName && data.message.startsWith(commandPrefix)) {
+            parseCommand(data.message, data.teamMessage ? "teamchat" : "chat");
         }
     }).bindListener();
-    new Listener("chat message", (payload) => {
-        if (payload.message.startsWith("/")) {
-            parseIncomingDM(payload.message, payload.sender);
+    new Listener("chat message", (data) => {
+        if (data.message.startsWith("/")) {
+            parseIncomingDM(data.message, data.sender);
         }
     }).bindListener();
-    new Listener("chat message response", (payload) => {
-        if (payload.msg.startsWith(commandPrefix)) {
-            parseCommand(payload.msg, "dm", payload.target);
+    new Listener("chat message response", (data) => {
+        if (data.msg.startsWith(commandPrefix)) {
+            parseCommand(data.msg, "dm", data.target);
         }
     }).bindListener();
-    new Listener("play next song", (payload) => {
+    new Listener("play next song", (data) => {
         if (playbackSpeed.length) {
             let speed = playbackSpeed.length === 1 ? playbackSpeed[0] : Math.random() * (playbackSpeed[1] - playbackSpeed[0]) + playbackSpeed[0];
             quizVideoController.moePlayers.forEach((moePlayer) => { moePlayer.playbackRate = speed });
         }
         if (acReverse || acPlaybackRate) {
             if (sourceNode) sourceNode.stop();
-            if (audioBuffers[payload.songNumber]) {
+            if (audioBuffers[data.songNumber]) {
                 sourceNode = audioContext.createBufferSource();
-                sourceNode.buffer = audioBuffers[payload.songNumber].audioBuffer;
-                let songLength = audioBuffers[payload.songNumber].audioBuffer.duration;
-                let startTime = audioBuffers[payload.songNumber].startPoint / 100 * songLength;
+                sourceNode.buffer = audioBuffers[data.songNumber].audioBuffer;
+                let songLength = audioBuffers[data.songNumber].audioBuffer.duration;
+                let startTime = audioBuffers[data.songNumber].startPoint / 100 * songLength;
                 let bufferTime = (acPlaybackRate || 1) * quiz.nextSongPlayLength;
                 if (startTime + bufferTime + 3 > songLength) startTime = songLength - bufferTime - 3;
                 if (startTime < 0) startTime = 0;
@@ -587,7 +600,7 @@ function setup() {
             $("#qpVolume").removeClass("disabled");
             volumeController.setMuted(false);
             volumeController.adjustVolume();
-            let maxTime = (payload.time * 1000) - autoMute.randomMute;
+            let maxTime = (data.time * 1000) - autoMute.randomMute;
             let time = Math.floor(Math.random() * maxTime);
             if (maxTime > 0) {
                 setTimeout(() => {
@@ -606,7 +619,7 @@ function setup() {
             $("#qpVolume").addClass("disabled");
             volumeController.setMuted(true);
             volumeController.adjustVolume();
-            let maxTime = (payload.time * 1000) - autoMute.randomUnmute;
+            let maxTime = (data.time * 1000) - autoMute.randomUnmute;
             let time = Math.floor(Math.random() * maxTime);
             if (maxTime > 0) {
                 setTimeout(() => {
@@ -628,7 +641,7 @@ function setup() {
             }, 1);
         }
     }).bindListener();
-    new Listener("Game Starting", (payload) => {
+    new Listener("Game Starting", (data) => {
         if (autoVoteSkip === "valid") sendSystemMessage("Auto Vote Skip: on first valid team answer");
         else if (autoVoteSkip === "correct") sendSystemMessage("Auto Vote Skip: only correct answers");
         else if (autoVoteSkip.length) sendSystemMessage("Auto Vote Skip: Enabled");
@@ -653,17 +666,17 @@ function setup() {
         if (hidePlayers) setTimeout(() => { quizHidePlayers() }, 0);
         audioBuffers = {};
     }).bindListener();
-    new Listener("team member answer", (payload) => {
-        if (autoCopy && autoCopy === quiz.players[payload.gamePlayerId]._name.toLowerCase()) {
+    new Listener("team member answer", (data) => {
+        if (autoCopy && autoCopy === quiz.players[data.gamePlayerId]._name.toLowerCase()) {
             let currentText = $("#qpAnswerInput").val();
-            quiz.answerInput.setNewAnswer(payload.answer);
+            quiz.answerInput.setNewAnswer(data.answer);
             $("#qpAnswerInput").val(currentText);
         }
-        if (autoVoteSkip === "valid" && !quiz.skipController._toggled && animeAutoCompleteLowerCase.includes(payload.answer.toLowerCase())) {
+        if (autoVoteSkip === "valid" && !quiz.skipController._toggled && animeAutoCompleteLowerCase.includes(data.answer.toLowerCase())) {
             quiz.skipClicked();
         }
     }).bindListener();
-    new Listener("guess phase over", (payload) => {
+    new Listener("guess phase over", (data) => {
         if (autoMute.mute.length || autoMute.unmute.length || autoMute.toggle.length || autoMute.randomMute || autoMute.randomUnmute) {
             $("#qpVolume").removeClass("disabled");
             volumeController.setMuted(false);
@@ -676,7 +689,7 @@ function setup() {
             }, 1);
         }
     }).bindListener();
-    new Listener("answer results", (payload) => {
+    new Listener("answer results", (data) => {
         if (autoMute.mute.length || autoMute.unmute.length || autoMute.toggle.length || autoMute.randomMute || autoMute.randomUnmute) {
             $("#qpVolume").removeClass("disabled");
             volumeController.setMuted(false);
@@ -687,29 +700,29 @@ function setup() {
             volumeController.adjustVolume();
         }
         if (autoVoteSkip === "correct") {
-            let player = payload.players.find((x) => x.gamePlayerId === quiz.ownGamePlayerId);
+            let player = data.players.find((x) => x.gamePlayerId === quiz.ownGamePlayerId);
             if (player?.correct) {
                 setTimeout(() => { if (!quiz.skipController._toggled) quiz.skipClicked() }, 1);
             }
         }
         if (autoDownloadSong.length) {
             if (autoDownloadSong.includes("video")) {
-                downloadSong(formatURL(payload.songInfo.videoTargetMap.catbox?.[720] || payload.songInfo.videoTargetMap.catbox?.[480]));
+                downloadSong(formatURL(data.songInfo.videoTargetMap.catbox?.[720] || data.songInfo.videoTargetMap.catbox?.[480]));
             }
             else {
                 if (autoDownloadSong.includes("720")) {
-                    downloadSong(formatURL(payload.songInfo.videoTargetMap.catbox?.[720]));
+                    downloadSong(formatURL(data.songInfo.videoTargetMap.catbox?.[720]));
                 }
                 if (autoDownloadSong.includes("480")) {
-                    downloadSong(formatURL(payload.songInfo.videoTargetMap.catbox?.[480]));
+                    downloadSong(formatURL(data.songInfo.videoTargetMap.catbox?.[480]));
                 }
             }
             if (autoDownloadSong.includes("mp3")) {
-                downloadSong(formatURL(payload.songInfo.videoTargetMap.catbox?.[0]));
+                downloadSong(formatURL(data.songInfo.videoTargetMap.catbox?.[0]));
             }
         }
     }).bindListener();
-    new Listener("return lobby vote start", (payload) => {
+    new Listener("return lobby vote start", (data) => {
         if (autoVoteLobby) {
             setTimeout(() => {
                 quiz.returnVoteController.buttonSelected(quiz.returnVoteController.$VOTE_YES_BUTTON);
@@ -717,8 +730,8 @@ function setup() {
             }, 100);
         }
     }).bindListener();
-    new Listener("return lobby vote result", (payload) => {
-        if (payload.passed) {
+    new Listener("return lobby vote result", (data) => {
+        if (data.passed) {
             if (autoDownloadJson.includes("all") || 
             (autoDownloadJson.includes("solo") && quiz.soloMode) || 
             (autoDownloadJson.includes("ranked") && quiz.gameMode === "Ranked") || 
@@ -731,19 +744,19 @@ function setup() {
             }
         }
     }).bindListener();
-    new Listener("battle royal phase over", (payload) => {
+    new Listener("battle royal phase over", (data) => {
         if (printLoot && !battleRoyal.isSpectator) {
             let lootNames = battleRoyal.collectionController.entries.map((entry) => entry.$entry.text().slice(2));
             sendSystemMessage(`Loot: ${battleRoyal.collectionController.entries.length}/${battleRoyal.collectionController.size}`, lootNames.join("<br>"));
         }
     }).bindListener();
-    new Listener("quiz over", (payload) => {
+    new Listener("quiz over", (data) => {
         setTimeout(() => { checkAutoHost() }, 10);
         if (autoSwitch.mode) setTimeout(() => { checkAutoSwitch() }, 100);
         if (hidePlayers) setTimeout(() => { lobbyHidePlayers() }, 0);
         if (sourceNode) sourceNode.stop();
     }).bindListener();
-    new Listener("quiz end result", (payload) => {
+    new Listener("quiz end result", (data) => {
         if (autoDownloadJson.includes("all") || 
         (autoDownloadJson.includes("solo") && quiz.soloMode) || 
         (autoDownloadJson.includes("ranked") && quiz.gameMode === "Ranked") || 
@@ -755,13 +768,13 @@ function setup() {
             }, 100);
         }
     }).bindListener();
-    new Listener("Join Game", (payload) => {
-        if (payload.error) {
+    new Listener("Join Game", (data) => {
+        if (data.error) {
             autoJoinRoom = false;
             saveSettings();
         }
         else {
-            if (payload.inLobby) {
+            if (data.inLobby) {
                 if (autoReady) sendSystemMessage("Auto Ready: Enabled");
                 if (autoStart.remaining) sendSystemMessage("Auto Start: Enabled");
                 if (autoHost) sendSystemMessage("Auto Host: " + autoHost);
@@ -776,13 +789,13 @@ function setup() {
         }
         audioBuffers = {};
     }).bindListener();
-    new Listener("Spectate Game", (payload) => {
-        if (payload.error) {
+    new Listener("Spectate Game", (data) => {
+        if (data.error) {
             autoJoinRoom = false;
             saveSettings();
         }
         else {
-            if (payload.inLobby) {
+            if (data.inLobby) {
                 if (autoReady) sendSystemMessage("Auto Ready: Enabled");
                 if (autoStart.remaining) sendSystemMessage("Auto Start: Enabled");
                 if (autoHost) sendSystemMessage("Auto Host: " + autoHost);
@@ -797,37 +810,37 @@ function setup() {
         }
         audioBuffers = {};
     }).bindListener();
-    new Listener("New Player", (payload) => {
+    new Listener("New Player", (data) => {
         setTimeout(() => { checkAutoHost() }, 1);
         if (hidePlayers) setTimeout(() => { lobbyHidePlayers() }, 0);
     }).bindListener();
-    new Listener("New Spectator", (payload) => {
+    new Listener("New Spectator", (data) => {
         setTimeout(() => { checkAutoHost() }, 1);
     }).bindListener();
-    new Listener("player late join", (payload) => {
+    new Listener("player late join", (data) => {
         if (hidePlayers) setTimeout(() => { quizHidePlayers() }, 0);
     }).bindListener();
-    new Listener("player hidden", (payload) => {
+    new Listener("player hidden", (data) => {
         if (alerts.hiddenPlayers.chat) {
-            sendSystemMessage("Player Hidden: " + payload.name);
+            sendSystemMessage("Player Hidden: " + data.name);
         }
         if (alerts.hiddenPlayers.popout) {
-            popoutMessages.displayStandardMessage("Player Hidden", payload.name);
+            popoutMessages.displayStandardMessage("Player Hidden", data.name);
         }
     }).bindListener();
-    new Listener("Player Ready Change", (payload) => {
+    new Listener("Player Ready Change", (data) => {
         checkAutoStart();
     }).bindListener();
-    new Listener("Room Settings Changed", (payload) => {
+    new Listener("Room Settings Changed", (data) => {
         setTimeout(() => { checkAutoReady() }, 1);
     }).bindListener();
-    new Listener("Player Changed To Spectator", (payload) => {
-        if (payload.playerDescription.name === selfName) {
+    new Listener("Player Changed To Spectator", (data) => {
+        if (data.playerDescription.name === selfName) {
             setTimeout(() => { checkAutoSwitch() }, 1);
         }
     }).bindListener();
-    new Listener("Spectator Change To Player", (payload) => {
-        if (payload.name === selfName) {
+    new Listener("Spectator Change To Player", (data) => {
+        if (data.name === selfName) {
             setTimeout(() => {
                 checkAutoReady();
                 checkAutoStart();
@@ -836,57 +849,57 @@ function setup() {
         }
         if (hidePlayers) setTimeout(() => { lobbyHidePlayers() }, 0);
     }).bindListener();
-    new Listener("Host Promotion", (payload) => {
+    new Listener("Host Promotion", (data) => {
         setTimeout(() => { checkAutoHost() }, 1);
         setTimeout(() => { checkAutoReady() }, 1);
         if (hidePlayers) setTimeout(() => { lobbyHidePlayers() }, 0);
     }).bindListener();
-    new Listener("quiz next video info", async (payload) => {
+    new Listener("quiz next video info", async (data) => {
         if (acReverse || acPlaybackRate) {
-            let url = formatURL(payload.videoInfo.videoMap?.catbox?.[0]);
+            let url = formatURL(data.videoInfo.videoMap?.catbox?.[0]);
             if (url) {
                 let arrayBuffer = await urlToArrayBuffer(url);
                 let audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
                 if (acReverse) {
                     audioBuffer = reverseAudioBuffer(audioBuffer);
                 }
-                audioBuffers[quiz.infoContainer.currentSongNumber + 1] = {startPoint: payload.startPont, audioBuffer: audioBuffer};
+                audioBuffers[quiz.infoContainer.currentSongNumber + 1] = {startPoint: data.startPont, audioBuffer: audioBuffer};
             }
         }
     }).bindListener();
-    new Listener("game invite", (payload) => {
+    new Listener("game invite", (data) => {
         if (autoAcceptInvite && !inRoom()) {
             if (autoAcceptInvite === "all") {
-                roomBrowser.fireSpectateGame(payload.gameId, undefined, true);
+                roomBrowser.fireSpectateGame(data.gameId, undefined, true);
             }
-            else if (autoAcceptInvite === "friends" && socialTab.isFriend(payload.sender)) {
-                roomBrowser.fireSpectateGame(payload.gameId, undefined, true);
+            else if (autoAcceptInvite === "friends" && socialTab.isFriend(data.sender)) {
+                roomBrowser.fireSpectateGame(data.gameId, undefined, true);
             }
-            else if (Array.isArray(autoAcceptInvite) && autoAcceptInvite.includes(payload.sender.toLowerCase())) {
-                roomBrowser.fireSpectateGame(payload.gameId, undefined, true);
+            else if (Array.isArray(autoAcceptInvite) && autoAcceptInvite.includes(data.sender.toLowerCase())) {
+                roomBrowser.fireSpectateGame(data.gameId, undefined, true);
             }
         }
     }).bindListener();
-    new Listener("friend state change", (payload) => {
-        if (payload.online && autoInvite === payload.name.toLowerCase() && inRoom() && !isInYourRoom(autoInvite) && !isSoloMode() && !isRankedMode()) {
-            sendSystemMessage(payload.name + " online: auto inviting");
-            setTimeout(() => { socket.sendCommand({type: "social", command: "invite to game", data: {target: payload.name}}) }, 1000);
+    new Listener("friend state change", (data) => {
+        if (data.online && autoInvite === data.name.toLowerCase() && inRoom() && !isInYourRoom(autoInvite) && !isSoloMode() && !isRankedMode()) {
+            sendSystemMessage(data.name + " online: auto inviting");
+            setTimeout(() => { socket.sendCommand({type: "social", command: "invite to game", data: {target: data.name}}) }, 1000);
         }
-        else if (alerts.onlineFriends.chat && payload.online) {
-            sendSystemMessage(payload.name + " online");
+        else if (alerts.onlineFriends.chat && data.online) {
+            sendSystemMessage(data.name + " online");
         }
-        else if (alerts.offlineFriends.chat && !payload.online) {
-            sendSystemMessage(payload.name + " offline");
+        else if (alerts.offlineFriends.chat && !data.online) {
+            sendSystemMessage(data.name + " offline");
         }
-        if (alerts.onlineFriends.popout && payload.online) {
-            popoutMessages.displayStandardMessage(payload.name + " online", "");
+        if (alerts.onlineFriends.popout && data.online) {
+            popoutMessages.displayStandardMessage(data.name + " online", "");
         }
-        else if (alerts.offlineFriends.popout && !payload.online) {
-            popoutMessages.displayStandardMessage(payload.name + " offline", "");
+        else if (alerts.offlineFriends.popout && !data.online) {
+            popoutMessages.displayStandardMessage(data.name + " offline", "");
         }
     }).bindListener();
-    new Listener("New Rooms", (payload) => {
-        for (let room of payload) {
+    new Listener("New Rooms", (data) => {
+        for (let room of data) {
             if (playerDetection.invisible) {
                 let list = room.players.filter((player) => socialTab.offlineFriends.hasOwnProperty(player));
                 if (list.length) {
@@ -900,45 +913,45 @@ function setup() {
             }
         }
     }).bindListener();
-    new Listener("nexus coop chat message", (payload) => {
-        if (payload.message.startsWith("/forceall")) {
-            parseForceAll(payload.message, "nexus");
+    new Listener("nexus coop chat message", (data) => {
+        if (data.message.startsWith("/forceall")) {
+            parseForceAll(data.message, "nexus");
         }
-        else if (payload.message.startsWith("/vote")) {
-            parseVote(payload.message, payload.sender);
+        else if (data.message.startsWith("/vote")) {
+            parseVote(data.message, data.sender);
         }
-        else if (payload.sender === selfName && payload.message.startsWith(commandPrefix)) {
-            parseCommand(payload.message, "nexus");
+        else if (data.sender === selfName && data.message.startsWith(commandPrefix)) {
+            parseCommand(data.message, "nexus");
         }
     }).bindListener();
-    new Listener("nexus game invite", (payload) => {
+    new Listener("nexus game invite", (data) => {
         if (autoAcceptInvite && !inRoom()) {
             if (autoAcceptInvite === "all") {
-                socket.sendCommand({type: "nexus", command: "join dungeon lobby", data: {lobbyId: payload.lobbyId}});
+                socket.sendCommand({type: "nexus", command: "join dungeon lobby", data: {lobbyId: data.lobbyId}});
             }
-            else if (autoAcceptInvite === "friends" && socialTab.isFriend(payload.sender)) {
-                socket.sendCommand({type: "nexus", command: "join dungeon lobby", data: {lobbyId: payload.lobbyId}});
+            else if (autoAcceptInvite === "friends" && socialTab.isFriend(data.sender)) {
+                socket.sendCommand({type: "nexus", command: "join dungeon lobby", data: {lobbyId: data.lobbyId}});
             }
-            else if (Array.isArray(autoAcceptInvite) && autoAcceptInvite.includes(payload.sender.toLowerCase())) {
-                socket.sendCommand({type: "nexus", command: "join dungeon lobby", data: {lobbyId: payload.lobbyId}});
+            else if (Array.isArray(autoAcceptInvite) && autoAcceptInvite.includes(data.sender.toLowerCase())) {
+                socket.sendCommand({type: "nexus", command: "join dungeon lobby", data: {lobbyId: data.lobbyId}});
             }
         }
     }).bindListener();
-    new Listener("nexus lobby host change", (payload) => {
+    new Listener("nexus lobby host change", (data) => {
         setTimeout(() => { checkAutoHost() }, 1);
     }).bindListener();
-    new Listener("new nexus player", (payload) => {
+    new Listener("new nexus player", (data) => {
         setTimeout(() => { checkAutoHost() }, 1);
     }).bindListener();
-    new Listener("nexus player leave", (payload) => {
+    new Listener("nexus player leave", (data) => {
         setTimeout(() => { checkAutoHost() }, 1);
     }).bindListener();
-    new Listener("friend name change", (payload) => {
+    new Listener("friend name change", (data) => {
         if (alerts.nameChange.chat) {
-            sendSystemMessage(`friend name change: ${payload.oldName} => ${payload.newName}`);
+            sendSystemMessage(`friend name change: ${data.oldName} => ${data.newName}`);
         }
         if (alerts.nameChange.popout) {
-            popoutMessages.displayStandardMessage("friend name change", payload.oldName + " => " + payload.newName);
+            popoutMessages.displayStandardMessage("friend name change", data.oldName + " => " + data.newName);
         }
     }).bindListener();
     new Listener("get all song names", () => {
@@ -951,12 +964,12 @@ function setup() {
             animeAutoCompleteLowerCase = quiz.answerInput.typingInput.autoCompleteController.list.map(x => x.toLowerCase());
         }, 10);
     }).bindListener();
-    new Listener("server state change", (payload) => {
+    new Listener("server state change", (data) => {
         if (alerts.serverStatus.chat) {
-            sendSystemMessage(`Server Status: ${payload.name} ${payload.online ? "online" : "offline"}`);
+            sendSystemMessage(`Server Status: ${data.name} ${data.online ? "online" : "offline"}`);
         }
         if (alerts.serverStatus.popout) {
-            popoutMessages.displayStandardMessage("Server Status", `${payload.name} ${payload.online ? "online" : "offline"}`);
+            popoutMessages.displayStandardMessage("Server Status", `${data.name} ${data.online ? "online" : "offline"}`);
         }
     }).bindListener();
     $("#qpAnswerInput").on("input", (event) => {
@@ -1041,7 +1054,7 @@ function setup() {
         }
     }).observe(document.querySelector("#playerProfileLayer"), {childList: true});
 
-    $("#gameContainer").append($(`
+    $("#gameContainer").append($(/*html*/`
         <div class="modal fade tab-modal" id="mcSettingsModal" tabindex="-1" role="dialog">
             <div class="modal-dialog" role="document" style="width: 800px">
                 <div class="modal-content">
@@ -1184,7 +1197,6 @@ function setup() {
                                 <thead>
                                     <tr>
                                         <th>Action</th>
-                                        <th>Modifier</th>
                                         <th>Key</th>
                                     </tr>
                                 </thead>
@@ -1617,21 +1629,22 @@ function setup() {
         toggleCommandButton($(this), dropdown);
     });
 
-    createHotkeyElement("Toggle Autokey", "autoKey", "mcAutokeyHotkeySelect", "mcAutokeyHotkeyInput");
-    createHotkeyElement("Toggle Dropdown", "dropdown", "mcDropdownHotkeySelect", "mcDropdownHotkeyInput");
-    createHotkeyElement("Toggle Mute", "mute", "mcMuteHotkeySelect", "mcMuteHotkeyInput");
-    createHotkeyElement("Ready", "ready", "mcReadyHotkeySelect", "mcReadyHotkeyInput");
-    createHotkeyElement("Join / Spectate", "joinSpectate", "mcJoinSpectateHotkeySelect", "mcJoinSpectateHotkeyInput");
-    createHotkeyElement("Start Quiz", "start", "mcStartHotkeySelect", "mcStartHotkeyInput");
-    //createHotkeyElement("Leave Quiz", "leave", "mcLeaveHotkeySelect", "mcLeaveHotkeyInput");
-    createHotkeyElement("Rejoin Quiz", "rejoin", "mcRejoinHotkeySelect", "mcRejoinHotkeyInput");
-    createHotkeyElement("Return To Lobby", "lobby", "mcLobbyHotkeySelect", "mcLobbyHotkeyInput");
-    createHotkeyElement("Pause / Unpause", "pause", "mcPauseHotkeySelect", "mcPauseHotkeyInput");
-    createHotkeyElement("Vote Skip", "voteSkip", "mcSkipHotkeySelect", "mcSkipHotkeyInput");
-    createHotkeyElement("Relog", "relog", "mcRelogHotkeySelect", "mcRelogHotkeyInput");
-    createHotkeyElement("Open This Window", "mcHelpWindow", "mcHelpWindowSelect", "mcHelpWindowInput");
-    createHotkeyElement("Open Song History", "songHistoryWindow", "mcSongHistoryWindowSelect", "mcSongHistoryWindowInput");
-    createHotkeyElement("Open Settings", "settingsWindow", "mcSettingsWindowSelect", "mcSettingsWindowInput");
+    createHotkeyRow("Toggle Autokey", "autoKey");
+    createHotkeyRow("Toggle Dropdown", "dropdown");
+    createHotkeyRow("Toggle Mute", "mute");
+    createHotkeyRow("Ready", "ready");
+    createHotkeyRow("Join / Spectate", "joinSpectate");
+    createHotkeyRow("Start Quiz", "start");
+    //createHotkeyRow("Leave Quiz", "leave");
+    createHotkeyRow("Rejoin Quiz", "rejoin");
+    createHotkeyRow("Return To Lobby", "lobby");
+    createHotkeyRow("Pause / Unpause", "pause");
+    createHotkeyRow("Vote Skip", "voteSkip");
+    createHotkeyRow("Relog", "relog");
+    createHotkeyRow("Open This Window", "mcHelpWindow");
+    createHotkeyRow("Open Song History", "songHistoryWindow");
+    createHotkeyRow("Open Settings", "settingsWindow");
+    createHotkeyRow("Focus Dropdown", "focusDropdown");
 
     createAlertElement("Online Friends", "onlineFriends", "mcAlertOnlineFriends");
     createAlertElement("Offline Friends", "offlineFriends", "mcAlertOfflineFriends");
@@ -1923,36 +1936,67 @@ function updateCommandListWindow(type) {
 }
 
 // test hotkey
-function testHotkey(action, key, altKey, ctrlKey) {
-    let hotkey = hotKeys[action];
-    return key === hotkey.key && altKey === hotkey.altKey && ctrlKey === hotkey.ctrlKey;
+function testHotkey(action, key, ctrl, alt, shift) {
+    const hotkey = hotKeys[action];
+    return key === hotkey.key && ctrl === hotkey.ctrl && alt === hotkey.alt && shift === hotkey.shift;
 }
 
-// create hotkey element
-function createHotkeyElement(title, key, selectID, inputID) {
-    let $select = $(`<select id="${selectID}" style="padding: 3px 0;"></select>`).append(`<option>ALT</option>`).append(`<option>CTRL</option>`).append(`<option>CTRL ALT</option>`).append(`<option>-</option>`);
-    let $input = $(`<input id="${inputID}" type="text" maxlength="1" style="width: 40px;">`).val(hotKeys[key].key);
-    $select.on("change", () => {
-        hotKeys[key] = {
-            "altKey": $select.val().includes("ALT"),
-            "ctrlKey": $select.val().includes("CTRL"),
-            "key": $input.val().toLowerCase()
+// create hotkey row and add to table
+function createHotkeyRow(title, action) {
+    let $input = $(`<input type="text" class="hk-input" readonly data-action="${action}">`)
+        .val(bindingToText(hotKeys[action]))
+        .on("click", startHotkeyRecord);
+    $("#mcHotkeyTable tbody").append($(`<tr></tr>`)
+        .append($(`<td></td>`).text(title))
+        .append($(`<td></td>`).append($input)));
+}
+
+// begin hotkey capture on click
+function startHotkeyRecord() {
+    const $input = $(this);
+    if ($input.hasClass("recording")) return;
+    const action = $input.data("action");
+    const capture = (e) => {
+        e.stopImmediatePropagation();
+        e.preventDefault();
+        if (!e.key) return;
+        if (["Shift", "Control", "Alt", "Meta"].includes(e.key)) return;
+        if ((e.key === "Delete" || e.key === "Backspace" || e.key === "Escape") && !e.altKey && !e.ctrlKey && !e.shiftKey && !e.metaKey) {
+            hotKeys[action] = {
+                key: "",
+                ctrl: false,
+                alt: false,
+                shift: false
+            };
+        }
+        else {
+            hotKeys[action] = {
+                key: e.key.toUpperCase(),
+                ctrl: e.ctrlKey,
+                alt: e.altKey,
+                shift: e.shiftKey
+            };
         }
         saveSettings();
-    });
-    $input.on("change", () => {
-        hotKeys[key] = {
-            "altKey": $select.val().includes("ALT"),
-            "ctrlKey": $select.val().includes("CTRL"),
-            "key": $input.val().toLowerCase()
-        }
-        saveSettings();
-    })
-    if (hotKeys[key].altKey && hotKeys[key].ctrlKey) $select.val("CTRL ALT");
-    else if (hotKeys[key].altKey) $select.val("ALT");
-    else if (hotKeys[key].ctrlKey) $select.val("CTRL");
-    else $select.val("-");
-    $("#mcHotkeyTable tbody").append($(`<tr></tr>`).append($(`<td></td>`).text(title)).append($(`<td></td>`).append($select)).append($(`<td></td>`).append($input)));
+        finish();
+    };
+    const finish = () => {
+        document.removeEventListener("keydown", capture, true);
+        $input.removeClass("recording").val(bindingToText(hotKeys[action])).off("blur", finish);
+    };
+    document.addEventListener("keydown", capture, true);
+    $input.addClass("recording").val("Press keys…").on("blur", finish);
+}
+
+// input hotKeys[action] and convert the data to a string for the input field
+function bindingToText(b) {
+    if (!b) return "";
+    let keys = [];
+    if (b.ctrl) keys.push("CTRL");
+    if (b.alt) keys.push("ALT");
+    if (b.shift) keys.push("SHIFT");
+    if (b.key) keys.push(b.key === " " ? "SPACE" : b.key);
+    return keys.join(" + ");
 }
 
 // create alert element
@@ -3057,13 +3101,13 @@ async function parseCommand(messageText, type, target) {
                 sendMessage(`auto joining room ${lobby.gameId} ${password}`, type, target, true);
             }
             else if (quiz.inQuiz || battleRoyal.inView) {
-                let gameInviteListener = new Listener("game invite", (payload) => {
-                    if (payload.sender === selfName) {
+                let gameInviteListener = new Listener("game invite", (data) => {
+                    if (data.sender === selfName) {
                         gameInviteListener.unbindListener();
                         let password = hostModal.$passwordInput.val();
-                        autoJoinRoom = {id: payload.gameId, password: password};
+                        autoJoinRoom = {id: data.gameId, password: password};
                         saveSettings();
-                        sendMessage(`auto joining room ${payload.gameId} ${password}`, type, target, true);
+                        sendMessage(`auto joining room ${data.gameId} ${password}`, type, target, true);
                     }
                 });
                 gameInviteListener.bindListener();
@@ -3453,10 +3497,10 @@ async function parseCommand(messageText, type, target) {
             sendMessage(lobby.gameId, type, target);
         }
         else if (quiz.inQuiz || battleRoyal.inView) {
-            let gameInviteListener = new Listener("game invite", (payload) => {
-                if (payload.sender === selfName) {
+            let gameInviteListener = new Listener("game invite", (data) => {
+                if (data.sender === selfName) {
                     gameInviteListener.unbindListener();
-                    sendMessage(payload.gameId, type, target);
+                    sendMessage(data.gameId, type, target);
                 }
             });
             gameInviteListener.bindListener();
@@ -4208,9 +4252,9 @@ async function parseCommand(messageText, type, target) {
             let option = split[1];
             let username = split[2];
             if (option.startsWith("a")) {
-                let listener = new Listener("anime list update result", (payload) => {
+                let listener = new Listener("anime list update result", (data) => {
                     listener.unbindListener();
-                    if (payload.success) {
+                    if (data.success) {
                         $("#aniListUserNameInput").val(username);
                         sendMessage("anilist set to " + username, type, target, true);
                     }
@@ -4224,9 +4268,9 @@ async function parseCommand(messageText, type, target) {
                 socket.sendCommand({type: "library", command: "update anime list", data: {newUsername: username, listType: "ANILIST"}});
             }
             else if (option.startsWith("m")) {
-                let listener = new Listener("anime list update result", (payload) => {
+                let listener = new Listener("anime list update result", (data) => {
                     listener.unbindListener();
-                    if (payload.success) {
+                    if (data.success) {
                         $("#malUserNameInput").val(username);
                         sendMessage("myanimelist set to " + username, type, target, true);
                     }
@@ -4240,9 +4284,9 @@ async function parseCommand(messageText, type, target) {
                 socket.sendCommand({type: "library", command: "update anime list", data: {newUsername: username, listType: "MAL"}});
             }
             else if (option.startsWith("k")) {
-                let listener = new Listener("anime list update result", (payload) => {
+                let listener = new Listener("anime list update result", (data) => {
                     listener.unbindListener();
-                    if (payload.success) {
+                    if (data.success) {
                         $("#kitsuUserNameInput").val(username);
                         sendMessage("kitsu set to " + username, type, target, true);
                     }
@@ -5081,7 +5125,7 @@ function checkAutoSwitch() {
 
 // check conditions and promote host
 function checkAutoHost() {
-    if (!autoHost) return;
+    if (!autoHost || autoHost === selfName) return;
     if (lobby.inLobby && lobby.isHost) {
         if (autoHost === "*") {
             lobby.promoteHost(getRandomOtherPlayer());
@@ -5129,11 +5173,11 @@ function rejoinRoom(time) {
         }
         else if (quiz.inQuiz || battleRoyal.inView) {
             let password = hostModal.$passwordInput.val();
-            let gameInviteListener = new Listener("game invite", (payload) => {
-                if (payload.sender === selfName) {
+            let gameInviteListener = new Listener("game invite", (data) => {
+                if (data.sender === selfName) {
                     gameInviteListener.unbindListener();
                     viewChanger.changeView("roomBrowser");
-                    setTimeout(() => { roomBrowser.fireSpectateGame(payload.gameId, password) }, time);
+                    setTimeout(() => { roomBrowser.fireSpectateGame(data.gameId, password) }, time);
                 }
             });
             gameInviteListener.bindListener();
@@ -5170,11 +5214,11 @@ function relog() {
         setTimeout(() => { unsafeWindow.location = "/?forceLogin=True" }, 1);
     }
     else if (quiz.inQuiz || battleRoyal.inView) {
-        let gameInviteListener = new Listener("game invite", (payload) => {
-            if (payload.sender === selfName) {
+        let gameInviteListener = new Listener("game invite", (data) => {
+            if (data.sender === selfName) {
                 gameInviteListener.unbindListener();
                 let password = hostModal.$passwordInput.val();
-                autoJoinRoom = {type: "multiplayer", id: payload.gameId, password: password, rejoin: !quiz.isSpectator, temp: true, autoLogIn: true};
+                autoJoinRoom = {type: "multiplayer", id: data.gameId, password: password, rejoin: !quiz.isSpectator, temp: true, autoLogIn: true};
                 saveSettings();
                 unsafeWindow.onbeforeunload = null;
                 setTimeout(() => { unsafeWindow.location = "/?forceLogin=True" }, 1);
@@ -5691,130 +5735,38 @@ function exportLocalStorage() {
         storage[key] = localStorage[key];
     }
     delete storage["__paypal_storage__"];
-    let data = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(storage));
+    let text = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(storage));
     let element = document.createElement("a");
-    element.setAttribute("href", data);
+    element.setAttribute("href", text);
     element.setAttribute("download", `amq local storage export - ${selfName} ${dateFormatted} ${timeFormatted}.json`);
     document.body.appendChild(element);
     element.click();
     element.remove();
 }
 
-// apply styles
-function applyStyles() {
-    $("#megaCommandsStyle").remove();
-    let style = document.createElement("style");
-    style.type = "text/css";
-    style.id = "megaCommandsStyle";
-    let text = `
-        .mcCommandTitle {
-            margin: 0 5px;
-            display: inline-block;
-        }
-        .mcCommandButton {
-            width: 36px;
-            padding: 4px 0;
-            display: inline-block;
-        }
-        .mcCommandRow select, .mcCommandRow input {
-            color: black;
-        }
-        .mcDocumentationRow {
-            padding-bottom: 5px;
-            line-height: normal;
-        }
-        .mcDocumentationHeading {
-            font-size: 22px;
-            font-weight: bold;
-            text-align: center;
-        }
-        .mcDocumentationCommand {
-            font-size: 18px;
-            cursor: pointer;
-            user-select: none;
-        }
-        .mcDocumentationAlias {
-            margin: 0 10px;
-        }
-        .mcDocumentationParameters {
-            margin: 0 10px;
-        }
-        .mcDocumentationDescription {
-            opacity: .8;
-            margin-left: 20px;
-        }
-        #mcHotkeyTable th {
-            font-weight: bold;
-            padding: 0 20px 5px 0;
-        }
-        #mcHotkeyTable td {
-            padding: 2px 20px 2px 0;
-        }
-        #mcHotkeyTable select, #mcHotkeyTable input {
-            color: black;
-        }
-        #mcAlertsTable th {
-            font-weight: bold;
-            padding: 0px 20px 5px 0;
-        }
-        #mcAlertsTable td {
-            padding: 5px 20px 5px 0;
-        }
-        #mcAlertsTable .customCheckbox {
-            vertical-align: middle;
-        }
-        #mcDocumentationContainer pre {
-            background-color: inherit;
-            color: inherit;
-            border: 0;
-            margin: 0;
-            padding: 0;
-        }
-        #mcStorageList li i.fa-caret-right, #mcStorageList li i.fa-caret-down {
-            font-size: 20px;
-        }
-        #mcStorageList li span.name {
-            margin-left: 10px;
-        }
-        #mcStorageList li span.size {
-            margin-left: 10px;
-            opacity: .5;
-        }
-        #mcStorageList li i.fa-trash {
-            margin-left: 10px;
-        }
-        #mcStorageList li i.fa-trash:hover {
-            color: #d9534f;
-        }
-        #mcStorageList pre {
-            color: inherit;
-            background-color: inherit;
-            border: 0;
-            border-radius: 0;
-            font-size: 13px;
-            margin: 0;
-            padding: 0;
-            opacity: .8;
-        }
-    `;
-    if (backgroundURL) text += `
-        #loadingScreen, #gameContainer {
-            background-image: url("${backgroundURL}");
-        }
-        #gameChatPage .col-xs-9 {
-            background-image: none;
-        }
-    `;
-    if (hidePlayers) text += `
-        .gcUserName:not(.self) {
-            display: none;
-        }
-        .chatBadges:has(+ .gcUserName:not(.self)) {
-            display: none;
-        }
-    `;
-    style.appendChild(document.createTextNode(text));
-    document.head.appendChild(style);
+// load alert from local storage, input optional default values
+function loadAlert(key, chat = false, popout = false) {
+    const item = saveData.alerts?.[key];
+    if (typeof item === "object") {
+        return {chat: item.chat ?? chat, popout: item.popout ?? popout};
+    }
+    return {chat, popout};
+}
+
+// load command persist from local storage, input optional default values
+function loadCommandPersist(key, defaultValue = false) {
+    return saveData.commandPersist?.[key] ?? defaultValue;
+}
+
+// load hotkey from local storage, input optional default values
+function loadHotkey(action, key = "", ctrl = false, alt = false, shift = false) {
+    const item = saveData.hotKeys?.[action];
+    return {
+        key: (item?.key ?? key).toUpperCase(),
+        ctrl: item?.ctrl ?? item?.ctrlKey ?? ctrl,
+        alt: item?.alt ?? item?.altKey ?? alt,
+        shift: item?.shift ?? item?.shiftKey ?? shift
+    }
 }
 
 // save settings
@@ -5861,6 +5813,125 @@ function saveSettings() {
     if (commandPersist.muteSubmit) settings.muteSubmit = muteSubmit;
     if (commandPersist.playbackSpeed) settings.playbackSpeed = playbackSpeed;
     localStorage.setItem("megaCommands", JSON.stringify(settings));
+}
+
+// apply styles
+function applyStyles() {
+    $("#megaCommandsStyle").remove();
+    let css = /*css*/ `
+        .mcCommandTitle {
+            margin: 0 5px;
+            display: inline-block;
+        }
+        .mcCommandButton {
+            width: 36px;
+            padding: 4px 0;
+            display: inline-block;
+        }
+        .mcCommandRow select, .mcCommandRow input {
+            color: black;
+        }
+        .mcDocumentationRow {
+            padding-bottom: 5px;
+            line-height: normal;
+        }
+        .mcDocumentationHeading {
+            font-size: 22px;
+            font-weight: bold;
+            text-align: center;
+        }
+        .mcDocumentationCommand {
+            font-size: 18px;
+            cursor: pointer;
+            user-select: none;
+        }
+        .mcDocumentationAlias {
+            margin: 0 10px;
+        }
+        .mcDocumentationParameters {
+            margin: 0 10px;
+        }
+        .mcDocumentationDescription {
+            opacity: .8;
+            margin-left: 20px;
+        }
+        #mcHotkeyTable th {
+            font-weight: bold;
+            padding: 0 20px 5px 0;
+        }
+        #mcHotkeyTable td {
+            padding: 2px 20px 2px 0;
+        }
+        #mcHotkeyTable input.hk-input {
+            width: 200px;
+            color: black;
+            cursor: pointer;
+            user-select: none;
+        }
+        #mcAlertsTable th {
+            font-weight: bold;
+            padding: 0px 20px 5px 0;
+        }
+        #mcAlertsTable td {
+            padding: 5px 20px 5px 0;
+        }
+        #mcAlertsTable .customCheckbox {
+            vertical-align: middle;
+        }
+        #mcDocumentationContainer pre {
+            background-color: inherit;
+            color: inherit;
+            border: 0;
+            margin: 0;
+            padding: 0;
+        }
+        #mcStorageList li i.fa-caret-right, #mcStorageList li i.fa-caret-down {
+            font-size: 20px;
+        }
+        #mcStorageList li span.name {
+            margin-left: 10px;
+        }
+        #mcStorageList li span.size {
+            margin-left: 10px;
+            opacity: .5;
+        }
+        #mcStorageList li i.fa-trash {
+            margin-left: 10px;
+        }
+        #mcStorageList li i.fa-trash:hover {
+            color: #d9534f;
+        }
+        #mcStorageList pre {
+            color: inherit;
+            background-color: inherit;
+            border: 0;
+            border-radius: 0;
+            font-size: 13px;
+            margin: 0;
+            padding: 0;
+            opacity: .8;
+        }
+    `;
+    if (backgroundURL) css += `
+        #loadingScreen, #gameContainer {
+            background-image: url("${backgroundURL}");
+        }
+        #gameChatPage .col-xs-9 {
+            background-image: none;
+        }
+    `;
+    if (hidePlayers) css += `
+        .gcUserName:not(.self) {
+            display: none;
+        }
+        .chatBadges:has(+ .gcUserName:not(.self)) {
+            display: none;
+        }
+    `;
+    let style = document.createElement("style");
+    style.id = "megaCommandsStyle";
+    style.textContent = css.trim();
+    document.head.appendChild(style);
 }
 
 const helpText = `
