@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.74
+// @version      0.75
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -44,14 +44,13 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.74";
+const version = "0.75";
 const saveData = validateLocalStorage("customSongListGame");
 const hostDict = {1: "eudist.animemusicquiz.com", 2: "nawdist.animemusicquiz.com", 3: "naedist.animemusicquiz.com"};
 let CSLButtonCSS = saveData.CSLButtonCSS || "calc(25% - 250px)";
 let showCSLMessages = saveData.showCSLMessages ?? true;
 let replacedAnswers = saveData.replacedAnswers || {};
 let malClientId = saveData.malClientId ?? "";
-let hotKeys = saveData.hotKeys ?? {};
 let debug = Boolean(saveData.debug);
 let fastSkip = false;
 let nextVideoReady = false;
@@ -90,12 +89,14 @@ let songInfoChunk;
 let nextSongChunk;
 let importRunning = false;
 
-hotKeys.start = saveData.hotKeys?.start ?? {altKey: false, ctrlKey: false, key: ""};
-hotKeys.stop = saveData.hotKeys?.stop ?? {altKey: false, ctrlKey: false, key: ""};
-hotKeys.cslgWindow = saveData.hotKeys?.cslgWindow ?? {altKey: false, ctrlKey: false, key: ""};
-//hotKeys.mergeAll = saveData.hotKeys?.mergeAll ?? {altKey: false, ctrlKey: false, key: ""};
+let hotKeys = {
+    cslgWindow: loadHotkey("cslgWindow"),
+    start: loadHotkey("start"),
+    stop: loadHotkey("stop"),
+    mergeAll: loadHotkey("mergeAll"),
+};
 
-$("#gameContainer").append($(`
+$("#gameContainer").append($(/*html*/`
     <div class="modal fade tab-modal" id="cslgSettingsModal" tabindex="-1" role="dialog">
         <div class="modal-dialog" role="document" style="width: 680px">
             <div class="modal-content">
@@ -325,7 +326,6 @@ $("#gameContainer").append($(`
                             <thead>
                                 <tr>
                                     <th>Action</th>
-                                    <th>Modifier</th>
                                     <th>Key</th>
                                 </tr>
                             </thead>
@@ -380,10 +380,10 @@ $("#gameContainer").append($(`
     </div>
 `));
 
-createHotkeyElement("Start CSL", "start", "cslgStartHotkeySelect", "cslgStartHotkeyInput");
-createHotkeyElement("Stop CSL", "stop", "cslgStopHotkeySelect", "cslgStopHotkeyInput");
-createHotkeyElement("Open Window", "cslgWindow", "cslgWindowHotkeySelect", "cslgWindowHotkeyInput");
-//createHotkeyElement("Merge All", "mergeAll", "cslgMergeAllHotkeySelect", "cslgMergeAllHotkeyInput");
+createHotkeyRow("Start CSL", "start");
+createHotkeyRow("Stop CSL", "stop");
+createHotkeyRow("Open Window", "cslgWindow");
+createHotkeyRow("Merge All", "mergeAll");
 
 $("#lobbyPage .topMenuBar").append(`<div id="lnCustomSongListButton" class="clickAble topMenuButton topMenuMediumButton"><h3>CSL</h3></div>`);
 $("#lnCustomSongListButton").click(() => { openSettingsModal() });
@@ -540,7 +540,7 @@ $("#cslgAutocompleteButton").click(() => {
                 hostModal.displayHostSolo();
             }, 200);
             setTimeout(() => {
-                let returnListener = new Listener("Host Game", (payload) => {
+                let returnListener = new Listener("Host Game", (data) => {
                     returnListener.unbindListener();
                     if (songList.length) createAnswerTable();
                     setTimeout(() => { openSettingsModal() }, 10);
@@ -745,25 +745,25 @@ $("#cslgSongListContainer").show();
 
 // setup
 function setup() {
-    new Listener("New Player", (payload) => {
+    new Listener("New Player", (data) => {
         if (quiz.cslActive && quiz.inQuiz && quiz.isHost) {
-            let player = Object.values(quiz.players).find((p) => p._name === payload.name);
+            let player = Object.values(quiz.players).find((p) => p._name === data.name);
             if (player) {
-                sendSystemMessage(`CSL: reconnecting ${payload.name}`);
+                sendSystemMessage(`CSL: reconnecting ${data.name}`);
                 cslMessage("§CSL0" + btoa(`${showSelection}§${currentSong}§${totalSongs}§${guessTime}§${extraGuessTime}§${fastSkip ? "1" : "0"}`));
             }
             else {
-                cslMessage(`CSL game in progress, removing ${payload.name}`);
-                lobby.changeToSpectator(payload.name);
+                cslMessage(`CSL game in progress, removing ${data.name}`);
+                lobby.changeToSpectator(data.name);
             }
         }
     }).bindListener();
-    new Listener("New Spectator", (payload) => {
+    new Listener("New Spectator", (data) => {
         if (quiz.cslActive && quiz.inQuiz && quiz.isHost) {
-            let player = Object.values(quiz.players).find((p) => p._name === payload.name);
+            let player = Object.values(quiz.players).find((p) => p._name === data.name);
             if (player) {
-                sendSystemMessage(`CSL: reconnecting ${payload.name}`);
-                cslMessage("§CSL17" + btoa(payload.name));
+                sendSystemMessage(`CSL: reconnecting ${data.name}`);
+                cslMessage("§CSL17" + btoa(data.name));
             }
             else {
                 cslMessage("§CSL0" + btoa(`${showSelection}§${currentSong}§${totalSongs}§${guessTime}§${extraGuessTime}§${fastSkip ? "1" : "0"}`));
@@ -777,56 +777,56 @@ function setup() {
             }, 300);
         }
     }).bindListener();
-    new Listener("Spectator Change To Player", (payload) => {
+    new Listener("Spectator Change To Player", (data) => {
         if (quiz.cslActive && quiz.inQuiz && quiz.isHost) {
-            let player = Object.values(quiz.players).find((p) => p._name === payload.name);
+            let player = Object.values(quiz.players).find((p) => p._name === data.name);
             if (player) {
                 cslMessage("§CSL0" + btoa(`${showSelection}§${currentSong}§${totalSongs}§${guessTime}§${extraGuessTime}§${fastSkip ? "1" : "0"}`));
             }
             else {
-                cslMessage(`CSL game in progress, removing ${payload.name}`);
-                lobby.changeToSpectator(payload.name);
+                cslMessage(`CSL game in progress, removing ${data.name}`);
+                lobby.changeToSpectator(data.name);
             }
         }
     }).bindListener();
-    new Listener("Player Change To Spectator", (payload) => {
+    new Listener("Player Change To Spectator", (data) => {
         if (quiz.cslActive && quiz.inQuiz && quiz.isHost) {
-            let player = Object.values(quiz.players).find((p) => p._name === payload.name);
+            let player = Object.values(quiz.players).find((p) => p._name === data.name);
             if (player) {
-                cslMessage("§CSL17" + btoa(payload.name));
+                cslMessage("§CSL17" + btoa(data.name));
             }
             else {
                 cslMessage("§CSL0" + btoa(`${showSelection}§${currentSong}§${totalSongs}§${guessTime}§${extraGuessTime}§${fastSkip ? "1" : "0"}`));
             }
         }
     }).bindListener();
-    new Listener("Host Promotion", (payload) => {
+    new Listener("Host Promotion", (data) => {
         if (quiz.cslActive && quiz.inQuiz) {
             sendSystemMessage("CSL host changed, ending quiz");
             quizOver();
         }
     }).bindListener();
-    new Listener("Player Left", (payload) => {
-        if (quiz.cslActive && quiz.inQuiz && payload.player.name === cslMultiplayer.host) {
+    new Listener("Player Left", (data) => {
+        if (quiz.cslActive && quiz.inQuiz && data.player.name === cslMultiplayer.host) {
             sendSystemMessage("CSL host left, ending quiz");
             quizOver();
         }
     }).bindListener();
-    new Listener("Spectator Left", (payload) => {
-        if (quiz.cslActive && quiz.inQuiz && payload.spectator === cslMultiplayer.host) {
+    new Listener("Spectator Left", (data) => {
+        if (quiz.cslActive && quiz.inQuiz && data.spectator === cslMultiplayer.host) {
             sendSystemMessage("CSL host left, ending quiz");
             quizOver();
         }
     }).bindListener();
-    new Listener("game closed", (payload) => {
+    new Listener("game closed", (data) => {
         if (quiz.cslActive && quiz.inQuiz) {
             reset();
-            messageDisplayer.displayMessage("Room Closed", payload.reason);
+            messageDisplayer.displayMessage("Room Closed", data.reason);
             lobby.leave({ supressServerMsg: true });
         }
     }).bindListener();
-    new Listener("game chat update", (payload) => {
-        for (let message of payload.messages) {
+    new Listener("game chat update", (data) => {
+        for (let message of data.messages) {
             if (message.message.startsWith("§CSL")) {
                 if (!showCSLMessages) {
                     setTimeout(() => {
@@ -842,21 +842,21 @@ function setup() {
             }
         }
     }).bindListener();
-    new Listener("Game Chat Message", (payload) => {
-        if (payload.message.startsWith("§CSL")) {
-            parseMessage(payload.message, payload.sender);
+    new Listener("Game Chat Message", (data) => {
+        if (data.message.startsWith("§CSL")) {
+            parseMessage(data.message, data.sender);
         }
     }).bindListener();
-    new Listener("Game Starting", (payload) => {
+    new Listener("Game Starting", (data) => {
         clearTimeEvents();
     }).bindListener();
-    new Listener("Join Game", (payload) => {
+    new Listener("Join Game", (data) => {
         reset();
     }).bindListener();
-    new Listener("Spectate Game", (payload) => {
+    new Listener("Spectate Game", (data) => {
         reset();
     }).bindListener();
-    new Listener("Host Game", (payload) => {
+    new Listener("Host Game", (data) => {
         reset();
         $("#cslgSettingsModal").modal("hide");
     }).bindListener();
@@ -997,28 +997,46 @@ function setup() {
         }
     }
 
-    document.body.addEventListener("keydown", (event) => {
-        const key = event.key;
-        const altKey = event.altKey;
-        const ctrlKey = event.ctrlKey;
-        if (testHotkey("start", key, altKey, ctrlKey)) {
-            validateStart();
-        }
-        if (testHotkey("stop", key, altKey, ctrlKey)) {
-            quizOver();
-        }
-        if (testHotkey("cslgWindow", key, altKey, ctrlKey)) {
+    const hotkeyActions = {
+        cslgWindow: () => {
             if ($("#cslgSettingsModal").is(":visible")) {
                 $("#cslgSettingsModal").modal("hide");
             }
             else {
                 openSettingsModal();
             }
-        }
-        /*if (testHotkey("mergeAll", key, altKey, ctrlKey)) {
+        },
+        start: () => {
+            validateStart();
+        },
+        stop: () => {
+            quizOver();
+        },
+        mergeAll: () => {
             mergedSongList = Array.from(new Set(mergedSongList.concat(songList).map((x) => JSON.stringify(x)))).map((x) => JSON.parse(x));
             createMergedSongListTable();
-        }*/
+        }
+    };
+
+    document.addEventListener("keydown", (event) => {
+        const key = event.key.toUpperCase();
+        const ctrl = event.ctrlKey;
+        const alt = event.altKey;
+        const shift = event.shiftKey;
+        const match = (b) => {
+            if (!b.key) return false;
+            if (key !== b.key) return false;
+            if (ctrl !== b.ctrl) return false;
+            if (alt !== b.alt) return false;
+            if (shift !== b.shift) return false;
+            return true;
+        }
+        for (let [action, bind] of Object.entries(hotKeys)) {
+            if (match(bind) && hotkeyActions.hasOwnProperty(action)) {
+                event.preventDefault();
+                hotkeyActions[action]();
+            }
+        }
     });
 
     resultChunk = new Chunk();
@@ -2651,37 +2669,73 @@ function createCatboxLinkObject(audio, video480, video720) {
     return links;
 }
 
-// create hotkey element
-function createHotkeyElement(title, key, selectID, inputID) {
-    let $select = $(`<select id="${selectID}" style="padding: 3px 0;"></select>`).append(`<option>ALT</option>`).append(`<option>CTRL</option>`).append(`<option>CTRL ALT</option>`).append(`<option>-</option>`);
-    let $input = $(`<input id="${inputID}" type="text" maxlength="1" style="width: 40px;">`).val(hotKeys[key].key);
-    $select.on("change", () => {
-        hotKeys[key] = {
-            "altKey": $select.val().includes("ALT"),
-            "ctrlKey": $select.val().includes("CTRL"),
-            "key": $input.val().toLowerCase()
-        }
-        saveSettings();
-    });
-    $input.on("change", () => {
-        hotKeys[key] = {
-            "altKey": $select.val().includes("ALT"),
-            "ctrlKey": $select.val().includes("CTRL"),
-            "key": $input.val().toLowerCase()
-        }
-        saveSettings();
-    })
-    if (hotKeys[key].altKey && hotKeys[key].ctrlKey) $select.val("CTRL ALT");
-    else if (hotKeys[key].altKey) $select.val("ALT");
-    else if (hotKeys[key].ctrlKey) $select.val("CTRL");
-    else $select.val("-");
-    $("#cslgHotkeyTable tbody").append($(`<tr></tr>`).append($(`<td></td>`).text(title)).append($(`<td></td>`).append($select)).append($(`<td></td>`).append($input)));
+// load hotkey from local storage, input optional default values
+function loadHotkey(action, key = "", ctrl = false, alt = false, shift = false) {
+    const item = saveData.hotKeys?.[action];
+    return {
+        key: (item?.key ?? key).toUpperCase(),
+        ctrl: item?.ctrl ?? item?.ctrlKey ?? ctrl,
+        alt: item?.alt ?? item?.altKey ?? alt,
+        shift: item?.shift ?? item?.shiftKey ?? shift
+    }
 }
 
-// test hotkey
-function testHotkey(action, key, altKey, ctrlKey) {
-    let hotkey = hotKeys[action];
-    return key === hotkey.key && altKey === hotkey.altKey && ctrlKey === hotkey.ctrlKey;
+// create hotkey row and add to table
+function createHotkeyRow(title, action) {
+    let $input = $(`<input type="text" class="hk-input" readonly data-action="${action}">`)
+        .val(bindingToText(hotKeys[action]))
+        .on("click", startHotkeyRecord);
+    $("#cslgHotkeyTable tbody").append($(`<tr></tr>`)
+        .append($(`<td></td>`).text(title))
+        .append($(`<td></td>`).append($input)));
+}
+
+// begin hotkey capture on click
+function startHotkeyRecord() {
+    const $input = $(this);
+    if ($input.hasClass("recording")) return;
+    const action = $input.data("action");
+    const capture = (e) => {
+        e.stopImmediatePropagation();
+        e.preventDefault();
+        if (!e.key) return;
+        if (["Shift", "Control", "Alt", "Meta"].includes(e.key)) return;
+        if ((e.key === "Delete" || e.key === "Backspace" || e.key === "Escape") && !e.altKey && !e.ctrlKey && !e.shiftKey && !e.metaKey) {
+            hotKeys[action] = {
+                key: "",
+                ctrl: false,
+                alt: false,
+                shift: false
+            };
+        }
+        else {
+            hotKeys[action] = {
+                key: e.key.toUpperCase(),
+                ctrl: e.ctrlKey,
+                alt: e.altKey,
+                shift: e.shiftKey
+            };
+        }
+        saveSettings();
+        finish();
+    };
+    const finish = () => {
+        document.removeEventListener("keydown", capture, true);
+        $input.removeClass("recording").val(bindingToText(hotKeys[action])).off("blur", finish);
+    };
+    document.addEventListener("keydown", capture, true);
+    $input.addClass("recording").val("Press keys…").on("blur", finish);
+}
+
+// input hotKeys[action] and convert the data to a string for the input field
+function bindingToText(b) {
+    if (!b) return "";
+    let keys = [];
+    if (b.ctrl) keys.push("CTRL");
+    if (b.alt) keys.push("ALT");
+    if (b.shift) keys.push("SHIFT");
+    if (b.key) keys.push(b.key === " " ? "SPACE" : b.key);
+    return keys.join(" + ");
 }
 
 // return true if you are in a ranked lobby or quiz
@@ -2995,12 +3049,9 @@ function saveSettings() {
 
 // apply styles
 function applyStyles() {
-    $("#customSongListStyle").remove();
+    $("#customSongListGameStyle").remove();
     let tableHighlightColor = getComputedStyle(document.documentElement).getPropertyValue("--accentColorContrast") || "#4497ea";
-    let style = document.createElement("style");
-    style.type = "text/css";
-    style.id = "customSongListStyle";
-    let text = `
+    let css = /*css*/ `
         #lnCustomSongListButton {
             right: ${CSLButtonCSS};
             width: 80px;
@@ -3153,6 +3204,8 @@ function applyStyles() {
             cursor: pointer;
         }
     `;
-    style.appendChild(document.createTextNode(text));
+    let style = document.createElement("style");
+    style.id = "customSongListGameStyle";
+    style.textContent = css.trim();
     document.head.appendChild(style);
 }
