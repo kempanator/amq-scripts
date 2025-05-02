@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Answer Stats
 // @namespace    https://github.com/kempanator
-// @version      0.34
+// @version      0.35
 // @description  Adds a window to display quiz answer stats
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -30,13 +30,12 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.34";
+const version = "0.35";
 const regionDictionary = {E: "Eastern", C: "Central", W: "Western"};
 const saveData = validateLocalStorage("answerStats");
 //const saveData2 = validateLocalStorage("highlightFriendsSettings");
 let showPlayerColors = saveData.showPlayerColors ?? true;
 let showCustomColors = saveData.showCustomColors ?? true;
-let hotKeys = saveData.hotKeys ?? {};
 let answerStatsWindow;
 let answerSpeedWindow;
 let answerHistoryWindow;
@@ -56,11 +55,13 @@ let answerHistorySettings = {mode: "song", songNumber: null, playerId: null, roo
 let customColorMap = {};
 let $answerCompareSearchInput;
 
-hotKeys.asWindow = saveData.hotKeys?.asWindow ?? {altKey: false, ctrlKey: false, key: ""};
-hotKeys.historyWindow = saveData.hotKeys?.historyWindow ?? {altKey: false, ctrlKey: false, key: ""};
-hotKeys.speedWindow = saveData.hotKeys?.speedWindow ?? {altKey: false, ctrlKey: false, key: ""};
-hotKeys.compareWindow = saveData.hotKeys?.compareWindow ?? {altKey: false, ctrlKey: false, key: ""};
-hotKeys.saveResults = saveData.hotKeys?.saveResults ?? {altKey: false, ctrlKey: false, key: ""};
+let hotKeys = {
+    asWindow: loadHotkey("asWindow"),
+    historyWindow: loadHotkey("historyWindow"),
+    speedWindow: loadHotkey("speedWindow"),
+    compareWindow: loadHotkey("compareWindow"),
+    saveResults: loadHotkey("saveResults")
+};
 
 $("#qpOptionContainer").width($("#qpOptionContainer").width() + 35);
 $("#qpOptionContainer > div").append($(`<div id="qpAnswerStats" class="clickAble qpOption"><i aria-hidden="true" class="fa fa-list-alt qpMenuItem"></i></div>`)
@@ -85,36 +86,36 @@ function setup() {
             listLowerCase = quiz.answerInput.typingInput.autoCompleteController.list.map(x => x.toLowerCase());
         }, 1);
     }).bindListener();
-    new Listener("Game Starting", (payload) => {
+    new Listener("Game Starting", (data) => {
         resetHistory();
-        answerHistorySettings.roomType = payload.gameMode;
+        answerHistorySettings.roomType = data.gameMode;
         if (answerHistorySettings.roomType === "Ranked") {
-            answerHistorySettings.roomName = regionDictionary[$("#mpRankedTimer h3").text()] + " " + payload.quizDescription.roomName;
+            answerHistorySettings.roomName = regionDictionary[$("#mpRankedTimer h3").text()] + " " + data.quizDescription.roomName;
         }
         else {
-            answerHistorySettings.roomName = payload.quizDescription.roomName;
+            answerHistorySettings.roomName = data.quizDescription.roomName;
         }
     }).bindListener();
-    new Listener("Join Game", (payload) => {
-        if (payload.quizState) {
-            joinRoomUpdate(payload);
+    new Listener("Join Game", (data) => {
+        if (data.quizState) {
+            joinRoomUpdate(data);
         }
     }).bindListener();
-    new Listener("Spectate Game", (payload) => {
-        if (payload.quizState) {
-            joinRoomUpdate(payload);
+    new Listener("Spectate Game", (data) => {
+        if (data.quizState) {
+            joinRoomUpdate(data);
         }
     }).bindListener();
-    new Listener("player answers", (payload) => {
+    new Listener("player answers", (data) => {
         if (!quiz.answerInput.typingInput.autoCompleteController.list.length) {
             quiz.answerInput.typingInput.autoCompleteController.updateList();
         }
         answers = {};
-        for (let item of payload.answers) {
+        for (let item of data.answers) {
             answers[item.gamePlayerId] = {name: quiz.players[item.gamePlayerId]._name, id: item.gamePlayerId, answer: item.answer};
         }
     }).bindListener();
-    new Listener("answer results", (payload) => {
+    new Listener("answer results", (data) => {
         if (Object.keys(answers).length === 0) return;
         if (listLowerCase.length === 0) return;
         let currentPlayer = quizVideoController.getCurrentPlayer();
@@ -126,36 +127,36 @@ function setup() {
         let invalidAnswerIdList = [];
         let noAnswerIdList = [];
         songHistory[songNumber] = {
-            animeRomajiName: payload.songInfo.animeNames.romaji,
-            animeEnglishName: payload.songInfo.animeNames.english,
-            altAnimeNames: payload.songInfo.altAnimeNames,
-            altAnimeNamesAnswers: payload.songInfo.altAnimeNamesAnswers,
-            animeType: payload.songInfo.animeType,
-            animeVintage: payload.songInfo.vintage,
-            animeTags: payload.songInfo.animeTags,
-            animeGenre: payload.songInfo.animeGenre,
+            animeRomajiName: data.songInfo.animeNames.romaji,
+            animeEnglishName: data.songInfo.animeNames.english,
+            altAnimeNames: data.songInfo.altAnimeNames,
+            altAnimeNamesAnswers: data.songInfo.altAnimeNamesAnswers,
+            animeType: data.songInfo.animeType,
+            animeVintage: data.songInfo.vintage,
+            animeTags: data.songInfo.animeTags,
+            animeGenre: data.songInfo.animeGenre,
             songNumber: songNumber,
-            songArtist: payload.songInfo.artist,
-            songName: payload.songInfo.songName,
-            songType: payload.songInfo.type,
-            songTypeNumber: payload.songInfo.typeNumber,
-            songTypeText: typeText(payload.songInfo.type, payload.songInfo.typeNumber),
-            songDifficulty: payload.songInfo.animeDifficulty,
-            rebroadcast: payload.songInfo.rebroadcast,
-            dub: payload.songInfo.dub,
-            annId: payload.songInfo.siteIds.annId,
-            malId: payload.songInfo.siteIds.malId,
-            kitsuId: payload.songInfo.siteIds.kitsuId,
-            aniListId: payload.songInfo.siteIds.aniListId,
+            songArtist: data.songInfo.artist,
+            songName: data.songInfo.songName,
+            songType: data.songInfo.type,
+            songTypeNumber: data.songInfo.typeNumber,
+            songTypeText: typeText(data.songInfo.type, data.songInfo.typeNumber),
+            songDifficulty: data.songInfo.animeDifficulty,
+            rebroadcast: data.songInfo.rebroadcast,
+            dub: data.songInfo.dub,
+            annId: data.songInfo.siteIds.annId,
+            malId: data.songInfo.siteIds.malId,
+            kitsuId: data.songInfo.siteIds.kitsuId,
+            aniListId: data.songInfo.siteIds.aniListId,
             startPoint: currentPlayer?.startPoint ?? null,
-            audio: payload.songInfo.videoTargetMap.catbox?.[0] ?? payload.songInfo.videoTargetMap.openingsmoe?.[0] ?? null,
-            video480: payload.songInfo.videoTargetMap.catbox?.[480] ?? payload.songInfo.videoTargetMap.openingsmoe?.[480] ?? null,
-            video720: payload.songInfo.videoTargetMap.catbox?.[720] ?? payload.songInfo.videoTargetMap.openingsmoe?.[720] ?? null,
-            groupSlotMap: {...payload.groupMap},
+            audio: data.songInfo.videoTargetMap.catbox?.[0] ?? data.songInfo.videoTargetMap.openingsmoe?.[0] ?? null,
+            video480: data.songInfo.videoTargetMap.catbox?.[480] ?? data.songInfo.videoTargetMap.openingsmoe?.[480] ?? null,
+            video720: data.songInfo.videoTargetMap.catbox?.[720] ?? data.songInfo.videoTargetMap.openingsmoe?.[720] ?? null,
+            groupSlotMap: {...data.groupMap},
             answers: {}
         };
-        payload.songInfo.altAnimeNames.concat(payload.songInfo.altAnimeNamesAnswers).forEach((anime) => { correctAnswerIdList[anime] = [] });
-        for (let player of payload.players) {
+        data.songInfo.altAnimeNames.concat(data.songInfo.altAnimeNamesAnswers).forEach((anime) => { correctAnswerIdList[anime] = [] });
+        for (let player of data.players) {
             let quizPlayer = answers[player.gamePlayerId];
             if (quizPlayer) {
                 quizPlayer.correct = player.correct;
@@ -275,10 +276,10 @@ function setup() {
             let totalSeconds = String(Math.round(currentPlayer?.videoLength) % 60).padStart(2, 0);
             $("#asSongGuessRow").empty().append(`
                 <span><b>Correct:</b> ${numCorrect}/${activePlayers} ${(numCorrect / activePlayers * 100).toFixed(2)}%</span>
-                <span style="margin-left: 20px"><b>Dif:</b> ${Number(payload.songInfo.animeDifficulty).toFixed(2)}</span>
+                <span style="margin-left: 20px"><b>Dif:</b> ${Number(data.songInfo.animeDifficulty).toFixed(2)}</span>
                 <span style="margin-left: 20px"><b>Sample:</b> ${currentMinutes}:${currentSeconds} / ${totalMinutes}:${totalSeconds}</span>
             `);
-            //<span style="margin-left: 20px"><b>Rig:</b> ${payload.watched}</span>
+            //<span style="margin-left: 20px"><b>Rig:</b> ${data.watched}</span>
             if (numCorrect && !quiz.soloMode && !quiz.teamMode) {
                 let $speedRow = $("#asAnswerSpeedRow").empty().show();
                 $speedRow.append(`<span><b>Average:</b> ${averageSpeed}ms</span><span style="margin-left: 20px"><b>Fastest:</b> ${fastestSpeed}ms - </span>`);
@@ -294,7 +295,7 @@ function setup() {
             else {
                 $("#asAnswerSpeedRow").empty().hide();
             }
-            if (payload.players.length > 8 && Object.keys(correctPlayers).length <= 5) {
+            if (data.players.length > 8 && Object.keys(correctPlayers).length <= 5) {
                 let $correctRow = $("#asCorrectPlayersRow").empty().show();
                 $correctRow.append(`<span><b>Correct Players: </b></span>`);
                 Object.keys(correctPlayers).forEach((id, i) => {
@@ -528,7 +529,7 @@ function setup() {
             }))*/
         );
 
-    answerStatsWindow.panels[0].panel.append(`
+    answerStatsWindow.panels[0].panel.append(/*html*/`
         <div id="asMainContainer">
             <div id="asRoomInfoRow" style="margin: 0 3px"></div>
             <div id="asSongDistributionRow" style="margin: 0 3px"><i id="asDistributionButton" class="fa fa-info-circle" aria-hidden="true"></i></div>
@@ -543,7 +544,6 @@ function setup() {
                 <thead>
                     <tr>
                         <th>Action</th>
-                        <th>Modifier</th>
                         <th>Key</th>
                     </tr>
                 </thead>
@@ -757,34 +757,52 @@ function setup() {
     answerCompareWindow.window.find(".modal-header h2").remove();
     answerCompareWindow.window.find(".modal-header").append($div1).append($div2);
 
-    document.body.addEventListener("keydown", (event) => {
-        const key = event.key;
-        const altKey = event.altKey;
-        const ctrlKey = event.ctrlKey;
-        if (testHotkey("asWindow", key, altKey, ctrlKey)) {
+    const hotkeyActions = {
+        asWindow: () => {
             answerStatsWindow.isVisible() ? answerStatsWindow.close() : answerStatsWindow.open();
-        }
-        if (testHotkey("historyWindow", key, altKey, ctrlKey)) {
+        },
+        historyWindow: () => {
             answerHistoryWindow.isVisible() ? answerHistoryWindow.close() : answerHistoryWindow.open();
-        }
-        if (testHotkey("speedWindow", key, altKey, ctrlKey)) {
+        },
+        speedWindow: () => {
             answerSpeedWindow.isVisible() ? answerSpeedWindow.close() : answerSpeedWindow.open();
-        }
-        if (testHotkey("compareWindow", key, altKey, ctrlKey)) {
+        },
+        compareWindow: () => {
             answerCompareWindow.isVisible() ? answerCompareWindow.close() : answerCompareWindow.open();
-        }
-        if (testHotkey("saveResults", key, altKey, ctrlKey)) {
+        },
+        saveResults: () => {
             saveResults();
+        }
+    };
+
+    document.addEventListener("keydown", (event) => {
+        const key = event.key.toUpperCase();
+        const ctrl = event.ctrlKey;
+        const alt = event.altKey;
+        const shift = event.shiftKey;
+        const match = (b) => {
+            if (!b.key) return false;
+            if (key !== b.key) return false;
+            if (ctrl !== b.ctrl) return false;
+            if (alt !== b.alt) return false;
+            if (shift !== b.shift) return false;
+            return true;
+        }
+        for (let [action, bind] of Object.entries(hotKeys)) {
+            if (match(bind) && hotkeyActions.hasOwnProperty(action)) {
+                event.preventDefault();
+                hotkeyActions[action]();
+            }
         }
     });
 
     $("#optionListSettings").before(`<li class="clickAble" onclick="$('#answerStatsWindow').show()">Answer Stats</li>`);
     $("#asSettingsContainer").hide();
-    createHotkeyElement("Open This Window", "asWindow", "asWindowHotkeySelect", "asWindowHotkeyInput");
-    createHotkeyElement("Open History Window", "historyWindow", "asHistoryWindowHotkeySelect", "asHistoryWindowHotkeyInput");
-    createHotkeyElement("Open Speed Window", "speedWindow", "asSpeedWindowHotkeySelect", "asSpeedWindowHotkeyInput");
-    createHotkeyElement("Open Compare Window", "compareWindow", "asCompareWindowHotkeySelect", "asCompareWindowHotkeyInput");
-    createHotkeyElement("Save Results", "saveResults", "asSaveResultsHotkeySelect", "asSaveResultsHotkeyInput");
+    createHotkeyRow("Open This Window", "asWindow");
+    createHotkeyRow("Open History Window", "historyWindow");
+    createHotkeyRow("Open Speed Window", "speedWindow");
+    createHotkeyRow("Open Compare Window", "compareWindow");
+    createHotkeyRow("Save Results", "saveResults");
     AMQ_addScriptData({
         name: "Answer Stats",
         author: "kempanator",
@@ -1407,37 +1425,73 @@ function calculateCorrelation(id1, id2) {
     return ((count / Object.keys(songHistory).length) * 100).toFixed(2);
 }
 
-// create hotkey element
-function createHotkeyElement(title, key, selectID, inputID) {
-    let $select = $(`<select id="${selectID}" style="padding: 3px 0;"></select>`).append(`<option>ALT</option>`).append(`<option>CTRL</option>`).append(`<option>CTRL ALT</option>`).append(`<option>-</option>`);
-    let $input = $(`<input id="${inputID}" type="text" maxlength="1" style="width: 40px;">`).val(hotKeys[key].key);
-    $select.on("change", () => {
-        hotKeys[key] = {
-            "altKey": $select.val().includes("ALT"),
-            "ctrlKey": $select.val().includes("CTRL"),
-            "key": $input.val().toLowerCase()
-        }
-        saveSettings();
-    });
-    $input.on("change", () => {
-        hotKeys[key] = {
-            "altKey": $select.val().includes("ALT"),
-            "ctrlKey": $select.val().includes("CTRL"),
-            "key": $input.val().toLowerCase()
-        }
-        saveSettings();
-    })
-    if (hotKeys[key].altKey && hotKeys[key].ctrlKey) $select.val("CTRL ALT");
-    else if (hotKeys[key].altKey) $select.val("ALT");
-    else if (hotKeys[key].ctrlKey) $select.val("CTRL");
-    else $select.val("-");
-    $("#asHotkeyTable tbody").append($(`<tr></tr>`).append($(`<td></td>`).text(title)).append($(`<td></td>`).append($select)).append($(`<td></td>`).append($input)));
+// load hotkey from local storage, input optional default values
+function loadHotkey(action, key = "", ctrl = false, alt = false, shift = false) {
+    const item = saveData.hotKeys?.[action];
+    return {
+        key: (item?.key ?? key).toUpperCase(),
+        ctrl: item?.ctrl ?? item?.ctrlKey ?? ctrl,
+        alt: item?.alt ?? item?.altKey ?? alt,
+        shift: item?.shift ?? item?.shiftKey ?? shift
+    }
 }
 
-// test hotkey
-function testHotkey(action, key, altKey, ctrlKey) {
-    let hotkey = hotKeys[action];
-    return key === hotkey.key && altKey === hotkey.altKey && ctrlKey === hotkey.ctrlKey;
+// create hotkey row and add to table
+function createHotkeyRow(title, action) {
+    let $input = $(`<input type="text" class="hk-input" readonly data-action="${action}">`)
+        .val(bindingToText(hotKeys[action]))
+        .on("click", startHotkeyRecord);
+    $("#asHotkeyTable tbody").append($(`<tr></tr>`)
+        .append($(`<td></td>`).text(title))
+        .append($(`<td></td>`).append($input)));
+}
+
+// begin hotkey capture on click
+function startHotkeyRecord() {
+    const $input = $(this);
+    if ($input.hasClass("recording")) return;
+    const action = $input.data("action");
+    const capture = (e) => {
+        e.stopImmediatePropagation();
+        e.preventDefault();
+        if (!e.key) return;
+        if (["Shift", "Control", "Alt", "Meta"].includes(e.key)) return;
+        if ((e.key === "Delete" || e.key === "Backspace" || e.key === "Escape") && !e.altKey && !e.ctrlKey && !e.shiftKey && !e.metaKey) {
+            hotKeys[action] = {
+                key: "",
+                ctrl: false,
+                alt: false,
+                shift: false
+            };
+        }
+        else {
+            hotKeys[action] = {
+                key: e.key.toUpperCase(),
+                ctrl: e.ctrlKey,
+                alt: e.altKey,
+                shift: e.shiftKey
+            };
+        }
+        saveSettings();
+        finish();
+    };
+    const finish = () => {
+        document.removeEventListener("keydown", capture, true);
+        $input.removeClass("recording").val(bindingToText(hotKeys[action])).off("blur", finish);
+    };
+    document.addEventListener("keydown", capture, true);
+    $input.addClass("recording").val("Press keys…").on("blur", finish);
+}
+
+// input hotKeys[action] and convert the data to a string for the input field
+function bindingToText(b) {
+    if (!b) return "";
+    let keys = [];
+    if (b.ctrl) keys.push("CTRL");
+    if (b.alt) keys.push("ALT");
+    if (b.shift) keys.push("SHIFT");
+    if (b.key) keys.push(b.key === " " ? "SPACE" : b.key);
+    return keys.join(" + ");
 }
 
 // save settings
@@ -1474,10 +1528,7 @@ function applyStyles() {
             customColorMap[player.toLowerCase()] = index;
         }
     });
-    let style = document.createElement("style");
-    style.type = "text/css";
-    style.id = "answerStatsStyle";
-    let text = `
+    let css = /*css*/ `
         #qpAnswerStats {
             width: 30px;
             margin-right: 5px;
@@ -1749,7 +1800,7 @@ function applyStyles() {
             background-color: #353535;
         }
     `;
-    if (showPlayerColors) text += `
+    if (showPlayerColors) css += /*css*/ `
         #answerSpeedWindow .self span.name,
         #answerSpeedWindow .self i.fa-id-card-o,
         #answerHistoryWindow tr.self td.name,
@@ -1771,7 +1822,7 @@ function applyStyles() {
     `;
     if (showCustomColors) {
         customColors.forEach((item, index) => {
-            text += `
+            css += /*css*/ `
                 #answerSpeedWindow .customColor${index} span.name,
                 #answerSpeedWindow .customColor${index} i.fa-id-card-o,
                 #answerHistoryWindow tr.customColor${index} td.name,
@@ -1782,6 +1833,8 @@ function applyStyles() {
         });
     }
 
-    style.appendChild(document.createTextNode(text));
+    let style = document.createElement("style");
+    style.id = "answerStatsStyle";
+    style.textContent = css.trim();
     document.head.appendChild(style);
 }
