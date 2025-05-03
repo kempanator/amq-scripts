@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Anisongdb Search
 // @namespace    https://github.com/kempanator
-// @version      0.15
+// @version      0.16
 // @description  Adds a window to search anisongdb.com in game
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -27,13 +27,14 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.15";
+const version = "0.16";
 const saveData = validateLocalStorage("anisongdbSearch");
 let anisongdbWindow;
 let injectSearchButtons = saveData.injectSearchButtons ?? true;
 let tableSort = {mode: "anime", ascending: true};
-let hotKeys = saveData.hotKeys ?? {};
-hotKeys.adbsWindow = saveData.hotKeys?.adbsWindow ?? {altKey: false, ctrlKey: false, key: ""};
+let hotKeys = {
+    adbsWindow: loadHotkey("adbsWindow")
+}
 
 function setup() {
     new Listener("answer results", (payload) => {
@@ -152,39 +153,42 @@ function setup() {
             )
         )
         .append($(`<div id="adbsSettingsContainer" style="padding: 10px;"></div>`)
-            .append($(`<div></div>`)
-                .append($(`<span>Open this window</span>`))
-                .append($(`<select id="adbsWindowHotkeySelect" style="margin-left: 10px; padding: 3px 0;"><option>ALT</option><option>CTRL</option><option>CTRL ALT</option><option>-</option></select>`).on("change", function() {
-                    hotKeys.adbsWindow.altKey = this.value.includes("ALT");
-                    hotKeys.adbsWindow.ctrlKey = this.value.includes("CTRL");
-                    saveSettings();
-                }))
-                .append($(`<input id="adbsWindowHotkeyInput" type="text" maxlength="1" style="width: 40px; margin-left: 10px;">`).on("change", function() {
-                    hotKeys.adbsWindow.key = this.value.toLowerCase();
-                    saveSettings();
-                }))
-            )
+            .append(`<table id="adbsHotkeyTable"><thead><tr><th>Action</th><th>Key</th></tr></thead><tbody></tbody></table>`)
             .append($(`<div style="margin-top: 10px;"></div>`)
                 .append($(`<span>Song info Box Buttons</span>`))
                 .append($(`<div class="customCheckbox" style="margin: 0 0 0 8px; vertical-align: middle;"><input type="checkbox" id="adbsButtonsCheckbox"><label for="adbsButtonsCheckbox"><i class="fa fa-check" aria-hidden="true"></i></label></div>`))
             )
         );
 
-    document.body.addEventListener("keydown", (event) => {
-        const key = event.key;
-        const altKey = event.altKey;
-        const ctrlKey = event.ctrlKey;
-        if (testHotkey("adbsWindow", key, altKey, ctrlKey)) {
+    const hotkeyActions = {
+        adbsWindow: () => {
             anisongdbWindow.isVisible() ? anisongdbWindow.close() : anisongdbWindow.open();
+        }
+    };
+
+    document.addEventListener("keydown", (event) => {
+        const key = event.key.toUpperCase();
+        const ctrl = event.ctrlKey;
+        const alt = event.altKey;
+        const shift = event.shiftKey;
+        const match = (b) => {
+            if (!b.key) return false;
+            if (key !== b.key) return false;
+            if (ctrl !== b.ctrl) return false;
+            if (alt !== b.alt) return false;
+            if (shift !== b.shift) return false;
+            return true;
+        }
+        for (let [action, bind] of Object.entries(hotKeys)) {
+            if (match(bind) && hotkeyActions.hasOwnProperty(action)) {
+                event.preventDefault();
+                hotkeyActions[action]();
+            }
         }
     });
 
+    createHotkeyRow("AnisongDB Window", "adbsWindow");
     tabReset();
-    if (hotKeys.adbsWindow.altKey && hotKeys.adbsWindow.ctrlKey) $("#adbsWindowHotkeySelect").val("CTRL ALT");
-    else if (hotKeys.adbsWindow.altKey) $("#adbsWindowHotkeySelect").val("ALT");
-    else if (hotKeys.adbsWindow.ctrlKey) $("#adbsWindowHotkeySelect").val("CTRL");
-    else $("#adbsWindowHotkeySelect").val("-");
-    $("#adbsWindowHotkeyInput").val(hotKeys.adbsWindow.key);
     $("#adbsButtonsCheckbox").prop("checked", injectSearchButtons).click(function() {
         injectSearchButtons = !injectSearchButtons;
         $(this).prop("checked", injectSearchButtons);
@@ -389,12 +393,6 @@ function vintageSortValue(vintageA, vintageB) {
     return seasonOrder[seasonA] - seasonOrder[seasonB];
 }
 
-// test hotkey
-function testHotkey(action, key, altKey, ctrlKey) {
-    let hotkey = hotKeys[action];
-    return key === hotkey.key && altKey === hotkey.altKey && ctrlKey === hotkey.ctrlKey;
-}
-
 // used for sorting table contents when you click a header
 function tableSortChange(mode) {
     if (tableSort.mode === mode) {
@@ -404,6 +402,75 @@ function tableSortChange(mode) {
         tableSort.mode = mode;
         tableSort.ascending = true;
     }
+}
+
+// load hotkey from local storage, input optional default values
+function loadHotkey(action, key = "", ctrl = false, alt = false, shift = false) {
+    const item = saveData.hotKeys?.[action];
+    return {
+        key: (item?.key ?? key).toUpperCase(),
+        ctrl: item?.ctrl ?? item?.ctrlKey ?? ctrl,
+        alt: item?.alt ?? item?.altKey ?? alt,
+        shift: item?.shift ?? item?.shiftKey ?? shift
+    }
+}
+
+// create hotkey row and add to table
+function createHotkeyRow(title, action) {
+    let $input = $(`<input type="text" class="hk-input" readonly data-action="${action}">`)
+        .val(bindingToText(hotKeys[action]))
+        .on("click", startHotkeyRecord);
+    $("#adbsHotkeyTable tbody").append($(`<tr></tr>`)
+        .append($(`<td></td>`).text(title))
+        .append($(`<td></td>`).append($input)));
+}
+
+// begin hotkey capture on click
+function startHotkeyRecord() {
+    const $input = $(this);
+    if ($input.hasClass("recording")) return;
+    const action = $input.data("action");
+    const capture = (e) => {
+        e.stopImmediatePropagation();
+        e.preventDefault();
+        if (!e.key) return;
+        if (["Shift", "Control", "Alt", "Meta"].includes(e.key)) return;
+        if ((e.key === "Delete" || e.key === "Backspace" || e.key === "Escape") && !e.altKey && !e.ctrlKey && !e.shiftKey && !e.metaKey) {
+            hotKeys[action] = {
+                key: "",
+                ctrl: false,
+                alt: false,
+                shift: false
+            };
+        }
+        else {
+            hotKeys[action] = {
+                key: e.key.toUpperCase(),
+                ctrl: e.ctrlKey,
+                alt: e.altKey,
+                shift: e.shiftKey
+            };
+        }
+        saveSettings();
+        finish();
+    };
+    const finish = () => {
+        document.removeEventListener("keydown", capture, true);
+        $input.removeClass("recording").val(bindingToText(hotKeys[action])).off("blur", finish);
+    };
+    document.addEventListener("keydown", capture, true);
+    $input.addClass("recording").val("Press keys…").on("blur", finish);
+}
+
+// input hotKeys[action] and convert the data to a string for the input field
+function bindingToText(b) {
+    if (!b) return "";
+    let keys = [];
+    if (b.ctrl) keys.push("CTRL");
+    if (b.alt) keys.push("ALT");
+    if (b.shift) keys.push("SHIFT");
+    if (b.key) keys.push(b.key === " " ? "SPACE" : b.key);
+    return keys.join(" + ");
 }
 
 // save settings
@@ -428,10 +495,7 @@ function validateLocalStorage(item) {
 // apply styles
 function applyStyles() {
     //$("#anisongdbSearchStyle").remove();
-    let style = document.createElement("style");
-    style.type = "text/css";
-    style.id = "anisongdbSearchStyle";
-    style.appendChild(document.createTextNode(`
+    let css = /*css*/ `
         #anisongdbWindow .modal-header {
             padding: 0;
             height: 74px;
@@ -522,6 +586,19 @@ function applyStyles() {
         table.styledTable tbody tr:nth-child(even) {
             background-color: #353535;
         }
-    `));
+        #adbsHotkeyTable th {
+            font-weight: bold;
+            padding: 0 20px 5px 0;
+        }
+        #adbsHotkeyTable td {
+            padding: 2px 20px 2px 0;
+        }
+        #adbsHotkeyTable select, #adbsHotkeyTable input {
+            color: black;
+        }
+    `;
+    let style = document.createElement("style");
+    style.id = "anisongdbSearchStyle";
+    style.textContent = css.trim();
     document.head.appendChild(style);
 }
