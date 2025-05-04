@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Anisongdb Search
 // @namespace    https://github.com/kempanator
-// @version      0.16
+// @version      0.17
 // @description  Adds a window to search anisongdb.com in game
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -27,7 +27,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.16";
+const version = "0.17";
 const saveData = validateLocalStorage("anisongdbSearch");
 let anisongdbWindow;
 let injectSearchButtons = saveData.injectSearchButtons ?? true;
@@ -37,7 +37,7 @@ let hotKeys = {
 }
 
 function setup() {
-    new Listener("answer results", (payload) => {
+    new Listener("answer results", (data) => {
         if (injectSearchButtons) {
             setTimeout(() => {
                 $("#adbsSearchButtonRow").remove();
@@ -46,14 +46,14 @@ function setup() {
                     .append($("<button>Anime</button>").click(() => {
                         anisongdbWindow.open();
                         $("#adbsQueryMode").val("Anime");
-                        $("#adbsQueryInput").val(payload.songInfo.animeNames.romaji);
-                        getAnisongdbData("anime", payload.songInfo.animeNames.romaji, false);
+                        $("#adbsQueryInput").val(data.songInfo.animeNames.romaji);
+                        getAnisongdbData("anime", data.songInfo.animeNames.romaji, false);
                     }))
                     .append($("<button>Artist</button>").click(() => {
                         anisongdbWindow.open();
                         $("#adbsQueryMode").val("Artist");
-                        $("#adbsQueryInput").val(payload.songInfo.artist);
-                        getAnisongdbData("artist", payload.songInfo.artist, false);
+                        $("#adbsQueryInput").val(data.songInfo.artist);
+                        getAnisongdbData("artist", data.songInfo.artist, false);
                     }))
                 );
             }, 0);
@@ -593,8 +593,11 @@ function applyStyles() {
         #adbsHotkeyTable td {
             padding: 2px 20px 2px 0;
         }
-        #adbsHotkeyTable select, #adbsHotkeyTable input {
+        #adbsHotkeyTable input.hk-input {
+            width: 200px;
             color: black;
+            cursor: pointer;
+            user-select: none;
         }
     `;
     let style = document.createElement("style");
