@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.137
+// @version      0.138
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -105,7 +105,7 @@ OTHER
 
 "use strict";
 if (typeof Listener === "undefined") return;
-const version = "0.137";
+const version = "0.138";
 const saveData = validateLocalStorage("megaCommands");
 const originalOrder = {qb: [], gm: []};
 let animeList;
@@ -3509,6 +3509,16 @@ async function parseCommand(messageText, type, target) {
     }
     else if (command === "quizid") {
         sendMessage(String(quiz.quizDescription?.quizId), type, target);
+    }
+    else if (command === "theme") {
+        if (split.length === 1) {
+            let $active = $(".quizOfTheDayScheduleDay.active");
+            if ($active.length) {
+                let theme = $active.find(".quizOfTheDayScheduleDayType").text().trim();
+                let description = $active.find(".quizOfTheDayScheduleDayDescription").text().trim();
+                sendMessage(description ? `${theme} - ${description}` : theme, type, target);
+            }
+        }
     }
     else if (command === "dm" || command === "pm") {
         if (split.length === 1) {
