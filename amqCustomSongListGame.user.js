@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.75
+// @version      0.76
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -44,7 +44,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.75";
+const version = "0.76";
 const saveData = validateLocalStorage("customSongListGame");
 const hostDict = {1: "eudist.animemusicquiz.com", 2: "nawdist.animemusicquiz.com", 3: "naedist.animemusicquiz.com"};
 let CSLButtonCSS = saveData.CSLButtonCSS || "calc(25% - 250px)";
@@ -94,6 +94,11 @@ let hotKeys = {
     start: loadHotkey("start"),
     stop: loadHotkey("stop"),
     mergeAll: loadHotkey("mergeAll"),
+    clearAll: loadHotkey("clearSongList"),
+    transferMerged: loadHotkey("transferMerged"),
+    tableMode: loadHotkey("clearMerged"),
+    downloadMerged: loadHotkey("downloadMerged"),
+    clearMerged: loadHotkey("tableMode"),
 };
 
 $("#gameContainer").append($(/*html*/`
@@ -380,10 +385,15 @@ $("#gameContainer").append($(/*html*/`
     </div>
 `));
 
+createHotkeyRow("Open This Window", "cslgWindow");
 createHotkeyRow("Start CSL", "start");
 createHotkeyRow("Stop CSL", "stop");
-createHotkeyRow("Open Window", "cslgWindow");
-createHotkeyRow("Merge All", "mergeAll");
+createHotkeyRow("Add All To Merged", "mergeAll");
+createHotkeyRow("Clear Song List", "clearSongList");
+createHotkeyRow("Transfer From Merged", "transferMerged");
+createHotkeyRow("Clear Merged", "clearMerged");
+createHotkeyRow("Download Merged", "downloadMerged");
+createHotkeyRow("Change Table Mode", "tableMode");
 
 $("#lobbyPage .topMenuBar").append(`<div id="lnCustomSongListButton" class="clickAble topMenuButton topMenuMediumButton"><h3>CSL</h3></div>`);
 $("#lnCustomSongListButton").click(() => { openSettingsModal() });
@@ -1015,6 +1025,36 @@ function setup() {
         mergeAll: () => {
             mergedSongList = Array.from(new Set(mergedSongList.concat(songList).map((x) => JSON.stringify(x)))).map((x) => JSON.parse(x));
             createMergedSongListTable();
+        },
+        clearSongList: () => {
+            songList = [];
+            createSongListTable();
+        },
+        transferMerged: () => {
+            songList = Array.from(mergedSongList);
+            createSongListTable();
+        },
+        clearMerged: () => {
+            mergedSongList = [];
+            createMergedSongListTable();
+        },
+        downloadMerged: () => {
+            if (mergedSongList.length) {
+                let data = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(mergedSongList));
+                let element = document.createElement("a");
+                element.setAttribute("href", data);
+                element.setAttribute("download", "merged.json");
+                document.body.appendChild(element);
+                element.click();
+                element.remove();
+            }
+            else {
+                messageDisplayer.displayMessage("No songs", "add some songs to the merged song list");
+            }
+        },
+        tableMode: () => {
+            songListTableView = (songListTableView + 1) % 3;
+            createSongListTable();
         }
     };
 
@@ -3184,8 +3224,11 @@ function applyStyles() {
         #cslgHotkeyTable td {
             padding: 2px 20px 2px 0;
         }
-        #cslgHotkeyTable select, #cslgHotkeyTable input {
+        #cslgHotkeyTable input.hk-input {
+            width: 200px;
             color: black;
+            cursor: pointer;
+            user-select: none;
         }
         table.styledTable thead tr {
             background-color: #282828;
