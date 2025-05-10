@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Chat Plus
 // @namespace    https://github.com/kempanator
-// @version      0.32
+// @version      0.33
 // @description  Add new features to chat and messages
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -37,7 +37,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.32";
+const version = "0.33";
 const apiKey = "LIVDSRZULELA";
 const saveData = validateLocalStorage("chatPlus");
 const imageURLregex = /https?:\/\/\S+\.(?:png|jpe?g|gif|webp|bmp|tiff)/i;
@@ -71,7 +71,7 @@ let litterboxUploadTime = "12h";
 let showCustomColors = true;
 let customColorMap = {};
 
-$("#settingsGraphicContainer").append(`
+$("#settingsGraphicContainer").append(/*html*/`
     <div class="row" style="padding-top: 10px">
         <div id="smChatPlusSettings" class="col-xs-12">
             <div style="text-align: center">
@@ -201,7 +201,7 @@ $("#settingsGraphicContainer").append(`
     </div>
 `);
 
-$("#gcChatContent .gcInputContainer").append(`
+$("#gcChatContent .gcInputContainer").append(/*html*/`
     <div id="gcGifSearchOuterContainer">
         <div id="gcGifSearchButton" class="clickAble">
             <i class="fa fa-picture-o" aria-hidden="true"></i>
@@ -209,7 +209,7 @@ $("#gcChatContent .gcInputContainer").append(`
     </div>
 `);
 
-$("#gcMessageContainer").after(`
+$("#gcMessageContainer").after(/*html*/`
     <div id="gcGifContainer">
         <input id="tenorSearchInput" type="text" placeholder="gif search...">
         <div id="tenorGifContainer"></div>
@@ -835,13 +835,10 @@ function applyStyles() {
     customColorMap = {};
     customColors.forEach((item, index) => {
         for (let player of item.players) {
-            customColorMap[player] = index;
+            customColorMap[player.toLowerCase()] = index;
         }
     });
-    let style = document.createElement("style");
-    style.type = "text/css";
-    style.id = "chatPlusStyle";
-    let text = `
+    let css = /*css*/ `
         #smChatPlusSettings span, #smChatPlusSettings .customCheckbox {
             vertical-align: middle;
         }
@@ -984,13 +981,13 @@ function applyStyles() {
             opacity: .7;
         }
     `;
-    if (reformatBottomBar) text += `
+    if (reformatBottomBar) css += `
         #loadBalanceStatusContainer {
             left: ${loadBalancerFromLeft}px;
         }
     `;
     if (dmColor) {
-        text += `
+        css += `
             .dmUsername.self {
                 color: ${selfColor};
             }
@@ -1000,7 +997,7 @@ function applyStyles() {
         `;
         if (showCustomColors) {
             customColors.forEach((item, index) => {
-                text += `
+                css += `
                     .dmUsername.customColor${index} {
                         color: ${item.color};
                     }
@@ -1009,7 +1006,7 @@ function applyStyles() {
         }
     }
     if (ncColor) {
-        text += `
+        css += `
             .nexusCoopChatName.self {
                 color: ${selfColor};
             }
@@ -1019,7 +1016,7 @@ function applyStyles() {
         `;
         if (showCustomColors) {
             customColors.forEach((item, index) => {
-                text += `
+                css += `
                     .nexusCoopChatName.customColor${index} {
                         color: ${item.color};
                     }
@@ -1027,6 +1024,8 @@ function applyStyles() {
             });
         }
     }
-    style.appendChild(document.createTextNode(text));
+    let style = document.createElement("style");
+    style.id = "chatPlusStyle";
+    style.textContent = css.trim();
     document.head.appendChild(style);
 }
