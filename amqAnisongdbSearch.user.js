@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Anisongdb Search
 // @namespace    https://github.com/kempanator
-// @version      0.17
+// @version      0.18
 // @description  Adds a window to search anisongdb.com in game
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -27,11 +27,12 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.17";
+const version = "0.18";
 const saveData = validateLocalStorage("anisongdbSearch");
+let rankedRunningIds;
 let anisongdbWindow;
 let injectSearchButtons = saveData.injectSearchButtons ?? true;
-let tableSort = {mode: "anime", ascending: true};
+let tableSort = { mode: "anime", ascending: true };
 let hotKeys = {
     adbsWindow: loadHotkey("adbsWindow")
 }
@@ -75,31 +76,27 @@ function setup() {
         id: "anisongdbPanel",
         width: 1.0,
         height: "100%",
-        scrollable: {x: false, y: true}
+        scrollable: { x: false, y: true }
     });
     anisongdbWindow.window.find(".modal-header").empty()
         .append($(`<i class="fa fa-times clickAble" style="font-size: 25px; top: 8px; right: 15px; position: absolute;" aria-hidden="true"></i>`).click(() => {
             anisongdbWindow.close();
         }))
         .append($(`<i class="fa fa-globe clickAble" style="font-size: 22px; top: 11px; right: 42px; position: absolute;" aria-hidden="true"></i>`).click(() => {
-            window.open("https://anisongdb.com","_blank");
+            window.open("https://anisongdb.com", "_blank");
         }))
         .append(`<h2>AnisongDB Search</h2>`)
         .append($(`<div class="tabContainer">`)
-            .append($(`<div id="adbsSearchTab" class="tab clickAble"><span>Search</span></div>`).click(function() {
-                tabReset();
-                $(this).addClass("selected");
-                $("#adbsSearchContainer").show();
+            .append($(`<div id="adbsSearchTab" class="tab clickAble"><span>Search</span></div>`).click(() => {
+                switchTab("adbsSearch");
             }))
-            .append($(`<div id="adbsSettingsTab" class="tab clickAble"><span>Settings</span></div>`).click(function() {
-                tabReset();
-                $(this).addClass("selected");
-                $("#adbsSettingsContainer").show();
+            .append($(`<div id="adbsSettingsTab" class="tab clickAble"><span>Settings</span></div>`).click(() => {
+                switchTab("adbsSettings");
             }))
         );
 
     anisongdbWindow.panels[0].panel
-        .append($(`<div id="adbsSearchContainer"></div>`)
+        .append($(`<div id="adbsSearchContainer" class="tabSection"></div>`)
             .append($(`<div id="anisongdbSearchRow"></div>`)
                 .append($(`<select id="adbsQueryMode" style="padding: 2px 0;"><option>Anime</option><option>Artist</option><option>Song</option><option>Composer</option><option>Season</option><option>Ann Id</option><option>Mal Id</option></select>`))
                 .append($(`<input id="adbsQueryInput" type="text" style="width: 300px; padding: 0 2px;">`).keypress((event) => {
@@ -115,44 +112,28 @@ function setup() {
             .append($(`<table id="adbsTable" class="styledTable"></table>`)
                 .append($(`<thead><tr><th class="anime">Anime</th><th class="artist">Artist</th><th class="song">Song</th><th class="type">Type</th><th class="vintage">Vintage</th></tr></thead>`)
                     .on("click", "th", (event) => {
-                        if (event.target.classList.contains("anime")) {
-                            tableSortChange("anime");
-                            sortAnisongdbTableEntries();
-                        }
-                        else if (event.target.classList.contains("artist")) {
-                            tableSortChange("artist");
-                            sortAnisongdbTableEntries();
-                        }
-                        else if (event.target.classList.contains("song")) {
-                            tableSortChange("song");
-                            sortAnisongdbTableEntries();
-                        }
-                        else if (event.target.classList.contains("type")) {
-                            tableSortChange("type");
-                            sortAnisongdbTableEntries();
-                        }
-                        else if (event.target.classList.contains("vintage")) {
-                            tableSortChange("vintage");
-                            sortAnisongdbTableEntries();
+                        for (const className of ["anime", "artist", "song", "type", "vintage"]) {
+                            if (event.target.classList.contains(className)) {
+                                tableSortChange(className);
+                                sortAnisongdbTableEntries();
+                                break;
+                            }
                         }
                     })
                 )
                 .append($(`<tbody></tbody>`)
                     .on("click", "td", (event) => {
-                        if (event.target.classList.contains("anime")) {
-                            getAnisongdbData("anime", event.target.innerText);
-                        }
-                        else if (event.target.classList.contains("artist")) {
-                            getAnisongdbData("artist", event.target.innerText);
-                        }
-                        else if (event.target.classList.contains("song")) {
-                            getAnisongdbData("song", event.target.innerText);
+                        for (const className of ["anime", "artist", "song"]) {
+                            if (event.target.classList.contains(className)) {
+                                getAnisongdbData(className, event.target.innerText);
+                                break;
+                            }
                         }
                     })
                 )
             )
         )
-        .append($(`<div id="adbsSettingsContainer" style="padding: 10px;"></div>`)
+        .append($(`<div id="adbsSettingsContainer" class="tabSection" style="padding: 10px;"></div>`)
             .append(`<table id="adbsHotkeyTable"><thead><tr><th>Action</th><th>Key</th></tr></thead><tbody></tbody></table>`)
             .append($(`<div style="margin-top: 10px;"></div>`)
                 .append($(`<span>Song info Box Buttons</span>`))
@@ -188,14 +169,12 @@ function setup() {
     });
 
     createHotkeyRow("AnisongDB Window", "adbsWindow");
-    tabReset();
-    $("#adbsButtonsCheckbox").prop("checked", injectSearchButtons).click(function() {
+    switchTab("adbsSearch");
+    $("#adbsButtonsCheckbox").prop("checked", injectSearchButtons).click(function () {
         injectSearchButtons = !injectSearchButtons;
         $(this).prop("checked", injectSearchButtons);
         saveSettings();
     });
-    $("#adbsSearchTab").addClass("selected");
-    $("#adbsSearchContainer").show();
     $("#adbsPartialCheckbox").prop("checked", true);
     $("#optionListSettings").before(`<li class="clickAble" onclick="$('#anisongdbWindow').show()">AnisongDB</li>`);
     applyStyles();
@@ -257,7 +236,7 @@ function getAnisongdbData(mode, query, partial) {
     else if (mode === "season") {
         query = query.trim();
         query = query.charAt(0).toUpperCase() + query.slice(1).toLowerCase();
-        url = `https://anisongdb.com/api/filter_season?${new URLSearchParams({season: query})}`;
+        url = `https://anisongdb.com/api/filter_season?${new URLSearchParams({ season: query })}`;
     }
     else if (mode === "ann id") {
         url = "https://anisongdb.com/api/annId_request";
@@ -270,13 +249,13 @@ function getAnisongdbData(mode, query, partial) {
     if (mode === "season") {
         data = {
             method: "GET",
-            headers: {"Accept": "application/json", "Content-Type": "application/json"},
+            headers: { "Accept": "application/json", "Content-Type": "application/json" },
         };
     }
     else {
         data = {
             method: "POST",
-            headers: {"Accept": "application/json", "Content-Type": "application/json"},
+            headers: { "Accept": "application/json", "Content-Type": "application/json" },
             body: JSON.stringify(json)
         };
     }
@@ -286,7 +265,7 @@ function getAnisongdbData(mode, query, partial) {
             $("#adbsInfoText").remove();
             anisongdbWindow.panels[0].panel.append($(`<p id="adbsInfoText"></p>`).text(JSON.stringify(json)));
         }
-        else if (json.length === 0 && (ranked.currentState === ranked.RANKED_STATE_IDS.RUNNING || ranked.currentState === ranked.RANKED_STATE_IDS.CHAMP_RUNNING)) {
+        else if (json.length === 0 && isRankedRunning()) {
             $("#adbsTable tbody").empty();
             $("#adbsInfoText").remove();
             anisongdbWindow.panels[0].panel.append(`<p id="adbsInfoText">AnisongDB is not available during ranked</p>`);
@@ -298,6 +277,14 @@ function getAnisongdbData(mode, query, partial) {
         $("#adbsInfoText").remove();
         anisongdbWindow.panels[0].panel.append($(`<p id="adbsInfoText"></p>`).text(res.toString()));
     })
+}
+
+// return true if ranked/themed is running
+function isRankedRunning() {
+    if (ranked.currentState === ranked.RANKED_STATE_IDS.RUNNING) return true;
+    if (ranked.currentState === ranked.RANKED_STATE_IDS.CHAMP_RUNNING) return true;
+    if (ranked.currentState === ranked.RANKED_STATE_IDS.THEMED_RUNNING) return true;
+    return false;
 }
 
 // go button press
@@ -348,12 +335,12 @@ function sortAnisongdbTableEntries() {
     $("#adbsTable tbody").append(rows);
 }
 
-// reset tabs
-function tabReset() {
-    $("#adbsSearchTab").removeClass("selected");
-    $("#adbsSettingsTab").removeClass("selected");
-    $("#adbsSearchContainer").hide();
-    $("#adbsSettingsContainer").hide();
+// reset all tabs and switch to the inputted tab
+function switchTab(tab) {
+    $("#anisongdbWindow .modal-header .tabContainer .tab").removeClass("selected");
+    $("#anisongdbWindow .modal-body .tabSection").hide();
+    $(`#${tab}Tab`).addClass("selected");
+    $(`#${tab}Container`).show();
 }
 
 // input full song type text, return shortened version
@@ -363,9 +350,9 @@ function shortenType(type) {
 
 // translate song type text to amq values (input example: Opening 1, ED2)
 function translateTypeText(text) {
-    let songType = ({"O": 1, "E": 2, "I": 3})[text[0]] || null;
+    let songType = ({ "O": 1, "E": 2, "I": 3 })[text[0]] || null;
     let songTypeNumber = parseInt(text.match(/([0-9]+)/)) || null;
-    return {songType, songTypeNumber};
+    return { songType, songTypeNumber };
 }
 
 // get sorting value for song type
@@ -389,7 +376,7 @@ function vintageSortValue(vintageA, vintageB) {
     if (yearA !== yearB) {
         return yearA - yearB;
     }
-    let seasonOrder = {"Winter": 1, "Spring": 2, "Summer": 3, "Fall": 4};
+    let seasonOrder = { "Winter": 1, "Spring": 2, "Summer": 3, "Fall": 4 };
     return seasonOrder[seasonA] - seasonOrder[seasonB];
 }
 
