@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Show Room Players
 // @namespace    https://github.com/kempanator
-// @version      0.24
+// @version      0.25
 // @description  Adds extra functionality to room tiles
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -29,15 +29,15 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.24";
+const version = "0.25";
 //const saveData = validateLocalStorage("showRoomPlayers");
 let showPlayerColors = true;
 let showCustomColors = true;
 let customColorMap = {};
 
 function setup() {
-    new Listener("New Rooms", (payload) => {
-        payload.forEach((item) => {
+    new Listener("New Rooms", (data) => {
+        data.forEach((item) => {
             setTimeout(() => {
                 let room = roomBrowser.activeRooms[item.id];
                 if (room) {
@@ -47,16 +47,16 @@ function setup() {
             }, 1);
         });
     }).bindListener();
-    new Listener("Room Change", (payload) => {
-        if (payload.changeType === "players" || payload.changeType === "spectators") {
+    new Listener("Room Change", (data) => {
+        if (data.changeType === "players" || data.changeType === "spectators") {
             setTimeout(() => {
-                let room = roomBrowser.activeRooms[payload.roomId];
+                let room = roomBrowser.activeRooms[data.roomId];
                 if (room) {
                     room.updateFriends();
                     room.refreshRoomPlayers();
-                    if (payload.newHost) {
-                        room.updateAvatar(payload.newHost.avatar);
-                        room.clickHostName(payload.newHost.name);
+                    if (data.newHost) {
+                        room.updateAvatar(data.newHost.avatar);
+                        room.clickHostName(data.newHost.name);
                     }
                 }
             }, 1);
@@ -268,10 +268,7 @@ function applyStyles() {
             customColorMap[player.toLowerCase()] = index;
         }
     });
-    let style = document.createElement("style");
-    style.type = "text/css";
-    style.id = "showRoomPlayersStyle";
-    let text = `
+    let css = /*css*/ `
         li.srpPlayer {
             cursor: pointer;
         }
@@ -279,7 +276,7 @@ function applyStyles() {
             text-shadow: 0 0 6px white;
         }
     `;
-    if (showPlayerColors) text += `
+    if (showPlayerColors) css += `
         li.srpPlayer.self {
             color: ${selfColor};
         }
@@ -292,13 +289,15 @@ function applyStyles() {
     `;
     if (showCustomColors) {
         customColors.forEach((item, index) => {
-            text += `
+            css += `
                 li.srpPlayer.customColor${index} {
                     color: ${item.color};
                 }
             `;
         });
     }
-    style.appendChild(document.createTextNode(text));
+    let style = document.createElement("style");
+    style.id = "showRoomPlayersStyle";
+    style.textContent = css.trim();
     document.head.appendChild(style);
 }
