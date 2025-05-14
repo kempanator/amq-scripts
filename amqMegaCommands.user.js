@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.138
+// @version      0.139
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -105,9 +105,9 @@ OTHER
 
 "use strict";
 if (typeof Listener === "undefined") return;
-const version = "0.138";
+const version = "0.139";
 const saveData = validateLocalStorage("megaCommands");
-const originalOrder = {qb: [], gm: []};
+const originalOrder = { qb: [], gm: [] };
 let animeList;
 let animeAutoCompleteLowerCase = [];
 let autoAcceptInvite = saveData.autoAcceptInvite ?? "";
@@ -121,12 +121,12 @@ let autoHost = saveData.autoHost ?? "";
 let autoInvite = saveData.autoInvite ?? "";
 let autoJoinRoom = saveData.autoJoinRoom ?? false;
 let autoKey = saveData.autoKey ?? false;
-let autoMute = saveData.autoMute ?? {mute: [], unmute: [], toggle: [], randomMute: null, randomUnmute: null};
+let autoMute = saveData.autoMute ?? { mute: [], unmute: [], toggle: [], randomMute: null, randomUnmute: null };
 let autoReady = saveData.autoReady ?? false;
-let autoStart = saveData.autoStart ?? {delay: 0, remaining: 0, timer: null, timerRunning: false};
+let autoStart = saveData.autoStart ?? { delay: 0, remaining: 0, timer: null, timerRunning: false };
 let autoStatus = saveData.autoStatus ?? "";
-let autoSwitch = saveData.autoSwitch ?? {mode: "", temp: false};
-let autoThrow = saveData.autoThrow ?? {time: [], text: null, multichoice: null};
+let autoSwitch = saveData.autoSwitch ?? { mode: "", temp: false };
+let autoThrow = saveData.autoThrow ?? { time: [], text: null, multichoice: null };
 let autoVoteLobby = saveData.autoVoteLobby ?? false;
 let autoVoteSkip = saveData.autoVoteSkip ?? [];
 let backgroundURL = saveData.backgroundURL ?? "";
@@ -147,11 +147,10 @@ let malClientId = saveData.malClientId ?? "";
 let muteReplay = saveData.muteReplay ?? false;
 let muteSubmit = saveData.muteSubmit ?? false;
 let playbackSpeed = saveData.playbackSpeed ?? [];
-let playerDetection = saveData.playerDetection ?? {invisible: false, players: []};
+let playerDetection = saveData.playerDetection ?? { invisible: false, players: [] };
 let printLoot = saveData.printLoot ?? false;
-let reorder = saveData.reorder ?? {quizBar: false, quizBarList: [], gearMenu: false, gearMenuList: []};
+let reorder = saveData.reorder ?? { quizBar: false, quizBarList: [], gearMenu: false, gearMenuList: [] };
 let selfDM = saveData.selfDM ?? false;
-let tabSwitch = saveData.tabSwitch ?? 0; //0: off, 1: chat first, 2: answerbox first, 3: only chat, 4: only answerbox
 let voteOptions = {};
 let votes = {};
 let audioBuffers = {}; //{songNumber: {startPoint, audioBuffer}, ...}
@@ -209,7 +208,8 @@ let hotKeys = {
     mcHelpWindow: loadHotkey("mcHelpWindow"),
     songHistoryWindow: loadHotkey("songHistoryWindow"),
     settingsWindow: loadHotkey("settingsWindow"),
-    focusDropdown: loadHotkey("focusDropdown")
+    focusDropdown: loadHotkey("focusDropdown"),
+    focusChat: loadHotkey("focusChat")
 };
 
 const rules = {
@@ -249,55 +249,55 @@ const info = {
     "turnofflist": "https://files.catbox.moe/hn1mhw.png"
 };
 const dqMap = {
-    "Naruto": {genre: [1, 2, 3, 4, 6, 17], years: [2002, 2002], seasons: [3, 3]},
-    "Neon Genesis Evangelion": {genre: [1, 4, 9, 11, 12, 14], years: [1995, 1995], seasons: [3, 3]},
-    "Gintama": {genre: [1, 3, 4, 14], tags: [39], years: [2006, 2006], seasons: [1, 1]},
-    "Detective Conan": {genre: [2, 3, 11, 12], years: [1996, 1996], seasons: [0, 0]},
-    "BECK: Mongolian Chop Squad": {genre: [3, 4, 10, 15], years: [2004, 2004], seasons: [3, 3]},
-    "Initial D": {genre: [1, 4, 16], years: [1998, 1998], seasons: [1, 1]},
-    "Negima!?": {genre: [2, 3, 5, 6, 13], years: [2006, 2006], seasons: [3, 3]},
-    "Urusei Yatsura": {genre: [3, 4, 13, 14, 15], years: [1981, 1981], seasons: [3, 3]},
-    "Touch": {genre: [4, 13, 15, 16], years: [1985, 1985], seasons: [0, 0]},
-    "Code Geass: Lelouch of the Rebellion Remake Movies": {genre: [1, 4, 9, 14, 18], years: [2017, 2018], seasons: [3, 1]},
-    "High School of the Dead": {genre: [1, 4, 5, 7, 13, 17], years: [2010, 2010], seasons: [2, 2]},
-    "Senki Zesshou Symphogear GX": {genre: [1, 4, 8, 10, 14], years: [2015, 2015], seasons: [2, 2]},
-    "Ojamajo Doremi Dokkaan!": {genre: [3, 4, 6, 8, 15], years: [2002, 2002], seasons: [0, 0]},
-    "Macross Delta": {genre: [1, 9, 10, 13, 14], years: [2016, 2016], seasons: [1, 1]},
-    "Macross 7": {genre: [1, 3, 4, 9, 10, 14], years: [1994, 1994], seasons: [3, 3]},
-    "Mobile Suit Gundam Seed Destiny": {genre: [1, 4, 9, 13, 14], years: [2004, 2004], seasons: [3, 3]},
-    "Zombie Land Saga Revenge": {genre: [3, 10, 17], years: [2021, 2021], seasons: [1, 1]},
-    "Revue Starlight": {genre: [1, 4, 10, 12], years: [2018, 2018], seasons: [2, 2]},
-    "Idoly Pride": {genre: [4, 10, 15, 17], years: [2021, 2021], seasons: [0, 0]},
-    "Extra Olympia Kyklos": {genre: [3, 6, 15, 16], years: [2020, 2020], seasons: [1, 1]},
-    "Japan Animator Expo": {genre: [1, 5, 6, 9, 10, 17], years: [2014, 2014], seasons: [3, 3]},
-    "Persona 4 the Animation": {genre: [1, 2, 11, 14, 17], years: [2011, 2011], seasons: [3, 3]},
-    "Ranma 1/2": {genre: [1, 3, 5, 13, 15], years: [1989, 1989], seasons: [1, 1]},
-    "Re:Zero: Starting Life in Another World": {genre: [1, 2, 4, 6, 12, 13, 18], years: [2016, 2021], seasons: [1, 0]},
-    "NieR:Automata Ver1.1a": {genre: [1, 4, 6, 12, 14], years: [2023, 2023], seasons: [0, 0]},
-    "Guilty Crown": {genre: [1, 4, 9, 12, 13, 14], years: [2011, 2011], seasons: [3, 3]},
-    ".hack//Sign": {genre: [2, 6, 11, 14], years: [2002, 2002], seasons: [1, 1]},
-    "Heaven's Lost Property": {genre: [3, 5, 13, 14, 15, 17], years: [2009, 2009], seasons: [3, 3]},
-    "White Album 2": {genre: [4, 10, 13, 15], years: [2013, 2013], seasons: [3, 3]},
-    "Kimagure Orange★Road": {genre: [1, 3, 4, 6, 13], years: [1987, 1987], seasons: [1, 1]},
-    "Cardcaptor Sakura": {genre: [3, 4, 6, 8, 13], years: [1998, 1998], seasons: [1, 1]},
-    "Healer Girl": {genre: [10, 15, 17], years: [2022, 2022], seasons: [1, 1]},
-    "Puella Magi Madoka Magica": {genre: [1, 4, 6, 8, 12, 18], years: [2011, 2011], seasons: [0, 0]},
-    "Magic Knight Rayearth": {genre: [2, 4, 6, 8, 9], years: [1994, 1995], seasons: [3, 1]},
-    "Fate/kaleid liner Prisma☆Illya 2wei Herz!": {genre: [1, 3, 5, 6, 8], years: [2015, 2015], seasons: [2, 2]},
-    "Aquarion Evol": {genre: [1, 4, 6, 9, 13, 14], years: [2012, 2012], seasons: [0, 0]},
-    "Wolf's Rain": {genre: [1, 2, 4, 6, 11, 14], years: [2003, 2003], seasons: [0, 0]},
-    "Koyomimonogatari": {genre: [3, 11, 17], years: [2016, 2016], seasons: [0, 0]},
-    "Beastars": {genre: [4, 11, 12, 13, 15], years: [2019, 2021], seasons: [3, 0]},
-    "Vivy: Fluorite Eye's Song": {genre: [1, 4, 10, 14, 18], years: [2021, 2021], seasons: [1, 1]},
-    "Monogatari Series Second Season": {genre: [3, 4, 11, 12, 13, 17], years: [2013, 2013], seasons: [2, 2]},
-    "Hikaru no Go": {genre: [3, 16, 17], years: [2001, 2001], seasons: [3, 3]},
-    "Dorohedoro": {genre: [1, 2, 3, 6, 7, 11], years: [2020, 2020], seasons: [0, 0]},
-    "Akame ga Kill!": {genre: [1, 2, 4, 6, 7, 12, 18], years: [2014, 2014], seasons: [2, 2]},
-    "Magical Girl Site": {genre: [1, 4, 7, 8, 12, 17], years: [2018, 2018], seasons: [1, 1]},
-    "Made in Abyss": {genre: [2, 4, 6, 7, 11, 14], years: [2017, 2017], seasons: [2, 2]},
-    "Girls' Last Tour": {genre: [2, 14, 15], years: [2017, 2017], seasons: [3, 3]},
-    "Mirai Nikki": {genre: [1, 7, 11, 12, 17, 18], years: [2011, 2011], seasons: [3, 3]},
-    "MF Ghost 2nd Season": {genre: [14, 16], years: [2024, 2024], seasons: [3, 3]}
+    "Naruto": { genre: [1, 2, 3, 4, 6, 17], years: [2002, 2002], seasons: [3, 3] },
+    "Neon Genesis Evangelion": { genre: [1, 4, 9, 11, 12, 14], years: [1995, 1995], seasons: [3, 3] },
+    "Gintama": { genre: [1, 3, 4, 14], tags: [39], years: [2006, 2006], seasons: [1, 1] },
+    "Detective Conan": { genre: [2, 3, 11, 12], years: [1996, 1996], seasons: [0, 0] },
+    "BECK: Mongolian Chop Squad": { genre: [3, 4, 10, 15], years: [2004, 2004], seasons: [3, 3] },
+    "Initial D": { genre: [1, 4, 16], years: [1998, 1998], seasons: [1, 1] },
+    "Negima!?": { genre: [2, 3, 5, 6, 13], years: [2006, 2006], seasons: [3, 3] },
+    "Urusei Yatsura": { genre: [3, 4, 13, 14, 15], years: [1981, 1981], seasons: [3, 3] },
+    "Touch": { genre: [4, 13, 15, 16], years: [1985, 1985], seasons: [0, 0] },
+    "Code Geass: Lelouch of the Rebellion Remake Movies": { genre: [1, 4, 9, 14, 18], years: [2017, 2018], seasons: [3, 1] },
+    "High School of the Dead": { genre: [1, 4, 5, 7, 13, 17], years: [2010, 2010], seasons: [2, 2] },
+    "Senki Zesshou Symphogear GX": { genre: [1, 4, 8, 10, 14], years: [2015, 2015], seasons: [2, 2] },
+    "Ojamajo Doremi Dokkaan!": { genre: [3, 4, 6, 8, 15], years: [2002, 2002], seasons: [0, 0] },
+    "Macross Delta": { genre: [1, 9, 10, 13, 14], years: [2016, 2016], seasons: [1, 1] },
+    "Macross 7": { genre: [1, 3, 4, 9, 10, 14], years: [1994, 1994], seasons: [3, 3] },
+    "Mobile Suit Gundam Seed Destiny": { genre: [1, 4, 9, 13, 14], years: [2004, 2004], seasons: [3, 3] },
+    "Zombie Land Saga Revenge": { genre: [3, 10, 17], years: [2021, 2021], seasons: [1, 1] },
+    "Revue Starlight": { genre: [1, 4, 10, 12], years: [2018, 2018], seasons: [2, 2] },
+    "Idoly Pride": { genre: [4, 10, 15, 17], years: [2021, 2021], seasons: [0, 0] },
+    "Extra Olympia Kyklos": { genre: [3, 6, 15, 16], years: [2020, 2020], seasons: [1, 1] },
+    "Japan Animator Expo": { genre: [1, 5, 6, 9, 10, 17], years: [2014, 2014], seasons: [3, 3] },
+    "Persona 4 the Animation": { genre: [1, 2, 11, 14, 17], years: [2011, 2011], seasons: [3, 3] },
+    "Ranma 1/2": { genre: [1, 3, 5, 13, 15], years: [1989, 1989], seasons: [1, 1] },
+    "Re:Zero: Starting Life in Another World": { genre: [1, 2, 4, 6, 12, 13, 18], years: [2016, 2021], seasons: [1, 0] },
+    "NieR:Automata Ver1.1a": { genre: [1, 4, 6, 12, 14], years: [2023, 2023], seasons: [0, 0] },
+    "Guilty Crown": { genre: [1, 4, 9, 12, 13, 14], years: [2011, 2011], seasons: [3, 3] },
+    ".hack//Sign": { genre: [2, 6, 11, 14], years: [2002, 2002], seasons: [1, 1] },
+    "Heaven's Lost Property": { genre: [3, 5, 13, 14, 15, 17], years: [2009, 2009], seasons: [3, 3] },
+    "White Album 2": { genre: [4, 10, 13, 15], years: [2013, 2013], seasons: [3, 3] },
+    "Kimagure Orange★Road": { genre: [1, 3, 4, 6, 13], years: [1987, 1987], seasons: [1, 1] },
+    "Cardcaptor Sakura": { genre: [3, 4, 6, 8, 13], years: [1998, 1998], seasons: [1, 1] },
+    "Healer Girl": { genre: [10, 15, 17], years: [2022, 2022], seasons: [1, 1] },
+    "Puella Magi Madoka Magica": { genre: [1, 4, 6, 8, 12, 18], years: [2011, 2011], seasons: [0, 0] },
+    "Magic Knight Rayearth": { genre: [2, 4, 6, 8, 9], years: [1994, 1995], seasons: [3, 1] },
+    "Fate/kaleid liner Prisma☆Illya 2wei Herz!": { genre: [1, 3, 5, 6, 8], years: [2015, 2015], seasons: [2, 2] },
+    "Aquarion Evol": { genre: [1, 4, 6, 9, 13, 14], years: [2012, 2012], seasons: [0, 0] },
+    "Wolf's Rain": { genre: [1, 2, 4, 6, 11, 14], years: [2003, 2003], seasons: [0, 0] },
+    "Koyomimonogatari": { genre: [3, 11, 17], years: [2016, 2016], seasons: [0, 0] },
+    "Beastars": { genre: [4, 11, 12, 13, 15], years: [2019, 2021], seasons: [3, 0] },
+    "Vivy: Fluorite Eye's Song": { genre: [1, 4, 10, 14, 18], years: [2021, 2021], seasons: [1, 1] },
+    "Monogatari Series Second Season": { genre: [3, 4, 11, 12, 13, 17], years: [2013, 2013], seasons: [2, 2] },
+    "Hikaru no Go": { genre: [3, 16, 17], years: [2001, 2001], seasons: [3, 3] },
+    "Dorohedoro": { genre: [1, 2, 3, 6, 7, 11], years: [2020, 2020], seasons: [0, 0] },
+    "Akame ga Kill!": { genre: [1, 2, 4, 6, 7, 12, 18], years: [2014, 2014], seasons: [2, 2] },
+    "Magical Girl Site": { genre: [1, 4, 7, 8, 12, 17], years: [2018, 2018], seasons: [1, 1] },
+    "Made in Abyss": { genre: [2, 4, 6, 7, 11, 14], years: [2017, 2017], seasons: [2, 2] },
+    "Girls' Last Tour": { genre: [2, 14, 15], years: [2017, 2017], seasons: [3, 3] },
+    "Mirai Nikki": { genre: [1, 7, 11, 12, 17, 18], years: [2011, 2011], seasons: [3, 3] },
+    "MF Ghost 2nd Season": { genre: [14, 16], years: [2024, 2024], seasons: [3, 3] }
 };
 
 if (document.querySelector("#loginPage")) {
@@ -370,7 +370,7 @@ function setup() {
         joinSpectate: () => {
             if (lobby.inLobby) {
                 if (lobby.isSpectator) {
-                    socket.sendCommand({type: "lobby", command: "change to player"});
+                    socket.sendCommand({ type: "lobby", command: "change to player" });
                 }
                 else {
                     lobby.changeToSpectator(selfName);
@@ -406,12 +406,12 @@ function setup() {
         },
         lobby: () => {
             if (quiz.inQuiz && quiz.isHost) {
-                socket.sendCommand({type: "quiz", command: "start return lobby vote"});
+                socket.sendCommand({ type: "quiz", command: "start return lobby vote" });
             }
         },
         pause: () => {
             if (quiz.inQuiz) {
-                socket.sendCommand({type: "quiz", command: "quiz " + (quiz.pauseButton.pauseOn ? "unpause" : "pause")});
+                socket.sendCommand({ type: "quiz", command: "quiz " + (quiz.pauseButton.pauseOn ? "unpause" : "pause") });
             }
         },
         voteSkip: () => {
@@ -423,17 +423,25 @@ function setup() {
             relog();
         },
         mcHelpWindow: () => {
-            $("#mcSettingsModal").is(":visible") ? $("#mcSettingsModal").modal("hide") : $("#mcSettingsModal").modal("show");
+            $("#mcSettingsModal").modal("toggle");
         },
         songHistoryWindow: () => {
             songHistoryWindow.trigger();
         },
         settingsWindow: () => {
-            $("#settingModal").is(":visible") ? $("#settingModal").modal("hide") : $("#settingModal").modal("show");
+            options.$modal.modal("toggle");
         },
         focusDropdown: () => {
             if (quiz.inQuiz) {
                 $("#qpAnswerInput").focus();
+            }
+        },
+        focusChat: () => {
+            if ($("#gcInput").is(":visible")) {
+                $("#gcInput").focus();
+            }
+            else if ($("#nexusCoopChatInput").is(":visible")) {
+                $("#nexusCoopChatInput").focus();
             }
         },
     };
@@ -457,6 +465,7 @@ function setup() {
             }
         }
     });
+
     new Listener("game chat update", (data) => {
         for (let message of data.messages) {
             if (message.message.startsWith("/forceall")) {
@@ -524,7 +533,7 @@ function setup() {
             volumeController.adjustVolume();
         }
         if (autoHint && hostModal.$scoring.slider("getValue") === quiz.SCORE_TYPE_IDS.HINT) {
-            socket.sendCommand({type: "quiz", command: "use hint", data: {hintId: autoHint}});
+            socket.sendCommand({ type: "quiz", command: "use hint", data: { hintId: autoHint } });
         }
         if (!quiz.isSpectator && quiz.gameMode !== "Ranked") {
             if (autoThrow.time.length) {
@@ -732,10 +741,10 @@ function setup() {
     }).bindListener();
     new Listener("return lobby vote result", (data) => {
         if (data.passed) {
-            if (autoDownloadJson.includes("all") || 
-            (autoDownloadJson.includes("solo") && quiz.soloMode) || 
-            (autoDownloadJson.includes("ranked") && quiz.gameMode === "Ranked") || 
-            (autoDownloadJson.includes("tour") && hostModal.$roomName.val().toLowerCase().includes("tour"))) {
+            if (autoDownloadJson.includes("all") ||
+                (autoDownloadJson.includes("solo") && quiz.soloMode) ||
+                (autoDownloadJson.includes("ranked") && quiz.gameMode === "Ranked") ||
+                (autoDownloadJson.includes("tour") && hostModal.$roomName.val().toLowerCase().includes("tour"))) {
                 $("#shHistoryTab").trigger("click");
                 setTimeout(() => {
                     popoutMessages.displayStandardMessage("Auto Download JSON", $(".shGameTitleInner").first().text().trim());
@@ -757,10 +766,10 @@ function setup() {
         if (sourceNode) sourceNode.stop();
     }).bindListener();
     new Listener("quiz end result", (data) => {
-        if (autoDownloadJson.includes("all") || 
-        (autoDownloadJson.includes("solo") && quiz.soloMode) || 
-        (autoDownloadJson.includes("ranked") && quiz.gameMode === "Ranked") || 
-        (autoDownloadJson.includes("tour") && hostModal.$roomName.val().toLowerCase().includes("tour"))) {
+        if (autoDownloadJson.includes("all") ||
+            (autoDownloadJson.includes("solo") && quiz.soloMode) ||
+            (autoDownloadJson.includes("ranked") && quiz.gameMode === "Ranked") ||
+            (autoDownloadJson.includes("tour") && hostModal.$roomName.val().toLowerCase().includes("tour"))) {
             $("#shHistoryTab").trigger("click");
             setTimeout(() => {
                 popoutMessages.displayStandardMessage("Auto Download JSON", $(".shGameTitleInner").first().text().trim());
@@ -863,7 +872,7 @@ function setup() {
                 if (acReverse) {
                     audioBuffer = reverseAudioBuffer(audioBuffer);
                 }
-                audioBuffers[quiz.infoContainer.currentSongNumber + 1] = {startPoint: data.startPont, audioBuffer: audioBuffer};
+                audioBuffers[quiz.infoContainer.currentSongNumber + 1] = { startPoint: data.startPont, audioBuffer: audioBuffer };
             }
         }
     }).bindListener();
@@ -883,7 +892,7 @@ function setup() {
     new Listener("friend state change", (data) => {
         if (data.online && autoInvite === data.name.toLowerCase() && inRoom() && !isInYourRoom(autoInvite) && !isSoloMode() && !isRankedMode()) {
             sendSystemMessage(data.name + " online: auto inviting");
-            setTimeout(() => { socket.sendCommand({type: "social", command: "invite to game", data: {target: data.name}}) }, 1000);
+            setTimeout(() => { socket.sendCommand({ type: "social", command: "invite to game", data: { target: data.name } }) }, 1000);
         }
         else if (alerts.onlineFriends.chat && data.online) {
             sendSystemMessage(data.name + " online");
@@ -927,13 +936,13 @@ function setup() {
     new Listener("nexus game invite", (data) => {
         if (autoAcceptInvite && !inRoom()) {
             if (autoAcceptInvite === "all") {
-                socket.sendCommand({type: "nexus", command: "join dungeon lobby", data: {lobbyId: data.lobbyId}});
+                socket.sendCommand({ type: "nexus", command: "join dungeon lobby", data: { lobbyId: data.lobbyId } });
             }
             else if (autoAcceptInvite === "friends" && socialTab.isFriend(data.sender)) {
-                socket.sendCommand({type: "nexus", command: "join dungeon lobby", data: {lobbyId: data.lobbyId}});
+                socket.sendCommand({ type: "nexus", command: "join dungeon lobby", data: { lobbyId: data.lobbyId } });
             }
             else if (Array.isArray(autoAcceptInvite) && autoAcceptInvite.includes(data.sender.toLowerCase())) {
-                socket.sendCommand({type: "nexus", command: "join dungeon lobby", data: {lobbyId: data.lobbyId}});
+                socket.sendCommand({ type: "nexus", command: "join dungeon lobby", data: { lobbyId: data.lobbyId } });
             }
         }
     }).bindListener();
@@ -974,7 +983,7 @@ function setup() {
     }).bindListener();
     $("#qpAnswerInput").on("input", (event) => {
         if (autoKey) {
-            socket.sendCommand({type: "quiz", command: "quiz answer", data: {answer: event.target.value || " "}});
+            socket.sendCommand({ type: "quiz", command: "quiz answer", data: { answer: event.target.value || " " } });
             quiz.answerInput.typingInput.autoSubmitEligible = false;
         }
     }).on("keypress", (event) => {
@@ -1033,14 +1042,14 @@ function setup() {
         }
         else if (autoJoinRoom.type === "nexus coop") {
             if (autoJoinRoom.id) {
-                socket.sendCommand({type: "nexus", command: "join dungeon lobby", data: {lobbyId: autoJoinRoom.id}});
+                socket.sendCommand({ type: "nexus", command: "join dungeon lobby", data: { lobbyId: autoJoinRoom.id } });
             }
             else {
-                socket.sendCommand({type: "nexus", command: "setup dungeon lobby", data: {typeId: 1, coop: true}});
+                socket.sendCommand({ type: "nexus", command: "setup dungeon lobby", data: { typeId: 1, coop: true } });
             }
         }
         else if (autoJoinRoom.type === "nexus solo") {
-            socket.sendCommand({type: "nexus", command: "setup dungeon lobby", data: {typeId: 1, coop: false}});
+            socket.sendCommand({ type: "nexus", command: "setup dungeon lobby", data: { typeId: 1, coop: false } });
         }
         if (autoJoinRoom.temp) {
             autoJoinRoom = false;
@@ -1048,12 +1057,13 @@ function setup() {
         }
     }
 
-    new MutationObserver(function() {
+    new MutationObserver(function () {
         if (enableAllProfileButtons) {
             $("#playerProfileLayer .ppFooterOptionIcon").removeClass("disabled");
         }
-    }).observe(document.querySelector("#playerProfileLayer"), {childList: true});
+    }).observe(document.querySelector("#playerProfileLayer"), { childList: true });
 
+    // build settings modal
     $("#gameContainer").append($(/*html*/`
         <div class="modal fade tab-modal" id="mcSettingsModal" tabindex="-1" role="dialog">
             <div class="modal-dialog" role="document" style="width: 800px">
@@ -1088,10 +1098,10 @@ function setup() {
                         </div>
                     </div>
                     <div class="modal-body" style="overflow-y: auto; max-height: calc(100vh - 150px);">
-                        <div id="mcDocumentationContainer" style="height: 500px; margin-top: 10px;">
+                        <div id="mcDocumentationContainer" class="tabSection" style="height: 500px; margin-top: 10px;">
                             <pre>${helpText}</pre>
                         </div>
-                        <div id="mcActiveContainer" style="margin: 10px 0;">
+                        <div id="mcActiveContainer" class="tabSection" style="margin: 10px 0;">
                             <div class="mcCommandRow">
                                 <button id="mcAutoReadyButton" class="btn mcCommandButton"></button>
                                 <span class="mcCommandTitle">Auto Ready</span>
@@ -1192,7 +1202,7 @@ function setup() {
                                 <span class="mcCommandTitle">Drop Down</span>
                             </div>
                         </div>
-                        <div id="mcHotkeyContainer" style="margin: 10px 0;">
+                        <div id="mcHotkeyContainer" class="tabSection" style="margin: 10px 0;">
                             <table id="mcHotkeyTable">
                                 <thead>
                                     <tr>
@@ -1204,7 +1214,7 @@ function setup() {
                                 </tbody>
                             </table>
                         </div>
-                        <div id="mcAlertsContainer" style="margin: 10px 0;">
+                        <div id="mcAlertsContainer" class="tabSection" style="margin: 10px 0;">
                             <table id="mcAlertsTable">
                                 <thead>
                                     <tr>
@@ -1217,7 +1227,7 @@ function setup() {
                                 </tbody>
                             </table>
                         </div>
-                        <div id="mcOrderContainer" style="margin: 10px 0;">
+                        <div id="mcOrderContainer" class="tabSection" style="margin: 10px 0;">
                             <h4 class="text-center">Reorganize Icons/Settings</h4>
                             <table id="mcOrderTable" style="width: 100%;">
                                 <thead>
@@ -1244,12 +1254,12 @@ function setup() {
                                 </tbody>
                             </table>
                         </div>
-                        <div id="mcStorageContainer" style="margin: 10px 0;">
+                        <div id="mcStorageContainer" class="tabSection" style="margin: 10px 0;">
                             <h4 class="text-center">Local Storage</h4>
                             <div style="margin: 10px 0"><button id="mcLocalStorageImportButton" style="color: black; margin-right: 10px;">Import</button><button id="mcLocalStorageExportButton" style="color: black; margin-right: 10px;">Export</button><button id="mcLocalStorageClearButton" style="color: black;">Clear</button></div>
                             <ul id="mcStorageList"></ul>
                         </div>
-                        <div id="mcInfoContainer" style="text-align: center; margin: 20px 0;">
+                        <div id="mcInfoContainer" class="tabSection" style="text-align: center; margin: 20px 0;">
                             <h4>Script Info</h4>
                             <div>Created by: kempanator</div>
                             <div>Version: ${version}</div>
@@ -1270,51 +1280,25 @@ function setup() {
         </div>
     `));
 
-    $("#mcActiveTab").click(() => {
-        tabReset();
-        $("#mcActiveTab").addClass("selected");
-        $("#mcActiveContainer").show();
-    });
-    $("#mcHotkeyTab").click(() => {
-        tabReset();
-        $("#mcHotkeyTab").addClass("selected");
-        $("#mcHotkeyContainer").show();
-    });
-    $("#mcDocumentationTab").click(() => {
-        tabReset();
-        $("#mcDocumentationTab").addClass("selected");
-        $("#mcDocumentationContainer").show();
-    });
-    $("#mcAlertsTab").click(() => {
-        tabReset();
-        $("#mcAlertsTab").addClass("selected");
-        $("#mcAlertsContainer").show();
-    });
-    $("#mcOrderTab").click(() => {
-        tabReset();
-        $("#mcOrderTab").addClass("selected");
-        $("#mcOrderContainer").show();
-    });
-    $("#mcStorageTab").click(() => {
-        createLocalStorageList();
-        tabReset();
-        $("#mcStorageTab").addClass("selected");
-        $("#mcStorageContainer").show();
-    });
-    $("#mcInfoTab").click(() => {
-        tabReset();
-        $("#mcInfoTab").addClass("selected");
-        $("#mcInfoContainer").show();
-    });
+    // setup tabs
+    $("#mcDocumentationTab").click(() => { switchTab("mcDocumentation"); });
+    $("#mcActiveTab").click(() => { switchTab("mcActive"); });
+    $("#mcHotkeyTab").click(() => { switchTab("mcHotkey"); });
+    $("#mcAlertsTab").click(() => { switchTab("mcAlerts"); });
+    $("#mcOrderTab").click(() => { switchTab("mcOrder"); });
+    $("#mcStorageTab").click(() => { createLocalStorageList(); switchTab("mcStorage"); });
+    $("#mcInfoTab").click(() => { switchTab("mcInfo"); });
+    switchTab("mcDocumentation");
 
-    $("#mcAutoReadyButton").click(function() {
+    // setup mcActive tab buttons and inputs
+    $("#mcAutoReadyButton").click(function () {
         autoReady = !autoReady;
         saveSettings();
         sendSystemMessage(`auto ready ${autoReady ? "enabled" : "disabled"}`);
         checkAutoReady();
         toggleCommandButton($(this), autoReady);
     });
-    $("#mcAutoStartButton").click(function() {
+    $("#mcAutoStartButton").click(function () {
         if ($(this).text() === "Off") {
             let $delay = $("#mcAutoStartDelayInput");
             let $remaining = $("#mcAutoStartRemainingInput");
@@ -1341,7 +1325,7 @@ function setup() {
             toggleCommandButton($(this), false);
         }
     });
-    $("#mcAutoAcceptInviteButton").click(function() {
+    $("#mcAutoAcceptInviteButton").click(function () {
         if ($(this).text() === "Off") {
             let option = $("#mcAutoAcceptInviteSelect").val();
             if (option === "all") {
@@ -1373,7 +1357,7 @@ function setup() {
             toggleCommandButton($(this), autoAcceptInvite);
         }
     });
-    $("#mcAutoAcceptInviteSelect").on("change", function() {
+    $("#mcAutoAcceptInviteSelect").on("change", function () {
         if ($(this).val() === "list") {
             $("#mcAutoAcceptInviteInput").show();
         }
@@ -1381,7 +1365,7 @@ function setup() {
             $("#mcAutoAcceptInviteInput").hide();
         }
     });
-    $("#mcAutoStatusButton").click(function() {
+    $("#mcAutoStatusButton").click(function () {
         if ($(this).text() === "Off") {
             autoStatus = $("#mcAutoStatusSelect").val();
             sendSystemMessage(`auto status set to ${autoStatus}`);
@@ -1393,13 +1377,13 @@ function setup() {
         saveSettings();
         toggleCommandButton($(this), autoStatus);
     });
-    $("#mcAutoKeyButton").click(function() {
+    $("#mcAutoKeyButton").click(function () {
         autoKey = !autoKey;
         saveSettings();
         sendSystemMessage(`auto key ${autoKey ? "enabled" : "disabled"}`);
         toggleCommandButton($(this), autoKey);
     });
-    $("#mcAutoThrowButton").click(function() {
+    $("#mcAutoThrowButton").click(function () {
         if ($(this).text() === "Off") {
             let option = $("#mcAutoThrowSelect").val();
             let time = $("#mcAutoThrowTimeInput").val();
@@ -1415,30 +1399,30 @@ function setup() {
             }
             let milliseconds = time.map((x) => Math.floor(x * 1000));
             if (option === "text") {
-                autoThrow = {time: milliseconds, text: text, multichoice: null};
+                autoThrow = { time: milliseconds, text: text, multichoice: null };
                 sendSystemMessage(getAutoThrowStatus());
                 toggleCommandButton($(this), true);
             }
             else if (option === "multichoice") {
                 if (/^(r|random)$/i.test(text)) {
-                    autoThrow = {time: milliseconds, text: null, multichoice: "random"};
+                    autoThrow = { time: milliseconds, text: null, multichoice: "random" };
                     sendSystemMessage(getAutoThrowStatus());
                     toggleCommandButton($(this), true);
                 }
                 else if (/^[1-4]$/i.test(text)) {
-                    autoThrow = {time: milliseconds, text: null, multichoice: parseInt(text)};
+                    autoThrow = { time: milliseconds, text: null, multichoice: parseInt(text) };
                     sendSystemMessage(getAutoThrowStatus());
                     toggleCommandButton($(this), true);
                 }
             }
         }
         else {
-            autoThrow = {time: [], text: null, multichoice: null};
+            autoThrow = { time: [], text: null, multichoice: null };
             sendSystemMessage("auto throw disabled");
             toggleCommandButton($(this), false);
         }
     });
-    $("#mcAutoThrowSelect").on("change", function() {
+    $("#mcAutoThrowSelect").on("change", function () {
         if ($(this).val() === "text") {
             $("#mcAutoThrowTextInput").attr("placeholder", "text");
         }
@@ -1446,7 +1430,7 @@ function setup() {
             $("#mcAutoThrowTextInput").attr("placeholder", "option (1-4)");
         }
     });
-    $("#mcAutoCopyButton").click(function() {
+    $("#mcAutoCopyButton").click(function () {
         if ($(this).text() === "Off") {
             let text = $("#mcAutoCopyInput").val().toLowerCase();
             if (text) {
@@ -1461,7 +1445,7 @@ function setup() {
             toggleCommandButton($(this), false);
         }
     });
-    $("#mcAutoHostButton").click(function() {
+    $("#mcAutoHostButton").click(function () {
         if ($(this).text() === "Off") {
             let text = $("#mcAutoHostInput").val().toLowerCase();
             if (text) {
@@ -1476,7 +1460,7 @@ function setup() {
             toggleCommandButton($(this), false);
         }
     });
-    $("#mcAutoVoteSkipButton").click(function() {
+    $("#mcAutoVoteSkipButton").click(function () {
         if ($(this).text() === "Off") {
             let option = $("#mcAutoVoteSkipSelect").val();
             if (option === "time") {
@@ -1524,7 +1508,7 @@ function setup() {
             toggleCommandButton($(this), false);
         }
     });
-    $("#mcAutoVoteSkipSelect").on("change", function() {
+    $("#mcAutoVoteSkipSelect").on("change", function () {
         if ($(this).val() === "time") {
             $("#mcAutoVoteSkipTimeInput").show();
         }
@@ -1532,13 +1516,13 @@ function setup() {
             $("#mcAutoVoteSkipTimeInput").hide();
         }
     });
-    $("#mcAutoVoteLobbyButton").click(function() {
+    $("#mcAutoVoteLobbyButton").click(function () {
         autoVoteLobby = !autoVoteLobby;
         saveSettings();
         sendSystemMessage(`auto vote lobby ${autoVoteLobby ? "enabled" : "disabled"}`);
         toggleCommandButton($(this), autoVoteLobby);
     });
-    $("#mcAutoMuteButton").click(function() {
+    $("#mcAutoMuteButton").click(function () {
         if ($("#mcAutoMuteButton").text() === "Off") {
             let option = $("#mcAutoMuteSelect").val();
             let time = $("#mcAutoMuteTimeInput").val();
@@ -1552,31 +1536,31 @@ function setup() {
             if (time.length && time.every((x) => !isNaN(x))) {
                 let milliseconds = time.map((x) => Math.floor(x * 1000));
                 if (option === "mute") {
-                    autoMute = {mute: milliseconds, unmute: [], toggle: [], randomMute: null, randomUnmute: null};
+                    autoMute = { mute: milliseconds, unmute: [], toggle: [], randomMute: null, randomUnmute: null };
                     saveSettings();
                     sendSystemMessage(getAutoMuteStatus());
                     toggleCommandButton($(this), true);
                 }
                 else if (option === "unmute") {
-                    autoMute = {mute: [], unmute: milliseconds, toggle: [], randomMute: null, randomUnmute: null};
+                    autoMute = { mute: [], unmute: milliseconds, toggle: [], randomMute: null, randomUnmute: null };
                     saveSettings();
                     sendSystemMessage(getAutoMuteStatus());
                     toggleCommandButton($(this), true);
                 }
                 else if (option === "toggle") {
-                    autoMute = {mute: [], unmute: [], toggle: milliseconds, randomMute: null, randomUnmute: null};
+                    autoMute = { mute: [], unmute: [], toggle: milliseconds, randomMute: null, randomUnmute: null };
                     saveSettings();
                     sendSystemMessage(getAutoMuteStatus());
                     toggleCommandButton($(this), true);
                 }
                 else if (option === "random mute") {
-                    autoMute = {mute: [], unmute: [], toggle: [], randomMute: milliseconds[0], randomUnmute: null};
+                    autoMute = { mute: [], unmute: [], toggle: [], randomMute: milliseconds[0], randomUnmute: null };
                     saveSettings();
                     sendSystemMessage(getAutoMuteStatus());
                     toggleCommandButton($(this), true);
                 }
                 else if (option === "random unmute") {
-                    autoMute = {mute: [], unmute: [], toggle: [], randomMute: null, randomUnmute: milliseconds[0]};
+                    autoMute = { mute: [], unmute: [], toggle: [], randomMute: null, randomUnmute: milliseconds[0] };
                     saveSettings();
                     sendSystemMessage(getAutoMuteStatus());
                     toggleCommandButton($(this), true);
@@ -1584,13 +1568,13 @@ function setup() {
             }
         }
         else {
-            autoMute = {mute: [], unmute: [], toggle: [], randomMute: null, randomUnmute: null};
+            autoMute = { mute: [], unmute: [], toggle: [], randomMute: null, randomUnmute: null };
             saveSettings();
             sendSystemMessage("auto mute system disabled");
             toggleCommandButton($(this), false);
         }
     });
-    $("#mcAutoMuteSelect").on("change", function() {
+    $("#mcAutoMuteSelect").on("change", function () {
         if ($(this).val() === "toggle") {
             $("#mcAutoMuteTimeInput").css("width", "150px").attr("placeholder", "time list");
         }
@@ -1598,31 +1582,31 @@ function setup() {
             $("#mcAutoMuteTimeInput").css("width", "50px").attr("placeholder", "time");
         }
     });
-    $("#mcMuteSubmitButton").click(function() {
+    $("#mcMuteSubmitButton").click(function () {
         muteSubmit = !muteSubmit;
         saveSettings();
         sendSystemMessage(`mute after answer submit ${muteSubmit ? "enabled" : "disabled"}`);
         toggleCommandButton($(this), muteSubmit);
     });
-    $("#mcMuteReplayButton").click(function() {
+    $("#mcMuteReplayButton").click(function () {
         muteReplay = !muteReplay;
         saveSettings();
         sendSystemMessage(`mute during replay phase ${muteReplay ? "enabled" : "disabled"}`);
         toggleCommandButton($(this), muteReplay);
     });
-    $("#mcContinueSampleButton").click(function() {
+    $("#mcContinueSampleButton").click(function () {
         continueSample = !continueSample;
         saveSettings();
         sendSystemMessage(`continue sample ${continueSample ? "enabled" : "disabled"}`);
         toggleCommandButton($(this), continueSample);
     });
-    $("#mcLoopVideoButton").click(function() {
+    $("#mcLoopVideoButton").click(function () {
         loopVideo = !loopVideo;
         saveSettings();
         sendSystemMessage(`loop video ${loopVideo ? "enabled" : "disabled"}`);
         toggleCommandButton($(this), loopVideo);
     });
-    $("#mcDropDownButton").click(function() {
+    $("#mcDropDownButton").click(function () {
         dropdown = !dropdown;
         saveSettings();
         sendSystemMessage(`drop down ${dropdown ? "enabled" : "disabled"}`);
@@ -1645,6 +1629,7 @@ function setup() {
     createHotkeyRow("Open Song History", "songHistoryWindow");
     createHotkeyRow("Open Settings", "settingsWindow");
     createHotkeyRow("Focus Dropdown", "focusDropdown");
+    createHotkeyRow("Focus Chat", "focusChat");
 
     createAlertElement("Online Friends", "onlineFriends", "mcAlertOnlineFriends");
     createAlertElement("Offline Friends", "offlineFriends", "mcAlertOfflineFriends");
@@ -1671,14 +1656,14 @@ function setup() {
             }
         );
     });
-    $("#mcCommandPrefixInput").val(commandPrefix).on("change", function() {
+    $("#mcCommandPrefixInput").val(commandPrefix).on("change", function () {
         let option = $(this).val().trim();
         if (option.length <= 2) {
             commandPrefix = option;
             saveSettings();
         }
     });
-    $("#mcMalClientIdInput").val(malClientId).on("change", function() {
+    $("#mcMalClientIdInput").val(malClientId).on("change", function () {
         malClientId = $(this).val().trim();
         saveSettings();
     });
@@ -1697,11 +1682,8 @@ function setup() {
         saveSettings();
         sendSystemMessage(`open self dm on log in: ${selfDM ? "enabled" : "disabled"}`);
     });
-    
-    tabReset();
+
     updateCommandListWindow();
-    $("#mcDocumentationTab").addClass("selected");
-    $("#mcDocumentationContainer").show();
     $("#optionListSettings").before(`<li class="clickAble" onclick="$('#mcSettingsModal').modal('show')">Commands</li>`);
 
     AMQ_addScriptData({
@@ -1723,12 +1705,10 @@ function setup() {
             <p>See all commands: <button id="mcScriptDataHelpButton" style="color: black">Help</button></p>
         `
     });
-    
+
     $("#mcScriptDataHelpButton").click(() => {
+        switchTab("mcDocumentation");
         $("#installedModal").modal("hide");
-        tabReset();
-        $("#mcDocumentationTab").addClass("selected");
-        $("#mcDocumentationContainer").show();
         $("#mcSettingsModal").modal("show");
     });
 }
@@ -1854,7 +1834,7 @@ function updateCommandListWindow(type) {
         toggleCommandButton($("#mcAutoThrowButton"), autoThrow.time.length);
         $("#mcAutoThrowSelect").val(autoThrow.multichoice ? "multichoice" : "text");
         $("#mcAutoThrowTimeInput").val(autoThrow.time.map((x) => x / 1000).join("-"));
-        $("#mcAutoThrowTextInput").val(autoThrow.multichoice || autoThrow.text || "").attr("placeholder", autoThrow.multichoice ? "option (1-4)": "text");
+        $("#mcAutoThrowTextInput").val(autoThrow.multichoice || autoThrow.text || "").attr("placeholder", autoThrow.multichoice ? "option (1-4)" : "text");
     }
     if (!type || type === "autoCopy") {
         toggleCommandButton($("#mcAutoCopyButton"), autoCopy);
@@ -2034,24 +2014,6 @@ function updateAlertCheckboxes() {
     $("#mcAlertNameChangePopoutCheckbox").prop("checked", alerts.nameChange.popout);
 }
 
-// reset all tabs
-function tabReset() {
-    $("#mcActiveTab").removeClass("selected");
-    $("#mcHotkeyTab").removeClass("selected");
-    $("#mcDocumentationTab").removeClass("selected");
-    $("#mcAlertsTab").removeClass("selected");
-    $("#mcOrderTab").removeClass("selected");
-    $("#mcStorageTab").removeClass("selected");
-    $("#mcInfoTab").removeClass("selected");
-    $("#mcActiveContainer").hide();
-    $("#mcHotkeyContainer").hide();
-    $("#mcDocumentationContainer").hide();
-    $("#mcAlertsContainer").hide();
-    $("#mcOrderContainer").hide();
-    $("#mcStorageContainer").hide();
-    $("#mcInfoContainer").hide();
-}
-
 // reorder quiz bar icons
 function reorderQuizBar() {
     //TODO
@@ -2076,7 +2038,7 @@ function createGearMenuList(list) {
 function createLocalStorageList() {
     $mcStorageList = $("#mcStorageList");
     $mcStorageList.empty();
-    let list = Object.keys(localStorage).sort((a,b) => a.localeCompare(b));
+    let list = Object.keys(localStorage).sort((a, b) => a.localeCompare(b));
     $("#mcStorageContainer > h4").text(`Local Storage (${list.length} item${list.length === 1 ? "" : "s"})`);
     for (let name of list) {
         let formattedText;
@@ -2087,7 +2049,7 @@ function createLocalStorageList() {
             formattedText = "bad formatting";
         }
         $mcStorageList.append($(`<li></li>`)
-            .append($(`<i class="fa fa-caret-right clickAble" aria-hidden="true"></i>`).click(function() {
+            .append($(`<i class="fa fa-caret-right clickAble" aria-hidden="true"></i>`).click(function () {
                 let $pre = $(this).parent().find("pre");
                 if ($pre.is(":visible")) {
                     $(this).parent().find(".fa-caret-down").addClass("fa-caret-right").removeClass("fa-caret-down");
@@ -2415,19 +2377,19 @@ async function parseCommand(messageText, type, target) {
     else if (command === "random") {
         let settings = hostModal.getSettings(true);
         settings.songSelection.standardValue = 1;
-        settings.songSelection.advancedValue = {random: settings.numberOfSongs, unwatched: 0, watched: 0};
+        settings.songSelection.advancedValue = { random: settings.numberOfSongs, unwatched: 0, watched: 0 };
         changeGameSettings(settings);
     }
     else if (command === "unwatched") {
         let settings = hostModal.getSettings(true);
         settings.songSelection.standardValue = 2;
-        settings.songSelection.advancedValue = {random: 0, unwatched: settings.numberOfSongs, watched: 0};
+        settings.songSelection.advancedValue = { random: 0, unwatched: settings.numberOfSongs, watched: 0 };
         changeGameSettings(settings);
     }
     else if (command === "watched") {
         let settings = hostModal.getSettings(true);
         settings.songSelection.standardValue = 3;
-        settings.songSelection.advancedValue = {random: 0, unwatched: 0, watched: settings.numberOfSongs};
+        settings.songSelection.advancedValue = { random: 0, unwatched: 0, watched: settings.numberOfSongs };
         changeGameSettings(settings);
     }
     else if (command === "songselection" || command === "selection") {
@@ -2600,7 +2562,7 @@ async function parseCommand(messageText, type, target) {
             let option = parseInt(split[1]);
             let settings = hostModal.getSettings(true);
             settings.vintage.advancedValueList = [];
-            settings.vintage.standardValue = {years: [option, option], seasons: [0, 3]};
+            settings.vintage.standardValue = { years: [option, option], seasons: [0, 3] };
             changeGameSettings(settings);
         }
         else if (/^\S+ [0-9]+[ ,-]+[0-9]+$/.test(content)) {
@@ -2609,12 +2571,12 @@ async function parseCommand(messageText, type, target) {
             let high = parseInt(regex[2]);
             let settings = hostModal.getSettings(true);
             settings.vintage.advancedValueList = [];
-            settings.vintage.standardValue = {years: [low, high], seasons: [0, 3]};
+            settings.vintage.standardValue = { years: [low, high], seasons: [0, 3] };
             changeGameSettings(settings);
         }
     }
     else if (command === "season" || command === "seasons") {
-        let seasonMap = {winter: 0, spring: 1, summer: 2, fall: 3, 0: 0, 1: 1, 2: 2, 3: 3};
+        let seasonMap = { winter: 0, spring: 1, summer: 2, fall: 3, 0: 0, 1: 1, 2: 2, 3: 3 };
         if (split.length === 1) {
             let settings = hostModal.getSettings(true);
             settings.vintage.advancedValueList = [];
@@ -2643,7 +2605,7 @@ async function parseCommand(messageText, type, target) {
         }
     }
     else if (command === "vintage") {
-        let seasonMap = {winter: 0, spring: 1, summer: 2, fall: 3, 0: 0, 1: 1, 2: 2, 3: 3};
+        let seasonMap = { winter: 0, spring: 1, summer: 2, fall: 3, 0: 0, 1: 1, 2: 2, 3: 3 };
         if (split.length === 1) {
             let settings = hostModal.getSettings(true);
             settings.vintage = hostModal.DEFUALT_SETTINGS.vintage;
@@ -2655,7 +2617,7 @@ async function parseCommand(messageText, type, target) {
                 let year = parseInt(split[2]);
                 let settings = hostModal.getSettings(true);
                 settings.vintage.advancedValueList = [];
-                settings.vintage.standardValue = {years: [year, year], seasons: [season, season]};
+                settings.vintage.standardValue = { years: [year, year], seasons: [season, season] };
                 changeGameSettings(settings);
             }
         }
@@ -2668,7 +2630,7 @@ async function parseCommand(messageText, type, target) {
                 let year2 = parseInt(regex[4]);
                 let settings = hostModal.getSettings(true);
                 settings.vintage.advancedValueList = [];
-                settings.vintage.standardValue = {years: [year1, year2], seasons: [season1, season2]};
+                settings.vintage.standardValue = { years: [year1, year2], seasons: [season1, season2] };
                 changeGameSettings(settings);
             }
         }
@@ -2687,7 +2649,7 @@ async function parseCommand(messageText, type, target) {
             settings.genre = [];
             for (let genre of list) {
                 let id = Object.keys(idTranslator.genreNames).find((id) => idTranslator.genreNames[id].toLowerCase() === genre);
-                settings.genre.push({id: id, state: 1});
+                settings.genre.push({ id: id, state: 1 });
             }
             changeGameSettings(settings);
         }
@@ -2706,7 +2668,7 @@ async function parseCommand(messageText, type, target) {
             settings.tags = [];
             for (let tag of list) {
                 let id = Object.keys(idTranslator.tagNames).find((id) => idTranslator.tagNames[id].toLowerCase() === tag);
-                settings.tags.push({id: id, state: 1});
+                settings.tags.push({ id: id, state: 1 });
             }
             changeGameSettings(settings);
         }
@@ -2755,7 +2717,7 @@ async function parseCommand(messageText, type, target) {
         quiz.skipClicked();
     }
     else if (command === "pause") {
-        socket.sendCommand({type: "quiz", command: `quiz ${quiz.pauseButton.pauseOn ? "unpause" : "pause"}`});
+        socket.sendCommand({ type: "quiz", command: `quiz ${quiz.pauseButton.pauseOn ? "unpause" : "pause"}` });
     }
     else if (command === "mutereplay" || command === "mr") {
         muteReplay = !muteReplay;
@@ -2822,7 +2784,7 @@ async function parseCommand(messageText, type, target) {
     }
     else if (["at", "att", "atmc", "attmc", "autothrow", "autothrowtime", "autothrowmc", "autothrowmultichoice", "autothrowmultiplechoice", "autothrowtimemc", "autothrowtimemultichoice"].includes(command)) {
         if (split.length === 1) {
-            autoThrow = {time: [], text: null, multichoice: null};
+            autoThrow = { time: [], text: null, multichoice: null };
             sendMessage("auto throw disabled", type, target, true);
             updateCommandListWindow("autoThrow");
         }
@@ -2857,7 +2819,7 @@ async function parseCommand(messageText, type, target) {
         }
         else if (/^\S+(atmc|autothrowmc|autothrowmultichoice|autothrowmultiplechoice) \S+$/.test(content)) {
             let option = /^\S+ (\S+)$/.exec(content)[1];
-            let atmcDict = {"1": 1, "2": 2, "3": 3, "4": 4, "r": "random", "random": "random"};
+            let atmcDict = { "1": 1, "2": 2, "3": 3, "4": 4, "r": "random", "random": "random" };
             if (!atmcDict.hasOwnProperty(option)) return;
             autoThrow.time = [100];
             autoThrow.text = null;
@@ -2870,7 +2832,7 @@ async function parseCommand(messageText, type, target) {
             let time1 = parseFloat(regex[1]);
             if (isNaN(time1)) return;
             let option = regex[2].toLowerCase();
-            let atmcDict = {"1": 1, "2": 2, "3": 3, "4": 4, "r": "random", "random": "random"};
+            let atmcDict = { "1": 1, "2": 2, "3": 3, "4": 4, "r": "random", "random": "random" };
             if (!atmcDict.hasOwnProperty(option)) return;
             autoThrow.time = [Math.floor(time1 * 1000)];
             autoThrow.text = null;
@@ -2884,7 +2846,7 @@ async function parseCommand(messageText, type, target) {
             let time2 = parseFloat(regex[2]);
             if (isNaN(time1) || isNaN(time2)) return;
             let option = regex[3].toLowerCase();
-            let atmcDict = {"1": 1, "2": 2, "3": 3, "4": 4, "r": "random", "random": "random"};
+            let atmcDict = { "1": 1, "2": 2, "3": 3, "4": 4, "r": "random", "random": "random" };
             if (!atmcDict.hasOwnProperty(option)) return;
             autoThrow.time = [Math.floor(time1 * 1000), Math.floor(time2 * 1000)];
             autoThrow.text = null;
@@ -2910,14 +2872,14 @@ async function parseCommand(messageText, type, target) {
             $("#qpVolume").removeClass("disabled");
             volumeController.setMuted(false);
             volumeController.adjustVolume();
-            autoMute = {mute: [], unmute: [], toggle: [], randomMute: null, randomUnmute: null};
+            autoMute = { mute: [], unmute: [], toggle: [], randomMute: null, randomUnmute: null };
             sendMessage("auto mute system disabled", type, target, true);
             updateCommandListWindow("autoMute");
         }
         else if (/^\S+(am|automute) [0-9.]+$/.test(content)) {
             let seconds = parseFloat(split[1]);
             if (isNaN(seconds)) return;
-            autoMute = {mute: [Math.floor(seconds * 1000)], unmute: [], toggle: [], randomMute: null, randomUnmute: null};
+            autoMute = { mute: [Math.floor(seconds * 1000)], unmute: [], toggle: [], randomMute: null, randomUnmute: null };
             sendMessage(`auto muting after ${seconds} second${seconds === 1 ? "" : "s"}`, type, target, true);
             updateCommandListWindow("autoMute");
         }
@@ -2926,14 +2888,14 @@ async function parseCommand(messageText, type, target) {
             let low = parseFloat(regex[1]);
             let high = parseFloat(regex[2]);
             if (isNaN(low) || isNaN(high) || low >= high) return;
-            autoMute = {mute: [Math.floor(low * 1000), Math.floor(high * 1000)], unmute: [], toggle: [], randomMute: null, randomUnmute: null};
+            autoMute = { mute: [Math.floor(low * 1000), Math.floor(high * 1000)], unmute: [], toggle: [], randomMute: null, randomUnmute: null };
             sendMessage(`auto muting after random # of seconds between ${low} - ${high}`, type, target, true);
             updateCommandListWindow("autoMute");
         }
         else if (/^\S+(au|autounmute) [0-9.]+$/.test(content)) {
             let seconds = parseFloat(split[1]);
             if (isNaN(seconds)) return;
-            autoMute = {mute: [], unmute: [Math.floor(seconds * 1000)], toggle: [], randomMute: null, randomUnmute: null};
+            autoMute = { mute: [], unmute: [Math.floor(seconds * 1000)], toggle: [], randomMute: null, randomUnmute: null };
             sendMessage(`auto unmuting after ${seconds} second${seconds === 1 ? "" : "s"}`, type, target, true);
             updateCommandListWindow("autoMute");
         }
@@ -2942,7 +2904,7 @@ async function parseCommand(messageText, type, target) {
             let low = parseFloat(regex[1]);
             let high = parseFloat(regex[2]);
             if (isNaN(low) || isNaN(high) || low >= high) return;
-            autoMute = {mute: [], unmute: [Math.floor(low * 1000), Math.floor(high * 1000)], toggle: [], randomMute: null, randomUnmute: null};
+            autoMute = { mute: [], unmute: [Math.floor(low * 1000), Math.floor(high * 1000)], toggle: [], randomMute: null, randomUnmute: null };
             sendMessage(`auto unmuting after random # of seconds between ${low} - ${high}`, type, target, true);
             updateCommandListWindow("autoMute");
         }
@@ -2950,21 +2912,21 @@ async function parseCommand(messageText, type, target) {
             let list = content.slice(content.indexOf(" ") + 1).split(/[, ]+/).map((x) => parseFloat(x)).filter((x) => !isNaN(x) && x >= 0);
             list = [...new Set(list)].sort((a, b) => a - b);
             if (list.length < 2) return;
-            autoMute = {mute: [], unmute: [], toggle: list.map((x) => Math.floor(x * 1000)), randomMute: null, randomUnmute: null};
+            autoMute = { mute: [], unmute: [], toggle: list.map((x) => Math.floor(x * 1000)), randomMute: null, randomUnmute: null };
             sendMessage(`auto mute toggle list set to ${list.join(", ")}`, type, target, true);
             updateCommandListWindow("autoMute");
         }
         else if (/^\S+(amr|automuterandom) [0-9.]+$/.test(content)) {
             let option = parseFloat(split[1]);
             if (isNaN(option) || option === 0) return;
-            autoMute = {mute: [], unmute: [], toggle: [], randomMute: Math.floor(option * 1000), randomUnmute: null};
+            autoMute = { mute: [], unmute: [], toggle: [], randomMute: Math.floor(option * 1000), randomUnmute: null };
             sendMessage(`auto mute a random ${option} second interval`, type, target, true);
             updateCommandListWindow("autoMute");
         }
         else if (/^\S+(aur|autounmuterandom) [0-9.]+$/.test(content)) {
             let option = parseFloat(split[1]);
             if (isNaN(option) || option === 0) return;
-            autoMute = {mute: [], unmute: [], toggle: [], randomMute: null, randomUnmute: Math.floor(option * 1000)};
+            autoMute = { mute: [], unmute: [], toggle: [], randomMute: null, randomUnmute: Math.floor(option * 1000) };
             sendMessage(`auto unmute a random ${option} second interval`, type, target, true);
             updateCommandListWindow("autoMute");
         }
@@ -3096,7 +3058,7 @@ async function parseCommand(messageText, type, target) {
             }
             else if (lobby.inLobby) {
                 let password = hostModal.$passwordInput.val();
-                autoJoinRoom = {id: lobby.gameId, password: password};
+                autoJoinRoom = { id: lobby.gameId, password: password };
                 saveSettings();
                 sendMessage(`auto joining room ${lobby.gameId} ${password}`, type, target, true);
             }
@@ -3105,13 +3067,13 @@ async function parseCommand(messageText, type, target) {
                     if (data.sender === selfName) {
                         gameInviteListener.unbindListener();
                         let password = hostModal.$passwordInput.val();
-                        autoJoinRoom = {id: data.gameId, password: password};
+                        autoJoinRoom = { id: data.gameId, password: password };
                         saveSettings();
                         sendMessage(`auto joining room ${data.gameId} ${password}`, type, target, true);
                     }
                 });
                 gameInviteListener.bindListener();
-                socket.sendCommand({type: "social", command: "invite to game", data: {target: selfName}});
+                socket.sendCommand({ type: "social", command: "invite to game", data: { target: selfName } });
             }
             else {
                 autoJoinRoom = false;
@@ -3124,7 +3086,7 @@ async function parseCommand(messageText, type, target) {
             if (!regex) return;
             let id = parseInt(regex[1]);
             let password = regex[2];
-            autoJoinRoom = {id: id, password: password || ""};
+            autoJoinRoom = { id: id, password: password || "" };
             saveSettings();
             sendMessage(`auto joining room ${id} ${password}`, type, target, true);
         }
@@ -3303,14 +3265,14 @@ async function parseCommand(messageText, type, target) {
     else if (command === "invite" || command === "inv") {
         if (split.length === 1) {
             if (type === "dm") {
-                socket.sendCommand({type: "social", command: "invite to game", data: {target: target}});
+                socket.sendCommand({ type: "social", command: "invite to game", data: { target: target } });
             }
         }
         else {
             let list = content.slice(content.indexOf(" ") + 1).split(/[\s,]+/).filter(Boolean);
             list.forEach((name, i) => {
                 setTimeout(() => {
-                    socket.sendCommand({type: "social", command: "invite to game", data: {target: getPlayerNameCorrectCase(name)}});
+                    socket.sendCommand({ type: "social", command: "invite to game", data: { target: getPlayerNameCorrectCase(name) } });
                 }, i * 200);
             });
         }
@@ -3343,12 +3305,12 @@ async function parseCommand(messageText, type, target) {
     else if (command === "join") {
         if (split.length === 1) {
             if (lobby.inLobby) {
-                socket.sendCommand({type: "lobby", command: "change to player"});
+                socket.sendCommand({ type: "lobby", command: "change to player" });
             }
             else if (quiz.inQuiz) {
                 if (quiz.isSpectator) {
                     if (quiz.lateJoinButton.$body.is(":visible")) {
-                        socket.sendCommand({type: "quiz", command: "late join game"});
+                        socket.sendCommand({ type: "quiz", command: "late join game" });
                     }
                     else {
                         if (autoSwitch.temp) {
@@ -3384,7 +3346,7 @@ async function parseCommand(messageText, type, target) {
                     lobby.promoteHost(target);
                 }
                 else if (nexus.inCoopLobby || nexus.inNexusGame) {
-                    socket.sendCommand({type: "nexus", command: "nexus promote host", data: {name: target}});
+                    socket.sendCommand({ type: "nexus", command: "nexus promote host", data: { name: target } });
                 }
             }
         }
@@ -3395,7 +3357,7 @@ async function parseCommand(messageText, type, target) {
                     lobby.promoteHost(getPlayerNameCorrectCase(name));
                 }
                 else if (nexus.inCoopLobby || nexus.inNexusGame) {
-                    socket.sendCommand({type: "nexus", command: "nexus promote host", data: {name: getPlayerNameCorrectCase(name)}});
+                    socket.sendCommand({ type: "nexus", command: "nexus promote host", data: { name: getPlayerNameCorrectCase(name) } });
                 }
             }
         }
@@ -3405,16 +3367,16 @@ async function parseCommand(messageText, type, target) {
             let name = getClosestNameInRoom(split[1]);
             if (isInYourRoom(name)) {
                 if (lobby.inLobby || quiz.inQuiz || battleRoyal.inView) {
-                    socket.sendCommand({type: "lobby", command: "kick player", data: {playerName: getPlayerNameCorrectCase(name)}});
+                    socket.sendCommand({ type: "lobby", command: "kick player", data: { playerName: getPlayerNameCorrectCase(name) } });
                 }
                 else if (nexus.inCoopLobby || nexus.inNexusGame) {
-                    socket.sendCommand({type: "nexus", command: "nexus kick player", data: {name: getPlayerNameCorrectCase(name)}});
+                    socket.sendCommand({ type: "nexus", command: "nexus kick player", data: { name: getPlayerNameCorrectCase(name) } });
                 }
             }
         }
     }
     else if (["lobby", "lobbyvote", "returntolobby", "lb"].includes(command)) {
-        socket.sendCommand({type: "quiz", command: "start return lobby vote"});
+        socket.sendCommand({ type: "quiz", command: "start return lobby vote" });
     }
     else if (["volume", "vol", "v"].includes(command)) {
         if (split.length === 1) {
@@ -3504,7 +3466,7 @@ async function parseCommand(messageText, type, target) {
                 }
             });
             gameInviteListener.bindListener();
-            socket.sendCommand({type: "social", command: "invite to game", data: {target: selfName}});
+            socket.sendCommand({ type: "social", command: "invite to game", data: { target: selfName } });
         }
     }
     else if (command === "quizid") {
@@ -3532,7 +3494,7 @@ async function parseCommand(messageText, type, target) {
             let name = getPlayerNameCorrectCase(split[1]);
             let text = /^\S+ \S+ (.+)$/.exec(messageText)[1];
             socialTab.startChat(name);
-            socket.sendCommand({type: "social", command: "chat message", data: {target: name, message: text}});
+            socket.sendCommand({ type: "social", command: "chat message", data: { target: name, message: text } });
         }
     }
     else if (command === "status") {
@@ -3556,7 +3518,7 @@ async function parseCommand(messageText, type, target) {
     }
     else if (command === "profile" || command === "prof") {
         let name = /^\S+ (\w+)$/.exec(content)[1].toLowerCase();
-        playerProfileController.loadProfile(name, $("#gameChatContainer"), {}, () => {}, false, false);
+        playerProfileController.loadProfile(name, $("#gameChatContainer"), {}, () => { }, false, false);
     }
     else if (command === "friend") {
         if (split.length === 1) {
@@ -3571,13 +3533,13 @@ async function parseCommand(messageText, type, target) {
     else if (command === "unfriend") {
         if (split.length === 1) {
             if (type === "dm") {
-                socket.sendCommand({type: "social", command: "remove friend", data: {target: target}});
+                socket.sendCommand({ type: "social", command: "remove friend", data: { target: target } });
                 socialTab.removeFriend(target);
             }
         }
         else if (split.length === 2) {
             let name = getPlayerNameCorrectCase(split[1]);
-            socket.sendCommand({type: "social", command: "remove friend", data: {target: name}});
+            socket.sendCommand({ type: "social", command: "remove friend", data: { target: name } });
             socialTab.removeFriend(name);
         }
     }
@@ -3665,7 +3627,7 @@ async function parseCommand(messageText, type, target) {
                     socket.sendCommand({
                         type: "social",
                         command: "chat message",
-                        data: {target: alien, message: `Aliens: ${aliens.join(", ")} (turn on your list and disable share entries)`}
+                        data: { target: alien, message: `Aliens: ${aliens.join(", ")} (turn on your list and disable share entries)` }
                     });
                 }, 500 * i);
             });
@@ -3711,7 +3673,7 @@ async function parseCommand(messageText, type, target) {
         }
         else if (split.length === 2) {
             if (split[1] === "disable") {
-                playerDetection = {invisible: false, players: []};
+                playerDetection = { invisible: false, players: [] };
                 saveSettings();
                 sendMessage("detection system disabled", type, target, true);
             }
@@ -3740,7 +3702,7 @@ async function parseCommand(messageText, type, target) {
             handleAllOnlineMessage.unbindListener();
         });
         handleAllOnlineMessage.bindListener();
-        socket.sendCommand({type: "social", command: "get online users"});
+        socket.sendCommand({ type: "social", command: "get online users" });
     }
     else if (command === "offlinefriends") {
         let handleAllOnlineMessage = new Listener("all online users", (onlineUsers) => {
@@ -3749,7 +3711,7 @@ async function parseCommand(messageText, type, target) {
             handleAllOnlineMessage.unbindListener();
         });
         handleAllOnlineMessage.bindListener();
-        socket.sendCommand({type: "social", command: "get online users"});
+        socket.sendCommand({ type: "social", command: "get online users" });
     }
     else if (command === "online") {
         if (split.length === 2) {
@@ -3760,7 +3722,7 @@ async function parseCommand(messageText, type, target) {
                 handleAllOnlineMessage.unbindListener();
             });
             handleAllOnlineMessage.bindListener();
-            socket.sendCommand({type: "social", command: "get online users"});
+            socket.sendCommand({ type: "social", command: "get online users" });
         }
     }
     else if (command === "invisible") {
@@ -3770,7 +3732,7 @@ async function parseCommand(messageText, type, target) {
             handleAllOnlineMessage.unbindListener();
         });
         handleAllOnlineMessage.bindListener();
-        socket.sendCommand({type: "social", command: "get online users"});
+        socket.sendCommand({ type: "social", command: "get online users" });
     }
     else if (command === "count") {
         if (/^\S+ online ?friends?$/.test(content)) {
@@ -3779,7 +3741,7 @@ async function parseCommand(messageText, type, target) {
                 handleAllOnlineMessage.unbindListener();
             });
             handleAllOnlineMessage.bindListener();
-            socket.sendCommand({type: "social", command: "get online users"});
+            socket.sendCommand({ type: "social", command: "get online users" });
         }
         else if (/^\S+ offline ?friends?$/.test(content)) {
             let handleAllOnlineMessage = new Listener("all online users", (onlineUsers) => {
@@ -3787,7 +3749,7 @@ async function parseCommand(messageText, type, target) {
                 handleAllOnlineMessage.unbindListener();
             });
             handleAllOnlineMessage.bindListener();
-            socket.sendCommand({type: "social", command: "get online users"});
+            socket.sendCommand({ type: "social", command: "get online users" });
         }
         else if (/^\S+ friends?$/.test(content)) {
             sendMessage(getAllFriends().length, type, target);
@@ -3905,21 +3867,21 @@ async function parseCommand(messageText, type, target) {
             sendMessage(Object.keys(alerts).map((key) => `${key}: ${alerts[key]}`).join(", "), type, target, true);
         }
         else if (split[1] === "on") {
-            alerts.hiddenPlayers = {chat: true, popout: true};
-            alerts.nameChange = {chat: true, popout: true};
-            alerts.onlineFriends = {chat: true, popout: true};
-            alerts.offlineFriends = {chat: true, popout: true};
-            alerts.serverStatus = {chat: true, popout: true};
+            alerts.hiddenPlayers = { chat: true, popout: true };
+            alerts.nameChange = { chat: true, popout: true };
+            alerts.onlineFriends = { chat: true, popout: true };
+            alerts.offlineFriends = { chat: true, popout: true };
+            alerts.serverStatus = { chat: true, popout: true };
             saveSettings();
             sendMessage("all alerts enabled", type, target, true);
             updateAlertCheckboxes();
         }
         else if (split[1] === "off") {
-            alerts.hiddenPlayers = {chat: false, popout: false};
-            alerts.nameChange = {chat: false, popout: false};
-            alerts.onlineFriends = {chat: false, popout: false};
-            alerts.offlineFriends = {chat: false, popout: false};
-            alerts.serverStatus = {chat: false, popout: false};
+            alerts.hiddenPlayers = { chat: false, popout: false };
+            alerts.nameChange = { chat: false, popout: false };
+            alerts.onlineFriends = { chat: false, popout: false };
+            alerts.offlineFriends = { chat: false, popout: false };
+            alerts.serverStatus = { chat: false, popout: false };
             saveSettings();
             sendMessage("all alerts disabled", type, target, true);
             updateAlertCheckboxes();
@@ -3939,42 +3901,6 @@ async function parseCommand(messageText, type, target) {
         enableAllProfileButtons = !enableAllProfileButtons;
         saveSettings();
         sendMessage(`profile buttons ${enableAllProfileButtons ? "are now clickable" : "have default behavior"}`, type, target, true);
-    }
-    else if (command === "tabswitch") {
-        if (split.length === 1) {
-            sendMessage("0: off, 1: chat first, 2: answerbox first, 3: only chat, 4: only answerbox", type, target, true);
-        }
-        else if (split.length === 2) {
-            let num = parseInt(split[1]);
-            if (num === 0) {
-                tabSwitch = num;
-                saveSettings();
-                sendMessage("tab switch disabled", type, target, true);
-            }
-            else if (num === 1) {
-                tabSwitch = num;
-                saveSettings();
-                sendMessage("tab switch set to chat first", type, target, true);
-            }
-            else if (tabSwitch === 2) {
-                tabSwitch = num;
-                saveSettings();
-                sendMessage("tab switch set to answerbox first", type, target, true);
-            }
-            else if (tabSwitch === 3) {
-                tabSwitch = num;
-                saveSettings();
-                sendMessage("tab switch set to only chat", type, target, true);
-            }
-            else if (num === 4) {
-                tabSwitch = num;
-                saveSettings();
-                sendMessage("tab switch set to only answerbox", type, target, true);
-            }
-            else {
-                sendMessage("invalid option", type, target, true);
-            }
-        }
     }
     else if (command === "continuesample") {
         continueSample = !continueSample;
@@ -4275,7 +4201,7 @@ async function parseCommand(messageText, type, target) {
                     removeKitsu();
                 });
                 listener.bindListener();
-                socket.sendCommand({type: "library", command: "update anime list", data: {newUsername: username, listType: "ANILIST"}});
+                socket.sendCommand({ type: "library", command: "update anime list", data: { newUsername: username, listType: "ANILIST" } });
             }
             else if (option.startsWith("m")) {
                 let listener = new Listener("anime list update result", (data) => {
@@ -4291,7 +4217,7 @@ async function parseCommand(messageText, type, target) {
                     removeKitsu();
                 });
                 listener.bindListener();
-                socket.sendCommand({type: "library", command: "update anime list", data: {newUsername: username, listType: "MAL"}});
+                socket.sendCommand({ type: "library", command: "update anime list", data: { newUsername: username, listType: "MAL" } });
             }
             else if (option.startsWith("k")) {
                 let listener = new Listener("anime list update result", (data) => {
@@ -4307,13 +4233,13 @@ async function parseCommand(messageText, type, target) {
                     removeMyanimelist();
                 });
                 listener.bindListener();
-                socket.sendCommand({type: "library", command: "update anime list", data: {newUsername: username, listType: "KITSU"}});
+                socket.sendCommand({ type: "library", command: "update anime list", data: { newUsername: username, listType: "KITSU" } });
             }
         }
     }
     else if (["dq", "daily", "dailies", "dailyquest", "dailyquests"].includes(command)) {
         if (/^\S+ (d|detect|auto)$/.test(content)) {
-            let genreDict = Object.assign({}, ...Object.entries(idTranslator.genreNames).map(([a, b]) => ({[b]: parseInt(a)})));
+            let genreDict = Object.assign({}, ...Object.entries(idTranslator.genreNames).map(([a, b]) => ({ [b]: parseInt(a) })));
             let list = Object.values(qusetContainer.questMap).filter((x) => x.name.includes(" Fan") && x.state !== x.targetState).map((x) => genreDict[x.name.split(" Fan")[0]]);
             if (list.length) {
                 sendMessage(`Detected: ${list.map((x) => idTranslator.genreNames[x]).join(", ")}`, type, target, true);
@@ -4321,7 +4247,7 @@ async function parseCommand(messageText, type, target) {
                 if (anime) {
                     sendMessage(anime, type, target);
                     matchSettingsToAnime(anime);
-                    autoThrow = {time: [3000, 5000], text: anime, multichoice: null};
+                    autoThrow = { time: [3000, 5000], text: anime, multichoice: null };
                     sendMessage(`auto throwing: ${anime} after 3-5 seconds`, type, target, true);
                     updateCommandListWindow("autoThrow");
                 }
@@ -4341,7 +4267,7 @@ async function parseCommand(messageText, type, target) {
             if (anime) {
                 sendMessage(anime, type, target);
                 matchSettingsToAnime(anime);
-                autoThrow = {time: [3000, 5000], text: anime, multichoice: null};
+                autoThrow = { time: [3000, 5000], text: anime, multichoice: null };
                 sendMessage(`auto throwing: ${anime} after 3-5 seconds`, type, target, true);
                 updateCommandListWindow("autoThrow");
             }
@@ -4353,7 +4279,7 @@ async function parseCommand(messageText, type, target) {
             let anime = "MF Ghost 2nd Season";
             sendMessage(anime, type, target);
             matchSettingsToAnime(anime);
-            autoThrow = {time: [3000, 5000], text: anime, multichoice: null};
+            autoThrow = { time: [3000, 5000], text: anime, multichoice: null };
             sendMessage(`auto throwing: ${anime} after 3-5 seconds`, type, target, true);
             updateCommandListWindow("autoThrow");
         }
@@ -4363,16 +4289,16 @@ async function parseCommand(messageText, type, target) {
                 let settings = hostModal.getSettings(true);
                 let data = dqMap[anime];
                 settings.songSelection.standardValue = 1;
-                settings.songSelection.advancedValue = {random: settings.numberOfSongs, unwatched: 0, watched: 0};
-                settings.songType.standardValue = {openings: true, endings: false, inserts: false};
-                settings.songType.advancedValue = {openings: 0, endings: 0, inserts: 0, random: settings.numberOfSongs};
+                settings.songSelection.advancedValue = { random: settings.numberOfSongs, unwatched: 0, watched: 0 };
+                settings.songType.standardValue = { openings: true, endings: false, inserts: false };
+                settings.songType.advancedValue = { openings: 0, endings: 0, inserts: 0, random: settings.numberOfSongs };
                 settings.vintage.advancedValueList = [];
-                settings.vintage.standardValue = {seasons: data.seasons, years: data.years};
-                settings.genre = data.genre.map((x) => ({id: String(x), state: 1}));
+                settings.vintage.standardValue = { seasons: data.seasons, years: data.years };
+                settings.genre = data.genre.map((x) => ({ id: String(x), state: 1 }));
                 settings.tags = data.tags ?? [];
                 changeGameSettings(settings);
             }
-            autoThrow = {time: [3000, 5000], text: anime, multichoice: null};
+            autoThrow = { time: [3000, 5000], text: anime, multichoice: null };
             sendMessage(`auto throwing: ${anime} after 3-5 seconds`, type, target, true);
             updateCommandListWindow("autoThrow");
         }
@@ -4382,16 +4308,16 @@ async function parseCommand(messageText, type, target) {
                 let settings = hostModal.getSettings(true);
                 let data = dqMap[anime];
                 settings.songSelection.standardValue = 1;
-                settings.songSelection.advancedValue = {random: settings.numberOfSongs, unwatched: 0, watched: 0};
-                settings.songType.standardValue = {openings: false, endings: true, inserts: false};
-                settings.songType.advancedValue = {openings: 0, endings: 0, inserts: 0, random: settings.numberOfSongs};
+                settings.songSelection.advancedValue = { random: settings.numberOfSongs, unwatched: 0, watched: 0 };
+                settings.songType.standardValue = { openings: false, endings: true, inserts: false };
+                settings.songType.advancedValue = { openings: 0, endings: 0, inserts: 0, random: settings.numberOfSongs };
                 settings.vintage.advancedValueList = [];
-                settings.vintage.standardValue = {seasons: data.seasons, years: data.years};
-                settings.genre = data.genre.map((x) => ({id: String(x), state: 1}));
+                settings.vintage.standardValue = { seasons: data.seasons, years: data.years };
+                settings.genre = data.genre.map((x) => ({ id: String(x), state: 1 }));
                 settings.tags = data.tags ?? [];
                 changeGameSettings(settings);
             }
-            autoThrow = {time: [3000, 5000], text: anime, multichoice: null};
+            autoThrow = { time: [3000, 5000], text: anime, multichoice: null };
             sendMessage(`auto throwing: ${anime} after 3-5 seconds`, type, target, true);
             updateCommandListWindow("autoThrow");
         }
@@ -4401,16 +4327,16 @@ async function parseCommand(messageText, type, target) {
                 let settings = hostModal.getSettings(true);
                 let data = dqMap[anime];
                 settings.songSelection.standardValue = 1;
-                settings.songSelection.advancedValue = {random: settings.numberOfSongs, unwatched: 0, watched: 0};
-                settings.songType.standardValue = {openings: false, endings: false, inserts: true};
-                settings.songType.advancedValue = {openings: 0, endings: 0, inserts: 0, random: settings.numberOfSongs};
+                settings.songSelection.advancedValue = { random: settings.numberOfSongs, unwatched: 0, watched: 0 };
+                settings.songType.standardValue = { openings: false, endings: false, inserts: true };
+                settings.songType.advancedValue = { openings: 0, endings: 0, inserts: 0, random: settings.numberOfSongs };
                 settings.vintage.advancedValueList = [];
-                settings.vintage.standardValue = {seasons: data.seasons, years: data.years};
-                settings.genre = data.genre.map((x) => ({id: String(x), state: 1}));
+                settings.vintage.standardValue = { seasons: data.seasons, years: data.years };
+                settings.genre = data.genre.map((x) => ({ id: String(x), state: 1 }));
                 settings.tags = data.tags ?? [];
                 changeGameSettings(settings);
             }
-            autoThrow = {time: [3000, 5000], text: anime, multichoice: null};
+            autoThrow = { time: [3000, 5000], text: anime, multichoice: null };
             sendMessage(`auto throwing: ${anime} after 3-5 seconds`, type, target, true);
             updateCommandListWindow("autoThrow");
         }
@@ -4421,7 +4347,7 @@ async function parseCommand(messageText, type, target) {
                 if (anime) {
                     sendMessage(anime, type, target);
                     matchSettingsToAnime(anime);
-                    autoThrow = {time: [3000, 5000], text: anime, multichoice: null};
+                    autoThrow = { time: [3000, 5000], text: anime, multichoice: null };
                     sendMessage(`auto throwing: ${anime} after 3-5 seconds`, type, target, true);
                     updateCommandListWindow("autoThrow");
                 }
@@ -4457,17 +4383,17 @@ async function parseCommand(messageText, type, target) {
             if (isNaN(parseInt(id))) return;
             let data = await getAnimeFromAnilistId(id);
             if (!data) return sendMessage("invalid anilist id", type, target, true);
-            let genreDict = Object.assign({}, ...Object.entries(idTranslator.genreNames).map(([a, b]) => ({[b]: a})));
-            let seasonDict = {WINTER: 0, SPRING: 1, SUMMER: 2, FALL: 3};
+            let genreDict = Object.assign({}, ...Object.entries(idTranslator.genreNames).map(([a, b]) => ({ [b]: a })));
+            let seasonDict = { WINTER: 0, SPRING: 1, SUMMER: 2, FALL: 3 };
             let settings = hostModal.getSettings(true);
             settings.songSelection.standardValue = 1;
-            settings.songSelection.advancedValue = {random: settings.numberOfSongs, unwatched: 0, watched: 0};
-            settings.songType.advancedValue = {openings: 0, endings: 0, inserts: 0, random: 20};
-            settings.songType.standardValue = {openings: true, endings: true, inserts: true};
+            settings.songSelection.advancedValue = { random: settings.numberOfSongs, unwatched: 0, watched: 0 };
+            settings.songType.advancedValue = { openings: 0, endings: 0, inserts: 0, random: 20 };
+            settings.songType.standardValue = { openings: true, endings: true, inserts: true };
             settings.vintage.advancedValueList = [];
             settings.vintage.standardValue.years = [data.seasonYear, data.seasonYear];
             settings.vintage.standardValue.seasons = [seasonDict[data.season], seasonDict[data.season]];
-            settings.genre = data.genres.map((x) => ({id: genreDict[x], state: 1}));
+            settings.genre = data.genres.map((x) => ({ id: genreDict[x], state: 1 }));
             //settings.tags = data.tags.map((x) => ({id: String(x.id), state: 1}));
             changeGameSettings(settings);
         }
@@ -4496,7 +4422,7 @@ async function parseCommand(messageText, type, target) {
         if (!animeAutoCompleteLowerCase.length) return sendMessage("missing autocomplete", type, target, true);
         let query = content.slice(content.indexOf(" ") + 1);
         if (!query.includes("_")) return;
-        let regexChar = function(char) {
+        let regexChar = function (char) {
             if (char === "_") return "\\S"
             if (".^$*+?()[]|\\".includes(char)) return "\\" + char;
             return char;
@@ -4574,7 +4500,7 @@ function parseIncomingDM(messageText, sender) {
             }
             else if (command === "forceinvite" || command === "fi") {
                 if (inRoom()) {
-                    socket.sendCommand({type: "social", command: "invite to game", data: {target: sender}});
+                    socket.sendCommand({ type: "social", command: "invite to game", data: { target: sender } });
                 }
             }
             else if (command === "forcepassword" || command === "fpw" || command === "fp") {
@@ -4588,7 +4514,7 @@ function parseIncomingDM(messageText, sender) {
                         lobby.promoteHost(sender);
                     }
                     else if (nexus.inCoopLobby && nexusCoopChat.hostName === selfName) {
-                        socket.sendCommand({type: "nexus", command: "nexus promote host", data: {name: sender}});
+                        socket.sendCommand({ type: "nexus", command: "nexus promote host", data: { name: sender } });
                     }
                 }
                 else if (split.length === 2) {
@@ -4597,7 +4523,7 @@ function parseIncomingDM(messageText, sender) {
                         lobby.promoteHost(name);
                     }
                     else if (nexus.inCoopLobby && nexusCoopChat.hostName === selfName) {
-                        socket.sendCommand({type: "nexus", command: "nexus promote host", data: {name: name}});
+                        socket.sendCommand({ type: "nexus", command: "nexus promote host", data: { name: name } });
                     }
                 }
             }
@@ -4746,20 +4672,29 @@ function sendMessage(content, type, target, sys) {
     content = String(content).trim();
     if (content === "") return;
     if (type === "dm") {
-        setTimeout(() => { socket.sendCommand({type: "social", command: "chat message", data: {target: target, message: content}}) }, 100);
+        setTimeout(() => { socket.sendCommand({ type: "social", command: "chat message", data: { target: target, message: content } }) }, 100);
     }
     else if (type === "chat") {
         if (sys) setTimeout(() => { gameChat.systemMessage(content) }, 1);
-        else socket.sendCommand({type: "lobby", command: "game chat message", data: {msg: content, teamMessage: false}});
+        else socket.sendCommand({ type: "lobby", command: "game chat message", data: { msg: content, teamMessage: false } });
     }
     else if (type === "teamchat") {
         if (sys) setTimeout(() => { gameChat.systemMessage(content) }, 1);
-        else socket.sendCommand({type: "lobby", command: "game chat message", data: {msg: content, teamMessage: true}});
+        else socket.sendCommand({ type: "lobby", command: "game chat message", data: { msg: content, teamMessage: true } });
     }
     else if (type === "nexus") {
-        if (sys) setTimeout(() => { nexusCoopChat.displayServerMessage({message: content}) }, 1);
-        else socket.sendCommand({type: "nexus", command: "coop chat message", data: {message: content}});
+        if (sys) setTimeout(() => { nexusCoopChat.displayServerMessage({ message: content }) }, 1);
+        else socket.sendCommand({ type: "nexus", command: "coop chat message", data: { message: content } });
     }
+}
+
+// reset all tabs and switch to the inputted tab
+function switchTab(tab) {
+    const $w = $("#mcSettingsModal");
+    $w.find(".tab").removeClass("selected");
+    $w.find(".tabSection").hide();
+    $w.find(`#${tab}Tab`).addClass("selected");
+    $w.find(`#${tab}Container`).show();
 }
 
 // return true if you are in a solo lobby or quiz
@@ -4955,13 +4890,13 @@ function sendChatMessage(message, isTeamMessage) {
     socket.sendCommand({
         type: "lobby",
         command: "game chat message",
-        data: {msg: String(message), teamMessage: Boolean(isTeamMessage)}
+        data: { msg: String(message), teamMessage: Boolean(isTeamMessage) }
     });
 }
 
 // send a client side message to game chat
 function sendSystemMessage(message, message2) {
-    setTimeout(() => { 
+    setTimeout(() => {
         if (gameChat.open) {
             if (message2) {
                 gameChat.systemMessage(String(message), String(message2));
@@ -4971,7 +4906,7 @@ function sendSystemMessage(message, message2) {
             }
         }
         else if (nexus.inCoopLobby) {
-            nexusCoopChat.displayServerMessage({message: String(message)});
+            nexusCoopChat.displayServerMessage({ message: String(message) });
         }
     }, 0);
 }
@@ -4981,7 +4916,7 @@ function sendNexusChatMessage(message) {
     socket.sendCommand({
         type: "nexus",
         command: "coop chat message",
-        data: {message: String(message)}
+        data: { message: String(message) }
     });
 }
 
@@ -4991,7 +4926,7 @@ function sendDM(target, message) {
         socket.sendCommand({
             type: "social",
             command: "chat message",
-            data: {target: target, message: String(message)}
+            data: { target: target, message: String(message) }
         });
     }, 100);
 }
@@ -5032,22 +4967,22 @@ function getClosestGenre(text) {
     let number = Number(text);
     if (number) {
         if (idTranslator.genreNames.hasOwnProperty(number)) {
-            return {genre: idTranslator.genreNames[number], id: number}
+            return { genre: idTranslator.genreNames[number], id: number }
         }
-        return {genre: text, id: null};
+        return { genre: text, id: null };
     }
     else {
         let list = [];
         for (let [id, genre] of Object.entries(idTranslator.genreNames)) {
             let lower = genre.toLowerCase();
             if (lower === text) {
-                return {genre: genre, id: Number(id)};
+                return { genre: genre, id: Number(id) };
             }
             else if (lower.includes(text)) {
-                list.push({genre: genre, id: Number(id)});
+                list.push({ genre: genre, id: Number(id) });
             }
         }
-        return list.length === 1 ? list[0] : {genre: text, id: null};
+        return list.length === 1 ? list[0] : { genre: text, id: null };
     }
 }
 
@@ -5057,22 +4992,22 @@ function getClosestTag(text) {
     let number = Number(text);
     if (number) {
         if (idTranslator.tagNames.hasOwnProperty(number)) {
-            return {tag: idTranslator.tagNames[number], id: number}
+            return { tag: idTranslator.tagNames[number], id: number }
         }
-        return {tag: text, id: null};
+        return { tag: text, id: null };
     }
     else {
         let list = [];
         for (let [id, tag] of Object.entries(idTranslator.tagNames)) {
             let lower = tag.toLowerCase();
             if (lower === text) {
-                return {tag: tag, id: Number(id)};
+                return { tag: tag, id: Number(id) };
             }
             else if (lower.includes(text)) {
-                list.push({tag: tag, id: Number(id)});
+                list.push({ tag: tag, id: Number(id) });
             }
         }
-        return list.length === 1 ? list[0] : {tag: text, id: null};
+        return list.length === 1 ? list[0] : { tag: text, id: null };
     }
 }
 
@@ -5092,13 +5027,13 @@ function checkAutoReady() {
 function checkAutoStart() {
     setTimeout(() => {
         if (autoStart.remaining > 0 && lobby.inLobby && lobby.isHost) {
-            if (autoStart.delay ) {
+            if (autoStart.delay) {
                 if (!autoStart.timerRunning) {
                     sendSystemMessage(`Auto starting in ${autoStart.delay / 1000}s`);
                     autoStart.timerRunning = true;
                     autoStart.timer = setTimeout(() => {
                         if (autoStart.remaining > 0 && lobby.inLobby && lobby.isHost) {
-                            socket.sendCommand({type: "lobby", command: "start game"});
+                            socket.sendCommand({ type: "lobby", command: "start game" });
                             autoStart.remaining -= 1;
                             autoStart.timerRunning = false;
                         }
@@ -5121,7 +5056,7 @@ function checkAutoSwitch() {
                 autoSwitch.mode = "";
                 autoSwitch.temp = false;
             }
-            socket.sendCommand({type: "lobby", command: "change to player"});
+            socket.sendCommand({ type: "lobby", command: "change to player" });
         }
         else if (autoSwitch.mode === "spectator" && !lobby.isSpectator) {
             if (autoSwitch.temp) {
@@ -5146,10 +5081,10 @@ function checkAutoHost() {
     }
     else if (nexus.inCoopLobby && nexusCoopChat.hostName === selfName && Object.keys(nexusCoopChat.playerMap).length > 1) {
         if (autoHost === "*") {
-            socket.sendCommand({type: "nexus", command: "nexus promote host", data: {name: getRandomOtherPlayer()}});
+            socket.sendCommand({ type: "nexus", command: "nexus promote host", data: { name: getRandomOtherPlayer() } });
         }
         else if (isInYourRoom(autoHost)) {
-            socket.sendCommand({type: "nexus", command: "nexus promote host", data: {name: getPlayerNameCorrectCase(autoHost)}});
+            socket.sendCommand({ type: "nexus", command: "nexus promote host", data: { name: getPlayerNameCorrectCase(autoHost) } });
         }
     }
 }
@@ -5191,7 +5126,7 @@ function rejoinRoom(time) {
                 }
             });
             gameInviteListener.bindListener();
-            socket.sendCommand({type: "social", command: "invite to game", data: {target: selfName}});
+            socket.sendCommand({ type: "social", command: "invite to game", data: { target: selfName } });
         }
     }, 1);
 }
@@ -5199,26 +5134,26 @@ function rejoinRoom(time) {
 // log out, log in, and rejoin the room you were in
 function relog() {
     if (isSoloMode()) {
-        autoJoinRoom = {type: "solo", rejoin: quiz.inQuiz, temp: true, settings: hostModal.getSettings(true), autoLogIn: true};
+        autoJoinRoom = { type: "solo", rejoin: quiz.inQuiz, temp: true, settings: hostModal.getSettings(true), autoLogIn: true };
         saveSettings();
         unsafeWindow.onbeforeunload = null;
         setTimeout(() => { unsafeWindow.location = "/?forceLogin=True" }, 1);
     }
     else if (isRankedMode()) {
-        autoJoinRoom = {type: hostModal.$roomName.val().toLowerCase(), rejoin: quiz.inQuiz && !quiz.isSpectator, temp: true, autoLogIn: true};
+        autoJoinRoom = { type: hostModal.$roomName.val().toLowerCase(), rejoin: quiz.inQuiz && !quiz.isSpectator, temp: true, autoLogIn: true };
         saveSettings();
         unsafeWindow.onbeforeunload = null;
         setTimeout(() => { unsafeWindow.location = "/?forceLogin=True" }, 1);
     }
     else if (quiz.inQuiz && quiz.gameMode === "Jam") {
-        autoJoinRoom = {type: "jam", temp: true, autoLogIn: true};
+        autoJoinRoom = { type: "jam", temp: true, autoLogIn: true };
         saveSettings();
         unsafeWindow.onbeforeunload = null;
         setTimeout(() => { unsafeWindow.location = "/?forceLogin=True" }, 1);
     }
     else if (lobby.inLobby) {
         let password = hostModal.$passwordInput.val();
-        autoJoinRoom = {type: "multiplayer", id: lobby.gameId, password: password, joinAsPlayer: !lobby.isSpectator, temp: true, autoLogIn: true};
+        autoJoinRoom = { type: "multiplayer", id: lobby.gameId, password: password, joinAsPlayer: !lobby.isSpectator, temp: true, autoLogIn: true };
         saveSettings();
         unsafeWindow.onbeforeunload = null;
         setTimeout(() => { unsafeWindow.location = "/?forceLogin=True" }, 1);
@@ -5228,45 +5163,45 @@ function relog() {
             if (data.sender === selfName) {
                 gameInviteListener.unbindListener();
                 let password = hostModal.$passwordInput.val();
-                autoJoinRoom = {type: "multiplayer", id: data.gameId, password: password, rejoin: !quiz.isSpectator, temp: true, autoLogIn: true};
+                autoJoinRoom = { type: "multiplayer", id: data.gameId, password: password, rejoin: !quiz.isSpectator, temp: true, autoLogIn: true };
                 saveSettings();
                 unsafeWindow.onbeforeunload = null;
                 setTimeout(() => { unsafeWindow.location = "/?forceLogin=True" }, 1);
             }
         });
         gameInviteListener.bindListener();
-        socket.sendCommand({type: "social", command: "invite to game", data: {target: selfName}});
+        socket.sendCommand({ type: "social", command: "invite to game", data: { target: selfName } });
     }
     else if (nexus.inNexusLobby) {
         if (nexus.inCoopLobby) {
             if (Object.keys(nexusCoopChat.playerMap).length > 1) {
-                autoJoinRoom = {type: "nexus coop", id: $("#ncdwPartySetupLobbyIdText").text(), temp: true, autoLogIn: true};
+                autoJoinRoom = { type: "nexus coop", id: $("#ncdwPartySetupLobbyIdText").text(), temp: true, autoLogIn: true };
                 saveSettings();
                 unsafeWindow.onbeforeunload = null;
                 setTimeout(() => { unsafeWindow.location = "/?forceLogin=True" }, 1);
             }
             else {
-                autoJoinRoom = {type: "nexus coop", temp: true, autoLogIn: true};
+                autoJoinRoom = { type: "nexus coop", temp: true, autoLogIn: true };
                 saveSettings();
                 unsafeWindow.onbeforeunload = null;
                 setTimeout(() => { unsafeWindow.location = "/?forceLogin=True" }, 1);
             }
         }
         else {
-            autoJoinRoom = {type: "nexus solo", temp: true, autoLogIn: true};
+            autoJoinRoom = { type: "nexus solo", temp: true, autoLogIn: true };
             saveSettings();
             unsafeWindow.onbeforeunload = null;
             setTimeout(() => { unsafeWindow.location = "/?forceLogin=True" }, 1);
         }
     }
     else if (nexus.inNexusGame) {
-        autoJoinRoom = {type: "nexus coop", rejoin: true, temp: true, autoLogIn: true};
+        autoJoinRoom = { type: "nexus coop", rejoin: true, temp: true, autoLogIn: true };
         saveSettings();
         unsafeWindow.onbeforeunload = null;
         setTimeout(() => { unsafeWindow.location = "/?forceLogin=True" }, 1);
     }
     else {
-        autoJoinRoom = {temp: true, autoLogIn: true};
+        autoJoinRoom = { temp: true, autoLogIn: true };
         saveSettings();
         unsafeWindow.onbeforeunload = null;
         setTimeout(() => { unsafeWindow.location = "/?forceLogin=True" }, 1);
@@ -5364,43 +5299,9 @@ function calc(input) {
     else return "ERROR";
 }
 
-// switch focus between answer box and chat
-function toggleTextInputFocus() {
-    setTimeout(() => {
-        if (tabSwitch === 1) {
-            if (quiz.answerInput.typingInput.$input.is(":focus")) {
-                gameChat.$chatInputField.focus();
-            }
-            else if (gameChat.$chatInputField.is(":focus")) {
-                quiz.answerInput.typingInput.$input.focus();
-            }
-            else {
-                gameChat.$chatInputField.focus();
-            }
-        }
-        else if (tabSwitch === 2) {
-            if (quiz.answerInput.typingInput.$input.is(":focus")) {
-                gameChat.$chatInputField.focus();
-            }
-            else if (gameChat.$chatInputField.is(":focus")) {
-                quiz.answerInput.typingInput.$input.focus();
-            }
-            else {
-                quiz.answerInput.typingInput.$input.focus();
-            }
-        }
-        else if (tabSwitch === 3) {
-            gameChat.$chatInputField.focus();
-        }
-        else if (tabSwitch === 4) {
-            quiz.answerInput.typingInput.$input.focus();
-        }
-    }, 10);
-}
-
 // override changeView function for auto ready
 const oldChangeView = ViewChanger.prototype.changeView;
-ViewChanger.prototype.changeView = function(newView, arg) {
+ViewChanger.prototype.changeView = function (newView, arg) {
     oldChangeView.apply(this, arguments);
     if (newView === "lobby") {
         setTimeout(() => {
@@ -5412,14 +5313,14 @@ ViewChanger.prototype.changeView = function(newView, arg) {
 
 // override newList function for drop down disable
 const oldNewList = AutoCompleteController.prototype.newList;
-AutoCompleteController.prototype.newList = function() {
+AutoCompleteController.prototype.newList = function () {
     if (this.list.length > 0) animeList = this.list;
     this.list = dropdown ? animeList : [];
     oldNewList.apply(this, arguments);
 }
 
 // override replayVideo function for sample continue
-QuizVideoController.prototype.replayVideo = function() {
+QuizVideoController.prototype.replayVideo = function () {
     if (!continueSample) {
         this.getCurrentPlayer().replayVideo();
     }
@@ -5438,7 +5339,7 @@ function lobbyHidePlayers() {
             player.lobbySlot.$NAME_CONTAINER.css("color", "inherit").text("player");
             player.lobbySlot.$LEVEL_CONTAINER.text("");
         }
-    }    
+    }
 }
 
 // unhide player names and avatars in lobby
@@ -5475,7 +5376,7 @@ function quizHidePlayers() {
             entry.name = entry.$scoreBoardEntryTextContainer.find(".qpsPlayerName").text();
             entry.textColor = entry.$scoreBoardEntryTextContainer.find(".qpsPlayerName").css("color");
             entry.textShadow = entry.$scoreBoardEntryTextContainer.find(".qpsPlayerName").css("text-shadow");
-            entry.$scoreBoardEntryTextContainer.find(".qpsPlayerName").css({"color": "inherit", "text-shadow": "inherit"}).text("player");
+            entry.$scoreBoardEntryTextContainer.find(".qpsPlayerName").css({ "color": "inherit", "text-shadow": "inherit" }).text("player");
         }
     }
 }
@@ -5495,7 +5396,7 @@ function quizUnhidePlayers() {
     for (let entry of Object.values(quiz.scoreboard.playerEntries)) {
         if (!entry.isSelf) {
             entry.hidden = false;
-            entry.$scoreBoardEntryTextContainer.find(".qpsPlayerName").css({"color": entry.textColor, "text-shadow": entry.textShadow}).text(entry.name);
+            entry.$scoreBoardEntryTextContainer.find(".qpsPlayerName").css({ "color": entry.textColor, "text-shadow": entry.textShadow }).text(entry.name);
         }
     }
 }
@@ -5504,7 +5405,7 @@ function quizUnhidePlayers() {
 function removeAnilist() {
     if ($("#aniListLastUpdateDate").text()) {
         $("#aniListUserNameInput").val("");
-        socket.sendCommand({type: "library", command: "update anime list", data: {newUsername: "", listType: "ANILIST"}});
+        socket.sendCommand({ type: "library", command: "update anime list", data: { newUsername: "", listType: "ANILIST" } });
     }
 }
 
@@ -5512,7 +5413,7 @@ function removeAnilist() {
 function removeMyanimelist() {
     if ($("#malLastUpdateDate").text()) {
         $("#malUserNameInput").val("");
-        socket.sendCommand({type: "library", command: "update anime list", data: {newUsername: "", listType: "MAL"}});
+        socket.sendCommand({ type: "library", command: "update anime list", data: { newUsername: "", listType: "MAL" } });
     }
 }
 
@@ -5520,7 +5421,7 @@ function removeMyanimelist() {
 function removeKitsu() {
     if ($("#kitsuLastUpdated").text()) {
         $("#kitsuUserNameInput").val("");
-        socket.sendCommand({type: "library", command: "update anime list", data: {newUsername: "", listType: "KITSU"}});
+        socket.sendCommand({ type: "library", command: "update anime list", data: { newUsername: "", listType: "KITSU" } });
     }
 }
 
@@ -5547,12 +5448,12 @@ function matchSettingsToAnime(anime) {
         let settings = hostModal.getSettings(true);
         let data = dqMap[anime];
         settings.songSelection.standardValue = 1;
-        settings.songSelection.advancedValue = {random: settings.numberOfSongs, unwatched: 0, watched: 0};
-        settings.songType.advancedValue = {openings: 0, endings: 0, inserts: 0, random: 20};
-        settings.songType.standardValue = {openings: true, endings: true, inserts: true};
+        settings.songSelection.advancedValue = { random: settings.numberOfSongs, unwatched: 0, watched: 0 };
+        settings.songType.advancedValue = { openings: 0, endings: 0, inserts: 0, random: 20 };
+        settings.songType.standardValue = { openings: true, endings: true, inserts: true };
         settings.vintage.advancedValueList = [];
-        settings.vintage.standardValue = {seasons: data.seasons, years: data.years};
-        settings.genre = data.genre.map((x) => ({id: String(x), state: 1}));
+        settings.vintage.standardValue = { seasons: data.seasons, years: data.years };
+        settings.genre = data.genre.map((x) => ({ id: String(x), state: 1 }));
         settings.tags = data.tags ?? [];
         changeGameSettings(settings);
     }
@@ -5579,8 +5480,8 @@ function getAnimeFromAnilistId(id) {
     `;
     return fetch("https://graphql.anilist.co", {
         method: "POST",
-        headers: {"Content-Type": "application/json", "Accept": "application/json"},
-        body: JSON.stringify({query: query})
+        headers: { "Content-Type": "application/json", "Accept": "application/json" },
+        body: JSON.stringify({ query: query })
     }).then((res) => res.json()).then((json) => json.data.Media);
 }
 
@@ -5606,8 +5507,8 @@ function getAnilistAnimeList(username) {
     `;
     return fetch("https://graphql.anilist.co", {
         method: "POST",
-        headers: {"Content-Type": "application/json", "Accept": "application/json"},
-        body: JSON.stringify({query: query})
+        headers: { "Content-Type": "application/json", "Accept": "application/json" },
+        body: JSON.stringify({ query: query })
     }).then((res) => res.json()).then((json) => {
         if (json.errors) return [];
         let list = [];
@@ -5627,7 +5528,7 @@ async function getMALAnimeList(username) {
             GM_xmlhttpRequest({
                 method: "GET",
                 url: nextPage,
-                headers: {"Content-Type": "application/json", "Accept": "application/json", "X-MAL-CLIENT-ID": malClientId},
+                headers: { "Content-Type": "application/json", "Accept": "application/json", "X-MAL-CLIENT-ID": malClientId },
                 onload: (res) => resolve(JSON.parse(res.response)),
                 onerror: (res) => reject(res)
             });
@@ -5706,7 +5607,7 @@ function validateLocalStorage(item) {
 
 // import local storage
 function importLocalStorage() {
-    $("body").remove("#mcUploadLocalStorageInput").append($(`<input type="file" id="mcUploadLocalStorageInput" style="display: none"></input>`).on("change", function() {
+    $("body").remove("#mcUploadLocalStorageInput").append($(`<input type="file" id="mcUploadLocalStorageInput" style="display: none"></input>`).on("change", function () {
         if (this.files.length) {
             this.files[0].text().then((data) => {
                 try {
@@ -5758,9 +5659,9 @@ function exportLocalStorage() {
 function loadAlert(key, chat = false, popout = false) {
     const item = saveData.alerts?.[key];
     if (typeof item === "object") {
-        return {chat: item.chat ?? chat, popout: item.popout ?? popout};
+        return { chat: item.chat ?? chat, popout: item.popout ?? popout };
     }
-    return {chat, popout};
+    return { chat, popout };
 }
 
 // load command persist from local storage, input optional default values
@@ -5797,7 +5698,6 @@ function saveSettings() {
     settings.printLoot = printLoot;
     settings.reorder = reorder;
     settings.selfDM = selfDM;
-    settings.tabSwitch = tabSwitch;
     if (commandPersist.autoAcceptInvite) settings.autoAcceptInvite = autoAcceptInvite;
     if (commandPersist.autoCopy) settings.autoCopy = autoCopy;
     if (commandPersist.autoDownloadSong) settings.autoDownloadSong = autoDownloadSong;
