@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Quick Load Lists
 // @namespace    https://github.com/kempanator
-// @version      0.9
+// @version      0.10
 // @description  Adds a window for saving and quick loading anime lists
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -26,7 +26,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.9";
+const version = "0.10";
 const saveData = validateLocalStorage("quickLoadLists");
 let savedLists = saveData.savedLists ?? [];
 let selectedColor = saveData.selectedColor ?? "#4497ea";
@@ -90,25 +90,21 @@ function setup() {
         }))
         .append(`<h2>Quick Load Lists</h2>`)
         .append($(`<div class="tabContainer">`)
-            .append($(`<div id="qllUseTab" class="tab clickAble"><span>Use</span></div>`).click(function () {
-                tabReset();
-                $(this).addClass("selected");
-                $("#qllUseContainer").show();
+            .append($(`<div id="qllUseTab" class="tab clickAble"><span>Use</span></div>`).click(() => {
+                switchTab("qllUse");
             }))
-            .append($(`<div id="qllEditTab" class="tab clickAble"><span>Edit</span></div>`).click(function () {
-                tabReset();
-                $(this).addClass("selected");
-                $("#qllEditContainer").show();
+            .append($(`<div id="qllEditTab" class="tab clickAble"><span>Edit</span></div>`).click(() => {
+                switchTab("qllEdit");
             }))
-            .append($(`<div id="qllSettingsTab" class="tab clickAble"><span>Settings</span></div>`).click(function () {
-                tabReset();
-                $(this).addClass("selected");
-                $("#qllSettingsContainer").show();
+            .append($(`<div id="qllSettingsTab" class="tab clickAble"><span>Settings</span></div>`).click(() => {
+                switchTab("qllSettings");
             }))
         );
     quickLoadListsWindow.panels[0].panel
-        .append($(`<div id="qllUseContainer"></div>`))
-        .append($(`<div id="qllEditContainer"></div>`)
+        .append($(`<div id="qllUseContainer" class="tabSection"></div>`)
+            .append(`<table id="qllTable"><thead></thead><tbody></tbody></table>`)
+        )
+        .append($(`<div id="qllEditContainer" class="tabSection"></div>`)
             .append($(`<button class="btn btn-success" style="margin: 5px 2px 2px 5px">Save</button>`).click(() => {
                 saveEditTable();
                 createListTable();
@@ -118,7 +114,7 @@ function setup() {
                 createEditRow($("#qllEditTable"), "", "anilist", true, true, true, true, true);
             }))
         )
-        .append($(`<div id="qllSettingsContainer"></div>`)
+        .append($(`<div id="qllSettingsContainer" class="tabSection"></div>`)
             .append(`<div id="qllHotkeyContainer">
                 <table id="qllHotkeyTable">
                     <thead>
@@ -145,7 +141,7 @@ function setup() {
                         if (this.files.length) {
                             this.files[0].text().then((data) => {
                                 try {
-                                    let json = JSON.parse(data);
+                                    const json = JSON.parse(data);
                                     if (Array.isArray(json.savedLists) && json.savedLists.every((x) => x.username !== undefined && x.type !== undefined)) {
                                         $(this).val("");
                                         swal({
@@ -195,9 +191,9 @@ function setup() {
                 )
                 .append($(`<button class="btn btn-default" style="margin-left: 5px">Export</button>`).click(function () {
                     if (savedLists.length) {
-                        let settings = { savedLists, hotKeys, selectedColor };
-                        let data = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(settings));
-                        let element = document.createElement("a");
+                        const settings = { savedLists, hotKeys, selectedColor };
+                        const data = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(settings));
+                        const element = document.createElement("a");
                         element.setAttribute("href", data);
                         element.setAttribute("download", "amq quick load lists backup.json");
                         document.body.appendChild(element);
@@ -210,9 +206,7 @@ function setup() {
                 }))
             )
         );
-    tabReset();
-    $("#qllUseTab").addClass("selected");
-    $("#qllUseContainer").show();
+    switchTab("qllUse");
     createListTable();
     createEditTable();
     createHotkeyRow("Open This Window", "qllWindow");
@@ -249,7 +243,7 @@ function setup() {
             if (shift !== b.shift) return false;
             return true;
         }
-        for (let [action, bind] of Object.entries(hotKeys)) {
+        for (const [action, bind] of Object.entries(hotKeys)) {
             if (match(bind) && hotkeyActions.hasOwnProperty(action)) {
                 event.preventDefault();
                 hotkeyActions[action]();
@@ -257,11 +251,11 @@ function setup() {
         }
     });
 
-    options.$INCLUDE_WATCHING_CHECKBOX.click(() => { checkSelectedList() });
-    options.$INCLUDE_COMPLETED_CHECKBOX.click(() => { checkSelectedList() });
-    options.$INCLUDE_ON_HOLD_CHECKBOX.click(() => { checkSelectedList() });
-    options.$INCLUDE_DROPPED_CHECKBOX.click(() => { checkSelectedList() });
-    options.$INCLUDE_PLANNING_CHECKBOX.click(() => { checkSelectedList() });
+    options.$INCLUDE_WATCHING_CHECKBOX.click(checkSelectedList);
+    options.$INCLUDE_COMPLETED_CHECKBOX.click(checkSelectedList);
+    options.$INCLUDE_ON_HOLD_CHECKBOX.click(checkSelectedList);
+    options.$INCLUDE_DROPPED_CHECKBOX.click(checkSelectedList);
+    options.$INCLUDE_PLANNING_CHECKBOX.click(checkSelectedList);
 
     applyStyles();
     AMQ_addScriptData({
@@ -276,16 +270,17 @@ function setup() {
     });
 }
 
-function tabReset() {
-    $("#qllUseTab").removeClass("selected");
-    $("#qllEditTab").removeClass("selected");
-    $("#qllSettingsTab").removeClass("selected");
-    $("#qllUseContainer").hide();
-    $("#qllEditContainer").hide();
-    $("#qllSettingsContainer").hide();
+// reset all tabs and switch to the inputted tab
+function switchTab(tab) {
+    const $w = $("#quickLoadListsWindow");
+    $w.find(".tab").removeClass("selected");
+    $w.find(".tabSection").hide();
+    $w.find(`#${tab}Tab`).addClass("selected");
+    $w.find(`#${tab}Container`).show();
 }
 
-function shortenType(type) {
+// shorten anime list type in the table
+function shortenListType(type) {
     if (type === "anilist") return "ANI";
     if (type === "myanimelist") return "MAL";
     if (type === "kitsu") return "KIT";
@@ -293,9 +288,9 @@ function shortenType(type) {
 
 // when you click a username in the table
 function loadList($row, username, type, watching, completed, hold, dropped, planning) {
-    let listTypeMap = { anilist: "ANILIST", myanimelist: "MAL", kitsu: "KITSU" };
-    let userNameInputMap = { anilist: "#aniListUserNameInput", myanimelist: "#malUserNameInput", kitsu: "#kitsuUserNameInput" };
-    let listener = new Listener("anime list update result", (data) => {
+    const listTypeMap = { anilist: "ANILIST", myanimelist: "MAL", kitsu: "KITSU" };
+    const userNameInputMap = { anilist: "#aniListUserNameInput", myanimelist: "#malUserNameInput", kitsu: "#kitsuUserNameInput" };
+    const listener = new Listener("anime list update result", (data) => {
         listener.unbindListener();
         $("#qllTable .qllRow").removeClass("selected");
         if (data.success) {
@@ -346,7 +341,7 @@ function removeAllLists() {
 
 // check if your current list settings match any saved lists and mark the found list as selected
 function checkSelectedList() {
-    let $rows = $("#qllTable .qllRow");
+    const $rows = $("#qllTable .qllRow");
     if ($rows.length) {
         $rows.removeClass("selected");
         savedLists.forEach((list, index) => {
@@ -364,6 +359,7 @@ function checkSelectedList() {
     }
 }
 
+// set the status of the Anime Lists checkbox and send the command to the server
 function setStatusCheckbox($checkbox, commandName, status) {
     if ($checkbox.prop("checked") !== status) {
         $checkbox.prop("checked", status);
@@ -375,6 +371,7 @@ function setStatusCheckbox($checkbox, commandName, status) {
     }
 }
 
+// set the status of all checkboxes in Anime Lists
 function setAllStatusCheckboxes(watching, completed, hold, dropped, planning) {
     setStatusCheckbox(options.$INCLUDE_WATCHING_CHECKBOX, "watching", watching);
     setStatusCheckbox(options.$INCLUDE_COMPLETED_CHECKBOX, "completed", completed);
@@ -385,17 +382,14 @@ function setAllStatusCheckboxes(watching, completed, hold, dropped, planning) {
 
 // create the table that shows all saved lists
 function createListTable() {
-    $("#qllTable").remove();
-    let $table = $(`<table id="qllTable"></table>`);
-    let $thead = $("<thead></thead>");
-    let $tbody = $("<tbody></tbody>");
-    savedLists.forEach((list, i) => {
-        let $row = $(`<tr class="qllRow"></tr>`)
+    const $tbody = $("#qllTable tbody").empty();
+    for (const list of savedLists) {
+        $tbody.append($(`<tr class="qllRow"></tr>`)
             .append($(`<td class="username"></td>`).text(list.username).click(() => {
                 loadList($row, list.username, list.type, list.watching, list.completed, list.hold, list.dropped, list.planning);
             }))
             .append($(`<td class="type"></td>`)
-                .append($(`<a href="${getListURL(list.username, list.type)}" target="_blank"></a>`).text(shortenType(list.type)))
+                .append($(`<a href="${getListURL(list.username, list.type)}" target="_blank"></a>`).text(shortenListType(list.type)))
             )
             .append($(`<td class="status"></td>`)
                 .append($(`<span>W</span>`).addClass(list.watching ? "" : "disabled"))
@@ -406,19 +400,17 @@ function createListTable() {
             )
             .append($(`<td class="comment"></td>`).text(list.comment)
                 .append($(`<i class="fa fa-spinner fa-spin"></i>`).hide())
-            );
-        $tbody.append($row);
-    });
-    $table.append($thead).append($tbody);
-    $("#qllUseContainer").append($table);
+            )
+        );
+    };
     checkSelectedList();
 }
 
 // create the table where you edit lists
 function createEditTable() {
     $("#qllEditTable").remove();
-    let $table = $(`<div id="qllEditTable"></div>`)
-    for (let list of savedLists) {
+    const $table = $(`<div id="qllEditTable"></div>`)
+    for (const list of savedLists) {
         createEditRow($table, list.username, list.type, list.watching, list.completed, list.hold, list.dropped, list.planning, list.comment);
     }
     $("#qllEditContainer").append($table);
@@ -426,7 +418,7 @@ function createEditTable() {
 
 // create new row in list edit table
 function createEditRow($table, username, type, watching, completed, hold, dropped, planning, comment) {
-    let $row = $(`<div class="qllEditRow"></div>`)
+    $table.append($(`<div class="qllEditRow"></div>`)
         .append($(`<i class="fa fa-chevron-up arrow clickAble" aria-hidden="true"></i>`).click(function () {
             $(this).parent().prev().insertAfter($(this).parent());
         }))
@@ -434,7 +426,12 @@ function createEditRow($table, username, type, watching, completed, hold, droppe
             $(this).parent().next().insertBefore($(this).parent());
         }))
         .append($(`<input class="form-control username" type="text" placeholder="username">`).val(username))
-        .append($(`<select class="form-control type"><option value="anilist">anilist</option><option value="myanimelist">myanimelist</option><option value="kitsu">kitsu</option></select>`))
+        .append($(`<select class="form-control type"></select>`)
+            .append(`<option>aniList</option>`)
+            .append(`<option>myanimelist</option>`)
+            .append(`<option>kitsu</option>`)
+            .val(type)
+        )
         .append($(`<button class="btn btn-default status watching">W</button>`).addClass(watching ? "" : "off").click(function () {
             $(this).hasClass("off") ? $(this).removeClass("off") : $(this).addClass("off");
         }))
@@ -455,8 +452,7 @@ function createEditRow($table, username, type, watching, completed, hold, droppe
             $(this).parent().remove();
             saveSettings();
         }))
-    $row.find("select").val(type);
-    $table.append($row);
+    );
 }
 
 // load hotkey from local storage, input optional default values
@@ -694,17 +690,17 @@ function applyStyles() {
         #qllHotkeyTable td {
             padding: 2px 20px 2px 0;
         }
-        #qllSelectedColor {
-            width: 60px;
-            margin-left: 10px;
-            display: inline-block;
-            vertical-align: middle;
-        }
         #qllHotkeyTable input.hk-input {
             width: 200px;
             color: black;
             cursor: pointer;
             user-select: none;
+        }
+        #qllSelectedColor {
+            width: 60px;
+            margin-left: 10px;
+            display: inline-block;
+            vertical-align: middle;
         }
     `;
     let style = document.createElement("style");
