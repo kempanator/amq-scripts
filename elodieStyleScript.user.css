@@ -1,6 +1,6 @@
 /* ==UserStyle==
 @name         Elodie's AMQ Style Script
-@version      10.2.17
+@version      10.2.18
 @namespace    userstyles.world/user/melodyelodie
 @description  A custom theme for animemusicquiz.com
 @author       melodyelodie
@@ -165,7 +165,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         --wrongAnswerColorTransparent: color-mix(in srgb, var(--wrongAnswerColor), transparent 80%);
         --songHistoryCorrectColorHover: color-mix(in srgb, var(--songHistoryCorrectColor), white 5%);
         --songHistoryWrongColorHover: color-mix(in srgb, var(--songHistoryWrongColor), white 5%);
-        --elodieStyleScriptVersion: 10.2.17;
+        --elodieStyleScriptVersion: 10.2.18;
     }
     
     
@@ -225,7 +225,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         --wrongAnswerColorTransparent: color-mix(in srgb, var(--wrongAnswerColor), transparent 80%);
         --songHistoryCorrectColorHover: color-mix(in srgb, var(--songHistoryCorrectColor), white 15%);
         --songHistoryWrongColorHover: color-mix(in srgb, var(--songHistoryWrongColor), white 15%);
-        --elodieStyleScriptVersion: 10.2.17;
+        --elodieStyleScriptVersion: 10.2.18;
     }
     */
     
@@ -1637,6 +1637,18 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     #qpVideoTroubleshootingContainer .close:hover {
         opacity: .7;
     }
+    #qpQuizDisplayOverlayCategoryContainerOuter {
+        background-color: var(--primaryColorTransparent);
+        color: var(--textColor);
+    }
+    .qpAmqAwardsOverlayCategoryEdge::before {
+        background-color: var(--primaryColorTransparent);
+        box-shadow: 0px 0px 6px 0px var(--boxShadowColor);
+    }
+    #qpQuizDisplayOverlayCategoryContainerInner {
+        box-shadow: 0 0 10px 1px var(--boxShadowColor);
+        text-shadow: none;
+    }
 
 
     /* Answer Input */
@@ -2469,6 +2481,12 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     .lbEntry.active label {
         text-shadow: 0 0 5px var(--accentColor);
     }
+    #pmLinkAccountButton {
+        box-shadow: 0 0 10px 2px var(--boxShadowColor);
+    }
+    #pmLinkAccountButton:hover {
+        box-shadow: 0px 0px 10px 2px var(--accentColor);;
+    }
 
 
     /* Avatar Store */
@@ -3256,6 +3274,31 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     #ncwwRuneSetupTooltipPopup {
         background-color: var(--secondaryColor);
         box-shadow: 0 0 10px 5px var(--boxShadowColor);
+    }
+    #ncdwCoopFilterContainer::before {
+        background-color: var(--primaryColor);
+        box-shadow: 0 0px 8px 1px var(--boxShadowColor);
+    }
+    .ncdwCoopSaveEntry {
+        background-color: var(--primaryColor);
+        box-shadow: 0 0px 8px 1px var(--boxShadowColor);
+    }
+    .ncdwCoopSaveEntry.selected {
+        background-color: var(--accentColor);
+        box-shadow: 0 0px 8px 1px var(--accentColor);
+    }
+    .ncdwCoopSaveEntryPlayerImageContainer {
+        background-color: transparent;
+    }
+    .ncdwCoopSaveEntry.selected .ncdwCoopSaveEntryPlayerImageContainer {
+        background-color: transparent;
+        box-shadow: none;
+    }
+    .ncdwCoopSaveEntryPlayerAvatarImageContainer {
+        box-shadow: 0 0px 5px 0px #012946, 0 0px 1px 0px var(--boxShadowColor);
+    }
+    .ncdwCoopSaveEntryPlayerNameContainer {
+        text-shadow: 0 0 5px var(--textShadowColor), 0 0 5px var(--textShadowColor);
     }
 
 
