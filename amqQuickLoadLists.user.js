@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Quick Load Lists
 // @namespace    https://github.com/kempanator
-// @version      0.10
+// @version      0.11
 // @description  Adds a window for saving and quick loading anime lists
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -26,7 +26,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.10";
+const version = "0.11";
 const saveData = validateLocalStorage("quickLoadLists");
 let savedLists = saveData.savedLists ?? [];
 let selectedColor = saveData.selectedColor ?? "#4497ea";
@@ -115,18 +115,7 @@ function setup() {
             }))
         )
         .append($(`<div id="qllSettingsContainer" class="tabSection"></div>`)
-            .append(`<div id="qllHotkeyContainer">
-                <table id="qllHotkeyTable">
-                    <thead>
-                        <tr>
-                            <th>Action</th>
-                            <th>Key</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                    </tbody>
-                </table>
-            </div>`)
+            .append(`<div id="qllHotkeyContainer"><table id="qllHotkeyTable"><thead><tr><th>Action</th><th>Key</th></tr></thead><tbody></tbody></table></div>`)
             .append($(`<div></div>`)
                 .append($(`<span>Selected Color:</span>`))
                 .append($(`<input id="qllSelectedColor" type="color">`).val(selectedColor).on("change", function () {
@@ -138,74 +127,15 @@ function setup() {
             .append($(`<div></div>`)
                 .append($(`<label class="btn btn-default">Import</label>`)
                     .append($(`<input type="file" style="display: none">`).on("change", function () {
-                        if (this.files.length) {
-                            this.files[0].text().then((data) => {
-                                try {
-                                    const json = JSON.parse(data);
-                                    if (Array.isArray(json.savedLists) && json.savedLists.every((x) => x.username !== undefined && x.type !== undefined)) {
-                                        $(this).val("");
-                                        swal({
-                                            title: "Select Import Method",
-                                            input: "select",
-                                            inputPlaceholder: " ",
-                                            inputOptions: { 1: "Append to current lists", 2: "Replace all lists", 3: "Replace lists & settings" },
-                                            showCancelButton: true,
-                                            cancelButtonText: "Cancel",
-                                            allowOutsideClick: true
-                                        }).then((result) => {
-                                            if (result.value) {
-                                                if (result.value === "1") {
-                                                    savedLists = savedLists.concat(json.savedLists);
-                                                }
-                                                else if (result.value === "2") {
-                                                    savedLists = json.savedLists;
-                                                }
-                                                else if (result.value === "3") {
-                                                    savedLists = json.savedLists ?? [];
-                                                    hotKeys = {
-                                                        qllWindow: json.hotKeys?.qllWindow ?? { key: "q", ctrl: false, alt: true, shift: false },
-                                                        animeListModal: json.hotKeys?.animeListModal ?? { key: "", ctrl: false, alt: false, shift: false },
-                                                        removeList: json.hotKeys?.removeList ?? { key: "", ctrl: false, alt: false, shift: false },
-                                                    }
-                                                    selectedColor = json.selectedColor ?? "#4497ea";
-                                                    updateSettingsUI();
-                                                    applyStyles();
-                                                }
-                                                createListTable();
-                                                createEditTable();
-                                                saveSettings();
-                                                messageDisplayer.displayMessage(`Imported ${json.savedLists.length} list${json.savedLists.length === 1 ? "" : "s"}`);
-                                            }
-                                        });
-                                    }
-                                    else {
-                                        messageDisplayer.displayMessage("Upload Error");
-                                    }
-                                }
-                                catch {
-                                    messageDisplayer.displayMessage("Upload Error");
-                                }
-                            });
-                        }
+                        handleImport(this);
                     }))
                 )
                 .append($(`<button class="btn btn-default" style="margin-left: 5px">Export</button>`).click(function () {
-                    if (savedLists.length) {
-                        const settings = { savedLists, hotKeys, selectedColor };
-                        const data = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(settings));
-                        const element = document.createElement("a");
-                        element.setAttribute("href", data);
-                        element.setAttribute("download", "amq quick load lists backup.json");
-                        document.body.appendChild(element);
-                        element.click();
-                        element.remove();
-                    }
-                    else {
-                        messageDisplayer.displayMessage("Nothing to export");
-                    }
+                    handleExport();
                 }))
             )
         );
+
     switchTab("qllUse");
     createListTable();
     createEditTable();
@@ -279,11 +209,92 @@ function switchTab(tab) {
     $w.find(`#${tab}Container`).show();
 }
 
+// prompt import method with SweetAlert modal
+function askImportMode() {
+    return swal({
+        title: "Select Import Method",
+        input: "select",
+        inputOptions: {
+            1: "Append to current lists",
+            2: "Replace all lists",
+            3: "Replace lists & settings",
+        },
+        inputPlaceholder: " ",
+        showCancelButton: true,
+        cancelButtonText: "Cancel",
+        allowOutsideClick: true
+    }).then(res => res.value);
+}
+
+// handle settings file import
+async function handleImport(fileInput) {
+    if (!fileInput.files.length) return;
+    try {
+        const text = await fileInput.files[0].text();
+        const json = JSON.parse(text);
+        if (!Array.isArray(json.savedLists) || !json.savedLists.every(x => x.username && x.type)) throw new Error();
+        $(fileInput).val("");
+        const mode = await askImportMode();
+        if (!mode) return;
+        switch (mode) {
+            case "1":
+                savedLists = savedLists.concat(json.savedLists);
+                break;
+            case "2":
+                savedLists = json.savedLists;
+                break;
+            case "3":
+                savedLists = json.savedLists ?? [];
+                hotKeys = {
+                    qllWindow: json.hotKeys?.qllWindow ?? { key: "q", ctrl: false, alt: true, shift: false },
+                    animeListModal: json.hotKeys?.animeListModal ?? { key: "", ctrl: false, alt: false, shift: false },
+                    removeList: json.hotKeys?.removeList ?? { key: "", ctrl: false, alt: false, shift: false },
+                }
+                selectedColor = json.selectedColor ?? "#4497ea";
+                updateSettingsUI();
+                applyStyles();
+                break;
+        }
+        createListTable();
+        createEditTable();
+        saveSettings();
+        messageDisplayer.displayMessage(`Imported ${json.savedLists.length} list${json.savedLists.length === 1 ? "" : "s"}`);
+    }
+    catch (error) {
+        console.error(error);
+        messageDisplayer.displayMessage("Upload Error");
+    }
+}
+
+// handle settings file export
+function handleExport() {
+    if (savedLists.length) {
+        const settings = { savedLists, hotKeys, selectedColor };
+        const data = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(settings));
+        const element = document.createElement("a");
+        element.setAttribute("href", data);
+        element.setAttribute("download", "amq quick load lists backup.json");
+        document.body.appendChild(element);
+        element.click();
+        element.remove();
+    }
+    else {
+        messageDisplayer.displayMessage("Nothing to export");
+    }
+}
+
 // shorten anime list type in the table
 function shortenListType(type) {
     if (type === "anilist") return "ANI";
     if (type === "myanimelist") return "MAL";
     if (type === "kitsu") return "KIT";
+}
+
+// get the full URL for a given username and list type
+function getListURL(username, type) {
+    if (type === "anilist") return "https://anilist.co/user/" + username;
+    if (type === "myanimelist") return "https://myanimelist.net/profile/" + username;
+    if (type === "kitsu") return "https://kitsu.io/users/" + username;
 }
 
 // when you click a username in the table
@@ -312,6 +323,7 @@ function loadList($row, username, type, watching, completed, hold, dropped, plan
     socket.sendCommand({ type: "library", command: "update anime list", data: { newUsername: username, listType: listTypeMap[type] } });
 }
 
+// remove anilist list
 function removeAnilist() {
     if ($("#aniListLastUpdateDate").text()) {
         $("#aniListUserNameInput").val("");
@@ -319,6 +331,7 @@ function removeAnilist() {
     }
 }
 
+// remove myanimelist list
 function removeMyanimelist() {
     if ($("#malLastUpdateDate").text()) {
         $("#malUserNameInput").val("");
@@ -326,6 +339,7 @@ function removeMyanimelist() {
     }
 }
 
+// remove kitsu list
 function removeKitsu() {
     if ($("#kitsuLastUpdated").text()) {
         $("#kitsuUserNameInput").val("");
@@ -333,6 +347,7 @@ function removeKitsu() {
     }
 }
 
+// remove all lists
 function removeAllLists() {
     removeAnilist();
     removeMyanimelist();
@@ -468,7 +483,7 @@ function loadHotkey(action, key = "", ctrl = false, alt = false, shift = false) 
 
 // create hotkey row and add to table
 function createHotkeyRow(title, action) {
-    let $input = $(`<input type="text" class="hk-input" readonly data-action="${action}">`)
+    const $input = $(`<input type="text" class="hk-input" readonly data-action="${action}">`)
         .val(bindingToText(hotKeys[action]))
         .on("click", startHotkeyRecord);
     $("#qllHotkeyTable tbody").append($(`<tr></tr>`)
@@ -516,7 +531,7 @@ function startHotkeyRecord() {
 // input hotKeys[action] and convert the data to a string for the input field
 function bindingToText(b) {
     if (!b) return "";
-    let keys = [];
+    const keys = [];
     if (b.ctrl) keys.push("CTRL");
     if (b.alt) keys.push("ALT");
     if (b.shift) keys.push("SHIFT");
@@ -526,7 +541,7 @@ function bindingToText(b) {
 
 // update settings window inputs on import
 function updateSettingsUI() {
-    for (let action of Object.keys(hotKeys)) {
+    for (const action of Object.keys(hotKeys)) {
         $(`#qllHotkeyTable input[data-action="${action}"]`).val(bindingToText(hotKeys[action]));
     }
     $("#qllSelectedColor").val(selectedColor);
@@ -534,18 +549,19 @@ function updateSettingsUI() {
 
 // save edit table
 function saveEditTable() {
-    savedLists = [];
-    for (let row of $("#qllEditTable .qllEditRow")) {
-        let username = $(row).find(".username").val().trim();
-        let type = $(row).find(".type").val();
-        let watching = $(row).find(".watching").hasClass("off") ? false : true;
-        let completed = $(row).find(".completed").hasClass("off") ? false : true;
-        let hold = $(row).find(".hold").hasClass("off") ? false : true;
-        let dropped = $(row).find(".dropped").hasClass("off") ? false : true;
-        let planning = $(row).find(".planning").hasClass("off") ? false : true;
-        let comment = $(row).find(".comment").val().trim();
-        savedLists.push({ username, type, watching, completed, hold, dropped, planning, comment });
-    }
+    savedLists = $("#qllEditTable .qllEditRow").get().map(row => {
+        const $row = $(row);
+        return {
+            username: $row.find(".username").val(),
+            type: $row.find(".type").val(),
+            watching: !$row.find(".watching").hasClass("off"),
+            completed: !$row.find(".completed").hasClass("off"),
+            hold: !$row.find(".hold").hasClass("off"),
+            dropped: !$row.find(".dropped").hasClass("off"),
+            planning: !$row.find(".planning").hasClass("off"),
+            comment: $row.find(".comment").val()
+        };
+    });
 }
 
 // save settings
@@ -557,16 +573,12 @@ function saveSettings() {
     }));
 }
 
-function getListURL(username, type) {
-    if (type === "anilist") return "https://anilist.co/user/" + username;
-    if (type === "myanimelist") return "https://myanimelist.net/profile/" + username;
-    if (type === "kitsu") return "https://kitsu.io/users/" + username;
-}
-
 // validate json data in local storage
 function validateLocalStorage(item) {
     try {
-        return JSON.parse(localStorage.getItem(item)) || {};
+        const json = JSON.parse(localStorage.getItem(item));
+        if (!json || typeof json !== "object") return {};
+        return json;
     }
     catch {
         return {};
@@ -703,7 +715,7 @@ function applyStyles() {
             vertical-align: middle;
         }
     `;
-    let style = document.createElement("style");
+    const style = document.createElement("style");
     style.id = "quickLoadListsStyle";
     style.textContent = css.trim();
     document.head.appendChild(style);
