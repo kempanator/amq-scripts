@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Anisongdb Search
 // @namespace    https://github.com/kempanator
-// @version      0.18
+// @version      0.19
 // @description  Adds a window to search anisongdb.com in game
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -27,7 +27,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.18";
+const version = "0.19";
 const saveData = validateLocalStorage("anisongdbSearch");
 let rankedRunningIds;
 let anisongdbWindow;
@@ -160,7 +160,7 @@ function setup() {
             if (shift !== b.shift) return false;
             return true;
         }
-        for (let [action, bind] of Object.entries(hotKeys)) {
+        for (const [action, bind] of Object.entries(hotKeys)) {
             if (match(bind) && hotkeyActions.hasOwnProperty(action)) {
                 event.preventDefault();
                 hotkeyActions[action]();
@@ -289,9 +289,9 @@ function isRankedRunning() {
 
 // go button press
 function doSearch() {
-    let mode = $("#adbsQueryMode").val().toLowerCase();
-    let query = $("#adbsQueryInput").val();
-    let partial = $("#adbsPartialCheckbox").prop("checked");
+    const mode = $("#adbsQueryMode").val().toLowerCase();
+    const query = $("#adbsQueryInput").val();
+    const partial = $("#adbsPartialCheckbox").prop("checked");
     if (query.trim() === "") {
         $("#adbsInfoText").remove();
         $("#adbsTable tbody").empty();
@@ -315,7 +315,7 @@ function createTable(json) {
 
 // sort table rows that already exist
 function sortAnisongdbTableEntries() {
-    let rows = $("#adbsTable tbody tr").toArray();
+    const rows = $("#adbsTable tbody tr").toArray();
     if (tableSort.mode === "anime") {
         rows.sort((a, b) => $(a).find("td.anime").text().localeCompare($(b).find("td.anime").text()));
     }
@@ -337,10 +337,11 @@ function sortAnisongdbTableEntries() {
 
 // reset all tabs and switch to the inputted tab
 function switchTab(tab) {
-    $("#anisongdbWindow .modal-header .tabContainer .tab").removeClass("selected");
-    $("#anisongdbWindow .modal-body .tabSection").hide();
-    $(`#${tab}Tab`).addClass("selected");
-    $(`#${tab}Container`).show();
+    const $w = $("#anisongdbWindow");
+    $w.find(".tab").removeClass("selected");
+    $w.find(".tabSection").hide();
+    $w.find(`#${tab}Tab`).addClass("selected");
+    $w.find(`#${tab}Container`).show();
 }
 
 // input full song type text, return shortened version
@@ -350,8 +351,8 @@ function shortenType(type) {
 
 // translate song type text to amq values (input example: Opening 1, ED2)
 function translateTypeText(text) {
-    let songType = ({ "O": 1, "E": 2, "I": 3 })[text[0]] || null;
-    let songTypeNumber = parseInt(text.match(/([0-9]+)/)) || null;
+    const songType = ({ "O": 1, "E": 2, "I": 3 })[text[0]] || null;
+    const songTypeNumber = parseInt(text.match(/([0-9]+)/)) || null;
     return { songType, songTypeNumber };
 }
 
@@ -371,12 +372,12 @@ function vintageSortValue(vintageA, vintageB) {
     if (!vintageA && !vintageB) return 0;
     if (!vintageA) return 1;
     if (!vintageB) return -1;
-    let [seasonA, yearA] = vintageA.split(" ");
-    let [seasonB, yearB] = vintageB.split(" ");
+    const [seasonA, yearA] = vintageA.split(" ");
+    const [seasonB, yearB] = vintageB.split(" ");
     if (yearA !== yearB) {
         return yearA - yearB;
     }
-    let seasonOrder = { "Winter": 1, "Spring": 2, "Summer": 3, "Fall": 4 };
+    const seasonOrder = { "Winter": 1, "Spring": 2, "Summer": 3, "Fall": 4 };
     return seasonOrder[seasonA] - seasonOrder[seasonB];
 }
 
@@ -404,7 +405,7 @@ function loadHotkey(action, key = "", ctrl = false, alt = false, shift = false) 
 
 // create hotkey row and add to table
 function createHotkeyRow(title, action) {
-    let $input = $(`<input type="text" class="hk-input" readonly data-action="${action}">`)
+    const $input = $(`<input type="text" class="hk-input" readonly data-action="${action}">`)
         .val(bindingToText(hotKeys[action]))
         .on("click", startHotkeyRecord);
     $("#adbsHotkeyTable tbody").append($(`<tr></tr>`)
@@ -462,17 +463,18 @@ function bindingToText(b) {
 
 // save settings
 function saveSettings() {
-    let settings = {
+    localStorage.setItem("anisongdbSearch", JSON.stringify({
         injectSearchButtons,
         hotKeys
-    };
-    localStorage.setItem("anisongdbSearch", JSON.stringify(settings));
+    }));
 }
 
 // validate json data in local storage
 function validateLocalStorage(item) {
     try {
-        return JSON.parse(localStorage.getItem(item)) || {};
+        const json = JSON.parse(localStorage.getItem(item));
+        if (!json || typeof json !== "object") return {};
+        return json;
     }
     catch {
         return {};
@@ -587,7 +589,7 @@ function applyStyles() {
             user-select: none;
         }
     `;
-    let style = document.createElement("style");
+    const style = document.createElement("style");
     style.id = "anisongdbSearchStyle";
     style.textContent = css.trim();
     document.head.appendChild(style);
