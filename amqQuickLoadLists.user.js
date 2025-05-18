@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Quick Load Lists
 // @namespace    https://github.com/kempanator
-// @version      0.11
+// @version      0.12
 // @description  Adds a window for saving and quick loading anime lists
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -26,7 +26,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.11";
+const version = "0.12";
 const saveData = validateLocalStorage("quickLoadLists");
 let savedLists = saveData.savedLists ?? [];
 let selectedColor = saveData.selectedColor ?? "#4497ea";
@@ -399,7 +399,7 @@ function setAllStatusCheckboxes(watching, completed, hold, dropped, planning) {
 function createListTable() {
     const $tbody = $("#qllTable tbody").empty();
     for (const list of savedLists) {
-        $tbody.append($(`<tr class="qllRow"></tr>`)
+        const $row = $(`<tr class="qllRow"></tr>`)
             .append($(`<td class="username"></td>`).text(list.username).click(() => {
                 loadList($row, list.username, list.type, list.watching, list.completed, list.hold, list.dropped, list.planning);
             }))
@@ -415,8 +415,8 @@ function createListTable() {
             )
             .append($(`<td class="comment"></td>`).text(list.comment)
                 .append($(`<i class="fa fa-spinner fa-spin"></i>`).hide())
-            )
-        );
+            );
+        $tbody.append($row);
     };
     checkSelectedList();
 }
