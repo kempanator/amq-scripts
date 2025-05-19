@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Quick Load Lists
 // @namespace    https://github.com/kempanator
-// @version      0.12
+// @version      0.13
 // @description  Adds a window for saving and quick loading anime lists
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -26,7 +26,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.12";
+const version = "0.13";
 const saveData = validateLocalStorage("quickLoadLists");
 let savedLists = saveData.savedLists ?? [];
 let selectedColor = saveData.selectedColor ?? "#4497ea";
@@ -246,9 +246,9 @@ async function handleImport(fileInput) {
             case "3":
                 savedLists = json.savedLists ?? [];
                 hotKeys = {
-                    qllWindow: json.hotKeys?.qllWindow ?? { key: "q", ctrl: false, alt: true, shift: false },
-                    animeListModal: json.hotKeys?.animeListModal ?? { key: "", ctrl: false, alt: false, shift: false },
-                    removeList: json.hotKeys?.removeList ?? { key: "", ctrl: false, alt: false, shift: false },
+                    qllWindow: loadHotkey("qllWindow", "Q", false, true, false, json),
+                    animeListModal: loadHotkey("animeListModal", "", false, false, false, json),
+                    removeList: loadHotkey("removeList", "", false, false, false, json),
                 }
                 selectedColor = json.selectedColor ?? "#4497ea";
                 updateSettingsUI();
@@ -471,8 +471,8 @@ function createEditRow($table, username, type, watching, completed, hold, droppe
 }
 
 // load hotkey from local storage, input optional default values
-function loadHotkey(action, key = "", ctrl = false, alt = false, shift = false) {
-    const item = saveData.hotKeys?.[action];
+function loadHotkey(action, key = "", ctrl = false, alt = false, shift = false, data) {
+    const item = data?.hotKeys?.[action] ?? saveData.hotKeys?.[action];
     return {
         key: (item?.key ?? key).toUpperCase(),
         ctrl: item?.ctrl ?? item?.ctrlKey ?? ctrl,
