@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Show Room Players
 // @namespace    https://github.com/kempanator
-// @version      0.25
+// @version      0.26
 // @description  Adds extra functionality to room tiles
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -29,7 +29,7 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.25";
+const version = "0.26";
 //const saveData = validateLocalStorage("showRoomPlayers");
 let showPlayerColors = true;
 let showCustomColors = true;
@@ -39,7 +39,7 @@ function setup() {
     new Listener("New Rooms", (data) => {
         data.forEach((item) => {
             setTimeout(() => {
-                let room = roomBrowser.activeRooms[item.id];
+                const room = roomBrowser.activeRooms[item.id];
                 if (room) {
                     room.refreshRoomPlayers();
                     room.clickHostName(item.host);
@@ -50,7 +50,7 @@ function setup() {
     new Listener("Room Change", (data) => {
         if (data.changeType === "players" || data.changeType === "spectators") {
             setTimeout(() => {
-                let room = roomBrowser.activeRooms[data.roomId];
+                const room = roomBrowser.activeRooms[data.roomId];
                 if (room) {
                     room.updateFriends();
                     room.refreshRoomPlayers();
@@ -83,7 +83,7 @@ function setup() {
 // override updateFriends function to also show invisible friends
 RoomTile.prototype.updateFriends = function () {
     this._friendsInGameMap = {};
-    for (let player of this._players) {
+    for (const player of this._players) {
         if (socialTab.isFriend(player)) {
             this._friendsInGameMap[player] = true;
         }
@@ -107,11 +107,11 @@ RoomTile.prototype.clickHostName = function (host) {
 
 // create or update room players popover
 RoomTile.prototype.refreshRoomPlayers = function () {
-    let $progress = this.$tile.find(".rbrProgressContainer");
-    let players = [...this._players].sort((a, b) => a.localeCompare(b));
-    let $list = $("<ul></ul>");
-    for (let player of players) {
-        let $li = $("<li></li>").addClass("srpPlayer").text(player);
+    const $progress = this.$tile.find(".rbrProgressContainer");
+    const players = [...this._players].sort((a, b) => a.localeCompare(b));
+    const $list = $("<ul></ul>");
+    for (const player of players) {
+        const $li = $("<li></li>").addClass("srpPlayer").text(player);
         if (player === selfName) $li.addClass("self");
         else if (socialTab.isFriend(player)) $li.addClass("friend");
         else if (socialTab.isBlocked(player)) $li.addClass("blocked");
@@ -119,15 +119,15 @@ RoomTile.prototype.refreshRoomPlayers = function () {
         $list.append($li);
     }
 
-    let title = `${players.length} Player${players.length === 1 ? "" : "s"}`;
-    let pop = $progress.data("bs.popover");
+    const title = `${players.length} Player${players.length === 1 ? "" : "s"}`;
+    const pop = $progress.data("bs.popover");
 
     if (pop) { //update existing pop-over
         pop.options.title = title;
         pop.options.content = $list.prop("outerHTML");
-        let popId = $progress.attr("aria-describedby");
+        const popId = $progress.attr("aria-describedby");
         if (popId) {
-            let $popDom = $("#" + popId);
+            const $popDom = $("#" + popId);
             $popDom.find(".popover-title, .popover-header").html(title);
             $popDom.find(".popover-content, .popover-body").html(pop.options.content);
         }
@@ -148,17 +148,17 @@ RoomTile.prototype.refreshRoomPlayers = function () {
             .on("mouseenter.srp", () => {
                 if ($progress.attr("aria-describedby")) return;
                 $progress.popover("show");
-                let popId = $progress.attr("aria-describedby");
+                const popId = $progress.attr("aria-describedby");
                 if (!popId) return;
-                let $pop = $("#" + popId);
-                let $tile = this.$tile;
+                const $pop = $("#" + popId);
+                const $tile = this.$tile;
 
-                let detach = () => {
+                const detach = () => {
                     $progress.off("mouseleave.srp");
                     $pop.off(".srp");
                     $tile.off(".srp");
                 };
-                let closePopover = () => {
+                const closePopover = () => {
                     if (!$pop.is(":hover") && !$tile.is(":hover") && !$progress.is(":hover")) {
                         detach();
                         $progress.popover("hide");
@@ -191,15 +191,15 @@ RoomTile.prototype.updateAvatar = function (avatarInfo) {
         this.avatarPreloadImage = null;
     }
 
-    let sizeMod = avatarInfo.avatar.sizeModifier;
+    const sizeMod = avatarInfo.avatar.sizeModifier;
     this.$tile.find(".rbrRoomImage")
         .removeClass((i, c) => (c.match(/sizeMod\d+/g) || []).join(" ")) //remove old sizeMod
         .addClass(`sizeMod${sizeMod}`)
         .removeAttr("src srcset sizes");
 
     this.avatarDisplayHandler.setSizeMod(sizeMod);
-    let bgUrl = cdnFormater.newAvatarBackgroundSrc(avatarInfo.background.backgroundHori, cdnFormater.BACKGROUND_ROOM_BROWSER_SIZE);
-    let onLoadCb = () => {
+    const bgUrl = cdnFormater.newAvatarBackgroundSrc(avatarInfo.background.backgroundHori, cdnFormater.BACKGROUND_ROOM_BROWSER_SIZE);
+    const onLoadCb = () => {
         this.$tile
             .find(".rbrRoomImageContainer")
             .css("background-image", `url("${bgUrl}")`);
@@ -245,9 +245,11 @@ RoomTile.prototype.updateAvatar = function (avatarInfo) {
 };
 
 // validate json data in local storage
-function validateLocalStorage(name) {
+function validateLocalStorage(item) {
     try {
-        return JSON.parse(localStorage.getItem(name)) || {};
+        const json = JSON.parse(localStorage.getItem(item));
+        if (!json || typeof json !== "object") return {};
+        return json;
     }
     catch {
         return {};
@@ -257,14 +259,14 @@ function validateLocalStorage(name) {
 // apply styles
 function applyStyles() {
     //$("#showRoomPlayersStyle").remove();
-    const saveData2 = validateLocalStorage("highlightFriendsSettings");
-    let selfColor = saveData2.smColorSelfColor ?? "#80c7ff";
-    let friendColor = saveData2.smColorFriendColor ?? "#80ff80";
-    let blockedColor = saveData2.smColorBlockedColor ?? "#ff8080";
-    let customColors = saveData2.customColors ?? [];
+    const saveDataHF = validateLocalStorage("highlightFriendsSettings");
+    const selfColor = saveDataHF.smColorSelfColor ?? "#80c7ff";
+    const friendColor = saveDataHF.smColorFriendColor ?? "#80ff80";
+    const blockedColor = saveDataHF.smColorBlockedColor ?? "#ff8080";
+    const customColors = saveDataHF.customColors ?? [];
     customColorMap = {};
     customColors.forEach((item, index) => {
-        for (let player of item.players) {
+        for (const player of item.players) {
             customColorMap[player.toLowerCase()] = index;
         }
     });
@@ -296,7 +298,7 @@ function applyStyles() {
             `;
         });
     }
-    let style = document.createElement("style");
+    const style = document.createElement("style");
     style.id = "showRoomPlayersStyle";
     style.textContent = css.trim();
     document.head.appendChild(style);
