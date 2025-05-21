@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Show All Song Links
 // @namespace    https://github.com/kempanator
-// @version      0.9
+// @version      0.10
 // @description  Show all song links in the song info container
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -20,29 +20,34 @@ let loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.9";
+const version = "0.10";
+const LISTS = [
+    { label: "ANI", key: "aniListId", url: "https://anilist.co/anime/" },
+    { label: "KIT", key: "kitsuId", url: "https://kitsu.io/anime/" },
+    { label: "MAL", key: "malId", url: "https://myanimelist.net/anime/" },
+    { label: "ANN", key: "annId", url: "https://www.animenewsnetwork.com/encyclopedia/anime.php?id=" },
+];
+const SONG_LINKS = [
+    { label: "720", key: "720" },
+    { label: "480", key: "480" },
+    { label: "MP3", key: "0" },
+];
+let $qpSongInfoLinkRow;
 
 function setup() {
+    $qpSongInfoLinkRow = $("#qpSongInfoLinkRow");
     new Listener("answer results", (data) => {
         setTimeout(() => {
-            $("#qpSongInfoLinkRow b").remove();
-            let urlAni = data.songInfo.siteIds.aniListId ? "https://anilist.co/anime/" + data.songInfo.siteIds.aniListId : "";
-            let urlKit = data.songInfo.siteIds.kitsuId ? "https://kitsu.io/anime/" + data.songInfo.siteIds.kitsuId : "";
-            let urlMal = data.songInfo.siteIds.malId ? "https://myanimelist.net/anime/" + data.songInfo.siteIds.malId : "";
-            let urlAnn = data.songInfo.siteIds.annId ? "https://www.animenewsnetwork.com/encyclopedia/anime.php?id=" + data.songInfo.siteIds.annId : "";
-            let url720 = formatURL(data.songInfo.videoTargetMap.catbox?.[720] ?? data.songInfo.videoTargetMap.openingsmoe?.[720]);
-            let url480 = formatURL(data.songInfo.videoTargetMap.catbox?.[480] ?? data.songInfo.videoTargetMap.openingsmoe?.[480]);
-            let urlMp3 = formatURL(data.songInfo.videoTargetMap.catbox?.[0] ?? data.songInfo.videoTargetMap.openingsmoe?.[0]);
-            let $b = $(`<b></b>`);
-            $b.append($("<a></a>").attr({href: urlAni, target: "_blank"}).addClass(urlAni ? "" : "disabled").text("ANI"));
-            $b.append($("<a></a>").attr({href: urlKit, target: "_blank"}).addClass(urlKit ? "" : "disabled").text("KIT"));
-            $b.append($("<a></a>").attr({href: urlMal, target: "_blank"}).addClass(urlMal ? "" : "disabled").text("MAL"));
-            $b.append($("<a></a>").attr({href: urlAnn, target: "_blank"}).addClass(urlAnn ? "" : "disabled").text("ANN"));
+            const $b = $("<b>");
+            for (const item of LISTS) {
+                $b.append(buildLink(getListSiteUrl(data, item.key, item.url), item.label));
+            }
             $b.append("<br>");
-            $b.append($("<a></a>").attr({href: url720, target: "_blank"}).addClass(url720 ? "" : "disabled").text("720"));
-            $b.append($("<a></a>").attr({href: url480, target: "_blank"}).addClass(url480 ? "" : "disabled").text("480"));
-            $b.append($("<a></a>").attr({href: urlMp3, target: "_blank"}).addClass(urlMp3 ? "" : "disabled").text("MP3"));
-            $("#qpSongInfoLinkRow").prepend($b);
+            for (const item of SONG_LINKS) {
+                $b.append(buildLink(getSongUrl(data, item.key), item.label));
+            }
+            $qpSongInfoLinkRow.find("b").remove();
+            $qpSongInfoLinkRow.prepend($b);
         }, 0);
     }).bindListener();
 
@@ -58,17 +63,24 @@ function setup() {
     });
 }
 
-// format song url, handle bad data
-function formatURL(url) {
-    if (url) {
-        if (url.startsWith("http")) {
-            return url;
-        }
-        else {
-            return videoResolver.formatUrl(url);
-        }
-    }
-    return "";
+// get list site url
+function getListSiteUrl(data, type, url) {
+    const id = data.songInfo?.siteIds?.[type];
+    if (!id) return "";
+    return url + id;
+}
+
+// get song url from answer results data, handle bad data
+function getSongUrl(data, type) {
+    const url = data.songInfo?.videoTargetMap?.catbox?.[type] ?? data.songInfo?.videoTargetMap?.openingsmoe?.[type];
+    if (!url) return "";
+    if (url.startsWith("http")) return url;
+    return videoResolver.formatUrl(url);
+}
+
+// build link element in song info box
+function buildLink(url, text) {
+    return $(`<a href="${url}" target="_blank">${text}</a>`).toggleClass("disabled", !url);
 }
 
 // apply styles
@@ -82,7 +94,7 @@ function applyStyles() {
             z-index: 1;
         }
     `;
-    let style = document.createElement("style");
+    const style = document.createElement("style");
     style.id = "showAllSongLinksStyle";
     style.textContent = css.trim();
     document.head.appendChild(style);
