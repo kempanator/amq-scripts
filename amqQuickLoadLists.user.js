@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Quick Load Lists
 // @namespace    https://github.com/kempanator
-// @version      0.13
+// @version      0.14
 // @description  Adds a window for saving and quick loading anime lists
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -20,17 +20,17 @@ How to open the window:
 "use strict";
 if (typeof Listener === "undefined") return;
 let loadInterval = setInterval(() => {
-    if ($("#loadingScreen").hasClass("hidden")) {
+    if (document.querySelector("#loadingScreen.hidden")) {
         clearInterval(loadInterval);
         setup();
     }
 }, 500);
 
-const version = "0.13";
+const version = "0.14";
 const saveData = validateLocalStorage("quickLoadLists");
+let quickLoadListsWindow;
 let savedLists = saveData.savedLists ?? [];
 let selectedColor = saveData.selectedColor ?? "#4497ea";
-let quickLoadListsWindow;
 let hotKeys = {
     qllWindow: loadHotkey("qllWindow", "q", false, true, false),
     animeListModal: loadHotkey("animeListModal"),
@@ -39,8 +39,8 @@ let hotKeys = {
 
 // setup
 function setup() {
-    new Listener("anime list update result", (data) => {
-        setTimeout(() => { checkSelectedList() }, 10);
+    new Listener("anime list update result", () => {
+        setTimeout(checkSelectedList, 1);
     }).bindListener();
 
     quickLoadListsWindow = new AMQWindow({
@@ -442,7 +442,7 @@ function createEditRow($table, username, type, watching, completed, hold, droppe
         }))
         .append($(`<input class="form-control username" type="text" placeholder="username">`).val(username))
         .append($(`<select class="form-control type"></select>`)
-            .append(`<option>aniList</option>`)
+            .append(`<option>anilist</option>`)
             .append(`<option>myanimelist</option>`)
             .append(`<option>kitsu</option>`)
             .val(type)
