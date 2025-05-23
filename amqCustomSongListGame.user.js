@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.77
+// @version      0.78
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -38,15 +38,15 @@ Some considerations:
 "use strict";
 if (typeof Listener === "undefined") return;
 let loadInterval = setInterval(() => {
-    if ($("#loadingScreen").hasClass("hidden")) {
+    if (document.querySelector("#loadingScreen.hidden")) {
         clearInterval(loadInterval);
         setup();
     }
 }, 500);
 
-const version = "0.77";
+const version = "0.78";
 const saveData = validateLocalStorage("customSongListGame");
-const hostDict = {1: "eudist.animemusicquiz.com", 2: "nawdist.animemusicquiz.com", 3: "naedist.animemusicquiz.com"};
+const hostDict = { 1: "eudist.animemusicquiz.com", 2: "nawdist.animemusicquiz.com", 3: "naedist.animemusicquiz.com" };
 let CSLButtonCSS = saveData.CSLButtonCSS || "calc(25% - 250px)";
 let showCSLMessages = saveData.showCSLMessages ?? true;
 let replacedAnswers = saveData.replacedAnswers || {};
@@ -62,7 +62,7 @@ let totalSongs = 0;
 let currentAnswers = {};
 let score = {};
 let songListTableView = 0; //0: song + artist, 1: anime + song type + vintage, 2: video/audio links
-let songListTableSort = {mode: "", ascending: true} //modes: songName, artist, difficulty, anime, songType, vintage, mp3, 480, 720
+let songListTableSort = { mode: "", ascending: true } //modes: songName, artist, difficulty, anime, songType, vintage, mp3, 480, 720
 let songList = [];
 let songOrder = {}; //{song#: index#, ...}
 let mergedSongList = [];
@@ -79,7 +79,7 @@ let endGuessTimer;
 let fileHostOverride = 0;
 let autocomplete = []; //store lowercase version for faster compare speed
 let autocompleteInput;
-let cslMultiplayer = {host: "", songInfo: {}, voteSkip: {}};
+let cslMultiplayer = { host: "", songInfo: {}, voteSkip: {} };
 let cslState = 0; //0: none, 1: guessing phase, 2: answer phase
 let songLinkReceived = {};
 let skipping = false;
@@ -88,17 +88,16 @@ let resultChunk;
 let songInfoChunk;
 let nextSongChunk;
 let importRunning = false;
-
 let hotKeys = {
     cslgWindow: loadHotkey("cslgWindow"),
     start: loadHotkey("start"),
     stop: loadHotkey("stop"),
     mergeAll: loadHotkey("mergeAll"),
-    clearAll: loadHotkey("clearSongList"),
+    clearSongList: loadHotkey("clearSongList"),
     transferMerged: loadHotkey("transferMerged"),
-    tableMode: loadHotkey("clearMerged"),
+    clearMerged: loadHotkey("clearMerged"),
     downloadMerged: loadHotkey("downloadMerged"),
-    clearMerged: loadHotkey("tableMode"),
+    tableMode: loadHotkey("tableMode"),
 };
 
 // setup
@@ -128,7 +127,7 @@ function setup() {
             }
             setTimeout(() => {
                 let song = songList[songOrder[currentSong]];
-                let message  = `${currentSong}§${getStartPoint()}§${song.audio || ""}§${song.video480 || ""}§${song.video720 || ""}`;
+                let message = `${currentSong}§${getStartPoint()}§${song.audio || ""}§${song.video480 || ""}§${song.video720 || ""}`;
                 splitIntoChunks(btoa(message) + "$", 144).forEach((item, index) => {
                     cslMessage("§CSL3" + base10to36(index % 36) + item);
                 });
@@ -223,7 +222,7 @@ function setup() {
             let list = quiz.answerInput.typingInput.autoCompleteController.list;
             if (list.length) {
                 autocomplete = list.map(x => x.toLowerCase());
-                autocompleteInput = new AmqAwesomeplete(document.querySelector("#cslgNewAnswerInput"), {list: list}, true);
+                autocompleteInput = new AmqAwesomeplete(document.querySelector("#cslgNewAnswerInput"), { list: list }, true);
             }
         }, 10);
     }).bindListener();
@@ -266,12 +265,12 @@ function setup() {
             }
         }
         else {
-            socket.sendCommand({type: "quiz", command: quiz.pauseButton.pauseOn ? "quiz unpause" : "quiz pause"});
+            socket.sendCommand({ type: "quiz", command: quiz.pauseButton.pauseOn ? "quiz unpause" : "quiz pause" });
         }
     });
 
     const oldSendSkipVote = quiz.skipController.sendSkipVote;
-    quiz.skipController.sendSkipVote = function() {
+    quiz.skipController.sendSkipVote = function () {
         if (quiz.cslActive) {
             if (quiz.soloMode) {
                 clearTimeout(this.autoVoteTimeout);
@@ -286,13 +285,13 @@ function setup() {
     }
 
     const oldLeave = quiz.leave;
-    quiz.leave = function() {
+    quiz.leave = function () {
         reset();
         oldLeave.apply(this, arguments);
     }
 
     const oldStartReturnLobbyVote = quiz.startReturnLobbyVote;
-    quiz.startReturnLobbyVote = function() {
+    quiz.startReturnLobbyVote = function () {
         if (quiz.cslActive && quiz.inQuiz) {
             if (quiz.soloMode) {
                 quizOver();
@@ -307,7 +306,7 @@ function setup() {
     }
 
     const oldSubmitAnswer = QuizTypeAnswerInputController.prototype.submitAnswer;
-    QuizTypeAnswerInputController.prototype.submitAnswer = function(answer) {
+    QuizTypeAnswerInputController.prototype.submitAnswer = function (answer) {
         if (quiz.cslActive) {
             currentAnswers[quiz.ownGamePlayerId] = answer;
             this.skipController.highlight = true;
@@ -335,7 +334,7 @@ function setup() {
     }
 
     const oldVideoReady = quiz.videoReady;
-    quiz.videoReady = function(songId) {
+    quiz.videoReady = function () {
         if (quiz.cslActive && this.inQuiz) {
             nextVideoReady = true;
         }
@@ -345,7 +344,7 @@ function setup() {
     }
 
     const oldHandleError = MoeVideoPlayer.prototype.handleError;
-    MoeVideoPlayer.prototype.handleError = function() {
+    MoeVideoPlayer.prototype.handleError = function () {
         if (quiz.cslActive) {
             gameChat.systemMessage(`CSL Error: couldn't load song ${currentSong + 1}`);
             nextVideoReady = true;
@@ -667,7 +666,7 @@ function setup() {
             anisongdbDataSearch();
         }
     });
-    $("#cslgFileUpload").on("change", function() {
+    $("#cslgFileUpload").on("change", function () {
         if (this.files.length) {
             this.files[0].text().then((data) => {
                 try {
@@ -738,10 +737,10 @@ function setup() {
         trigger: "hover",
         placement: "bottom"
     });
-    $("#cslgSongOrderSelect").on("change", function() {
+    $("#cslgSongOrderSelect").on("change", function () {
         songOrderType = this.value;
     });
-    $("#cslgHostOverrideSelect").on("change", function() {
+    $("#cslgHostOverrideSelect").on("change", function () {
         fileHostOverride = parseInt(this.value);
     });
     $("#cslgMergeButton").click(() => {
@@ -769,7 +768,7 @@ function setup() {
     $("#cslgAutocompleteButton").click(() => {
         if (lobby.soloMode) {
             $("#cslgSettingsModal").modal("hide");
-            socket.sendCommand({type: "lobby", command: "start game"});
+            socket.sendCommand({ type: "lobby", command: "start game" });
             let autocompleteListener = new Listener("get all song names", () => {
                 autocompleteListener.unbindListener();
                 viewChanger.changeView("main");
@@ -891,7 +890,7 @@ function setup() {
     }).on("mouseleave", "i.fa-trash", (event) => {
         event.target.parentElement.parentElement.classList.remove("selected");
     });
-    $("#cslgSongListModeSelect").val("Anisongdb").on("change", function() {
+    $("#cslgSongListModeSelect").val("Anisongdb").on("change", function () {
         if (this.value === "Anisongdb") {
             $("#cslgFileUploadRow").hide();
             $("#cslgPreviousGameRow").hide();
@@ -972,7 +971,7 @@ function setup() {
     $("#cslgPromptAllVersionButton").click(() => {
         cslMessage("§CSL22");
     });
-    $("#cslgMalClientIdInput").val(malClientId).on("change", function() {
+    $("#cslgMalClientIdInput").val(malClientId).on("change", function () {
         malClientId = this.value;
         saveSettings();
     });
@@ -1051,7 +1050,7 @@ function setup() {
             if (shift !== b.shift) return false;
             return true;
         }
-        for (let [action, bind] of Object.entries(hotKeys)) {
+        for (const [action, bind] of Object.entries(hotKeys)) {
             if (match(bind) && hotkeyActions.hasOwnProperty(action)) {
                 event.preventDefault();
                 hotkeyActions[action]();
@@ -1063,6 +1062,7 @@ function setup() {
     songInfoChunk = new Chunk();
     nextSongChunk = new Chunk();
 
+    applyStyles();
     AMQ_addScriptData({
         name: "Custom Song List Game",
         author: "kempanator",
@@ -1080,7 +1080,6 @@ function setup() {
             </ul>
         `
     });
-    applyStyles();
 }
 
 // validate all settings and attempt to start csl quiz
@@ -1239,7 +1238,7 @@ function startQuiz() {
         }
         else {
             if (quiz.isHost) {
-                let message  = `1§${getStartPoint()}§${song.audio || ""}§${song.video480 || ""}§${song.video720 || ""}`;
+                let message = `1§${getStartPoint()}§${song.audio || ""}§${song.video480 || ""}§${song.video720 || ""}`;
                 splitIntoChunks(btoa(encodeURIComponent(message)) + "$", 144).forEach((item, index) => {
                     cslMessage("§CSL3" + base10to36(index % 36) + item);
                 });
@@ -1302,7 +1301,7 @@ function playSong(songNumber) {
         "time": guessTime,
         "extraGuessTime": extraGuessTime,
         "songNumber": songNumber,
-        "progressBarState": {"length": guessTime, "played": 0},
+        "progressBarState": { "length": guessTime, "played": 0 },
         "onLastSong": songNumber === totalSongs,
         "multipleChoiceNames": null
     });
@@ -1363,7 +1362,7 @@ function playSong(songNumber) {
                 readySong(songNumber + 1);
                 if (quiz.isHost) {
                     let nextSong = songList[songOrder[songNumber + 1]];
-                    let message  = `${songNumber + 1}§${getStartPoint()}§${nextSong.audio || ""}§${nextSong.video480 || ""}§${nextSong.video720 || ""}`;
+                    let message = `${songNumber + 1}§${getStartPoint()}§${nextSong.audio || ""}§${nextSong.video480 || ""}§${nextSong.video720 || ""}`;
                     splitIntoChunks(btoa(encodeURIComponent(message)) + "$", 144).forEach((item, index) => {
                         cslMessage("§CSL3" + base10to36(index % 36) + item);
                     });
@@ -1512,7 +1511,7 @@ function endGuessPhase(songNumber) {
                 }
             }, fastSkip ? 1000 : 2000);
         }, fastSkip ? 200 : 3000);
-    }, fastSkip ? 100: 400);
+    }, fastSkip ? 100 : 400);
 }
 
 // end replay phase
@@ -1574,7 +1573,7 @@ function fireListener(type, data) {
 // send csl chat message
 function cslMessage(text) {
     if (!isRankedMode()) {
-        socket.sendCommand({type: "lobby", command: "game chat message", data: {msg: String(text), teamMessage: false}});
+        socket.sendCommand({ type: "lobby", command: "game chat message", data: { msg: String(text), teamMessage: false } });
     }
 }
 
@@ -1669,12 +1668,12 @@ function parseMessage(content, sender) {
         if (sender === lobby.hostName) {
             let name = atob(content.slice(6));
             if (name === selfName) {
-                socket.sendCommand({type: "lobby", command: "change to player"});
+                socket.sendCommand({ type: "lobby", command: "change to player" });
             }
             else if (quiz.cslActive && quiz.inQuiz) {
                 let player = Object.values(quiz.players).find((p) => p._name === name);
                 if (player) {
-                    fireListener("Rejoining Player", {"name": name, "gamePlayerId": player.gamePlayerId});
+                    fireListener("Rejoining Player", { "name": name, "gamePlayerId": player.gamePlayerId });
                 }
             }
         }
@@ -1943,9 +1942,9 @@ function guessTypeFilter(song, correctGuesses, incorrectGuesses) {
 
 // return true if the song is allowed under the selected modifiers
 function modifiersFilter(song, dub, rebroadcast) {
-  if (!dub && song.dub) return false;
-  if (!rebroadcast && song.rebroadcast) return false;
-  return true;
+    if (!dub && song.dub) return false;
+    if (!rebroadcast && song.rebroadcast) return false;
+    return true;
 }
 
 // clear all intervals and timeouts
@@ -1961,7 +1960,7 @@ function clearTimeEvents() {
 function reset() {
     clearTimeEvents();
     quiz.cslActive = false;
-    cslMultiplayer = {host: "", songInfo: {}, voteSkip: {}};
+    cslMultiplayer = { host: "", songInfo: {}, voteSkip: {} };
     cslState = 0;
     currentSong = 0;
     currentAnswers = {};
@@ -2011,7 +2010,7 @@ function quizOver() {
         }
     }
     lobby.setupLobby(data, gameChat.spectators.some((spectator) => spectator.name === selfName));
-    viewChanger.changeView("lobby", {supressServerMsg: true, keepChatOpen: true});
+    viewChanger.changeView("lobby", { supressServerMsg: true, keepChatOpen: true });
 }
 
 // open custom song list settings modal
@@ -2033,7 +2032,7 @@ function LoadPreviousGameOptions() {
     let games = [];
     for (let game of Object.values(songHistoryWindow.tabs[2].gameMap)) {
         if (game.songTable.rows.length) {
-            games.push({roomName: game.roomName, startTime: game.startTime, quizId: game.quizId});
+            games.push({ roomName: game.roomName, startTime: game.startTime, quizId: game.quizId });
         }
     }
     games.sort((a, b) => b.startTime - a.startTime);
@@ -2105,7 +2104,7 @@ function getAnisongdbData(mode, query, ops, eds, ins, partial, ignoreDuplicates,
     else if (mode === "season") {
         query = query.trim();
         query = query.charAt(0).toUpperCase() + query.slice(1).toLowerCase();
-        url = `https://anisongdb.com/api/filter_season?${new URLSearchParams({season: query})}`;
+        url = `https://anisongdb.com/api/filter_season?${new URLSearchParams({ season: query })}`;
     }
     else if (mode === "ann id") {
         url = "https://anisongdb.com/api/annId_request";
@@ -2118,13 +2117,13 @@ function getAnisongdbData(mode, query, ops, eds, ins, partial, ignoreDuplicates,
     if (mode === "season") {
         data = {
             method: "GET",
-            headers: {"Accept": "application/json", "Content-Type": "application/json"},
+            headers: { "Accept": "application/json", "Content-Type": "application/json" },
         };
     }
     else {
         data = {
             method: "POST",
-            headers: {"Accept": "application/json", "Content-Type": "application/json"},
+            headers: { "Accept": "application/json", "Content-Type": "application/json" },
             body: JSON.stringify(json)
         };
     }
@@ -2162,7 +2161,7 @@ function handleData(data) {
     songList = [];
     //remap data to actual song array
     if (!Array.isArray(data)) {
-        if (typeof data === "object") { 
+        if (typeof data === "object") {
             if (data.songs) {
                 data = data.songs;
             }
@@ -2174,7 +2173,7 @@ function handleData(data) {
         else return;
     }
     for (let song of data) {
-        let animeRomajiName = song.animeRomajiName ?? song.animeJPName ?? song.songInfo?.animeNames?.romaji ?? song.anime?.romaji ?? song.animeRomaji ?? song.animeRom ??"";
+        let animeRomajiName = song.animeRomajiName ?? song.animeJPName ?? song.songInfo?.animeNames?.romaji ?? song.anime?.romaji ?? song.animeRomaji ?? song.animeRom ?? "";
         let animeEnglishName = song.animeEnglishName ?? song.animeENName ?? song.songInfo?.animeNames?.english ?? song.anime?.english ?? song.animeEnglish ?? song.animeEng ?? "";
         let altAnimeNames = song.altAnimeNames ?? song.songInfo?.altAnimeNames ?? [].concat(animeRomajiName, animeEnglishName, song.animeAltName || []);
         let altAnimeNamesAnswers = song.altAnimeNamesAnswers ?? song.songInfo?.altAnimeNamesAnswers ?? [];
@@ -2484,7 +2483,7 @@ function vintageSortValue(a, b) {
     if (yearA !== yearB) {
         return yearA - yearB;
     }
-    let seasonOrder = {"Winter": 1, "Spring": 2, "Summer": 3, "Fall": 4};
+    let seasonOrder = { "Winter": 1, "Spring": 2, "Summer": 3, "Fall": 4 };
     return seasonOrder[seasonA] - seasonOrder[seasonB];
 }
 
@@ -2535,13 +2534,13 @@ function filterSongList() {
         let option;
         let number = parseInt(text.match(/[0-9]+/)?.[0]) || null;
         if (text.startsWith("o")) {
-            option = {songType: 1, songTypeNumber: number};
+            option = { songType: 1, songTypeNumber: number };
         }
         else if (text.startsWith("e")) {
-            option = {songType: 2, songTypeNumber: number};
+            option = { songType: 2, songTypeNumber: number };
         }
         else if (text.startsWith("i")) {
-            option = {songType: 3, songTypeNumber: null};
+            option = { songType: 3, songTypeNumber: null };
         }
         else return;
         songList = songList.filter((song) => {
@@ -2643,10 +2642,11 @@ function filterSongList() {
 
 // reset all tabs and switch to the inputted tab
 function switchTab(tab) {
-    $("#cslgSettingsModal .modal-header .tabContainer .tab").removeClass("selected");
-    $("#cslgSettingsModal .modal-body .tabSection").hide();
-    $(`#${tab}Tab`).addClass("selected");
-    $(`#${tab}Container`).show();
+    const $w = $("#cslgSettingsModal");
+    $w.find(".tab").removeClass("selected");
+    $w.find(".tabSection").hide();
+    $w.find(`#${tab}Tab`).addClass("selected");
+    $w.find(`#${tab}Container`).show();
 }
 
 // convert full url to target data
@@ -2888,7 +2888,7 @@ async function getMalIdsFromMyanimelist(username) {
                 GM_xmlhttpRequest({
                     method: "GET",
                     url: nextPage,
-                    headers: {"Content-Type": "application/json", "Accept": "application/json", "X-MAL-CLIENT-ID": malClientId},
+                    headers: { "Content-Type": "application/json", "Accept": "application/json", "X-MAL-CLIENT-ID": malClientId },
                     onload: (res) => resolve(JSON.parse(res.response)),
                     onerror: (res) => reject(res)
                 });
@@ -2978,8 +2978,8 @@ function getAnilistData(username, statuses, pageNumber) {
     `;
     let data = {
         method: "POST",
-        headers: {"Content-Type": "application/json", "Accept": "application/json"},
-        body: JSON.stringify({query: query})
+        headers: { "Content-Type": "application/json", "Accept": "application/json" },
+        body: JSON.stringify({ query: query })
     }
     return fetch("https://graphql.anilist.co", data)
         .then(res => res.json())
@@ -2999,8 +2999,8 @@ async function getSongListFromMalIds(malIds) {
         idsProcessed += segment.length;
         let data = {
             method: "POST",
-            headers: {"Accept": "application/json", "Content-Type": "application/json"},
-            body: JSON.stringify({"malIds": segment})
+            headers: { "Accept": "application/json", "Content-Type": "application/json" },
+            body: JSON.stringify({ "malIds": segment })
         };
         await fetch(url, data).then(res => res.json()).then(json => {
             if (Array.isArray(json)) {
@@ -3060,7 +3060,9 @@ async function startImport() {
 // validate json data in local storage
 function validateLocalStorage(item) {
     try {
-        return JSON.parse(localStorage.getItem(item)) || {};
+        const json = JSON.parse(localStorage.getItem(item));
+        if (!json || typeof json !== "object") return {};
+        return json;
     }
     catch {
         return {};
@@ -3238,7 +3240,7 @@ function applyStyles() {
             cursor: pointer;
         }
     `;
-    let style = document.createElement("style");
+    const style = document.createElement("style");
     style.id = "customSongListGameStyle";
     style.textContent = css.trim();
     document.head.appendChild(style);
