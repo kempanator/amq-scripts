@@ -40,6 +40,7 @@ let answerStatsWindow;
 let answerSpeedWindow;
 let answerHistoryWindow;
 let answerCompareWindow;
+let rankedModeWindow;
 let answers = {}; //{1: {name, id, answer, correct}, ...}
 let songHistory = {}; //{1: {romaji, english, number, artist, song, type, vintage, difficulty, fastestSpeed, fastestPlayers, answers: {1: {id, text, speed, correct, rank, score, invalidAnswer, uniqueAnswer, noAnswer}, ...}, ...}
 let playerInfo = {}; //{1: {name, id, level, score, rank, box, averageSpeed, correctSpeedList}, ...}
@@ -397,6 +398,9 @@ function setup() {
             if (answerCompareButton && $answerCompareSearchInput.val()) {
                 displayAnswerCompareResults($answerCompareSearchInput.val());
             }
+            if (rankedModeWindow.isVisible()) {
+                displayRankedModeDistribution(difficultyList, songTypeList);
+            }
         }, 1);
     }).bindListener();
 
@@ -472,6 +476,23 @@ function setup() {
         scrollable: {x: false, y: true}
     });
 
+    rankedModeWindow = new AMQWindow({
+        id: "rankedModeWindow",
+        title: "distribution",
+        width: 250,
+        height: 350,
+        minWidth: 0,
+        minHeight: 0,
+        zIndex: 1002,
+        resizable: true,
+        draggable: true
+    });
+    rankedModeWindow.addPanel({
+        id: "rankedModePanel",
+        width: 1.0,
+        height: "100%",
+        scrollable: {x: false, y: true}
+    });
     answerStatsWindow.window.find(".modal-header").empty()
         .append($(`<i class="fa fa-times clickAble" style="font-size: 25px; top: 8px; right: 15px; position: absolute;" aria-hidden="true"></i>`).click(() => {
             answerStatsWindow.close();
@@ -519,6 +540,17 @@ function setup() {
                 })
                 .click(() => {
                     answerCompareWindow.isVisible() ? answerCompareWindow.close() : answerCompareWindow.open();
+                })
+            )
+            .append($(`<div id="asRankedMode" class="tab clickAble"><span>Ranked</span></div>`)
+                .popover({
+                    container: "#gameContainer",
+                    placement: "top",
+                    trigger: "hover",
+                    content: "show anwsers history by distribution in novice"
+                })
+                .click(() => {
+                    rankedModeWindow.isVisible() ? rankedModeWindow.close() : rankedModeWindow.open();
                 })
             )
             /*.append($(`<div id="mcInfoTab" class="tab clickAble" style="width: 45px; margin-right: -10px; padding-right: 8px; float: right;"><h5><i class="fa fa-info-circle" aria-hidden="true"></i></h5></div>`).click(function() {
@@ -756,6 +788,12 @@ function setup() {
     $div2.append($(`<label class="clickAble" style="margin-left: 10px">Wrong</label>`).append($wrongCheckbox));
     answerCompareWindow.window.find(".modal-header h2").remove();
     answerCompareWindow.window.find(".modal-header").append($div1).append($div2);
+
+    // setup ranked mode window
+    $div1 = $(`<div>Distribution</div>`).css({"font-size": "23px", "line-height": "normal", "margin": "6px 0 2px 8px"});
+    $div2 = $(`<div></div>`).css("margin", "0 0 0 8px");
+    rankedModeWindow.window.find(".modal-header h2").remove();
+    rankedModeWindow.window.find(".modal-header").append($div1).append($div2);
 
     const hotkeyActions = {
         asWindow: () => {
@@ -1154,6 +1192,102 @@ function displayAnswerCompareResults(text) {
     answerCompareWindow.panels[0].panel.append($table);
 }
 
+function displayRankedModeDistribution(difficultyList, songTypeList) {
+    const ranges = [
+        { min: 60, max: 100 },
+        { min: 45, max: 60 },
+        { min: 30, max: 45 },
+        { min: 25, max: 35 },
+        { min: 0, max: 25 }
+    ];
+
+    const tableData = ranges.map(r => ({
+        range: `${r.min}-${r.max}`,
+        OP: 0,
+        ED: 0,
+        IN: 0
+    }));
+
+    if (difficultyList && songTypeList) {
+        difficultyList.forEach((diff, index) => {
+            const type = songTypeList[index];
+
+            for (let i = 0; i < ranges.length; i++) {
+                const { min, max } = ranges[i];
+                if (diff >= min && diff < max) {
+                    if (type === 1) tableData[i].OP++;
+                    else if (type === 2) tableData[i].ED++;
+                    else if (type === 3) tableData[i].IN++;
+                    break;
+                }
+            }
+        });
+    }
+
+    const mediumTotal = tableData[1].OP + tableData[1].ED + tableData[1].IN +
+                       tableData[2].OP + tableData[2].ED + tableData[2].IN +
+                       tableData[3].OP + tableData[3].ED + tableData[3].IN;
+
+    const tableHTML = `
+        <table id="asDistributionTable" class="styledTable" style="margin-top: 10px; width: 100%; text-align: center;">
+            <thead>
+                <tr>
+                    <td><b>Dif</b></td>
+                    <td><b>OP</b></td>
+                    <td><b>ED</b></td>
+                    <td><b>IN</b></td>
+                    <td><b>Total</b></td>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>60-100</td>
+                    <td>${tableData[0].OP}</td>
+                    <td>${tableData[0].ED}</td>
+                    <td>${tableData[0].IN}</td>
+                    <td>${tableData[0].OP + tableData[0].ED + tableData[0].IN}</td>
+                </tr>
+                <tr>
+                    <td>45-60</td>
+                    <td>${tableData[1].OP}</td>
+                    <td>${tableData[1].ED}</td>
+                    <td>${tableData[1].IN}</td>
+                    <td rowspan="3">${mediumTotal}</td>
+                </tr>
+                <tr>
+                    <td>30-45</td>
+                    <td>${tableData[2].OP}</td>
+                    <td>${tableData[2].ED}</td>
+                    <td>${tableData[2].IN}</td>
+                </tr>
+                <tr>
+                    <td>25-35</td>
+                    <td>${tableData[3].OP}</td>
+                    <td>${tableData[3].ED}</td>
+                    <td>${tableData[3].IN}</td>
+                </tr>
+                <tr>
+                    <td>0-25</td>
+                    <td>${tableData[4].OP}</td>
+                    <td>${tableData[4].ED}</td>
+                    <td>${tableData[4].IN}</td>
+                    <td>${tableData[4].OP + tableData[4].ED + tableData[4].IN}</td>
+                </tr>
+                <tr style="font-weight: bold; border-top: 1px solid #666;">
+                    <td>Total</td>
+                    <td>${tableData.reduce((sum, row) => sum + row.OP, 0)}</td>
+                    <td>${tableData.reduce((sum, row) => sum + row.ED, 0)}</td>
+                    <td>${tableData.reduce((sum, row) => sum + row.IN, 0)}</td>
+                    <td>${tableData.reduce((sum, row) => sum + row.OP + row.ED + row.IN, 0)}</td>
+                </tr>
+            </tbody>
+        </table>
+    `;
+
+    rankedModeWindow.panels[0].clear();
+    rankedModeWindow.panels[0].panel.append(tableHTML);
+}
+
 function shortenType(type) {
     return type.replace("Opening ", "OP").replace("Ending ", "ED").replace("Insert Song", "IN");
 }
@@ -1272,6 +1406,7 @@ function resetHistory() {
     answerHistoryWindow.panels[0].clear();
     answerSpeedWindow.panels[0].clear();
     answerCompareWindow.panels[0].clear();
+    rankedModeWindow.panels[0].clear();
 }
 
 function findBoxById(id, groupSlotMap) {
@@ -1589,11 +1724,11 @@ function applyStyles() {
             cursor: pointer;
             user-select: none;
         }
-        #answerSpeedWindow .modal-header {
+        #answerSpeedWindow .modal-header, #rankedModeWindow .modal-header {
             padding: 0;
             height: 74px;
         }
-        #answerSpeedWindow .close {
+        #answerSpeedWindow .close, #rankedModeWindow .close {
             top: 15px;
             right: 15px;
             position: absolute;
@@ -1790,7 +1925,8 @@ function applyStyles() {
             background-color: #6B0000;
         }
         #asDistributionTable td {
-            text-align: left;
+            text-align: center;
+            vertical-align: middle;
             padding: 0 4px;
         }
         table.styledTable thead tr {
