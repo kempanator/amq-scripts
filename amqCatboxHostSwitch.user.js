@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Catbox Host Switch
 // @namespace    https://github.com/kempanator
-// @version      0.17
+// @version      0.18
 // @description  Switch your catbox host
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -21,31 +21,38 @@ Features:
 "use strict";
 if (typeof Listener === "undefined") return;
 let loadInterval = setInterval(() => {
-    if ($("#loadingScreen").hasClass("hidden")) {
+    if (document.querySelector("#loadingScreen.hidden")) {
         clearInterval(loadInterval);
         setup();
     }
 }, 500);
 
-const version = "0.17";
+const version = "0.18";
 const saveData = validateLocalStorage("catboxHostSwitch");
 const hostDict = { 1: "eudist.animemusicquiz.com", 2: "nawdist.animemusicquiz.com", 3: "naedist.animemusicquiz.com" };
 let catboxHost = parseInt(saveData.catboxHost);
 if (!hostDict.hasOwnProperty(catboxHost)) catboxHost = 0;
 
-//setup
+// setup
 function setup() {
     $("#settingsVideoHostsContainer .col-xs-6").first()
-        .append($(`<h4>Catbox Link</h4>`))
-        .append($(`<select id="chsSelect" class="form-control"><option value="0">default link</option><option value="1">eudist.animemusicquiz.com</option><option value="2">nawdist.animemusicquiz.com</option><option value="3">naedist.animemusicquiz.com</option></select>`).val(catboxHost).on("change", function () {
-            catboxHost = parseInt(this.value);
-            saveSettings();
-        }));
+        .append("<h4>Catbox Link</h4>")
+        .append($(`<select id="chsSelect" class="form-control"></select>`)
+            .append(`<option value="0">default link</option>`)
+            .append(`<option value="1">eudist.animemusicquiz.com</option>`)
+            .append(`<option value="2">nawdist.animemusicquiz.com</option>`)
+            .append(`<option value="3">naedist.animemusicquiz.com</option>`)
+            .val(catboxHost)
+            .on("change", function () {
+                catboxHost = parseInt(this.value);
+                saveSettings();
+            })
+        );
 
     QuizVideoController.prototype.nextVideoInfo = function (songInfo, playLength, startPoint, firstVideo, startTime, playbackSpeed, fullSongRange, forceBuffering, forcedSamplePoint) {
         if (catboxHost && songInfo.videoMap?.catbox) {
-            for (let key of Object.keys(songInfo.videoMap.catbox)) {
-                let url = songInfo.videoMap?.catbox[key];
+            for (const key of Object.keys(songInfo.videoMap.catbox)) {
+                const url = songInfo.videoMap.catbox[key];
                 if (url) {
                     if (/^https:\/\/\w+\.animemusicquiz\.com\/\w+\.\w{3,4}$/i.test(url)) {
                         songInfo.videoMap.catbox[key] = url.replace(/^https:\/\/\w+\.animemusicquiz\.com/, `https://${hostDict[catboxHost]}`);
@@ -95,13 +102,17 @@ function setup() {
 
 // save settings
 function saveSettings() {
-    localStorage.setItem("catboxHostSwitch", JSON.stringify({ catboxHost: catboxHost }));
+    localStorage.setItem("catboxHostSwitch", JSON.stringify({
+        catboxHost
+    }));
 }
 
 // validate json data in local storage
 function validateLocalStorage(item) {
     try {
-        return JSON.parse(localStorage.getItem(item)) || {};
+        const json = JSON.parse(localStorage.getItem(item));
+        if (!json || typeof json !== "object") return {};
+        return json;
     }
     catch {
         return {};
@@ -118,7 +129,7 @@ function applyStyles() {
             margin: auto;
         }
     `;
-    let style = document.createElement("style");
+    const style = document.createElement("style");
     style.id = "catboxHostSwitchStyle";
     style.textContent = css.trim();
     document.head.appendChild(style);
