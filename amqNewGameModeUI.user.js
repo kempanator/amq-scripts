@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ New Game Mode UI
 // @namespace    https://github.com/kempanator
-// @version      0.28
+// @version      0.29
 // @description  Adds a user interface to new game mode to keep track of guesses
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -16,13 +16,13 @@
 "use strict";
 if (typeof Listener === "undefined") return;
 let loadInterval = setInterval(() => {
-    if ($("#loadingScreen").hasClass("hidden")) {
+    if (document.querySelector("#loadingScreen.hidden")) {
         clearInterval(loadInterval);
         setup();
     }
 }, 500);
 
-const version = "0.28";
+const version = "0.29";
 let ngmWindow;
 let initialGuessCount = []; //list of initial # guesses for your team [5, 5, 5, 5]
 let guessCounter = []; //list of current # guesses for your team [4, 2, 1, 3]
@@ -39,17 +39,6 @@ let autoSendTeamCount = 0; //0: off, 1: team chat, 2: regular chat
 let halfModeList = []; //list of your teammates with half point deductions enabled [true, false, true, false]
 let autocomplete = []; //store lowercase version for faster compare speed
 let answerValidation = 1; //0: none, 1: normal, 2: strict
-$("#qpOptionContainer").width($("#qpOptionContainer").width() + 35);
-$("#qpOptionContainer > div").append($(`<div id="qpNGM" class="clickAble qpOption"><img class="qpMenuItem" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB4AAAAUCAMAAACtdX32AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAGUExURdnZ2QAAAE/vHxMAAAACdFJOU/8A5bcwSgAAAAlwSFlzAAAOwgAADsIBFShKgAAAAEpJREFUKFO9jEESABAMA/X/nyahJIYje0qynZYApcGw81hDJRiU1xownvigr7jWL4yqITlmMU1HsqjmYGDsbp77D9crZVE90rqMqNWrAYH0hYPXAAAAAElFTkSuQmCC"></div>`)
-    .click(() => {
-        ngmWindow.isVisible() ? ngmWindow.close() : ngmWindow.open();
-    })
-    .popover({
-        content: "New Game Mode UI",
-        trigger: "hover",
-        placement: "bottom"
-    })
-);
 
 function setup() {
     new Listener("game chat update", (data) => {
@@ -211,8 +200,23 @@ function setup() {
         width: 1.0,
         height: "100%"
     });
-    setupNGMWindow();
 
+    $("#qpOptionContainer")
+        .width((i, w) => w + 35)
+        .children("div")
+        .append($(`<div id="qpNGM" class="clickAble qpOption"><img class="qpMenuItem" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB4AAAAUCAMAAACtdX32AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAGUExURdnZ2QAAAE/vHxMAAAACdFJOU/8A5bcwSgAAAAlwSFlzAAAOwgAADsIBFShKgAAAAEpJREFUKFO9jEESABAMA/X/nyahJIYje0qynZYApcGw81hDJRiU1xownvigr7jWL4yqITlmMU1HsqjmYGDsbp77D9crZVE90rqMqNWrAYH0hYPXAAAAAElFTkSuQmCC"></div>`)
+            .click(() => {
+                ngmWindow.isVisible() ? ngmWindow.close() : ngmWindow.open();
+            })
+            .popover({
+                content: "New Game Mode UI",
+                trigger: "hover",
+                placement: "bottom"
+            })
+        );
+
+    setupNGMWindow();
+    applyStyles();
     AMQ_addScriptData({
         name: "New Game Mode UI",
         author: "kempanator",
@@ -222,7 +226,7 @@ function setup() {
             <p>Click the button in the options bar during quiz to open the new game mode user interface</p>
         `
     });
-    applyStyles();
+
 }
 
 // parse message
@@ -602,7 +606,7 @@ function applyStyles() {
             border: 1px solid #cccccc;
         }
     `;
-    let style = document.createElement("style");
+    const style = document.createElement("style");
     style.id = "newGameModeUIStyle";
     style.textContent = css.trim();
     document.head.appendChild(style);
