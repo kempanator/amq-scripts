@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Quick Load Lists
 // @namespace    https://github.com/kempanator
-// @version      0.14
+// @version      0.15
 // @description  Adds a window for saving and quick loading anime lists
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -19,14 +19,14 @@ How to open the window:
 
 "use strict";
 if (typeof Listener === "undefined") return;
-let loadInterval = setInterval(() => {
+const loadInterval = setInterval(() => {
     if (document.querySelector("#loadingScreen.hidden")) {
         clearInterval(loadInterval);
         setup();
     }
 }, 500);
 
-const version = "0.14";
+const version = "0.15";
 const saveData = validateLocalStorage("quickLoadLists");
 let quickLoadListsWindow;
 let savedLists = saveData.savedLists ?? [];
@@ -486,9 +486,9 @@ function createHotkeyRow(title, action) {
     const $input = $(`<input type="text" class="hk-input" readonly data-action="${action}">`)
         .val(bindingToText(hotKeys[action]))
         .on("click", startHotkeyRecord);
-    $("#qllHotkeyTable tbody").append($(`<tr></tr>`)
-        .append($(`<td></td>`).text(title))
-        .append($(`<td></td>`).append($input)));
+    $("#qllHotkeyTable tbody").append($("<tr>")
+        .append($("<td>").text(title))
+        .append($("<td>").append($input)));
 }
 
 // begin hotkey capture on click
@@ -564,15 +564,6 @@ function saveEditTable() {
     });
 }
 
-// save settings
-function saveSettings() {
-    localStorage.setItem("quickLoadLists", JSON.stringify({
-        savedLists,
-        hotKeys,
-        selectedColor
-    }));
-}
-
 // validate json data in local storage
 function validateLocalStorage(item) {
     try {
@@ -583,6 +574,15 @@ function validateLocalStorage(item) {
     catch {
         return {};
     }
+}
+
+// save settings
+function saveSettings() {
+    localStorage.setItem("quickLoadLists", JSON.stringify({
+        savedLists,
+        hotKeys,
+        selectedColor
+    }));
 }
 
 // apply styles
