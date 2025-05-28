@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Catbox Host Switch
 // @namespace    https://github.com/kempanator
-// @version      0.18
+// @version      0.19
 // @description  Switch your catbox host
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -20,14 +20,14 @@ Features:
 
 "use strict";
 if (typeof Listener === "undefined") return;
-let loadInterval = setInterval(() => {
+const loadInterval = setInterval(() => {
     if (document.querySelector("#loadingScreen.hidden")) {
         clearInterval(loadInterval);
         setup();
     }
 }, 500);
 
-const version = "0.18";
+const version = "0.19";
 const saveData = validateLocalStorage("catboxHostSwitch");
 const hostDict = { 1: "eudist.animemusicquiz.com", 2: "nawdist.animemusicquiz.com", 3: "naedist.animemusicquiz.com" };
 let catboxHost = parseInt(saveData.catboxHost);
@@ -37,7 +37,7 @@ if (!hostDict.hasOwnProperty(catboxHost)) catboxHost = 0;
 function setup() {
     $("#settingsVideoHostsContainer .col-xs-6").first()
         .append("<h4>Catbox Link</h4>")
-        .append($(`<select id="chsSelect" class="form-control"></select>`)
+        .append($("<select>", { id: "chsSelect", class: "form-control", css: { "width": "180px", "padding": "6px 6px", "margin": "auto" } })
             .append(`<option value="0">default link</option>`)
             .append(`<option value="1">eudist.animemusicquiz.com</option>`)
             .append(`<option value="2">nawdist.animemusicquiz.com</option>`)
@@ -87,7 +87,6 @@ function setup() {
         }
     };
 
-    applyStyles();
     AMQ_addScriptData({
         name: "Catbox Host Switch",
         author: "kempanator",
@@ -98,13 +97,6 @@ function setup() {
             <p>Settings are located in: bottom right gear icon > settings > video hosts > catbox link</p>
         `
     });
-}
-
-// save settings
-function saveSettings() {
-    localStorage.setItem("catboxHostSwitch", JSON.stringify({
-        catboxHost
-    }));
 }
 
 // validate json data in local storage
@@ -119,18 +111,9 @@ function validateLocalStorage(item) {
     }
 }
 
-// apply styles
-function applyStyles() {
-    //$("#catboxHostSwitchStyle").remove();
-    let css = /*css*/ `
-        #chsSelect {
-            width: 180px;
-            padding: 6px 6px;
-            margin: auto;
-        }
-    `;
-    const style = document.createElement("style");
-    style.id = "catboxHostSwitchStyle";
-    style.textContent = css.trim();
-    document.head.appendChild(style);
+// save settings
+function saveSettings() {
+    localStorage.setItem("catboxHostSwitch", JSON.stringify({
+        catboxHost
+    }));
 }
