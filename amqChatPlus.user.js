@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Chat Plus
 // @namespace    https://github.com/kempanator
-// @version      0.33
+// @version      0.34
 // @description  Add new features to chat and messages
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -16,6 +16,8 @@ IMPORTANT: disable these scripts before installing
 - chat time stamps by thejoseph98/joske2865
 - dm time stamps by xsardine
 - bigger dms css by xsardine
+- emoji answer by nyamu
+- extra emotes by mintydude
 
 New chat/message features:
 1. Add timestamps to chat, dms, and nexus
@@ -26,23 +28,31 @@ New chat/message features:
 6. Load images/audio/video directly in chat
 7. Add a gif search window in chat using tenor
 8. Drag & drop or copy & paste file into chat/dm to automatically upload to litterbox
+9. Emoji shortcode convert in answer box and room title
+10. More emojis
 */
 
 "use strict";
 if (typeof Listener === "undefined") return;
-let loadInterval = setInterval(() => {
-    if ($("#loadingScreen").hasClass("hidden")) {
+const loadInterval = setInterval(() => {
+    if (document.querySelector("#loadingScreen.hidden")) {
         clearInterval(loadInterval);
         setup();
     }
 }, 500);
 
-const version = "0.33";
-const apiKey = "LIVDSRZULELA";
+const SCRIPT_VERSION = "0.34";
+const SCRIPT_NAME = "Chat Plus";
 const saveData = validateLocalStorage("chatPlus");
-const imageURLregex = /https?:\/\/\S+\.(?:png|jpe?g|gif|webp|bmp|tiff)/i;
-const audioURLregex = /https?:\/\/\S+\.(?:mp3|ogg|m4a|flac|wav)/i;
-const videoURLregex = /https?:\/\/\S+\.(?:webm|mp4|mkv|avi|mov)/i;
+const tenorApiKey = "LIVDSRZULELA";
+const litterboxUrl = "https://litterbox.catbox.moe/resources/internals/api.php";
+const joypixelsUrl = "https://cdn.jsdelivr.net/npm/emoji-toolkit@latest/emoji.json";
+const skinModifiers = [0x1F3FB, 0x1F3FC, 0x1F3FD, 0x1F3FE, 0x1F3FF];
+const hairModifiers = [0x1F9B0, 0x1F9B1, 0x1F9B2, 0x1F9B3];
+const genderModifiers = [0x2642, 0x2640];
+const imageUrlRegex = /https?:\/\/\S+\.(?:png|jpe?g|gif|webp|bmp|tiff)/i;
+const audioUrlRegex = /https?:\/\/\S+\.(?:mp3|ogg|m4a|flac|wav)/i;
+const videoUrlRegex = /https?:\/\/\S+\.(?:webm|mp4|mkv|avi|mov)/i;
 let gcTimestamps = saveData.gcTimestamps ?? true;
 let ncTimestamps = saveData.ncTimestamps ?? true;
 let dmTimestamps = saveData.dmTimestamps ?? true;
@@ -64,546 +74,521 @@ let gifSendOnClick = saveData.gifSendOnClick ?? true;
 let gcMaxMessages = saveData.gcMaxMessages ?? 200;
 let ncMaxMessages = saveData.ncMaxMessages ?? 100;
 let fileUploadToLitterbox = saveData.fileUploadToLitterbox ?? true;
+let convertShortcodes = saveData.convertShortcodes ?? true;
+let fetchEmojiList = saveData.fetchEmojiList ?? true;
 let tenorQuery;
-let tenorPosition;
+let tenorPosition = 0;
 let imagesPerRequest = 20;
 let litterboxUploadTime = "12h";
 let showCustomColors = true;
 let customColorMap = {};
 
-$("#settingsGraphicContainer").append(/*html*/`
-    <div class="row" style="padding-top: 10px">
-        <div id="smChatPlusSettings" class="col-xs-12">
-            <div style="text-align: center">
-                <label>Chat Plus Settings</label>
-            </div>
-            <div style="padding-top: 5px">
-                <span><b>Timestamps:</b></span>
-                <span style="margin-left: 10px">Chat</span>
-                <div class="customCheckbox">
-                    <input type="checkbox" id="chatPlusGCTimestamps">
-                    <label for="chatPlusGCTimestamps"><i class="fa fa-check" aria-hidden="true"></i></label>
-                </div>
-                <span style="margin-left: 10px">Nexus</span>
-                <div class="customCheckbox">
-                    <input type="checkbox" id="chatPlusNCTimestamps">
-                    <label for="chatPlusNCTimestamps"><i class="fa fa-check" aria-hidden="true"></i></label>
-                </div>
-                <span style="margin-left: 10px">DM</span>
-                <div class="customCheckbox">
-                    <input type="checkbox" id="chatPlusDMTimestamps">
-                    <label for="chatPlusDMTimestamps"><i class="fa fa-check" aria-hidden="true"></i></label>
-                </div>
-                <span style="margin-left: 10px">Format</span>
-                <select id="chatPlusTimestampFormatSelect" class="form-control" style="display: inline-block; width: 108px; height: auto; padding: 2px">
-                    <option value="0">HH:MM</option>
-                    <option value="1">HH:MM:SS</option>
-                </select>
-            </div>
-            <div style="padding-top: 10px">
-                <span style="margin-left: 0px"><b>Name Color:</b></span>
-                <span style="margin-left: 10px">Nexus</span>
-                <div class="customCheckbox">
-                    <input type="checkbox" id="chatPlusNCColor">
-                    <label for="chatPlusNCColor"><i class="fa fa-check" aria-hidden="true"></i></label>
-                </div>
-                <span style="margin-left: 10px">DM</span>
-                <div class="customCheckbox">
-                    <input type="checkbox" id="chatPlusDMColor">
-                    <label for="chatPlusDMColor"><i class="fa fa-check" aria-hidden="true"></i></label>
-                </div>
-                <span id="chatPlusLoadBalancerContainer">
-                    <span style="margin-left: 45px"><b>Load Balancer:</b></span>
-                    <span style="margin-left: 10px"># Pixels From Left</span>
-                    <input id="chatPlusLoadBalancerPositionInput" class="form-control" type="text" style="width: 40px;">
-                </span>
-            </div>
-            <div style="padding-top: 10px">
-                <span><b>Extend DM (px):</b></span>
-                <span style="margin-left: 10px">Width</span>
-                <input id="chatPlusDMWidthExtension" class="form-control" type="text" style="width: 40px">
-                <span style="margin-left: 10px">Height</span>
-                <input id="chatPlusDMHeightExtension" class="form-control" type="text" style="width: 40px">
-                <span style="margin-left: 38px"><b>Resize Nexus Chat</b></span>
-                <div class="customCheckbox" style="vertical-align: middle">
-                    <input type="checkbox" id="chatPlusResizeNexusChat">
-                    <label for="chatPlusResizeNexusChat"><i class="fa fa-check" aria-hidden="true"></i></label>
-                </div>
-            </div>
-            <div style="padding-top: 10px">
-                <span><b>Reformat XP/Currency</b></span>
-                <div class="customCheckbox" style="vertical-align: middle">
-                    <input type="checkbox" id="chatPlusReformatBottomBar">
-                    <label for="chatPlusReformatBottomBar"><i class="fa fa-check" aria-hidden="true"></i></label>
-                </div>
-                <span id="chatPlusReformatBottomBarContainer" style="margin-left: 19px">
-                    <span>XP Bar Width</span>
-                    <input id="chatPlusXPBarWidth" class="form-control" type="text" style="width: 40px">
-                    <span style="margin-left: 20px"># Pixels From Right</span>
-                    <input id="chatPlusXPBarFromRight" class="form-control" type="text" style="width: 40px">
-                </span>
-            </div>
-            <div style="padding-top: 10px">
-                <span><b>Load Media in Chat</b></span>
-                <div class="customCheckbox" style="vertical-align: middle">
-                    <input type="checkbox" id="chatPlusLoadMedia">
-                    <label for="chatPlusLoadMedia"><i class="fa fa-check" aria-hidden="true"></i></label>
-                </div>
-                <span id="chatPlusAutoLoadMediaContainer" style="margin-left: 40px">
-                    <span><b>Auto Load Media:</b></span>
-                    <span style="margin-left: 10px">Never</span>
-                    <div class="customCheckbox" style="vertical-align: middle">
-                        <input type="checkbox" id="chatPlusAutoLoadMediaNever">
-                        <label for="chatPlusAutoLoadMediaNever"><i class="fa fa-check" aria-hidden="true"></i></label>
-                    </div>
-                    <span style="margin-left: 10px">Friends</span>
-                    <div class="customCheckbox" style="vertical-align: middle">
-                        <input type="checkbox" id="chatPlusAutoLoadMediaFriends">
-                        <label for="chatPlusAutoLoadMediaFriends"><i class="fa fa-check" aria-hidden="true"></i></label>
-                    </div>
-                    <span style="margin-left: 10px">All</span>
-                    <div class="customCheckbox" style="vertical-align: middle">
-                        <input type="checkbox" id="chatPlusAutoLoadMediaAll">
-                        <label for="chatPlusAutoLoadMediaAll"><i class="fa fa-check" aria-hidden="true"></i></label>
-                    </div>
-                </span>
-            </div>
-            <div style="padding-top: 10px">
-                <span><b>Gif Search</b></span>
-                <div class="customCheckbox" style="vertical-align: middle">
-                    <input type="checkbox" id="chatPlusGifSearch">
-                    <label for="chatPlusGifSearch"><i class="fa fa-check" aria-hidden="true"></i></label>
-                </div>
-                <span id="chatPlusGifSearchContainer" style="margin-left: 98px">
-                    <span><b>Gif Window:</b></span>
-                    <span style="margin-left: 10px">Height</span>
-                    <input id="chatPlusGifSearchHeight" class="form-control" type="text" style="width: 40px">
-                    <span style="margin-left: 10px">Send on click</span>
-                    <div class="customCheckbox" style="vertical-align: middle">
-                        <input type="checkbox" id="chatPlusGifSendOnClick">
-                        <label for="chatPlusGifSendOnClick"><i class="fa fa-check" aria-hidden="true"></i></label>
-                    </div>
-                </span>
-            </div>
-            <div style="padding-top: 10px">
-                <span><b>Max Messages:</b></span>
-                <span style="margin-left: 10px">Chat</span>
-                <input id="chatPlusGCMaxMessages" class="form-control" type="text" style="width: 40px">
-                <span style="margin-left: 10px">Nexus</span>
-                <input id="chatPlusNCMaxMessages" class="form-control" type="text" style="width: 40px">
-                <span style="margin-left: 50px"><b>Upload files to Litterbox</b></span>
-                <div class="customCheckbox" style="vertical-align: middle">
-                    <input type="checkbox" id="chatPlusUploadToLitterbox">
-                    <label for="chatPlusUploadToLitterbox"><i class="fa fa-check" aria-hidden="true"></i></label>
-                </div>
-            </div>
-        </div>
-    </div>
-`);
-
-$("#gcChatContent .gcInputContainer").append(/*html*/`
-    <div id="gcGifSearchOuterContainer">
-        <div id="gcGifSearchButton" class="clickAble">
-            <i class="fa fa-picture-o" aria-hidden="true"></i>
-        </div>
-    </div>
-`);
-
-$("#gcMessageContainer").after(/*html*/`
-    <div id="gcGifContainer">
-        <input id="tenorSearchInput" type="text" placeholder="gif search...">
-        <div id="tenorGifContainer"></div>
-    </div>
-`);
-
-const $gcInput = $("#gcInput");
-const $tenorGifContainer = $("#tenorGifContainer");
-$gcInput.popover({
-    container: "#gcChatContent",
-    placement: "top",
-    trigger: "manual",
-    content: ""
-});
-$("#chatPlusGCTimestamps").prop("checked", gcTimestamps).click(() => {
-    gcTimestamps = !gcTimestamps;
-    saveSettings();
-});
-$("#chatPlusNCTimestamps").prop("checked", ncTimestamps).click(() => {
-    ncTimestamps = !ncTimestamps;
-    saveSettings();
-});
-$("#chatPlusDMTimestamps").prop("checked", dmTimestamps).click(() => {
-    dmTimestamps = !dmTimestamps;
-    saveSettings();
-});
-$("#chatPlusTimestampFormatSelect").val(timeStampFormat).on("change", function() {
-    timeStampFormat = this.value;
-    saveSettings();
-});
-$("#chatPlusNCColor").prop("checked", ncColor).click(() => {
-    ncColor = !ncColor;
-    applyStyles();
-    saveSettings();
-});
-$("#chatPlusDMColor").prop("checked", dmColor).click(() => {
-    dmColor = !dmColor;
-    applyStyles();
-    saveSettings();
-});
-$("#chatPlusReformatBottomBar").prop("checked", reformatBottomBar).click(() => {
-    reformatBottomBar = !reformatBottomBar;
-    if (reformatBottomBar) {
-        $("#chatPlusReformatBottomBarContainer, #chatPlusLoadBalancerContainer").removeClass("disabled");
-    }
-    else {
-        $("#chatPlusReformatBottomBarContainer, #chatPlusLoadBalancerContainer").addClass("disabled");
-    }
-    applyStyles();
-    saveSettings();
-});
-$("#chatPlusLoadBalancerPositionInput").val(loadBalancerFromLeft).blur(() => {
-    let number = parseInt($("#chatPlusLoadBalancerPositionInput").val());
-    if (Number.isInteger(number) && number >= 0) {
-        loadBalancerFromLeft = number;
-        applyStyles();
-        saveSettings();
-    }
-});
-$("#chatPlusXPBarWidth").val(xpBarWidth).blur(() => {
-    let number = parseInt($("#chatPlusXPBarWidth").val());
-    if (Number.isInteger(number) && number >= 0) {
-        xpBarWidth = number;
-        applyStyles();
-        saveSettings();
-    }
-});
-$("#chatPlusXPBarFromRight").val(xpBarFromRight).blur(() => {
-    let number = parseInt($("#chatPlusXPBarFromRight").val());
-    if (Number.isInteger(number) && number >= 0) {
-        xpBarFromRight = number;
-        applyStyles();
-        saveSettings();
-    }
-});
-$("#chatPlusDMWidthExtension").val(dmWidthExtension).blur(() => {
-    let number = parseInt($("#chatPlusDMWidthExtension").val());
-    if (Number.isInteger(number) && number >= 0) {
-        dmWidthExtension = number;
-        applyStyles();
-        saveSettings();
-    }
-});
-$("#chatPlusDMHeightExtension").val(dmHeightExtension).blur(() => {
-    let number = parseInt($("#chatPlusDMHeightExtension").val());
-    if (Number.isInteger(number) && number >= 0) {
-        dmHeightExtension = number;
-        applyStyles();
-        saveSettings();
-    }
-});
-$("#chatPlusResizeNexusChat").prop("checked", resizeNexusChat).click(() => {
-    resizeNexusChat = !resizeNexusChat;
-    if (resizeNexusChat) $("#nexusCoopMainContainer").css({"resize": "both", "overflow": "hidden", "min-width": "0", "max-width": "none"});
-    else $("#nexusCoopMainContainer").removeAttr("style");
-    saveSettings();
-});
-$("#chatPlusGCMaxMessages").val(gcMaxMessages).blur(() => {
-    let number = parseInt($("#chatPlusGCMaxMessages").val());
-    if (Number.isInteger(number) && number > 0) {
-        gcMaxMessages = number;
-        gameChat.MAX_CHAT_MESSAGES = number;
-        saveSettings();
-    }
-});
-$("#chatPlusNCMaxMessages").val(ncMaxMessages).blur(() => {
-    let number = parseInt($("#chatPlusNCMaxMessages").val());
-    if (Number.isInteger(number) && number > 0) {
-        ncMaxMessages = number;
-        nexusCoopChat.MAX_CHAT_MESSAGES = number;
-        saveSettings();
-    }
-});
-$("#chatPlusLoadMedia").prop("checked", gcLoadMediaButton).click(() => {
-    gcLoadMediaButton = !gcLoadMediaButton;
-    if (gcLoadMediaButton) $("#chatPlusAutoLoadMediaContainer").removeClass("disabled");
-    else $("#chatPlusAutoLoadMediaContainer").addClass("disabled");
-    saveSettings();
-});
-$("#chatPlusAutoLoadMediaNever").prop("checked", gcAutoLoadMedia === "never").click(() => {
-    gcAutoLoadMedia = "never";
-    $("#chatPlusAutoLoadMediaFriends").prop("checked", false);
-    $("#chatPlusAutoLoadMediaAll").prop("checked", false);
-    saveSettings();
-});
-$("#chatPlusAutoLoadMediaFriends").prop("checked", gcAutoLoadMedia === "friends").click(() => {
-    gcAutoLoadMedia = "friends";
-    $("#chatPlusAutoLoadMediaNever").prop("checked", false);
-    $("#chatPlusAutoLoadMediaAll").prop("checked", false);
-    saveSettings();
-});
-$("#chatPlusAutoLoadMediaAll").prop("checked", gcAutoLoadMedia === "all").click(() => {
-    gcAutoLoadMedia = "all";
-    $("#chatPlusAutoLoadMediaNever").prop("checked", false);
-    $("#chatPlusAutoLoadMediaFriends").prop("checked", false);
-    saveSettings();
-});
-$("#chatPlusGifSearch").prop("checked", gifSearch).click(() => {
-    gifSearch = !gifSearch;
-    if (gifSearch) {
-        $("#gcGifSearchOuterContainer").show();
-        $("#chatPlusGifSearchContainer").removeClass("disabled");
-    }
-    else {
-        $("#gcGifSearchOuterContainer").hide();
-        $("#gcGifContainer").hide();
-        $("#chatPlusGifSearchContainer").addClass("disabled");
-    }
-    applyStyles();
-    saveSettings();
-});
-$("#chatPlusGifSearchHeight").val(gifSearchHeight).blur(() => {
-    let number = parseInt($("#chatPlusGifSearchHeight").val());
-    if (!isNaN(number) && number >= 0) {
-        gifSearchHeight = number;
-        applyStyles();
-        saveSettings();
-    }
-});
-$("#chatPlusGifSendOnClick").prop("checked", gifSendOnClick).click(() => {
-    gifSendOnClick = !gifSendOnClick;
-    saveSettings();
-});
-$("#gcGifSearchButton").click(() => {
-    if ($("#gcGifContainer").is(":visible")) {
-        $("#gcGifContainer").hide();
-    }
-    else {
-        $("#gcGifContainer").show();
-        $("#tenorSearchInput").val("").focus();
-    }
-});
-$("#chatPlusUploadToLitterbox").prop("checked", fileUploadToLitterbox).click(() => {
-    fileUploadToLitterbox = !fileUploadToLitterbox;
-    saveSettings();
-});
-$("#tenorGifContainer").scroll(() => {
-    let atBottom = $tenorGifContainer.scrollTop() + $tenorGifContainer.innerHeight() >= tenorGifContainer.scrollHeight;
-    if (atBottom) {
-        fetch(`https://api.tenor.com/v1/search?q=${tenorQuery}&key=${apiKey}&limit=${imagesPerRequest}&pos=${tenorPosition}`).then(response => response.json()).then(data => {
-            for (let gif of data.results) {
-                let url = gif.media[0].gif.url;
-                $tenorGifContainer.append($(`<img class="tenorGif" loading="lazy">`).attr("src", url).click(() => {
-                    if (gifSendOnClick) {
-                        $("#gcGifContainer").hide();
-                        socket.sendCommand({type: "lobby", command: "game chat message", data: {msg: url, teamMessage: $("#gcTeamChatSwitch").hasClass("active")}});
-                    }
-                    else {
-                        $gcInput.val((index, value) => value + url);
-                    }
-                }));
-            };
-        });
-        tenorPosition += imagesPerRequest;
-    }
-});
-$("#tenorSearchInput").keypress((event) => {
-    if (event.which === 13) {
-        $(".tenorGif").remove();
-        tenorQuery = $("#tenorSearchInput").val();
-        fetch(`https://api.tenor.com/v1/search?q=${tenorQuery}&key=${apiKey}&limit=${imagesPerRequest}`).then(response => response.json()).then(data => {
-            for (let gif of data.results) {
-                let url = gif.media[0].gif.url;
-                $tenorGifContainer.append($(`<img class="tenorGif" loading="lazy">`).attr("src", url).click(() => {
-                    if (gifSendOnClick) {
-                        $("#gcGifContainer").hide();
-                        socket.sendCommand({type: "lobby", command: "game chat message", data: {msg: url, teamMessage: $("#gcTeamChatSwitch").hasClass("active")}});
-                    }
-                    else {
-                        $gcInput.val((index, value) => value + url);
-                    }
-                }));
-            };
-        });
-        tenorPosition = imagesPerRequest;
-    }
-});
-$gcInput.on("dragenter", () => {
-    if (fileUploadToLitterbox) {
-        $gcInput.data("bs.popover").options.content = "Upload to litterbox";
-        $gcInput.popover("show");
-    }
-});
-$gcInput.on("dragleave", () => {
-    if (fileUploadToLitterbox) {
-        $gcInput.popover("hide");
-    }
-});
-$gcInput.on("drop", (event) => {
-    if (fileUploadToLitterbox) {
-        $gcInput.popover("hide");
-        let file = event.originalEvent.dataTransfer.files[0];
-        if (file) {
-            event.preventDefault();
-            event.stopPropagation();
-            $gcInput.data("bs.popover").options.content = "Uploading to litterbox...";
-            $gcInput.popover("show");
-            fetch("https://litterbox.catbox.moe/resources/internals/api.php", {method: "POST", body: litterboxFormData(file)})
-            .then((response) => response.text())
-            .then((data) => {
-                $gcInput.popover("hide");
-                $gcInput.val((index, value) => value + data);
-            })
-            .catch((response) => {
-                $gcInput.popover("hide");
-                gameChat.systemMessage("Error: litterbox upload failed");
-                console.log(response);
-            });
-        }
-    }
-});
-$gcInput.on("paste", (event) => {
-    if (fileUploadToLitterbox) {
-        $gcInput.popover("hide");
-        let file = event.originalEvent.clipboardData.files[0];
-        if (file) {
-            event.preventDefault();
-            event.stopPropagation();
-            $gcInput.data("bs.popover").options.content = "Uploading to litterbox...";
-            $gcInput.popover("show");
-            fetch("https://litterbox.catbox.moe/resources/internals/api.php", {method: "POST", body: litterboxFormData(file)})
-            .then((response) => response.text())
-            .then((data) => {
-                $gcInput.popover("hide");
-                $gcInput.val((index, value) => value + data);
-            })
-            .catch((response) => {
-                $gcInput.popover("hide");
-                gameChat.systemMessage("Error: litterbox upload failed");
-                console.log(response);
-            });
-        }
-    }
-});
-if (!reformatBottomBar) $("#chatPlusReformatBottomBarContainer, #chatPlusLoadBalancerContainer").addClass("disabled");
-if (!gcLoadMediaButton) $("#chatPlusAutoLoadMediaContainer").addClass("disabled");
-if (!gifSearch) $("#chatPlusGifSearchContainer").addClass("disabled");
-$("#tenorGifContainer").perfectScrollbar();
 applyStyles();
 
+// setup
 function setup() {
+    // build settings
+    $("#settingsGraphicContainer").append(/*html*/`
+        <div class="row" style="padding-top: 10px">
+            <div id="smChatPlusSettings" class="col-xs-12">
+                <div style="text-align: center">
+                    <label>Chat Plus Settings</label>
+                </div>
+                <div style="padding-top: 5px">
+                    <span><b>Timestamps:</b></span>
+                    <span style="margin-left: 10px">Chat</span>
+                    <div class="customCheckbox">
+                        <input type="checkbox" id="chatPlusGCTimestamps">
+                        <label for="chatPlusGCTimestamps"><i class="fa fa-check" aria-hidden="true"></i></label>
+                    </div>
+                    <span style="margin-left: 10px">Nexus</span>
+                    <div class="customCheckbox">
+                        <input type="checkbox" id="chatPlusNCTimestamps">
+                        <label for="chatPlusNCTimestamps"><i class="fa fa-check" aria-hidden="true"></i></label>
+                    </div>
+                    <span style="margin-left: 10px">DM</span>
+                    <div class="customCheckbox">
+                        <input type="checkbox" id="chatPlusDMTimestamps">
+                        <label for="chatPlusDMTimestamps"><i class="fa fa-check" aria-hidden="true"></i></label>
+                    </div>
+                    <span style="margin-left: 10px">Format</span>
+                    <select id="chatPlusTimestampFormatSelect" class="form-control" style="display: inline-block; width: 108px; height: auto; padding: 2px">
+                        <option value="0">HH:MM</option>
+                        <option value="1">HH:MM:SS</option>
+                    </select>
+                </div>
+                <div style="padding-top: 10px">
+                    <span style="margin-left: 0px"><b>Name Color:</b></span>
+                    <span style="margin-left: 10px">Nexus</span>
+                    <div class="customCheckbox">
+                        <input type="checkbox" id="chatPlusNCColor">
+                        <label for="chatPlusNCColor"><i class="fa fa-check" aria-hidden="true"></i></label>
+                    </div>
+                    <span style="margin-left: 10px">DM</span>
+                    <div class="customCheckbox">
+                        <input type="checkbox" id="chatPlusDMColor">
+                        <label for="chatPlusDMColor"><i class="fa fa-check" aria-hidden="true"></i></label>
+                    </div>
+                    <span id="chatPlusLoadBalancerContainer">
+                        <span style="margin-left: 45px"><b>Load Balancer:</b></span>
+                        <span style="margin-left: 10px"># Pixels From Left</span>
+                        <input id="chatPlusLoadBalancerPositionInput" class="form-control" type="text" style="width: 40px;">
+                    </span>
+                </div>
+                <div style="padding-top: 10px">
+                    <span><b>Extend DM (px):</b></span>
+                    <span style="margin-left: 10px">Width</span>
+                    <input id="chatPlusDMWidthExtension" class="form-control" type="text" style="width: 40px">
+                    <span style="margin-left: 10px">Height</span>
+                    <input id="chatPlusDMHeightExtension" class="form-control" type="text" style="width: 40px">
+                    <span style="margin-left: 38px"><b>Resize Nexus Chat</b></span>
+                    <div class="customCheckbox" style="vertical-align: middle">
+                        <input type="checkbox" id="chatPlusResizeNexusChat">
+                        <label for="chatPlusResizeNexusChat"><i class="fa fa-check" aria-hidden="true"></i></label>
+                    </div>
+                </div>
+                <div style="padding-top: 10px">
+                    <span><b>Reformat XP/Currency</b></span>
+                    <div class="customCheckbox" style="vertical-align: middle">
+                        <input type="checkbox" id="chatPlusReformatBottomBar">
+                        <label for="chatPlusReformatBottomBar"><i class="fa fa-check" aria-hidden="true"></i></label>
+                    </div>
+                    <span id="chatPlusReformatBottomBarContainer" style="margin-left: 19px">
+                        <span>XP Bar Width</span>
+                        <input id="chatPlusXPBarWidth" class="form-control" type="text" style="width: 40px">
+                        <span style="margin-left: 20px"># Pixels From Right</span>
+                        <input id="chatPlusXPBarFromRight" class="form-control" type="text" style="width: 40px">
+                    </span>
+                </div>
+                <div style="padding-top: 10px">
+                    <span><b>Load Media in Chat</b></span>
+                    <div class="customCheckbox" style="vertical-align: middle">
+                        <input type="checkbox" id="chatPlusLoadMedia">
+                        <label for="chatPlusLoadMedia"><i class="fa fa-check" aria-hidden="true"></i></label>
+                    </div>
+                    <span id="chatPlusAutoLoadMediaContainer" style="margin-left: 40px">
+                        <span><b>Auto Load Media:</b></span>
+                        <select id="chatPlusAutoLoadMediaSelect" class="form-control" style="display: inline-block; width: 108px; height: auto; padding: 2px">
+                            <option value="never">Never</option>
+                            <option value="friends">Friends</option>
+                            <option value="all">All</option>
+                        </select>
+                    </span>
+                </div>
+                <div style="padding-top: 10px">
+                    <span><b>Gif Search</b></span>
+                    <div class="customCheckbox" style="vertical-align: middle">
+                        <input type="checkbox" id="chatPlusGifSearch">
+                        <label for="chatPlusGifSearch"><i class="fa fa-check" aria-hidden="true"></i></label>
+                    </div>
+                    <span id="chatPlusGifSearchContainer" style="margin-left: 98px">
+                        <span><b>Gif Window:</b></span>
+                        <span style="margin-left: 10px">Height</span>
+                        <input id="chatPlusGifSearchHeight" class="form-control" type="text" style="width: 40px">
+                        <span style="margin-left: 10px">Send on click</span>
+                        <div class="customCheckbox" style="vertical-align: middle">
+                            <input type="checkbox" id="chatPlusGifSendOnClick">
+                            <label for="chatPlusGifSendOnClick"><i class="fa fa-check" aria-hidden="true"></i></label>
+                        </div>
+                    </span>
+                </div>
+                <div style="padding-top: 10px">
+                    <span><b>Max Messages:</b></span>
+                    <span style="margin-left: 10px">Chat</span>
+                    <input id="chatPlusGCMaxMessages" class="form-control" type="text" style="width: 40px">
+                    <span style="margin-left: 10px">Nexus</span>
+                    <input id="chatPlusNCMaxMessages" class="form-control" type="text" style="width: 40px">
+                    <span style="margin-left: 50px"><b>Upload files to Litterbox</b></span>
+                    <div class="customCheckbox" style="vertical-align: middle">
+                        <input type="checkbox" id="chatPlusUploadToLitterbox">
+                        <label for="chatPlusUploadToLitterbox"><i class="fa fa-check" aria-hidden="true"></i></label>
+                    </div>
+                </div>
+                <div style="padding-top: 10px">
+                    <span><b>More Emojis</b></span>
+                    <div class="customCheckbox" style="vertical-align: middle">
+                        <input type="checkbox" id="chatPlusMoreEmojis">
+                        <label for="chatPlusMoreEmojis"><i class="fa fa-check" aria-hidden="true"></i></label>
+                    </div>
+                    <span style="margin-left: 50px"><b>Convert Shortcodes</b></span>
+                    <div class="customCheckbox" style="vertical-align: middle">
+                        <input type="checkbox" id="chatPlusConvertShortcodes">
+                        <label for="chatPlusConvertShortcodes"><i class="fa fa-check" aria-hidden="true"></i></label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `);
+
+    $("#gcChatContent .gcInputContainer").append(/*html*/`
+        <div id="gcGifSearchOuterContainer">
+            <div id="gcGifSearchButton" class="clickAble">
+                <i class="fa fa-picture-o" aria-hidden="true"></i>
+            </div>
+        </div>
+    `);
+
+    $("#gcMessageContainer").after(/*html*/`
+        <div id="gcGifContainer">
+            <input id="tenorSearchInput" type="text" placeholder="gif search...">
+            <div id="tenorGifContainer"></div>
+        </div>
+    `);
+
+    const $gcInput = $("#gcInput");
+    const $tenorGifContainer = $("#tenorGifContainer");
+    $gcInput.popover({
+        container: "#gcChatContent",
+        placement: "top",
+        trigger: "manual",
+        content: ""
+    });
+    $("#chatPlusGCTimestamps").prop("checked", gcTimestamps).click(() => {
+        gcTimestamps = !gcTimestamps;
+        saveSettings();
+    });
+    $("#chatPlusNCTimestamps").prop("checked", ncTimestamps).click(() => {
+        ncTimestamps = !ncTimestamps;
+        saveSettings();
+    });
+    $("#chatPlusDMTimestamps").prop("checked", dmTimestamps).click(() => {
+        dmTimestamps = !dmTimestamps;
+        saveSettings();
+    });
+    $("#chatPlusTimestampFormatSelect").val(timeStampFormat).on("change", function () {
+        timeStampFormat = this.value;
+        saveSettings();
+    });
+    $("#chatPlusNCColor").prop("checked", ncColor).click(() => {
+        ncColor = !ncColor;
+        applyStyles();
+        saveSettings();
+    });
+    $("#chatPlusDMColor").prop("checked", dmColor).click(() => {
+        dmColor = !dmColor;
+        applyStyles();
+        saveSettings();
+    });
+    $("#chatPlusReformatBottomBar").prop("checked", reformatBottomBar).click(() => {
+        reformatBottomBar = !reformatBottomBar;
+        if (reformatBottomBar) {
+            $("#chatPlusReformatBottomBarContainer, #chatPlusLoadBalancerContainer").removeClass("disabled");
+        }
+        else {
+            $("#chatPlusReformatBottomBarContainer, #chatPlusLoadBalancerContainer").addClass("disabled");
+        }
+        applyStyles();
+        saveSettings();
+    });
+    $("#chatPlusLoadBalancerPositionInput").val(loadBalancerFromLeft).blur(() => {
+        const number = parseInt($("#chatPlusLoadBalancerPositionInput").val());
+        if (Number.isInteger(number) && number >= 0) {
+            loadBalancerFromLeft = number;
+            applyStyles();
+            saveSettings();
+        }
+    });
+    $("#chatPlusXPBarWidth").val(xpBarWidth).blur(() => {
+        const number = parseInt($("#chatPlusXPBarWidth").val());
+        if (Number.isInteger(number) && number >= 0) {
+            xpBarWidth = number;
+            applyStyles();
+            saveSettings();
+        }
+    });
+    $("#chatPlusXPBarFromRight").val(xpBarFromRight).blur(() => {
+        const number = parseInt($("#chatPlusXPBarFromRight").val());
+        if (Number.isInteger(number) && number >= 0) {
+            xpBarFromRight = number;
+            applyStyles();
+            saveSettings();
+        }
+    });
+    $("#chatPlusDMWidthExtension").val(dmWidthExtension).blur(() => {
+        const number = parseInt($("#chatPlusDMWidthExtension").val());
+        if (Number.isInteger(number) && number >= 0) {
+            dmWidthExtension = number;
+            applyStyles();
+            saveSettings();
+        }
+    });
+    $("#chatPlusDMHeightExtension").val(dmHeightExtension).blur(() => {
+        const number = parseInt($("#chatPlusDMHeightExtension").val());
+        if (Number.isInteger(number) && number >= 0) {
+            dmHeightExtension = number;
+            applyStyles();
+            saveSettings();
+        }
+    });
+    $("#chatPlusResizeNexusChat").prop("checked", resizeNexusChat).click(() => {
+        resizeNexusChat = !resizeNexusChat;
+        if (resizeNexusChat) {
+            $("#nexusCoopMainContainer").css({
+                "resize": "both",
+                "overflow": "hidden",
+                "min-width": "0",
+                "max-width": "none"
+            });
+        }
+        else {
+            $("#nexusCoopMainContainer").removeAttr("style");
+        }
+        saveSettings();
+    });
+    $("#chatPlusGCMaxMessages").val(gcMaxMessages).blur(() => {
+        const number = parseInt($("#chatPlusGCMaxMessages").val());
+        if (Number.isInteger(number) && number > 0) {
+            gcMaxMessages = number;
+            gameChat.MAX_CHAT_MESSAGES = number;
+            saveSettings();
+        }
+    });
+    $("#chatPlusNCMaxMessages").val(ncMaxMessages).blur(() => {
+        const number = parseInt($("#chatPlusNCMaxMessages").val());
+        if (Number.isInteger(number) && number > 0) {
+            ncMaxMessages = number;
+            nexusCoopChat.MAX_CHAT_MESSAGES = number;
+            saveSettings();
+        }
+    });
+    $("#chatPlusLoadMedia").prop("checked", gcLoadMediaButton).click(() => {
+        gcLoadMediaButton = !gcLoadMediaButton;
+        if (gcLoadMediaButton) $("#chatPlusAutoLoadMediaContainer").removeClass("disabled");
+        else $("#chatPlusAutoLoadMediaContainer").addClass("disabled");
+        saveSettings();
+    });
+    $("#chatPlusAutoLoadMediaSelect").val(gcAutoLoadMedia).on("change", function () {
+        gcAutoLoadMedia = this.value;
+        saveSettings();
+    });
+    $("#chatPlusGifSearch").prop("checked", gifSearch).click(() => {
+        gifSearch = !gifSearch;
+        if (gifSearch) {
+            $("#gcGifSearchOuterContainer").show();
+            $("#chatPlusGifSearchContainer").removeClass("disabled");
+        }
+        else {
+            $("#gcGifSearchOuterContainer").hide();
+            $("#gcGifContainer").hide();
+            $("#chatPlusGifSearchContainer").addClass("disabled");
+        }
+        applyStyles();
+        saveSettings();
+    });
+    $("#chatPlusGifSearchHeight").val(gifSearchHeight).blur(() => {
+        const number = parseInt($("#chatPlusGifSearchHeight").val());
+        if (!isNaN(number) && number >= 0) {
+            gifSearchHeight = number;
+            applyStyles();
+            saveSettings();
+        }
+    });
+    $("#chatPlusGifSendOnClick").prop("checked", gifSendOnClick).click(() => {
+        gifSendOnClick = !gifSendOnClick;
+        saveSettings();
+    });
+    $("#gcGifSearchButton").click(() => {
+        if ($("#gcGifContainer").is(":visible")) {
+            $("#gcGifContainer").hide();
+        }
+        else {
+            $("#gcGifContainer").show();
+            $("#tenorSearchInput").val("").focus();
+        }
+    });
+    $("#chatPlusUploadToLitterbox").prop("checked", fileUploadToLitterbox).click(() => {
+        fileUploadToLitterbox = !fileUploadToLitterbox;
+        saveSettings();
+    });
+    $("#chatPlusMoreEmojis").prop("checked", fetchEmojiList).click(() => {
+        fetchEmojiList = !fetchEmojiList;
+        saveSettings();
+    });
+    $("#chatPlusConvertShortcodes").prop("checked", convertShortcodes).click(() => {
+        convertShortcodes = !convertShortcodes;
+        saveSettings();
+    });
+    $("#tenorGifContainer").scroll(() => {
+        const atBottom = $tenorGifContainer.scrollTop() + $tenorGifContainer.innerHeight() >= tenorGifContainer.scrollHeight;
+        if (atBottom) {
+            const tenorUrl = `https://api.tenor.com/v1/search?q=${encodeURIComponent(tenorQuery)}&key=${tenorApiKey}&limit=${imagesPerRequest}&pos=${tenorPosition}`;
+            fetch(tenorUrl).then(response => response.json()).then(data => {
+                for (const gif of data.results) {
+                    const url = gif.media[0].gif.url;
+                    $tenorGifContainer.append($(`<img class="tenorGif" loading="lazy">`).attr("src", url).click(() => {
+                        if (gifSendOnClick) {
+                            $("#gcGifContainer").hide();
+                            socket.sendCommand({
+                                type: "lobby",
+                                command: "game chat message",
+                                data: {
+                                    msg: url,
+                                    teamMessage: $("#gcTeamChatSwitch").hasClass("active")
+                                }
+                            });
+                        }
+                        else {
+                            $gcInput.val((index, value) => value + url);
+                        }
+                    }));
+                };
+            });
+            tenorPosition += imagesPerRequest;
+        }
+    });
+    $("#tenorSearchInput").keypress((event) => {
+        if (event.key === "Enter") {
+            $(".tenorGif").remove();
+            tenorQuery = $("#tenorSearchInput").val();
+            const tenorUrl = `https://api.tenor.com/v1/search?q=${encodeURIComponent(tenorQuery)}&key=${tenorApiKey}&limit=${imagesPerRequest}`;
+            fetch(tenorUrl).then(response => response.json()).then(data => {
+                for (const gif of data.results) {
+                    const url = gif.media[0].gif.url;
+                    $tenorGifContainer.append($(`<img class="tenorGif" loading="lazy">`).attr("src", url).click(() => {
+                        if (gifSendOnClick) {
+                            $("#gcGifContainer").hide();
+                            socket.sendCommand({
+                                type: "lobby",
+                                command: "game chat message",
+                                data: {
+                                    msg: url,
+                                    teamMessage: $("#gcTeamChatSwitch").hasClass("active")
+                                }
+                            });
+                        }
+                        else {
+                            $gcInput.val((index, value) => value + url);
+                        }
+                    }));
+                };
+            });
+            tenorPosition = imagesPerRequest;
+        }
+    });
+    $gcInput
+        .on("dragenter", () => {
+            if (fileUploadToLitterbox) {
+                $gcInput.popover("show").data("bs.popover").options.content = "Upload to litterbox";
+            }
+        })
+        .on("dragleave", () => {
+            if (fileUploadToLitterbox) {
+                $gcInput.popover("hide");
+            }
+        })
+        .on("drop", (event) => {
+            gcUploadEvent(event, $gcInput)
+        })
+        .on("paste", (event) => {
+            gcUploadEvent(event, $gcInput)
+        })
+
     gameChat.MAX_CHAT_MESSAGES = gcMaxMessages;
     nexusCoopChat.MAX_CHAT_MESSAGES = ncMaxMessages;
-    if (resizeNexusChat) $("#nexusCoopMainContainer").css({"resize": "both", "overflow": "hidden", "min-width": "0", "max-width": "none"});
+    $("#tenorGifContainer").perfectScrollbar();
+    if (!reformatBottomBar) $("#chatPlusReformatBottomBarContainer, #chatPlusLoadBalancerContainer").addClass("disabled");
+    if (!gcLoadMediaButton) $("#chatPlusAutoLoadMediaContainer").addClass("disabled");
+    if (!gifSearch) $("#chatPlusGifSearchContainer").addClass("disabled");
+    if (resizeNexusChat) $("#nexusCoopMainContainer").css({ "resize": "both", "overflow": "hidden", "min-width": "0", "max-width": "none" });
 
+    // watch game chat
     new MutationObserver((mutations) => {
-        for (let mutation of mutations) {
-            if (!mutation.addedNodes) return;
-            for (let node of mutation.addedNodes) {
-                let $node = $(node);
-                let atBottom = gameChat.$chatMessageContainer.scrollTop() + gameChat.$chatMessageContainer.innerHeight() >= gameChat.$chatMessageContainer[0].scrollHeight - 100;
+        for (const mutation of mutations) {
+            if (!mutation.addedNodes.length) continue;
+            for (const node of mutation.addedNodes) {
+                const $node = $(node);
+                const atBottom = gameChat.$chatMessageContainer.scrollTop() + gameChat.$chatMessageContainer.innerHeight() >= gameChat.$chatMessageContainer[0].scrollHeight - 100;
                 if (gcTimestamps) {
-                    if ($node.is(".gcTimestamp .ps__scrollbar-y-rail .ps__scrollbar-x-rail")) return;
-                    let timestamp = getTimestamp();
+                    if ($node.is(".gcTimestamp, .ps__scrollbar-y-rail, .ps__scrollbar-x-rail")) continue;
+                    const $timestamp = $("<span>", { class: "gcTimestamp", text: getTimestamp() });
                     if ($node.find(".gcTeamMessageIcon").length === 1) {
-                        $node.find(".gcTeamMessageIcon").after($(`<span class="gcTimestamp">${timestamp}</span>`));
+                        $node.find(".gcTeamMessageIcon").after($timestamp);
                     }
                     else {
-                        $node.prepend($(`<span class="gcTimestamp">${timestamp}</span>`));
+                        $node.prepend($timestamp);
                     }
                 }
                 if (gcLoadMediaButton) {
-                    let urls = extractUrls($node.find(".gcMessage").text());
+                    const urls = extractUrls($node.find(".gcMessage").text());
                     if (urls.length > 0) {
-                        let name = $node.find(".gcUserName").text();
-                        let canAutoLoad = gcAutoLoadMedia === "all" || (gcAutoLoadMedia === "friends" && (name === selfName || socialTab.isFriend(name)));
-                        if (imageURLregex.test(urls[0])) {
+                        const name = $node.find(".gcUserName").text();
+                        const canAutoLoad = gcAutoLoadMedia === "all" || (gcAutoLoadMedia === "friends" && (name === selfName || socialTab.isFriend(name)));
+                        if (imageUrlRegex.test(urls[0])) {
                             createMediaElement($node, "img", urls[0], canAutoLoad);
                         }
-                        else if (audioURLregex.test(urls[0])) {
+                        else if (audioUrlRegex.test(urls[0])) {
                             createMediaElement($node, "audio", urls[0], canAutoLoad);
                         }
-                        else if (videoURLregex.test(urls[0])) {
+                        else if (videoUrlRegex.test(urls[0])) {
                             createMediaElement($node, "video", urls[0], canAutoLoad);
                         }
                     }
                 }
-                if (atBottom) gameChat.$chatMessageContainer.scrollTop(gameChat.$chatMessageContainer.prop("scrollHeight"));
+                if (atBottom) {
+                    gameChat.$chatMessageContainer.scrollTop(gameChat.$chatMessageContainer.prop("scrollHeight"));
+                }
             }
         }
-    }).observe(document.querySelector("#gcMessageContainer"), {childList: true, attributes: false, CharacterData: false});
+    }).observe(document.querySelector("#gcMessageContainer"), { childList: true, subtree: false });
 
+    // watch nexus chat
     new MutationObserver((mutations) => {
-        for (let mutation of mutations) {
-            if (!mutation.addedNodes) return;
-            for (let node of mutation.addedNodes) {
-                let $node = $(node);
-                let atBottom = nexusCoopChat.$chatMessageContainer.scrollTop() + nexusCoopChat.$chatMessageContainer.innerHeight() >= nexusCoopChat.$chatMessageContainer[0].scrollHeight - 100;
-                if ($node.is(".ncTimestamp .ps__scrollbar-y-rail .ps__scrollbar-x-rail")) return;
+        for (const mutation of mutations) {
+            if (!mutation.addedNodes.length) continue;
+            for (const node of mutation.addedNodes) {
+                const $node = $(node);
+                const atBottom = nexusCoopChat.$chatMessageContainer.scrollTop() + nexusCoopChat.$chatMessageContainer.innerHeight() >= nexusCoopChat.$chatMessageContainer[0].scrollHeight - 100;
+                if ($node.is(".ncTimestamp, .ps__scrollbar-y-rail, .ps__scrollbar-x-rail")) continue;
                 if (ncTimestamps) {
-                    let timestamp = getTimestamp();
-                    let $timestampNode = $(`<span class="ncTimestamp">${timestamp}</span>`);
-                    if (!$node.find(".nexusCoopChatName").length) $timestampNode.css("margin-right", "7px");
-                    $node.prepend($timestampNode);
+                    const $timestamp = $("<span>", { class: "ncTimestamp", text: getTimestamp() });
+                    if (!$node.find(".nexusCoopChatName").length) $timestamp.css("margin-right", "7px");
+                    $node.prepend($timestamp);
                 }
                 if (ncColor) {
-                    let name = $node.find(".nexusCoopChatName").text().slice(0, -1);
+                    const name = $node.find(".nexusCoopChatName").text().slice(0, -1);
                     if (name === selfName) $node.find(".nexusCoopChatName").addClass("self");
                     else if (socialTab.isFriend(name)) $node.find(".nexusCoopChatName").addClass("friend");
-                    if (customColorMap.hasOwnProperty(name.toLowerCase())) $node.find(".nexusCoopChatName").addClass("customColor" + customColorMap[sender.toLowerCase()]);
+                    if (customColorMap.hasOwnProperty(name.toLowerCase())) $node.find(".nexusCoopChatName").addClass("customColor" + customColorMap[name.toLowerCase()]);
                 }
-                if (atBottom) nexusCoopChat.$chatMessageContainer.scrollTop(nexusCoopChat.$chatMessageContainer.prop("scrollHeight"));
+                if (atBottom) {
+                    nexusCoopChat.$chatMessageContainer.scrollTop(nexusCoopChat.$chatMessageContainer.prop("scrollHeight"));
+                }
             }
         }
-    }).observe(document.querySelector("#nexusCoopChatContainerInner"), {childList: true, attributes: false, CharacterData: false});
+    }).observe(document.querySelector("#nexusCoopChatContainerInner"), { childList: true, subtree: false });
 
+    // watch dms
     new MutationObserver((mutations) => {
-        for (let mutation of mutations) {
-            if (!mutation.addedNodes) return;
-            for (let node of mutation.addedNodes) {
-                let $node = $(node);
+        for (const mutation of mutations) {
+            if (!mutation.addedNodes.length) continue;
+            for (const node of mutation.addedNodes) {
+                const $node = $(node);
                 if ($node.hasClass("chatBox")) {
-                    $node.find("textarea").on("drop", (event) => {
-                        if (fileUploadToLitterbox) {
-                            let file = event.originalEvent.dataTransfer.files[0];
-                            if (file) {
-                                event.preventDefault();
-                                event.stopPropagation();
-                                fetch("https://litterbox.catbox.moe/resources/internals/api.php", {method: "POST", body: litterboxFormData(file)})
-                                .then((response) => response.text())
-                                .then((data) => {
-                                    $node.find("textarea").val((index, value) => value + data);
-                                })
-                                .catch((response) => {
-                                    console.log(response);
-                                });
-                            }
-                        }
-                    }).on("paste", (event) => {
-                        if (fileUploadToLitterbox) {
-                            let file = event.originalEvent.clipboardData.files[0];
-                            if (file) {
-                                event.preventDefault();
-                                event.stopPropagation();
-                                fetch("https://litterbox.catbox.moe/resources/internals/api.php", {method: "POST", body: litterboxFormData(file)})
-                                .then((response) => response.text())
-                                .then((data) => {
-                                    $node.find("textarea").val((index, value) => value + data);
-                                })
-                                .catch((response) => {
-                                    console.log(response);
-                                });
-                            }
-                        }
-                    });
+                    $node.find("textarea")
+                        .on("drop", (event) => { dmUploadEvent(event, $node) })
+                        .on("paste", (event) => { dmUploadEvent(event, $node) });
                 }
             }
         }
-    }).observe(document.querySelector("#activeChatScrollContainer"), {childList: true, attributes: false, CharacterData: false});
+    }).observe(document.querySelector("#activeChatScrollContainer"), { childList: true, subtree: false });
+
+    // add joypixels emojis list to the game
+    if (fetchEmojiList) {
+        fetch(joypixelsUrl)
+            .then(response => response.json())
+            .then(populateEmojiMaps)
+            .catch(err => console.error("AMQ Emoji Convert: failed to load JoyPixels list ", err));
+    }
+
+    // auto convert shortcodes
+    $("#qpAnswerInput").on("input", convertText);
+    $("#mhRoomNameInput").on("input", convertText);
+    $("#hostCustomQuizRoomName").on("input", convertText);
 
     AMQ_addScriptData({
-        name: "Chat Plus",
+        name: SCRIPT_NAME,
         author: "kempanator",
-        version: version,
+        version: SCRIPT_VERSION,
         link: "https://github.com/kempanator/amq-scripts/raw/main/amqChatPlus.user.js",
         description: `
             <ul><b>New chat/message features:</b>
@@ -622,13 +607,13 @@ function setup() {
 
 // create load button or img/audio/video element in chat
 function createMediaElement($node, type, src, autoLoad) {
-    let atBottom = gameChat.$chatMessageContainer.scrollTop() + gameChat.$chatMessageContainer.innerHeight() >= gameChat.$chatMessageContainer[0].scrollHeight - 100;
+    const atBottom = gameChat.$chatMessageContainer.scrollTop() + gameChat.$chatMessageContainer.innerHeight() >= gameChat.$chatMessageContainer[0].scrollHeight - 100;
     $node.find(".gcLoadMediaContainer").remove();
-    let $container = $(`<div class="gcLoadMediaContainer"></div>`);
+    const $container = $(`<div class="gcLoadMediaContainer"></div>`);
     if (type === "img") {
         if (autoLoad) {
-            let $img = $(`<img class="gcLoadedImage">`).attr("src", src).on("load", () => gcCheckAtBottom(atBottom));
-            let $button = $(`<button class="btn gcCloseMedia"><i class="fa fa-close"></i></button>`).hide().click(() => {
+            const $img = $(`<img class="gcLoadedImage">`).attr("src", src).on("load", () => gcCheckAtBottom(atBottom));
+            const $button = $(`<button class="btn gcCloseMedia"><i class="fa fa-close"></i></button>`).hide().click(() => {
                 createMediaElement($node, type, src, false);
             });
             $container.append($img);
@@ -644,8 +629,8 @@ function createMediaElement($node, type, src, autoLoad) {
     }
     else if (type === "audio") {
         if (autoLoad) {
-            let $audio = $(`<audio class="gcLoadedAudio" controls></audio>`).attr("src", src);
-            let $button = $(`<button class="btn gcCloseMedia"><i class="fa fa-close"></i></button>`).hide().click(() => {
+            const $audio = $(`<audio class="gcLoadedAudio" controls></audio>`).attr("src", src);
+            const $button = $(`<button class="btn gcCloseMedia"><i class="fa fa-close"></i></button>`).hide().click(() => {
                 createMediaElement($node, type, src, false);
             });
             $container.append($audio);
@@ -662,8 +647,8 @@ function createMediaElement($node, type, src, autoLoad) {
     }
     else if (type === "video") {
         if (autoLoad) {
-            let $video = $(`<video class="gcLoadedVideo" controls></video>`).attr("src", src).on("canplay", () => gcCheckAtBottom(atBottom));
-            let $button = $(`<button class="btn gcCloseMedia"><i class="fa fa-close"></i></button>`).hide().click(() => {
+            const $video = $(`<video class="gcLoadedVideo" controls></video>`).attr("src", src).on("canplay", () => gcCheckAtBottom(atBottom));
+            const $button = $(`<button class="btn gcCloseMedia"><i class="fa fa-close"></i></button>`).hide().click(() => {
                 createMediaElement($node, type, src, false);
             });
             $container.append($video);
@@ -689,16 +674,56 @@ function gcCheckAtBottom(atBottom) {
 
 // return form data for litterbox
 function litterboxFormData(file) {
-    let formData = new FormData();
+    const formData = new FormData();
     formData.append("fileToUpload", file);
     formData.append("reqtype", "fileupload");
     formData.append("time", litterboxUploadTime);
     return formData;
 }
 
+// upload file to litterbox on event in game chat
+function gcUploadEvent(event, $node) {
+    if (!fileUploadToLitterbox) return;
+    $node.popover("hide");
+    const file = event.originalEvent.clipboardData?.files?.[0] ?? event.originalEvent.dataTransfer?.files?.[0];
+    if (!file) return;
+    event.preventDefault();
+    event.stopPropagation();
+    $node.data("bs.popover").options.content = "Uploading to litterbox...";
+    $node.popover("show");
+    fetch(litterboxUrl, { method: "POST", body: litterboxFormData(file) })
+        .then(res => res.text())
+        .then(data => {
+            $node.popover("hide");
+            $node.val((index, value) => value + data);
+        })
+        .catch(res => {
+            $node.popover("hide");
+            gameChat.systemMessage("Error: litterbox upload failed");
+            console.log(res);
+        });
+}
+
+// upload file to litterbox on event in dm
+function dmUploadEvent(event, $node) {
+    if (!fileUploadToLitterbox) return;
+    const file = event.originalEvent.clipboardData?.files?.[0] ?? event.originalEvent.dataTransfer?.files?.[0];
+    if (!file) return;
+    event.preventDefault();
+    event.stopPropagation();
+    fetch(litterboxUrl, { method: "POST", body: litterboxFormData(file) })
+        .then(res => res.text())
+        .then(data => {
+            $node.find("textarea").val((index, value) => value + data);
+        })
+        .catch(res => {
+            console.log(res);
+        });
+}
+
 // get formatted timestamp
 function getTimestamp() {
-    let date = new Date();
+    const date = new Date();
     if (timeStampFormat === "0") {
         return date.getHours().toString().padStart(2, 0) + ":" + date.getMinutes().toString().padStart(2, 0);
     }
@@ -707,11 +732,56 @@ function getTimestamp() {
     }
 }
 
+// convert any shortcodes present in the field to unicode as the user types
+function convertText(event) {
+    if (!convertShortcodes) return;
+    if (!event.target.value.includes(":")) return;
+    setTimeout(() => {
+        event.target.value = translateShortcodeToUnicode(event.target.value).text;
+    }, 0);
+}
+
+// used to remove skin tone variants in emojis
+function hasSkinTone(cps) {
+    return cps.some(cp => skinModifiers.includes(cp));
+}
+
+// used to remove hair variants in emojis
+function hasHair(cps) {
+    return cps.some(cp => hairModifiers.includes(cp));
+}
+
+// used to remove gendered variants in emojis
+function hasGender(cps) {
+    if (!cps.includes(0x200D)) return false; //must have zero width joiner
+    return cps.some(cp => genderModifiers.includes(cp));
+}
+
+// merge the JoyPixels catalogue into the global shortcode maps
+function populateEmojiMaps(catalogue) {
+    for (const data of Object.values(catalogue)) {
+        const codePoints = data.code_points.fully_qualified.split("-").map(cp => parseInt(cp, 16));
+        if (!hasSkinTone(codePoints) && !hasHair(codePoints) && !hasGender(codePoints)) {
+            const names = [data.shortname].concat(data.shortname_alternates || []);
+            for (const name of names) {
+                if (!EMOJI_SHORTCODE_MAP.hasOwnProperty(name)) {
+                    EMOJI_SHORTCODE_MAP[name] = codePoints;
+                    EMOJI_SHORTCODE_LIST.push(name);
+                }
+            };
+            const emoji = String.fromCodePoint(...codePoints);
+            if (!EMOJI_TO_NAME_MAP.hasOwnProperty(emoji)) {
+                EMOJI_TO_NAME_MAP[emoji] = data.shortname;
+            }
+        }
+    }
+}
+
 // override writeMessage function to inject timestamp and username color
-ChatBox.prototype.writeMessage = function(sender, msg, emojis, allowHtml) {
+ChatBox.prototype.writeMessage = function (sender, msg, emojis, allowHtml) {
     msg = passChatMessage(msg, emojis, allowHtml);
-    let timestamp = getTimestamp();
-    let atBottom = this.$CHAT_CONTENT.scrollTop() + this.$CHAT_CONTENT.innerHeight() >= this.$CHAT_CONTENT[0].scrollHeight - 20;
+    const timestamp = getTimestamp();
+    const atBottom = this.$CHAT_CONTENT.scrollTop() + this.$CHAT_CONTENT.innerHeight() >= this.$CHAT_CONTENT[0].scrollHeight - 20;
     let dmUsernameClass = "dmUsername";
     if (sender === selfName) dmUsernameClass += " self";
     else if (socialTab.isFriend(sender)) dmUsernameClass += " friend";
@@ -725,7 +795,7 @@ ChatBox.prototype.writeMessage = function(sender, msg, emojis, allowHtml) {
 };
 
 // override updateLayout function to account for width extension
-ChatBar.prototype.updateLayout = function() {
+ChatBar.prototype.updateLayout = function () {
     this._$ACTIVE_CHAT_SCROLL_CONTAINER.width(this.activeChats.length * (165 + dmWidthExtension));
     this.activeChatContainerDom.perfectScrollbar("update");
     this.toggleIndicators();
@@ -733,15 +803,15 @@ ChatBar.prototype.updateLayout = function() {
 };
 
 // override getInsideOffsets function to account for width extension
-ChatBar.prototype.getInsideOffsets = function() {
-    let containerWidth = this.activeChatContainerDom.innerWidth();
-    let insideLeftOffset = - this._$ACTIVE_CHAT_SCROLL_CONTAINER.position().left;
-    let insideRightOffset = insideLeftOffset + containerWidth - (165 + dmWidthExtension);
-    return {right: insideRightOffset, left: insideLeftOffset};
+ChatBar.prototype.getInsideOffsets = function () {
+    const containerWidth = this.activeChatContainerDom.innerWidth();
+    const insideLeftOffset = - this._$ACTIVE_CHAT_SCROLL_CONTAINER.position().left;
+    const insideRightOffset = insideLeftOffset + containerWidth - (165 + dmWidthExtension);
+    return { right: insideRightOffset, left: insideLeftOffset };
 };
 
 // override toggleIndicators function to account for width extension
-ChatBar.prototype.toggleIndicators = function() {
+ChatBar.prototype.toggleIndicators = function () {
     let offsets = this.getInsideOffsets();
     offsets.left -= (165 + dmWidthExtension) / 2;
     offsets.right += (165 + dmWidthExtension) / 2;
@@ -749,7 +819,7 @@ ChatBar.prototype.toggleIndicators = function() {
     let activeOutsideRight = false;
     this.activeChats.forEach(chat => {
         if (chat.object.update) {
-            let position = chat.object.getXOffset();
+            const position = chat.object.getXOffset();
             if (position < offsets.left) activeOutsideLeft = true;
             else if (position > offsets.right) activeOutsideRight = true;
         }
@@ -761,8 +831,8 @@ ChatBar.prototype.toggleIndicators = function() {
 };
 
 // override handleAlert function to account for height extension
-ChatBox.prototype.handleAlert = function(msg, callback) {
-    let atBottom = this.$CHAT_CONTENT.scrollTop() + this.$CHAT_CONTENT.innerHeight() >= this.$CHAT_CONTENT[0].scrollHeight;
+ChatBox.prototype.handleAlert = function (msg, callback) {
+    const atBottom = this.$CHAT_CONTENT.scrollTop() + this.$CHAT_CONTENT.innerHeight() >= this.$CHAT_CONTENT[0].scrollHeight;
     this.$HEADER.text(msg);
     if (callback) {
         this.$HEADER.append(format(chatHeaderInputTemplate));
@@ -773,7 +843,7 @@ ChatBox.prototype.handleAlert = function(msg, callback) {
         this.container.find(".accept").click(this.closeHeader.bind(this));
     }
     this.$HEADER.removeClass("hidden");
-    var headerHeight = this.container.find(".header").outerHeight(true);
+    const headerHeight = this.container.find(".header").outerHeight(true);
     this.$CHAT_CONTENT.css("height", 132 + dmHeightExtension - headerHeight);
     if (atBottom) this.$CHAT_CONTENT.scrollTop(this.$CHAT_CONTENT.prop("scrollHeight"));
     this.$CHAT_CONTENT.perfectScrollbar("update");
@@ -782,15 +852,17 @@ ChatBox.prototype.handleAlert = function(msg, callback) {
 
 // override resetDrag function to remove custom width and height of nexus chat
 const oldResetDrag = nexusCoopChat.resetDrag;
-nexusCoopChat.resetDrag = function() {
+nexusCoopChat.resetDrag = function () {
     oldResetDrag.apply(this, arguments);
-    if (resizeNexusChat) $("#nexusCoopMainContainer").removeAttr("style").css({"resize": "both", "overflow": "hidden", "min-width": "0", "max-width": "none"});
+    if (resizeNexusChat) $("#nexusCoopMainContainer").removeAttr("style").css({ "resize": "both", "overflow": "hidden", "min-width": "0", "max-width": "none" });
 };
 
 // validate json data in local storage
 function validateLocalStorage(item) {
     try {
-        return JSON.parse(localStorage.getItem(item)) || {};
+        const json = JSON.parse(localStorage.getItem(item));
+        if (!json || typeof json !== "object") return {};
+        return json;
     }
     catch {
         return {};
@@ -799,38 +871,39 @@ function validateLocalStorage(item) {
 
 // save settings
 function saveSettings() {
-    let settings = {};
-    settings.gcTimestamps = gcTimestamps;
-    settings.ncTimestamps = ncTimestamps;
-    settings.dmTimestamps = dmTimestamps;
-    settings.timeStampFormat = timeStampFormat;
-    settings.dmColor = dmColor;
-    settings.ncColor = ncColor;
-    settings.dmWidthExtension = dmWidthExtension;
-    settings.dmHeightExtension = dmHeightExtension;
-    settings.resizeNexusChat = resizeNexusChat;
-    settings.reformatBottomBar = reformatBottomBar;
-    settings.loadBalancerFromLeft = loadBalancerFromLeft;
-    settings.xpBarWidth = xpBarWidth;
-    settings.xpBarFromRight = xpBarFromRight;
-    settings.gcLoadMediaButton = gcLoadMediaButton;
-    settings.gcAutoLoadMedia = gcAutoLoadMedia;
-    settings.gifSearch = gifSearch;
-    settings.gifSearchHeight = gifSearchHeight;
-    settings.gifSendOnClick = gifSendOnClick;
-    settings.gcMaxMessages = gcMaxMessages;
-    settings.ncMaxMessages = ncMaxMessages;
-    settings.fileUploadToLitterbox = fileUploadToLitterbox;
-    localStorage.setItem("chatPlus", JSON.stringify(settings));
+    localStorage.setItem("chatPlus", JSON.stringify({
+        gcTimestamps,
+        ncTimestamps,
+        dmTimestamps,
+        timeStampFormat,
+        dmColor,
+        ncColor,
+        dmWidthExtension,
+        dmHeightExtension,
+        resizeNexusChat,
+        reformatBottomBar,
+        loadBalancerFromLeft,
+        xpBarWidth,
+        xpBarFromRight,
+        gcLoadMediaButton,
+        gcAutoLoadMedia,
+        gifSearch,
+        gifSearchHeight,
+        gifSendOnClick,
+        gcMaxMessages,
+        ncMaxMessages,
+        fileUploadToLitterbox,
+        convertShortcodes,
+        fetchEmojiList
+    }));
 }
 
 // apply styles
 function applyStyles() {
-    $("#chatPlusStyle").remove();
     const saveData2 = validateLocalStorage("highlightFriendsSettings");
-    let selfColor = saveData2.smColorSelfColor ?? "#80c7ff";
-    let friendColor = saveData2.smColorFriendColor ?? "#80ff80";
-    //let blockedColor = saveData2.smColorBlockedColor ?? "#ff8080";
+    const selfColor = saveData2.smColorSelfColor ?? "#80c7ff";
+    const friendColor = saveData2.smColorFriendColor ?? "#80ff80";
+    //const blockedColor = saveData2.smColorBlockedColor ?? "#ff8080";
     let customColors = saveData2.customColors ?? [];
     customColorMap = {};
     customColors.forEach((item, index) => {
@@ -1024,8 +1097,14 @@ function applyStyles() {
             });
         }
     }
-    let style = document.createElement("style");
-    style.id = "chatPlusStyle";
-    style.textContent = css.trim();
-    document.head.appendChild(style);
+    let style = document.getElementById("chatPlusStyle");
+    if (style) {
+        style.textContent = css.trim();
+    }
+    else {
+        style = document.createElement("style");
+        style.id = "chatPlusStyle";
+        style.textContent = css.trim();
+        document.head.appendChild(style);
+    }
 }
