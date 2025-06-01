@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Anisongdb Search
 // @namespace    https://github.com/kempanator
-// @version      0.20
+// @version      0.21
 // @description  Adds a window to search anisongdb.com in game
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -27,10 +27,9 @@ const loadInterval = setInterval(() => {
     }
 }, 500);
 
-const SCRIPT_VERSION = "0.20";
+const SCRIPT_VERSION = "0.21";
 const SCRIPT_NAME = "Anisongdb Search";
 const saveData = validateLocalStorage("anisongdbSearch");
-let rankedRunningIds;
 let anisongdbWindow;
 let injectSearchButtons = saveData.injectSearchButtons ?? true;
 let tableSort = { mode: "anime", ascending: true };
@@ -141,6 +140,7 @@ function setup() {
                     })
                 )
             )
+            .append(`<p id="adbsInfoText" style="margin: 0;"></p>`)
         )
         .append($(`<div id="adbsSettingsContainer" class="tabSection" style="padding: 10px;"></div>`)
             .append(`<table id="adbsHotkeyTable"><thead><tr><th>Action</th><th>Keybind</th></tr></thead><tbody></tbody></table>`)
@@ -203,8 +203,7 @@ function setup() {
 
 // send anisongdb request
 function getAnisongdbData(mode, query, partial) {
-    $("#adbsInfoText").remove();
-    anisongdbWindow.panels[0].panel.append(`<p id="adbsInfoText">loading...</p>`);
+    $("#adbsInfoText").text("Loading...");
     let url, data;
     let json = {
         and_logic: false,
@@ -273,20 +272,17 @@ function getAnisongdbData(mode, query, partial) {
     fetch(url, data).then(res => res.json()).then(json => {
         if (!Array.isArray(json)) {
             $("#adbsTable tbody").empty();
-            $("#adbsInfoText").remove();
-            anisongdbWindow.panels[0].panel.append($(`<p id="adbsInfoText"></p>`).text(JSON.stringify(json)));
+            $("#adbsInfoText").text(JSON.stringify(json));
         }
         else if (json.length === 0 && isRankedRunning()) {
             $("#adbsTable tbody").empty();
-            $("#adbsInfoText").remove();
-            anisongdbWindow.panels[0].panel.append(`<p id="adbsInfoText">AnisongDB is not available during ranked</p>`);
+            $("#adbsInfoText").text("AnisongDB is not available during ranked");
         }
         else {
             createTable(json);
         }
     }).catch(res => {
-        $("#adbsInfoText").remove();
-        anisongdbWindow.panels[0].panel.append($(`<p id="adbsInfoText"></p>`).text(res.toString()));
+        $("#adbsInfoText").text(res.toString());
     })
 }
 
@@ -304,7 +300,7 @@ function doSearch() {
     const query = $("#adbsQueryInput").val();
     const partial = $("#adbsPartialCheckbox").prop("checked");
     if (query === "") {
-        $("#adbsInfoText").remove();
+        $("#adbsInfoText").text("");
         $("#adbsTable tbody").empty();
     }
     else {
@@ -314,7 +310,7 @@ function doSearch() {
 
 // create anisongdb results table
 function createTable(json) {
-    $("#adbsInfoText").remove();
+    $("#adbsInfoText").text("");
     $("#adbsTable tbody").empty().append(json.map((result) => $("<tr>")
         .append($("<td>", { class: "anime", text: options.useRomajiNames ? result.animeJPName : result.animeENName }))
         .append($("<td>", { class: "artist", text: result.songArtist }))
