@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.78
+// @version      0.79
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -37,14 +37,15 @@ Some considerations:
 
 "use strict";
 if (typeof Listener === "undefined") return;
-let loadInterval = setInterval(() => {
+const loadInterval = setInterval(() => {
     if (document.querySelector("#loadingScreen.hidden")) {
         clearInterval(loadInterval);
         setup();
     }
 }, 500);
 
-const version = "0.78";
+const SCRIPT_VERSION = "0.79";
+const SCRIPT_NAME = "Custom Song List Game";
 const saveData = validateLocalStorage("customSongListGame");
 const hostDict = { 1: "eudist.animemusicquiz.com", 2: "nawdist.animemusicquiz.com", 3: "naedist.animemusicquiz.com" };
 let CSLButtonCSS = saveData.CSLButtonCSS || "calc(25% - 250px)";
@@ -588,7 +589,7 @@ function setup() {
                                 <thead>
                                     <tr>
                                         <th>Action</th>
-                                        <th>Key</th>
+                                        <th>Keybind</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -621,7 +622,7 @@ function setup() {
                         <div id="cslgInfoContainer" class="tabSection" style="text-align: center; margin: 10px 0;">
                             <h4>Script Info</h4>
                             <div>Created by: kempanator</div>
-                            <div>Version: ${version}</div>
+                            <div>Version: ${SCRIPT_VERSION}</div>
                             <div><a href="https://github.com/kempanator/amq-scripts/blob/main/amqCustomSongListGame.user.js" target="blank">Github</a> <a href="https://github.com/kempanator/amq-scripts/raw/main/amqCustomSongListGame.user.js" target="blank">Install</a></div>
                             <h4 style="margin-top: 20px;">Custom CSS</h4>
                             <div><span style="font-size: 15px; margin-right: 17px;">#lnCustomSongListButton </span>right: <input id="cslgCSLButtonCSSInput" type="text" style="width: 150px; color: black;"></div>
@@ -976,15 +977,17 @@ function setup() {
         saveSettings();
     });
 
-    createHotkeyRow("Open This Window", "cslgWindow");
-    createHotkeyRow("Start CSL", "start");
-    createHotkeyRow("Stop CSL", "stop");
-    createHotkeyRow("Add All To Merged", "mergeAll");
-    createHotkeyRow("Clear Song List", "clearSongList");
-    createHotkeyRow("Transfer From Merged", "transferMerged");
-    createHotkeyRow("Clear Merged", "clearMerged");
-    createHotkeyRow("Download Merged", "downloadMerged");
-    createHotkeyRow("Change Table Mode", "tableMode");
+    createHotkeyTable([
+        { action: "cslgWindow", title: "Open This Window" },
+        { action: "start", title: "Start CSL" },
+        { action: "stop", title: "Stop CSL" },
+        { action: "mergeAll", title: "Add All To Merged" },
+        { action: "clearSongList", title: "Clear Song List" },
+        { action: "transferMerged", title: "Transfer From Merged" },
+        { action: "clearMerged", title: "Clear Merged" },
+        { action: "downloadMerged", title: "Download Merged" },
+        { action: "tableMode", title: "Change Table Mode" }
+    ]);
 
     const hotkeyActions = {
         cslgWindow: () => {
@@ -1051,7 +1054,7 @@ function setup() {
             return true;
         }
         for (const [action, bind] of Object.entries(hotKeys)) {
-            if (match(bind) && hotkeyActions.hasOwnProperty(action)) {
+            if (match(bind)) {
                 event.preventDefault();
                 hotkeyActions[action]();
             }
@@ -1064,9 +1067,9 @@ function setup() {
 
     applyStyles();
     AMQ_addScriptData({
-        name: "Custom Song List Game",
+        name: SCRIPT_NAME,
         author: "kempanator",
-        version: version,
+        version: SCRIPT_VERSION,
         link: "https://github.com/kempanator/amq-scripts/raw/main/amqCustomSongListGame.user.js",
         description: `
             </ul><b>How to start a custom song list game:</b>
@@ -1682,7 +1685,7 @@ function parseMessage(content, sender) {
         cslMessage(`Autocomplete: ${autocomplete.length ? "✅" : "⛔"}`);
     }
     else if (content === "§CSL22") { //version
-        cslMessage(`CSL version ${version}`);
+        cslMessage(`CSL version ${SCRIPT_VERSION}`);
     }
     else if (content.startsWith("§CSL3")) { //next song link
         if (quiz.cslActive && isHost) {
@@ -2692,14 +2695,17 @@ function loadHotkey(action, key = "", ctrl = false, alt = false, shift = false) 
     }
 }
 
-// create hotkey row and add to table
-function createHotkeyRow(title, action) {
-    let $input = $(`<input type="text" class="hk-input" readonly data-action="${action}">`)
-        .val(bindingToText(hotKeys[action]))
-        .on("click", startHotkeyRecord);
-    $("#cslgHotkeyTable tbody").append($(`<tr></tr>`)
-        .append($(`<td></td>`).text(title))
-        .append($(`<td></td>`).append($input)));
+// create hotkey rows and add to table
+function createHotkeyTable(data) {
+    const $tbody = $("#cslgHotkeyTable tbody");
+    for (const { action, title } of data) {
+        const $input = $("<input>", { type: "text", class: "hk-input", readonly: true, "data-action": action })
+            .val(bindingToText(hotKeys[action]))
+            .on("click", startHotkeyRecord);
+        $tbody.append($("<tr>")
+            .append($("<td>", { text: title }))
+            .append($("<td>").append($input)));
+    }
 }
 
 // begin hotkey capture on click
@@ -3082,7 +3088,6 @@ function saveSettings() {
 
 // apply styles
 function applyStyles() {
-    $("#customSongListGameStyle").remove();
     let tableHighlightColor = getComputedStyle(document.documentElement).getPropertyValue("--accentColorContrast") || "#4497ea";
     let css = /*css*/ `
         #lnCustomSongListButton {
@@ -3240,8 +3245,14 @@ function applyStyles() {
             cursor: pointer;
         }
     `;
-    const style = document.createElement("style");
-    style.id = "customSongListGameStyle";
-    style.textContent = css.trim();
-    document.head.appendChild(style);
+    let style = document.getElementById("customSongListGameStyle");
+    if (style) {
+        style.textContent = css.trim();
+    }
+    else {
+        style = document.createElement("style");
+        style.id = "customSongListGameStyle";
+        style.textContent = css.trim();
+        document.head.appendChild(style);
+    }
 }
