@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ New Game Mode UI
 // @namespace    https://github.com/kempanator
-// @version      0.29
+// @version      0.30
 // @description  Adds a user interface to new game mode to keep track of guesses
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -15,14 +15,15 @@
 
 "use strict";
 if (typeof Listener === "undefined") return;
-let loadInterval = setInterval(() => {
+const loadInterval = setInterval(() => {
     if (document.querySelector("#loadingScreen.hidden")) {
         clearInterval(loadInterval);
         setup();
     }
 }, 500);
 
-const version = "0.29";
+const SCRIPT_VERSION = "0.30";
+const SCRIPT_NAME = "New Game Mode UI";
 let ngmWindow;
 let initialGuessCount = []; //list of initial # guesses for your team [5, 5, 5, 5]
 let guessCounter = []; //list of current # guesses for your team [4, 2, 1, 3]
@@ -218,9 +219,9 @@ function setup() {
     setupNGMWindow();
     applyStyles();
     AMQ_addScriptData({
-        name: "New Game Mode UI",
+        name: SCRIPT_NAME,
         author: "kempanator",
-        version: version,
+        version: SCRIPT_VERSION,
         link: "https://github.com/kempanator/amq-scripts/raw/main/amqNewGameModeUI.user.js",
         description: `
             <p>Click the button in the options bar during quiz to open the new game mode user interface</p>
@@ -509,7 +510,6 @@ function setupNGMWindow() {
 
 // apply styles
 function applyStyles() {
-    //$("#newGameModeUIStyle").remove();
     let css = /*css*/ `
         #qpNGM {
             width: 30px;
@@ -606,8 +606,14 @@ function applyStyles() {
             border: 1px solid #cccccc;
         }
     `;
-    const style = document.createElement("style");
-    style.id = "newGameModeUIStyle";
-    style.textContent = css.trim();
-    document.head.appendChild(style);
+    let style = document.getElementById("newGameModeUIStyle");
+    if (style) {
+        style.textContent = css.trim();
+    }
+    else {
+        style = document.createElement("style");
+        style.id = "newGameModeUIStyle";
+        style.textContent = css.trim();
+        document.head.appendChild(style);
+    }
 }
