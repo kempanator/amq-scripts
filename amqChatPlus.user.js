@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Chat Plus
 // @namespace    https://github.com/kempanator
-// @version      0.34
+// @version      0.35
 // @description  Add new features to chat and messages
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -41,7 +41,7 @@ const loadInterval = setInterval(() => {
     }
 }, 500);
 
-const SCRIPT_VERSION = "0.34";
+const SCRIPT_VERSION = "0.35";
 const SCRIPT_NAME = "Chat Plus";
 const saveData = validateLocalStorage("chatPlus");
 const tenorApiKey = "LIVDSRZULELA";
@@ -76,6 +76,8 @@ let ncMaxMessages = saveData.ncMaxMessages ?? 100;
 let fileUploadToLitterbox = saveData.fileUploadToLitterbox ?? true;
 let convertShortcodes = saveData.convertShortcodes ?? true;
 let fetchEmojiList = saveData.fetchEmojiList ?? true;
+let $gcInput;
+let $tenorGifContainer;
 let tenorQuery;
 let tenorPosition = 0;
 let imagesPerRequest = 20;
@@ -235,8 +237,9 @@ function setup() {
         </div>
     `);
 
-    const $gcInput = $("#gcInput");
-    const $tenorGifContainer = $("#tenorGifContainer");
+    $gcInput = $("#gcInput");
+    $tenorGifContainer = $("#tenorGifContainer");
+
     $gcInput.popover({
         container: "#gcChatContent",
         placement: "top",
@@ -408,61 +411,19 @@ function setup() {
         convertShortcodes = !convertShortcodes;
         saveSettings();
     });
-    $("#tenorGifContainer").scroll(() => {
-        const atBottom = $tenorGifContainer.scrollTop() + $tenorGifContainer.innerHeight() >= tenorGifContainer.scrollHeight;
+    $tenorGifContainer.on("scroll", () => {
+        const el = $tenorGifContainer[0];
+        const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight;
         if (atBottom) {
-            const tenorUrl = `https://api.tenor.com/v1/search?q=${encodeURIComponent(tenorQuery)}&key=${tenorApiKey}&limit=${imagesPerRequest}&pos=${tenorPosition}`;
-            fetch(tenorUrl).then(response => response.json()).then(data => {
-                for (const gif of data.results) {
-                    const url = gif.media[0].gif.url;
-                    $tenorGifContainer.append($(`<img class="tenorGif" loading="lazy">`).attr("src", url).click(() => {
-                        if (gifSendOnClick) {
-                            $("#gcGifContainer").hide();
-                            socket.sendCommand({
-                                type: "lobby",
-                                command: "game chat message",
-                                data: {
-                                    msg: url,
-                                    teamMessage: $("#gcTeamChatSwitch").hasClass("active")
-                                }
-                            });
-                        }
-                        else {
-                            $gcInput.val((index, value) => value + url);
-                        }
-                    }));
-                };
-            });
+            fetchTenorPage(tenorQuery, tenorPosition);
             tenorPosition += imagesPerRequest;
         }
     });
-    $("#tenorSearchInput").keypress((event) => {
-        if (event.key === "Enter") {
-            $(".tenorGif").remove();
-            tenorQuery = $("#tenorSearchInput").val();
-            const tenorUrl = `https://api.tenor.com/v1/search?q=${encodeURIComponent(tenorQuery)}&key=${tenorApiKey}&limit=${imagesPerRequest}`;
-            fetch(tenorUrl).then(response => response.json()).then(data => {
-                for (const gif of data.results) {
-                    const url = gif.media[0].gif.url;
-                    $tenorGifContainer.append($(`<img class="tenorGif" loading="lazy">`).attr("src", url).click(() => {
-                        if (gifSendOnClick) {
-                            $("#gcGifContainer").hide();
-                            socket.sendCommand({
-                                type: "lobby",
-                                command: "game chat message",
-                                data: {
-                                    msg: url,
-                                    teamMessage: $("#gcTeamChatSwitch").hasClass("active")
-                                }
-                            });
-                        }
-                        else {
-                            $gcInput.val((index, value) => value + url);
-                        }
-                    }));
-                };
-            });
+    $("#tenorSearchInput").on("keypress", (e) => {
+        if (e.key === "Enter") {
+            tenorQuery = e.target.value;
             tenorPosition = imagesPerRequest;
+            fetchTenorPage(tenorQuery, 0, true);
         }
     });
     $gcInput
@@ -605,6 +566,53 @@ function setup() {
     });
 }
 
+// check if the main game chat window is scrolled to the bottom
+function gcCheckAtBottom(atBottom) {
+    if (atBottom) {
+        gameChat.$chatMessageContainer.scrollTop(gameChat.$chatMessageContainer.prop("scrollHeight"));
+    }
+}
+
+// fetch gifs from tenor
+function fetchTenorPage(query, pos = 0, clearExisting = false) {
+    if (clearExisting) {
+        $tenorGifContainer.find(".tenorGif").remove();
+    }
+    const url =
+        "https://api.tenor.com/v1/search" +
+        `?q=${encodeURIComponent(query)}` +
+        `&key=${tenorApiKey}` +
+        `&limit=${imagesPerRequest}` +
+        `&pos=${pos}`;
+
+    fetch(url).then(res => res.json()).then(data => {
+        for (const gif of data.results) {
+            appendThumbnail(gif.media[0].gif.url);
+        }
+    });
+}
+
+// add tenor gif to container
+function appendThumbnail(url) {
+    $("<img>", { class: "tenorGif", loading: "lazy", src: url })
+        .on("click", () => {
+            if (gifSendOnClick) {
+                $("#gcGifContainer").hide();
+                socket.sendCommand({
+                    type: "lobby",
+                    command: "game chat message",
+                    data: {
+                        msg: url,
+                        teamMessage: gameChat.teamChatSwitch.on
+                    }
+                });
+            } else {
+                $gcInput.val((i, v) => v + url);
+            }
+        })
+        .appendTo($tenorGifContainer);
+}
+
 // create load button or img/audio/video element in chat
 function createMediaElement($node, type, src, autoLoad) {
     const atBottom = gameChat.$chatMessageContainer.scrollTop() + gameChat.$chatMessageContainer.innerHeight() >= gameChat.$chatMessageContainer[0].scrollHeight - 100;
@@ -663,13 +671,6 @@ function createMediaElement($node, type, src, autoLoad) {
         }
     }
     $node.append($container);
-}
-
-// check if the main game chat window is scrolled to the bottom
-function gcCheckAtBottom(atBottom) {
-    if (atBottom) {
-        gameChat.$chatMessageContainer.scrollTop(gameChat.$chatMessageContainer.prop("scrollHeight"));
-    }
 }
 
 // return form data for litterbox
@@ -904,7 +905,7 @@ function applyStyles() {
     const selfColor = saveData2.smColorSelfColor ?? "#80c7ff";
     const friendColor = saveData2.smColorFriendColor ?? "#80ff80";
     //const blockedColor = saveData2.smColorBlockedColor ?? "#ff8080";
-    let customColors = saveData2.customColors ?? [];
+    const customColors = saveData2.customColors ?? [];
     customColorMap = {};
     customColors.forEach((item, index) => {
         for (let player of item.players) {
