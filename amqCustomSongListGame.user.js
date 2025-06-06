@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.79
+// @version      0.80
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -44,7 +44,7 @@ const loadInterval = setInterval(() => {
     }
 }, 500);
 
-const SCRIPT_VERSION = "0.79";
+const SCRIPT_VERSION = "0.80";
 const SCRIPT_NAME = "Custom Song List Game";
 const saveData = validateLocalStorage("customSongListGame");
 const hostDict = { 1: "eudist.animemusicquiz.com", 2: "nawdist.animemusicquiz.com", 3: "naedist.animemusicquiz.com" };
@@ -105,7 +105,7 @@ let hotKeys = {
 function setup() {
     new Listener("New Player", (data) => {
         if (quiz.cslActive && quiz.inQuiz && quiz.isHost) {
-            let player = Object.values(quiz.players).find((p) => p._name === data.name);
+            const player = Object.values(quiz.players).find((p) => p._name === data.name);
             if (player) {
                 sendSystemMessage(`CSL: reconnecting ${data.name}`);
                 cslMessage("§CSL0" + btoa(`${showSelection}§${currentSong}§${totalSongs}§${guessTime}§${extraGuessTime}§${fastSkip ? "1" : "0"}`));
@@ -118,7 +118,7 @@ function setup() {
     }).bindListener();
     new Listener("New Spectator", (data) => {
         if (quiz.cslActive && quiz.inQuiz && quiz.isHost) {
-            let player = Object.values(quiz.players).find((p) => p._name === data.name);
+            const player = Object.values(quiz.players).find((p) => p._name === data.name);
             if (player) {
                 sendSystemMessage(`CSL: reconnecting ${data.name}`);
                 cslMessage("§CSL17" + btoa(data.name));
@@ -127,8 +127,8 @@ function setup() {
                 cslMessage("§CSL0" + btoa(`${showSelection}§${currentSong}§${totalSongs}§${guessTime}§${extraGuessTime}§${fastSkip ? "1" : "0"}`));
             }
             setTimeout(() => {
-                let song = songList[songOrder[currentSong]];
-                let message = `${currentSong}§${getStartPoint()}§${song.audio || ""}§${song.video480 || ""}§${song.video720 || ""}`;
+                const song = songList[songOrder[currentSong]];
+                const message = `${currentSong}§${getStartPoint()}§${song.audio || ""}§${song.video480 || ""}§${song.video720 || ""}`;
                 splitIntoChunks(btoa(message) + "$", 144).forEach((item, index) => {
                     cslMessage("§CSL3" + base10to36(index % 36) + item);
                 });
@@ -137,7 +137,7 @@ function setup() {
     }).bindListener();
     new Listener("Spectator Change To Player", (data) => {
         if (quiz.cslActive && quiz.inQuiz && quiz.isHost) {
-            let player = Object.values(quiz.players).find((p) => p._name === data.name);
+            const player = Object.values(quiz.players).find((p) => p._name === data.name);
             if (player) {
                 cslMessage("§CSL0" + btoa(`${showSelection}§${currentSong}§${totalSongs}§${guessTime}§${extraGuessTime}§${fastSkip ? "1" : "0"}`));
             }
@@ -149,7 +149,7 @@ function setup() {
     }).bindListener();
     new Listener("Player Change To Spectator", (data) => {
         if (quiz.cslActive && quiz.inQuiz && quiz.isHost) {
-            let player = Object.values(quiz.players).find((p) => p._name === data.name);
+            const player = Object.values(quiz.players).find((p) => p._name === data.name);
             if (player) {
                 cslMessage("§CSL17" + btoa(data.name));
             }
@@ -184,11 +184,11 @@ function setup() {
         }
     }).bindListener();
     new Listener("game chat update", (data) => {
-        for (let message of data.messages) {
+        for (const message of data.messages) {
             if (message.message.startsWith("§CSL")) {
                 if (!showCSLMessages) {
                     setTimeout(() => {
-                        let $message = gameChat.$chatMessageContainer.find(".gcMessage").last();
+                        const $message = gameChat.$chatMessageContainer.find(".gcMessage").last();
                         if ($message.text().startsWith("§CSL")) $message.parent().remove();
                     }, 0);
                 }
@@ -220,7 +220,7 @@ function setup() {
     }).bindListener();
     new Listener("get all song names", () => {
         setTimeout(() => {
-            let list = quiz.answerInput.typingInput.autoCompleteController.list;
+            const list = quiz.answerInput.typingInput.autoCompleteController.list;
             if (list.length) {
                 autocomplete = list.map(x => x.toLowerCase());
                 autocompleteInput = new AmqAwesomeplete(document.querySelector("#cslgNewAnswerInput"), { list: list }, true);
@@ -229,7 +229,7 @@ function setup() {
     }).bindListener();
     new Listener("update all song names", () => {
         setTimeout(() => {
-            let list = quiz.answerInput.typingInput.autoCompleteController.list;
+            const list = quiz.answerInput.typingInput.autoCompleteController.list;
             if (list.length) {
                 autocomplete = list.map(x => x.toLowerCase());
                 autocompleteInput.list = list;
@@ -689,8 +689,8 @@ function setup() {
         }
     });
     $("#cslgPreviousGameButtonGo").click(() => {
-        let id = $("#cslgPreviousGameSelect").val();
-        let found = Object.values(songHistoryWindow.tabs[2].gameMap).find(game => game.quizId === id);
+        const id = $("#cslgPreviousGameSelect").val();
+        const found = Object.values(songHistoryWindow.tabs[2].gameMap).find(game => game.quizId === id);
         if (found) {
             handleData(found.songTable.rows);
             setSongListTableSort();
@@ -754,8 +754,8 @@ function setup() {
     });
     $("#cslgMergeDownloadButton").click(() => {
         if (mergedSongList.length) {
-            let data = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(mergedSongList));
-            let element = document.createElement("a");
+            const data = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(mergedSongList));
+            const element = document.createElement("a");
             element.setAttribute("href", data);
             element.setAttribute("download", "merged.json");
             document.body.appendChild(element);
@@ -770,14 +770,14 @@ function setup() {
         if (lobby.soloMode) {
             $("#cslgSettingsModal").modal("hide");
             socket.sendCommand({ type: "lobby", command: "start game" });
-            let autocompleteListener = new Listener("get all song names", () => {
+            const autocompleteListener = new Listener("get all song names", () => {
                 autocompleteListener.unbindListener();
                 viewChanger.changeView("main");
                 setTimeout(() => {
                     hostModal.displayHostSolo();
                 }, 200);
                 setTimeout(() => {
-                    let returnListener = new Listener("Host Game", (data) => {
+                    const returnListener = new Listener("Host Game", (data) => {
                         returnListener.unbindListener();
                         if (songList.length) createAnswerTable();
                         setTimeout(() => { openSettingsModal() }, 10);
@@ -809,14 +809,16 @@ function setup() {
     });
     $("#cslgListImportDownloadButton").click(() => {
         if (!importedSongList.length) return;
-        let listType = $("#cslgListImportSelect").val();
-        let username = $("#cslgListImportUsernameInput").val().trim();
-        let date = new Date();
-        let dateFormatted = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, 0)}-${String(date.getDate()).padStart(2, 0)}`;
-        let data = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(importedSongList));
-        let element = document.createElement("a");
+        const listType = $("#cslgListImportSelect").val();
+        const username = $("#cslgListImportUsernameInput").val().trim();
+        const date = new Date();
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, 0);
+        const day = String(date.getDate()).padStart(2, 0);
+        const data = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(importedSongList));
+        const element = document.createElement("a");
         element.setAttribute("href", data);
-        element.setAttribute("download", `${username} ${listType} ${dateFormatted} song list.json`);
+        element.setAttribute("download", `${username} ${listType} ${year}-${month}-${day} song list.json`);
         document.body.appendChild(element);
         element.click();
         element.remove();
@@ -825,7 +827,7 @@ function setup() {
         validateStart();
     });
     $("#cslgSongListTable").on("click", "i.fa-trash", (event) => {
-        let index = parseInt(event.target.parentElement.parentElement.querySelector("td.number").innerText) - 1;
+        const index = parseInt(event.target.parentElement.parentElement.querySelector("td.number").innerText) - 1;
         songList.splice(index, 1);
         createSongListTable(true);
         createAnswerTable();
@@ -835,7 +837,7 @@ function setup() {
         event.target.parentElement.parentElement.classList.remove("selected");
     });
     $("#cslgSongListTable").on("click", "i.fa-plus", (event) => {
-        let index = parseInt(event.target.parentElement.parentElement.querySelector("td.number").innerText) - 1;
+        const index = parseInt(event.target.parentElement.parentElement.querySelector("td.number").innerText) - 1;
         mergedSongList.push(songList[index]);
         mergedSongList = Array.from(new Set(mergedSongList.map((x) => JSON.stringify(x)))).map((x) => JSON.parse(x));
         createMergedSongListTable();
@@ -845,23 +847,24 @@ function setup() {
         event.target.parentElement.parentElement.classList.remove("selected");
     });
     $("#cslgAnswerButtonAdd").click(() => {
-        let oldName = $("#cslgOldAnswerInput").val().trim();
-        let newName = $("#cslgNewAnswerInput").val().trim();
+        const oldName = $("#cslgOldAnswerInput").val().trim();
+        const newName = $("#cslgNewAnswerInput").val().trim();
         if (oldName) {
-            newName ? replacedAnswers[oldName] = newName : delete replacedAnswers[oldName];
+            if (newName) replacedAnswers[oldName] = newName;
+            else delete replacedAnswers[oldName];
             saveSettings();
             createAnswerTable();
         }
         //console.log(replacedAnswers);
     });
     $("#cslgAnswerTable").on("click", "i.fa-pencil", (event) => {
-        let oldName = event.target.parentElement.parentElement.querySelector("td.oldName").innerText;
-        let newName = event.target.parentElement.parentElement.querySelector("td.newName").innerText;
+        const oldName = event.target.parentElement.parentElement.querySelector("td.oldName").innerText;
+        const newName = event.target.parentElement.parentElement.querySelector("td.newName").innerText;
         $("#cslgOldAnswerInput").val(oldName);
         $("#cslgNewAnswerInput").val(newName);
     });
     $("#cslgMergedSongListTable").on("click", "i.fa-chevron-up", (event) => {
-        let index = parseInt(event.target.parentElement.parentElement.querySelector("td.number").innerText) - 1;
+        const index = parseInt(event.target.parentElement.parentElement.querySelector("td.number").innerText) - 1;
         if (index !== 0) {
             [mergedSongList[index], mergedSongList[index - 1]] = [mergedSongList[index - 1], mergedSongList[index]];
             createMergedSongListTable();
@@ -872,7 +875,7 @@ function setup() {
         event.target.parentElement.parentElement.classList.remove("selected");
     });
     $("#cslgMergedSongListTable").on("click", "i.fa-chevron-down", (event) => {
-        let index = parseInt(event.target.parentElement.parentElement.querySelector("td.number").innerText) - 1;
+        const index = parseInt(event.target.parentElement.parentElement.querySelector("td.number").innerText) - 1;
         if (index !== mergedSongList.length - 1) {
             [mergedSongList[index], mergedSongList[index + 1]] = [mergedSongList[index + 1], mergedSongList[index]];
             createMergedSongListTable();
@@ -883,7 +886,7 @@ function setup() {
         event.target.parentElement.parentElement.classList.remove("selected");
     });
     $("#cslgMergedSongListTable").on("click", "i.fa-trash", (event) => {
-        let index = parseInt(event.target.parentElement.parentElement.querySelector("td.number").innerText) - 1;
+        const index = parseInt(event.target.parentElement.parentElement.querySelector("td.number").innerText) - 1;
         mergedSongList.splice(index, 1);
         createMergedSongListTable();
     }).on("mouseenter", "i.fa-trash", (event) => {
@@ -953,7 +956,7 @@ function setup() {
         $("#cslgCSLButtonCSSInput").val(CSLButtonCSS);
     });
     $("#cslgApplyCSSButton").click(() => {
-        let val = $("#cslgCSLButtonCSSInput").val();
+        const val = $("#cslgCSLButtonCSSInput").val();
         if (val) {
             CSLButtonCSS = val;
             saveSettings();
@@ -1022,8 +1025,8 @@ function setup() {
         },
         downloadMerged: () => {
             if (mergedSongList.length) {
-                let data = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(mergedSongList));
-                let element = document.createElement("a");
+                const data = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(mergedSongList));
+                const element = document.createElement("a");
                 element.setAttribute("href", data);
                 element.setAttribute("download", "merged.json");
                 document.body.appendChild(element);
@@ -1101,7 +1104,7 @@ function validateStart() {
     if (autocomplete.length === 0) {
         return messageDisplayer.displayMessage("Unable to start", "autocomplete list empty");
     }
-    let numSongs = parseInt($("#cslgSettingsSongs").val());
+    const numSongs = parseInt($("#cslgSettingsSongs").val());
     if (isNaN(numSongs) || numSongs < 1) {
         return messageDisplayer.displayMessage("Unable to start", "invalid number of songs");
     }
@@ -1113,12 +1116,12 @@ function validateStart() {
     if (isNaN(extraGuessTime) || extraGuessTime < 0 || extraGuessTime > 15) {
         return messageDisplayer.displayMessage("Unable to start", "invalid extra guess time");
     }
-    let startPointText = $("#cslgSettingsStartPoint").val().trim();
+    const startPointText = $("#cslgSettingsStartPoint").val().trim();
     if (/^[0-9]+$/.test(startPointText)) {
         startPointRange = [parseInt(startPointText), parseInt(startPointText)];
     }
     else if (/^[0-9]+[\s-]+[0-9]+$/.test(startPointText)) {
-        let regex = /^([0-9]+)[\s-]+([0-9]+)$/.exec(startPointText);
+        const regex = /^([0-9]+)[\s-]+([0-9]+)$/.exec(startPointText);
         startPointRange = [parseInt(regex[1]), parseInt(regex[2])];
     }
     else {
@@ -1127,9 +1130,9 @@ function validateStart() {
     if (startPointRange[0] < 0 || startPointRange[0] > 100 || startPointRange[1] < 0 || startPointRange[1] > 100 || startPointRange[0] > startPointRange[1]) {
         return messageDisplayer.displayMessage("Unable to start", "song start sample must be a number or range 0-100");
     }
-    let difficultyText = $("#cslgSettingsDifficulty").val().trim();
+    const difficultyText = $("#cslgSettingsDifficulty").val().trim();
     if (/^[0-9]+[\s-]+[0-9]+$/.test(difficultyText)) {
-        let regex = /^([0-9]+)[\s-]+([0-9]+)$/.exec(difficultyText);
+        const regex = /^([0-9]+)[\s-]+([0-9]+)$/.exec(difficultyText);
         difficultyRange = [parseInt(regex[1]), parseInt(regex[2])];
     }
     else {
@@ -1138,19 +1141,19 @@ function validateStart() {
     if (difficultyRange[0] < 0 || difficultyRange[0] > 100 || difficultyRange[1] < 0 || difficultyRange[1] > 100 || difficultyRange[0] > difficultyRange[1]) {
         return messageDisplayer.displayMessage("Unable to start", "difficulty must be a range 0-100");
     }
-    let ops = $("#cslgSettingsOPCheckbox").prop("checked");
-    let eds = $("#cslgSettingsEDCheckbox").prop("checked");
-    let ins = $("#cslgSettingsINCheckbox").prop("checked");
-    let tv = $("#cslgSettingsTVCheckbox").prop("checked");
-    let movie = $("#cslgSettingsMovieCheckbox").prop("checked");
-    let ova = $("#cslgSettingsOVACheckbox").prop("checked");
-    let ona = $("#cslgSettingsONACheckbox").prop("checked");
-    let special = $("#cslgSettingsSpecialCheckbox").prop("checked");
-    let dub = $("#cslgSettingsDubCheckbox").prop("checked");
-    let rebroadcast = $("#cslgSettingsRebroadcastCheckbox").prop("checked");
-    let correctGuesses = $("#cslgSettingsCorrectGuessCheckbox").prop("checked");
-    let incorrectGuesses = $("#cslgSettingsIncorrectGuessCheckbox").prop("checked");
-    let songKeys = Object.keys(songList)
+    const ops = $("#cslgSettingsOPCheckbox").prop("checked");
+    const eds = $("#cslgSettingsEDCheckbox").prop("checked");
+    const ins = $("#cslgSettingsINCheckbox").prop("checked");
+    const tv = $("#cslgSettingsTVCheckbox").prop("checked");
+    const movie = $("#cslgSettingsMovieCheckbox").prop("checked");
+    const ova = $("#cslgSettingsOVACheckbox").prop("checked");
+    const ona = $("#cslgSettingsONACheckbox").prop("checked");
+    const special = $("#cslgSettingsSpecialCheckbox").prop("checked");
+    const dub = $("#cslgSettingsDubCheckbox").prop("checked");
+    const rebroadcast = $("#cslgSettingsRebroadcastCheckbox").prop("checked");
+    const correctGuesses = $("#cslgSettingsCorrectGuessCheckbox").prop("checked");
+    const incorrectGuesses = $("#cslgSettingsIncorrectGuessCheckbox").prop("checked");
+    const songKeys = Object.keys(songList)
         .filter((key) => songTypeFilter(songList[key], ops, eds, ins))
         .filter((key) => animeTypeFilter(songList[key], tv, movie, ova, ona, special))
         .filter((key) => difficultyFilter(songList[key], difficultyRange[0], difficultyRange[1]))
@@ -1189,12 +1192,12 @@ function startQuiz() {
     }
     skipping = false;
     quiz.cslActive = true;
-    let date = new Date().toISOString();
-    for (let player of Object.values(lobby.players)) {
+    const date = new Date().toISOString();
+    for (const player of Object.values(lobby.players)) {
         score[player.gamePlayerId] = 0;
     }
     //console.log({showSelection, totalSongs, guessTime, extraGuessTime, fastSkip});
-    let data = {
+    const data = {
         "gameMode": lobby.soloMode ? "Solo" : "Multiplayer",
         "showSelection": showSelection,
         "groupSlotMap": createGroupSlotMap(Object.keys(lobby.players)),
@@ -1208,7 +1211,7 @@ function startQuiz() {
     };
     Object.values(lobby.players).forEach((player, i) => {
         player.pose = 1;
-        player.sore = 0;
+        player.score = 0;
         player.position = Math.floor(i / 8) + 1;
         player.positionSlot = i % 8;
         player.teamCaptain = null;
@@ -1241,7 +1244,7 @@ function startQuiz() {
         }
         else {
             if (quiz.isHost) {
-                let message = `1§${getStartPoint()}§${song.audio || ""}§${song.video480 || ""}§${song.video720 || ""}`;
+                const message = `1§${getStartPoint()}§${song.audio || ""}§${song.video480 || ""}§${song.video720 || ""}`;
                 splitIntoChunks(btoa(encodeURIComponent(message)) + "$", 144).forEach((item, index) => {
                     cslMessage("§CSL3" + base10to36(index % 36) + item);
                 });
@@ -1289,7 +1292,7 @@ function readySong(songNumber) {
 // play a song
 function playSong(songNumber) {
     if (!quiz.cslActive || !quiz.inQuiz) return reset();
-    for (let key of Object.keys(quiz.players)) {
+    for (const key of Object.keys(quiz.players)) {
         currentAnswers[key] = "";
         cslMultiplayer.voteSkip[key] = false;
     }
@@ -1341,7 +1344,7 @@ function playSong(songNumber) {
         if (songNumber < totalSongs) {
             if (quiz.soloMode) {
                 readySong(songNumber + 1);
-                let nextSong = songList[songOrder[songNumber + 1]];
+                const nextSong = songList[songOrder[songNumber + 1]];
                 fireListener("quiz next video info", {
                     "playLength": guessTime,
                     "playbackSpeed": 1,
@@ -1364,8 +1367,8 @@ function playSong(songNumber) {
             else {
                 readySong(songNumber + 1);
                 if (quiz.isHost) {
-                    let nextSong = songList[songOrder[songNumber + 1]];
-                    let message = `${songNumber + 1}§${getStartPoint()}§${nextSong.audio || ""}§${nextSong.video480 || ""}§${nextSong.video720 || ""}`;
+                    const nextSong = songList[songOrder[songNumber + 1]];
+                    const message = `${songNumber + 1}§${getStartPoint()}§${nextSong.audio || ""}§${nextSong.video480 || ""}§${nextSong.video720 || ""}`;
                     splitIntoChunks(btoa(encodeURIComponent(message)) + "$", 144).forEach((item, index) => {
                         cslMessage("§CSL3" + base10to36(index % 36) + item);
                     });
@@ -1384,7 +1387,7 @@ function endGuessPhase(songNumber) {
     }
     fireListener("guess phase over");
     if (!quiz.soloMode && quiz.inQuiz && !quiz.isSpectator) {
-        let answer = currentAnswers[quiz.ownGamePlayerId];
+        const answer = currentAnswers[quiz.ownGamePlayerId];
         if (answer) {
             splitIntoChunks(btoa(encodeURIComponent(answer)) + "$", 144).forEach((item, index) => {
                 cslMessage("§CSL5" + base10to36(index % 36) + item);
@@ -1396,18 +1399,18 @@ function endGuessPhase(songNumber) {
         cslState = 2;
         skipping = false;
         if (!quiz.soloMode) {
-            for (let player of Object.values(quiz.players)) {
+            for (const player of Object.values(quiz.players)) {
                 currentAnswers[player.gamePlayerId] = answerChunks[player.gamePlayerId] ? answerChunks[player.gamePlayerId].decode() : "";
             }
         }
-        for (let key of Object.keys(quiz.players)) {
+        for (const key of Object.keys(quiz.players)) {
             cslMultiplayer.voteSkip[key] = false;
         }
-        let data = {
+        const data = {
             "answers": [],
             "progressBarState": null
         };
-        for (let player of Object.values(quiz.players)) {
+        for (const player of Object.values(quiz.players)) {
             data.answers.push({
                 "gamePlayerId": player.gamePlayerId,
                 "pose": 3,
@@ -1416,25 +1419,25 @@ function endGuessPhase(songNumber) {
         }
         fireListener("player answers", data);
         if (!quiz.soloMode && quiz.isHost) {
-            let message = `${song.animeRomajiName || ""}\n${song.animeEnglishName || ""}\n${(song.altAnimeNames || []).join("\t")}\n${(song.altAnimeNamesAnswers || []).join("\t")}\n${song.songArtist || ""}\n${song.songName || ""}\n${song.songType || ""}\n${song.songTypeNumber || ""}\n${song.songDifficulty || ""}\n${song.animeType || ""}\n${song.animeVintage || ""}\n${song.annId || ""}\n${song.malId || ""}\n${song.kitsuId || ""}\n${song.aniListId || ""}\n${Array.isArray(song.animeTags) ? song.animeTags.join(",") : ""}\n${Array.isArray(song.animeGenre) ? song.animeGenre.join(",") : ""}\n${song.audio || ""}\n${song.video480 || ""}\n${song.video720 || ""}`;
+            const message = `${song.animeRomajiName || ""}\n${song.animeEnglishName || ""}\n${(song.altAnimeNames || []).join("\t")}\n${(song.altAnimeNamesAnswers || []).join("\t")}\n${song.songArtist || ""}\n${song.songName || ""}\n${song.songType || ""}\n${song.songTypeNumber || ""}\n${song.songDifficulty || ""}\n${song.animeType || ""}\n${song.animeVintage || ""}\n${song.annId || ""}\n${song.malId || ""}\n${song.kitsuId || ""}\n${song.aniListId || ""}\n${Array.isArray(song.animeTags) ? song.animeTags.join(",") : ""}\n${Array.isArray(song.animeGenre) ? song.animeGenre.join(",") : ""}\n${song.audio || ""}\n${song.video480 || ""}\n${song.video720 || ""}`;
             splitIntoChunks(btoa(encodeURIComponent(message)) + "$", 144).forEach((item, index) => {
                 cslMessage("§CSL7" + base10to36(index % 36) + item);
             });
         }
         answerTimer = setTimeout(() => {
             if (!quiz.cslActive || !quiz.inQuiz) return reset();
-            let correct = {};
-            let pose = {};
+            const correct = {};
+            const pose = {};
             if (quiz.isHost) {
-                for (let player of Object.values(quiz.players)) {
-                    let isCorrect = isCorrectAnswer(songNumber, currentAnswers[player.gamePlayerId]);
+                for (const player of Object.values(quiz.players)) {
+                    const isCorrect = isCorrectAnswer(songNumber, currentAnswers[player.gamePlayerId]);
                     correct[player.gamePlayerId] = isCorrect;
                     pose[player.gamePlayerId] = currentAnswers[player.gamePlayerId] ? (isCorrect ? 5 : 4) : 6;
                     if (isCorrect) score[player.gamePlayerId]++;
                 }
             }
             if (quiz.soloMode) {
-                let data = {
+                const data = {
                     "players": [],
                     "songInfo": {
                         "animeNames": {
@@ -1442,6 +1445,21 @@ function endGuessPhase(songNumber) {
                             "romaji": song.animeRomajiName
                         },
                         "artist": song.songArtist,
+                        "artistInfo": {
+                            "artistId": null, //song.songArtistIds.artistId,
+                            "groupId": null, //song.songArtistIds.groupId,
+                            "name": song.songArtist
+                        },
+                        "arrangerInfo": {
+                            "artistId": null, //song.songArrangerIds.artistId,
+                            "groupId": null, //song.songArrangerIds.groupId,
+                            "name": song.songArranger
+                        },
+                        "composerInfo": {
+                            "artistId": null, //song.songComposerIds.artistId,
+                            "groupId": null, //song.songComposerIds.groupId,
+                            "name": song.songComposer
+                        },
                         "songName": song.songName,
                         "videoTargetMap": {
                             "catbox": {
@@ -1478,7 +1496,7 @@ function endGuessPhase(songNumber) {
                     "groupMap": createGroupSlotMap(Object.keys(quiz.players)),
                     "watched": false
                 };
-                for (let player of Object.values(quiz.players)) {
+                for (const player of Object.values(quiz.players)) {
                     data.players.push({
                         "gamePlayerId": player.gamePlayerId,
                         "pose": pose[player.gamePlayerId],
@@ -1494,8 +1512,8 @@ function endGuessPhase(songNumber) {
                 fireListener("answer results", data);
             }
             else if (quiz.isHost) {
-                let list = [];
-                for (let id of Object.keys(correct)) {
+                const list = [];
+                for (const id of Object.keys(correct)) {
                     list.push(`${id},${correct[id] ? "1" : "0"},${pose[id]},${score[id]}`);
                 }
                 splitIntoChunks(btoa(encodeURIComponent(list.join("§"))) + "$", 144).forEach((item, index) => {
@@ -1530,15 +1548,15 @@ function endReplayPhase(songNumber) {
     else {
         fireListener("quiz overlay message", "Skipping to Final Standings");
         setTimeout(() => {
-            let data = {
+            const data = {
                 "resultStates": []
             };
             /*"progressBarState": {
                 "length": 26.484,
                 "played": 6.484
             }*/
-            let sortedScores = Array.from(new Set(Object.values(score))).sort((a, b) => b - a);
-            for (let id of Object.keys(score)) {
+            const sortedScores = Array.from(new Set(Object.values(score))).sort((a, b) => b - a);
+            for (const id of Object.keys(score)) {
                 data.resultStates.push({
                     "gamePlayerId": parseInt(id),
                     "pose": 1,
@@ -1561,7 +1579,7 @@ function endReplayPhase(songNumber) {
 // fire all event listeners (including scripts)
 function fireListener(type, data) {
     try {
-        for (let listener of socket.listners[type]) {
+        for (const listener of socket.listners[type]) {
             listener.fire(data);
         }
     }
@@ -1593,10 +1611,10 @@ function parseMessage(content, sender) {
     let player;
     if (lobby.inLobby) player = Object.values(lobby.players).find((x) => x._name === sender);
     else if (quiz.inQuiz) player = Object.values(quiz.players).find((x) => x._name === sender);
-    let isHost = sender === cslMultiplayer.host;
+    const isHost = sender === cslMultiplayer.host;
     if (content.startsWith("§CSL0")) { //start quiz
         if (lobby.inLobby && sender === lobby.hostName && !quiz.cslActive) {
-            let split = atob(content.slice(5)).split("§");
+            const split = atob(content.slice(5)).split("§");
             if (split.length === 6) {
                 //mode = parseInt(split[0]);
                 currentSong = parseInt(split[1]);
@@ -1669,12 +1687,12 @@ function parseMessage(content, sender) {
     }
     else if (content.startsWith("§CSL17")) { //player rejoin
         if (sender === lobby.hostName) {
-            let name = atob(content.slice(6));
+            const name = atob(content.slice(6));
             if (name === selfName) {
                 socket.sendCommand({ type: "lobby", command: "change to player" });
             }
             else if (quiz.cslActive && quiz.inQuiz) {
-                let player = Object.values(quiz.players).find((p) => p._name === name);
+                const player = Object.values(quiz.players).find((p) => p._name === name);
                 if (player) {
                     fireListener("Rejoining Player", { "name": name, "gamePlayerId": player.gamePlayerId });
                 }
@@ -1692,7 +1710,7 @@ function parseMessage(content, sender) {
             //§CSL3#songNumber§startPoint§mp3§480§720
             nextSongChunk.append(content);
             if (nextSongChunk.isComplete) {
-                let split = nextSongChunk.decode().split("§");
+                const split = nextSongChunk.decode().split("§");
                 nextSongChunk = new Chunk();
                 if (split.length === 5) {
                     if (!songLinkReceived[split[0]]) {
@@ -1741,7 +1759,7 @@ function parseMessage(content, sender) {
     }
     else if (content.startsWith("§CSL4")) { //play song
         if (quiz.cslActive && isHost) {
-            let number = parseInt(atob(content.slice(5)));
+            const number = parseInt(atob(content.slice(5)));
             //console.log("Play song: " + number);
             if (currentSong !== totalSongs) {
                 playSong(number);
@@ -1758,8 +1776,8 @@ function parseMessage(content, sender) {
         if (quiz.cslActive && isHost) {
             resultChunk.append(content);
             if (resultChunk.isComplete) {
-                let split = resultChunk.decode().split("§");
-                let data = {
+                const split = resultChunk.decode().split("§");
+                const data = {
                     "players": [],
                     "songInfo": {
                         "animeNames": {
@@ -1801,9 +1819,9 @@ function parseMessage(content, sender) {
                     "groupMap": createGroupSlotMap(Object.keys(quiz.players)),
                     "watched": false
                 };
-                let decodedPlayers = [];
-                for (let p of split) {
-                    let playerSplit = p.split(",");
+                const decodedPlayers = [];
+                for (const p of split) {
+                    const playerSplit = p.split(",");
                     decodedPlayers.push({
                         id: parseInt(playerSplit[0]),
                         correct: Boolean(parseInt(playerSplit[1])),
@@ -1833,7 +1851,7 @@ function parseMessage(content, sender) {
     else if (content.startsWith("§CSL7")) {
         songInfoChunk.append(content);
         if (songInfoChunk.isComplete) {
-            let split = preventCodeInjection(songInfoChunk.decode()).split("\n");
+            const split = preventCodeInjection(songInfoChunk.decode()).split("\n");
             cslMultiplayer.songInfo.animeRomajiName = split[0];
             cslMultiplayer.songInfo.animeEnglishName = split[1];
             cslMultiplayer.songInfo.altAnimeNames = split[2].split("\t").filter(Boolean);
@@ -1860,8 +1878,8 @@ function parseMessage(content, sender) {
 }
 
 function checkVoteSkip() {
-    let keys = Object.keys(cslMultiplayer.voteSkip).filter((key) => quiz.players.hasOwnProperty(key) && !quiz.players[key].avatarDisabled);
-    for (let key of keys) {
+    const keys = Object.keys(cslMultiplayer.voteSkip).filter((key) => quiz.players.hasOwnProperty(key) && !quiz.players[key].avatarDisabled);
+    for (const key of keys) {
         if (!cslMultiplayer.voteSkip[key]) return false;
     }
     return true;
@@ -1870,7 +1888,7 @@ function checkVoteSkip() {
 // input list of player keys, return group slot map
 function createGroupSlotMap(players) {
     players = players.map(Number);
-    let map = {};
+    const map = {};
     let group = 1;
     if (Object.keys(score).length) players.sort((a, b) => score[b] - score[a]);
     for (let i = 0; i < players.length; i += 8) {
@@ -1884,10 +1902,10 @@ function createGroupSlotMap(players) {
 function isCorrectAnswer(songNumber, answer) {
     if (!answer) return false;
     answer = answer.toLowerCase();
-    let song = songList[songOrder[songNumber]];
-    let correctAnswers = [].concat((song.altAnimeNames || []), (song.altAnimeNamesAnswers || []));
-    for (let a1 of correctAnswers) {
-        let a2 = replacedAnswers[a1];
+    const song = songList[songOrder[songNumber]];
+    const correctAnswers = [].concat((song.altAnimeNames || []), (song.altAnimeNamesAnswers || []));
+    for (const a1 of correctAnswers) {
+        const a2 = replacedAnswers[a1];
         if (a2 && a2.toLowerCase() === answer) return true;
         if (a1.toLowerCase() === answer) return true;
     }
@@ -1901,7 +1919,7 @@ function getStartPoint() {
 
 // return true if song type is allowed
 function songTypeFilter(song, ops, eds, ins) {
-    let type = song.songType;
+    const type = song.songType;
     if (ops && type === 1) return true;
     if (eds && type === 2) return true;
     if (ins && type === 3) return true;
@@ -1911,7 +1929,7 @@ function songTypeFilter(song, ops, eds, ins) {
 // return true if anime type is allowed
 function animeTypeFilter(song, tv, movie, ova, ona, special) {
     if (song.animeType) {
-        let type = song.animeType.toLowerCase();
+        const type = song.animeType.toLowerCase();
         if (tv && type === "tv") return true;
         if (movie && type === "movie") return true;
         if (ova && type === "ova") return true;
@@ -1928,7 +1946,7 @@ function animeTypeFilter(song, tv, movie, ova, ona, special) {
 // songs with missing difficulty will only pass if 0-100
 function difficultyFilter(song, low, high) {
     if (low === 0 && high === 100) return true;
-    let dif = parseFloat(song.songDifficulty);
+    const dif = parseFloat(song.songDifficulty);
     if (isNaN(dif)) return false;
     if (dif >= low && dif <= high) return true;
     return false;
@@ -1980,7 +1998,7 @@ function reset() {
 // end quiz and set up lobby
 function quizOver() {
     reset();
-    let data = {
+    const data = {
         "spectators": [],
         "inLobby": true,
         "settings": hostModal.getSettings(true),
@@ -1992,7 +2010,7 @@ function quizOver() {
         "numberOfTeams": 0,
         "teamFullMap": {}
     };
-    for (let player of Object.values(quiz.players)) {
+    for (const player of Object.values(quiz.players)) {
         if (gameChat.spectators.some((spectator) => spectator.name === player._name)) {
             data.spectators.push({
                 "name": player._name,
@@ -2031,31 +2049,31 @@ function openSettingsModal() {
 
 // load previous game options in song list window
 function LoadPreviousGameOptions() {
-    let $select = $("#cslgPreviousGameSelect").empty();
-    let games = [];
-    for (let game of Object.values(songHistoryWindow.tabs[2].gameMap)) {
+    const $select = $("#cslgPreviousGameSelect").empty();
+    const games = [];
+    for (const game of Object.values(songHistoryWindow.tabs[2].gameMap)) {
         if (game.songTable.rows.length) {
             games.push({ roomName: game.roomName, startTime: game.startTime, quizId: game.quizId });
         }
     }
     games.sort((a, b) => b.startTime - a.startTime);
-    for (let game of games) {
+    for (const game of games) {
         $select.append($("<option></option>").val(game.quizId).text(`${game.roomName} - ${game.startTime.format("YYYY-MM-DD HH:mm")}`));
     }
 }
 
 // when you click the go button
 function anisongdbDataSearch() {
-    let mode = $("#cslgAnisongdbModeSelect").val().toLowerCase();
-    let query = $("#cslgAnisongdbQueryInput").val();
-    let ops = $("#cslgAnisongdbOPCheckbox").prop("checked");
-    let eds = $("#cslgAnisongdbEDCheckbox").prop("checked");
-    let ins = $("#cslgAnisongdbINCheckbox").prop("checked");
-    let partial = $("#cslgAnisongdbPartialCheckbox").prop("checked");
-    let ignoreDuplicates = $("#cslgAnisongdbIgnoreDuplicatesCheckbox").prop("checked");
-    let arrangement = $("#cslgAnisongdbArrangementCheckbox").prop("checked");
-    let maxOtherPeople = parseInt($("#cslgAnisongdbMaxOtherPeopleInput").val());
-    let minGroupMembers = parseInt($("#cslgAnisongdbMinGroupMembersInput").val());
+    const mode = $("#cslgAnisongdbModeSelect").val().toLowerCase();
+    const query = $("#cslgAnisongdbQueryInput").val();
+    const ops = $("#cslgAnisongdbOPCheckbox").prop("checked");
+    const eds = $("#cslgAnisongdbEDCheckbox").prop("checked");
+    const ins = $("#cslgAnisongdbINCheckbox").prop("checked");
+    const partial = $("#cslgAnisongdbPartialCheckbox").prop("checked");
+    const ignoreDuplicates = $("#cslgAnisongdbIgnoreDuplicatesCheckbox").prop("checked");
+    const arrangement = $("#cslgAnisongdbArrangementCheckbox").prop("checked");
+    const maxOtherPeople = parseInt($("#cslgAnisongdbMaxOtherPeopleInput").val());
+    const minGroupMembers = parseInt($("#cslgAnisongdbMinGroupMembersInput").val());
     if (query && !isNaN(maxOtherPeople) && !isNaN(minGroupMembers)) {
         getAnisongdbData(mode, query, ops, eds, ins, partial, ignoreDuplicates, arrangement, maxOtherPeople, minGroupMembers);
     }
@@ -2131,6 +2149,7 @@ function getAnisongdbData(mode, query, ops, eds, ins, partial, ignoreDuplicates,
         };
     }
     fetch(url, data).then(res => res.json()).then(json => {
+        if (debug) console.log(json);
         handleData(json);
         songList = songList.filter((song) => songTypeFilter(song, ops, eds, ins));
         setSongListTableSort();
@@ -2180,7 +2199,21 @@ function handleData(data) {
         let animeEnglishName = song.animeEnglishName ?? song.animeENName ?? song.songInfo?.animeNames?.english ?? song.anime?.english ?? song.animeEnglish ?? song.animeEng ?? "";
         let altAnimeNames = song.altAnimeNames ?? song.songInfo?.altAnimeNames ?? [].concat(animeRomajiName, animeEnglishName, song.animeAltName || []);
         let altAnimeNamesAnswers = song.altAnimeNamesAnswers ?? song.songInfo?.altAnimeNamesAnswers ?? [];
-        let songArtist = song.songArtist ?? song.artist ?? song.songInfo?.artist ?? "";
+        let songArtist = song.songArtist ?? song.artist ?? song.songInfo?.artist ?? song.artistInfo?.name ?? "";
+        /*let songArtistIds = {
+            artistId: song.songArtistIds?.artistId ?? song.artistInfo?.artistId,
+            groupId: song.songArtistIds?.groupId ?? song.artistInfo?.groupId
+        };*/
+        let songArranger = song.songArranger ?? song.arrangerInfo?.name ?? "";
+        /*let songArrangerIds = {
+            artistId: song.songArrangerIds?.artistId ?? song.arrangerInfo?.artistId,
+            groupId: song.songArrangerIds?.groupId ?? song.arrangerInfo?.groupId
+        };*/
+        let songComposer = song.songComposer ?? song.composerInfo?.name ?? "";
+        /*let songComposerIds = {
+            artistId: song.songComposerIds?.artistId ?? song.composerInfo?.artistId,
+            groupId: song.songComposerIds?.groupId ?? song.composerInfo?.groupId
+        };*/
         let songName = song.songName ?? song.name ?? song.songInfo?.songName ?? "";
         let songType = song.songType ?? song.type ?? song.songInfo?.type ?? null;
         let songTypeNumber = song.songTypeNumber ?? song.songInfo?.typeNumber ?? null;
@@ -2227,6 +2260,11 @@ function handleData(data) {
                 altAnimeNames,
                 altAnimeNamesAnswers,
                 songArtist,
+                //songArtistIds,
+                songArranger,
+                //songArrangerIds,
+                songComposer,
+                //songComposerIds,
                 songName,
                 songType,
                 songTypeNumber,
@@ -2267,10 +2305,8 @@ function createSongListTable(skipSort) {
     $("#cslgSongListCount").text("Songs: " + songList.length);
     $("#cslgMergeCurrentCount").text(`Current song list: ${songList.length} song${songList.length === 1 ? "" : "s"}`);
     $("#cslgSongListWarning").text("");
-    let $thead = $("#cslgSongListTable thead");
-    let $tbody = $("#cslgSongListTable tbody");
-    $thead.empty();
-    $tbody.empty();
+    const $thead = $("#cslgSongListTable thead").empty();
+    const $tbody = $("#cslgSongListTable tbody").empty();
     if (!skipSort) {
         if (songListTableSort.mode === "songName") {
             songList.sort((a, b) => a.songName.localeCompare(b.songName));
@@ -2306,84 +2342,90 @@ function createSongListTable(skipSort) {
         }
     }
     if (songListTableView === 0) {
-        let $row = $("<tr></tr>");
-        $row.append($(`<th class="number">#</th>`));
-        $row.append($(`<th class="song clickAble">Song</th>`).click(() => {
-            setSongListTableSort("songName");
-            createSongListTable();
-        }));
-        $row.append($(`<th class="artist clickAble">Artist</th>`).click(() => {
-            setSongListTableSort("artist");
-            createSongListTable();
-        }));
-        $row.append($(`<th class="difficulty clickAble">Dif</th>`).click(() => {
-            setSongListTableSort("difficulty");
-            createSongListTable();
-        }));
-        $row.append($(`<th class="action"></th>`));
-        $thead.append($row);
+        $thead.append($("<tr>")
+            .append($("<th>", { class: "number", text: "#" }))
+            .append($("<th>", { class: "song clickAble", text: "Song" }).click(() => {
+                setSongListTableSort("songName");
+                createSongListTable();
+            }))
+            .append($("<th>", { class: "artist clickAble", text: "Artist" }).click(() => {
+                setSongListTableSort("artist");
+                createSongListTable();
+            }))
+            .append($("<th>", { class: "difficulty clickAble", text: "Dif" }).click(() => {
+                setSongListTableSort("difficulty");
+                createSongListTable();
+            }))
+            .append($("<th>", { class: "action" }))
+        );
         songList.forEach((song, i) => {
-            let $row = $("<tr></tr>");
-            $row.append($("<td></td>").addClass("number").text(i + 1));
-            $row.append($("<td></td>").addClass("song").text(song.songName));
-            $row.append($("<td></td>").addClass("artist").text(song.songArtist));
-            $row.append($("<td></td>").addClass("difficulty").text(Number.isFinite(song.songDifficulty) ? Math.floor(song.songDifficulty) : ""));
-            $row.append($("<td></td>").addClass("action").append(`<i class="fa fa-plus clickAble" aria-hidden="true"></i> <i class="fa fa-trash clickAble" aria-hidden="true"></i>`));
-            $tbody.append($row);
+            $tbody.append($("<tr>")
+                .append($("<td>", { class: "number", text: i + 1 }))
+                .append($("<td>", { class: "song", text: song.songName }))
+                .append($("<td>", { class: "artist", text: song.songArtist }))
+                .append($("<td>", { class: "difficulty", text: Number.isFinite(song.songDifficulty) ? Math.floor(song.songDifficulty) : "" }))
+                .append($("<td>", { class: "action" })
+                    .append(`<i class="fa fa-plus clickAble" aria-hidden="true"></i> <i class="fa fa-trash clickAble" aria-hidden="true"></i>`))
+            );
         });
     }
     else if (songListTableView === 1) {
-        let $row = $("<tr></tr>");
-        $row.append($(`<th class="number">#</th>`));
-        $row.append($(`<th class="anime clickAble">Anime</th>`).click(() => {
-            setSongListTableSort("anime");
-            createSongListTable();
-        }));
-        $row.append($(`<th class="songType clickAble">Type</th>`).click(() => {
-            setSongListTableSort("songType");
-            createSongListTable();
-        }));
-        $row.append($(`<th class="vintage clickAble">Vintage</th>`).click(() => {
-            setSongListTableSort("vintage");
-            createSongListTable();
-        }));
-        $row.append($(`<th class="action"></th>`));
-        $thead.append($row);
+        $thead.append($("<tr>")
+            .append($("<th>", { class: "number", text: "#" }))
+            .append($("<th>", { class: "anime clickAble", text: "Anime" }).click(() => {
+                setSongListTableSort("anime");
+                createSongListTable();
+            }))
+            .append($("<th>", { class: "songType clickAble", text: "Type" }).click(() => {
+                setSongListTableSort("songType");
+                createSongListTable();
+            }))
+            .append($("<th>", { class: "vintage clickAble", text: "Vintage" }).click(() => {
+                setSongListTableSort("vintage");
+                createSongListTable();
+            }))
+            .append($("<th>", { class: "action" }))
+        );
         songList.forEach((song, i) => {
-            let $row = $("<tr></tr>");
-            $row.append($("<td></td>").addClass("number").text(i + 1));
-            $row.append($("<td></td>").addClass("anime").text(options.useRomajiNames ? song.animeRomajiName : song.animeEnglishName));
-            $row.append($("<td></td>").addClass("songType").text(songTypeText(song.songType, song.songTypeNumber)));
-            $row.append($("<td></td>").addClass("vintage").text(song.animeVintage));
-            $row.append($("<td></td>").addClass("action").append(`<i class="fa fa-plus clickAble" aria-hidden="true"></i> <i class="fa fa-trash clickAble" aria-hidden="true"></i>`));
-            $tbody.append($row);
+            $tbody.append($("<tr>")
+                .append($("<td>", { class: "number", text: i + 1 }))
+                .append($("<td>", { class: "anime", text: options.useRomajiNames ? song.animeRomajiName : song.animeEnglishName }))
+                .append($("<td>", { class: "songType", text: songTypeText(song.songType, song.songTypeNumber) }))
+                .append($("<td>", { class: "vintage", text: song.animeVintage }))
+                .append($("<td>", { class: "action" })
+                    .append(`<i class="fa fa-plus clickAble" aria-hidden="true"></i> <i class="fa fa-trash clickAble" aria-hidden="true"></i>`))
+            );
         });
     }
     else if (songListTableView === 2) {
-        let $row = $("<tr></tr>");
-        $row.append($(`<th class="number">#</th>`));
-        $row.append($(`<th class="link clickAble">MP3</th>`).click(() => {
-            setSongListTableSort("mp3");
-            createSongListTable();
-        }));
-        $row.append($(`<th class="link clickAble">480</th>`).click(() => {
-            setSongListTableSort("480");
-            createSongListTable();
-        }));
-        $row.append($(`<th class="link clickAble">720</th>`).click(() => {
-            setSongListTableSort("720");
-            createSongListTable();
-        }));
-        $row.append($(`<th class="action"></th>`));
-        $thead.append($row);
+        $thead.append($("<tr>")
+            .append($("<th>", { class: "number", text: "#" }))
+            .append($("<th>", { class: "link clickAble", text: "MP3" }).click(() => {
+                setSongListTableSort("mp3");
+                createSongListTable();
+            }))
+            .append($("<th>", { class: "link clickAble", text: "480" }).click(() => {
+                setSongListTableSort("480");
+                createSongListTable();
+            }))
+            .append($("<th>", { class: "link clickAble", text: "720" }).click(() => {
+                setSongListTableSort("720");
+                createSongListTable();
+            }))
+            .append($("<th>", { class: "action" }))
+        );
         songList.forEach((song, i) => {
-            let $row = $("<tr></tr>");
-            $row.append($("<td></td>").addClass("number").text(i + 1));
-            $row.append($("<td></td>").addClass("link").append(createLinkElement(song.audio)));
-            $row.append($("<td></td>").addClass("link").append(createLinkElement(song.video480)));
-            $row.append($("<td></td>").addClass("link").append(createLinkElement(song.video720)));
-            $row.append($("<td></td>").addClass("action").append(`<i class="fa fa-plus clickAble" aria-hidden="true"></i> <i class="fa fa-trash clickAble" aria-hidden="true"></i>`));
-            $tbody.append($row);
+            $tbody.append($("<tr>")
+                .append($("<td>", { class: "number", text: i + 1 }))
+                .append($("<td>", { class: "link" })
+                    .append(createLinkElement(song.audio)))
+                .append($("<td>", { class: "link" })
+                    .append(createLinkElement(song.video480)))
+                .append($("<td>", { class: "link" })
+                    .append(createLinkElement(song.video720)))
+                .append($("<td>", { class: "action" })
+                    .append(`<i class="fa fa-plus clickAble" aria-hidden="true"></i> <i class="fa fa-trash clickAble" aria-hidden="true"></i>`))
+            );
         });
     }
 }
@@ -2392,22 +2434,21 @@ function createSongListTable(skipSort) {
 function createMergedSongListTable() {
     $("#cslgMergedSongListCount").text("Merged: " + mergedSongList.length);
     $("#cslgMergeTotalCount").text(`Merged song list: ${mergedSongList.length} song${mergedSongList.length === 1 ? "" : "s"}`);
-    let $tbody = $("#cslgMergedSongListTable tbody");
-    $tbody.empty();
+    const $tbody = $("#cslgMergedSongListTable tbody").empty();
     mergedSongList.forEach((song, i) => {
-        let $row = $("<tr></tr>");
-        $row.append($("<td></td>").addClass("number").text(i + 1));
-        $row.append($("<td></td>").addClass("anime").text(options.useRomajiNames ? song.animeRomajiName : song.animeEnglishName));
-        $row.append($("<td></td>").addClass("songType").text(songTypeText(song.songType, song.songTypeNumber)));
-        $row.append($("<td></td>").addClass("action").append(`<i class="fa fa-chevron-up clickAble" aria-hidden="true"></i><i class="fa fa-chevron-down clickAble" aria-hidden="true"></i> <i class="fa fa-trash clickAble" aria-hidden="true"></i>`));
-        $tbody.append($row);
+        $tbody.append($("<tr>")
+            .append($("<td>", { class: "number", text: i + 1 }))
+            .append($("<td>", { class: "anime", text: options.useRomajiNames ? song.animeRomajiName : song.animeEnglishName }))
+            .append($("<td>", { class: "songType", text: songTypeText(song.songType, song.songTypeNumber) }))
+            .append($("<td>", { class: "action" })
+                .append(`<i class="fa fa-chevron-up clickAble" aria-hidden="true"></i><i class="fa fa-chevron-down clickAble" aria-hidden="true"></i> <i class="fa fa-trash clickAble" aria-hidden="true"></i>`))
+        );
     });
 }
 
 // create answer table
 function createAnswerTable() {
-    let $tbody = $("#cslgAnswerTable tbody");
-    $tbody.empty();
+    const $tbody = $("#cslgAnswerTable tbody").empty();
     if (songList.length === 0) {
         $("#cslgAnswerText").text("No list loaded");
     }
@@ -2415,25 +2456,26 @@ function createAnswerTable() {
         $("#cslgAnswerText").text("Fetch autocomplete first");
     }
     else {
-        let animeList = new Set();
-        let missingAnimeList = [];
-        for (let song of songList) {
-            let answers = [song.animeEnglishName, song.animeRomajiName].concat(song.altAnimeNames, song.altAnimeNamesAnswers);
+        const animeList = new Set();
+        const missingAnimeList = [];
+        for (const song of songList) {
+            const answers = [song.animeEnglishName, song.animeRomajiName].concat(song.altAnimeNames, song.altAnimeNamesAnswers);
             answers.forEach((x) => animeList.add(x));
         }
-        for (let anime of animeList) {
+        for (const anime of animeList) {
             if (!autocomplete.includes(anime.toLowerCase())) {
                 missingAnimeList.push(anime);
             }
         }
         missingAnimeList.sort((a, b) => a.localeCompare(b));
         $("#cslgAnswerText").text(`Found ${missingAnimeList.length} anime missing from AMQ's autocomplete`);
-        for (let anime of missingAnimeList) {
-            let $row = $("<tr></tr>");
-            $row.append($("<td></td>").addClass("oldName").text(anime));
-            $row.append($("<td></td>").addClass("newName").text(replacedAnswers[anime] || ""));
-            $row.append($("<td></td>").addClass("edit").append(`<i class="fa fa-pencil clickAble" aria-hidden="true"></i>`));
-            $tbody.append($row);
+        for (const anime of missingAnimeList) {
+            $tbody.append($("<tr>")
+                .append($("<td>", { class: "oldName", text: anime }))
+                .append($("<td>", { class: "newName", text: replacedAnswers[anime] || "" }))
+                .append($("<td>", { class: "edit" })
+                    .append(`<i class="fa fa-pencil clickAble" aria-hidden="true"></i>`))
+            );
         }
     }
 }
@@ -2441,7 +2483,7 @@ function createAnswerTable() {
 // create link element for song list table
 function createLinkElement(link) {
     if (!link) return "";
-    let $a = $("<a></a>");
+    const $a = $("<a>", { target: "_blank" });
     if (link.startsWith("http")) {
         $a.text(link.includes("animemusicquiz") || link.includes("catbox") ? link.split("/").slice(-1)[0] : link);
         $a.attr("href", link);
@@ -2455,7 +2497,6 @@ function createLinkElement(link) {
             $a.attr("href", "https://naedist.animemusicquiz.com/" + link);
         }
     }
-    $a.attr("target", "_blank");
     return $a;
 }
 
@@ -2481,12 +2522,12 @@ function vintageSortValue(a, b) {
     if (!a.animeVintage && !b.animeVintage) return 0;
     if (!a.animeVintage) return 1;
     if (!b.animeVintage) return -1;
-    let [seasonA, yearA] = a.animeVintage.split(" ");
-    let [seasonB, yearB] = b.animeVintage.split(" ");
+    const [seasonA, yearA] = a.animeVintage.split(" ");
+    const [seasonB, yearB] = b.animeVintage.split(" ");
     if (yearA !== yearB) {
         return yearA - yearB;
     }
-    let seasonOrder = { "Winter": 1, "Spring": 2, "Summer": 3, "Fall": 4 };
+    const seasonOrder = { "Winter": 1, "Spring": 2, "Summer": 3, "Fall": 4 };
     return seasonOrder[seasonA] - seasonOrder[seasonB];
 }
 
@@ -2503,39 +2544,39 @@ function songTypeSortValue(a, b) {
 
 // filter the song list
 function filterSongList() {
-    let keep = $("#cslgFilterModeSelect").val() === "Keep";
-    let key = $("#cslgFilterKeySelect").val();
+    const keep = $("#cslgFilterModeSelect").val() === "Keep";
+    const key = $("#cslgFilterKeySelect").val();
     let text = $("#cslgFilterListInput").val();
-    let caseSensitive = $("#cslgFilterListCaseCheckbox").prop("checked");
-    let customIncludes = (string, sub) => {
+    const caseSensitive = $("#cslgFilterListCaseCheckbox").prop("checked");
+    const customIncludes = (string, sub) => {
         return caseSensitive ? string.includes(sub) : string.toLowerCase().includes(sub.toLowerCase());
     }
     if (key === "Anime") {
         if (!text) return;
         songList = songList.filter((song) => {
-            let result = customIncludes(song.animeRomajiName, text) || customIncludes(song.animeEnglishName, text);
-            return keep ? result : !result;
+            const match = customIncludes(song.animeRomajiName, text) || customIncludes(song.animeEnglishName, text);
+            return keep ? match : !match;
         });
     }
     else if (key === "Artist") {
         if (!text) return;
         songList = songList.filter((song) => {
-            let result = customIncludes(song.songArtist, text);
-            return keep ? result : !result;
+            const match = customIncludes(song.songArtist, text);
+            return keep ? match : !match;
         });
     }
     else if (key === "Song Name") {
         if (!text) return;
         songList = songList.filter((song) => {
-            let result = customIncludes(song.songName, text);
-            return keep ? result : !result;
+            const match = customIncludes(song.songName, text);
+            return keep ? match : !match;
         });
     }
     else if (key === "Song Type") {
         text = text.toLowerCase().trim();
         if (!text) return;
         let option;
-        let number = parseInt(text.match(/[0-9]+/)?.[0]) || null;
+        const number = parseInt(text.match(/[0-9]+/)?.[0]) || null;
         if (text.startsWith("o")) {
             option = { songType: 1, songTypeNumber: number };
         }
@@ -2547,26 +2588,18 @@ function filterSongList() {
         }
         else return;
         songList = songList.filter((song) => {
-            let result = false;
-            if (option.songType === song.songType) {
-                if (option.songTypeNumber) {
-                    if (option.songTypeNumber === song.songTypeNumber) {
-                        result = true;
-                    }
-                }
-                else {
-                    result = true;
-                }
-            }
-            return keep ? result : !result;
+            const matchesType = song.songType === option.songType;
+            const matchesNumber = !option.songTypeNumber || option.songTypeNumber === song.songTypeNumber;
+            const match = matchesType && matchesNumber;
+            return keep ? match : !match;
         });
     }
     else if (key === "Anime Type") {
         text = text.toLowerCase().trim();
         if (!text) return;
         songList = songList.filter((song) => {
-            let result = song.animeType && text === song.animeType.toLowerCase();
-            return keep ? result : !result;
+            const match = song.animeType && text === song.animeType.toLowerCase();
+            return keep ? match : !match;
         });
     }
     else if (key === "Difficulty") {
@@ -2574,16 +2607,16 @@ function filterSongList() {
         if (!text) return;
         if (text === "null") {
             songList = songList.filter((song) => {
-                let result = song.songDifficulty === null;
-                return keep ? result : !result;
+                const match = song.songDifficulty === null;
+                return keep ? match : !match;
             });
         }
         else {
-            let [low, high] = text.split(/[\s-]+/);
+            const [low, high] = text.split(/[\s-]+/).map(Number);
             if (isNaN(low) || isNaN(high) || low > high) return;
             songList = songList.filter((song) => {
-                let result = song.songDifficulty && song.songDifficulty >= low && song.songDifficulty <= high;
-                return keep ? result : !result;
+                const match = song.songDifficulty && song.songDifficulty >= low && song.songDifficulty <= high;
+                return keep ? match : !match;
             });
         }
     }
@@ -2592,51 +2625,48 @@ function filterSongList() {
         if (!text) return;
         if (text === "null") {
             songList = songList.filter((song) => {
-                let result = song.animeVintage === null;
-                return keep ? result : !result;
+                const match = song.animeVintage === null;
+                return keep ? match : !match;
             });
         }
         else if (/^[0-9]{4}[\s-]+[0-9]{4}$/.test(text)) {
-            let [low, high] = text.split(/[\s-]+/);
-            if (low > high) return;
+            const [low, high] = text.split(/[\s-]+/).map(Number);
+            if (isNaN(low) || isNaN(high) || low > high) return;
             songList = songList.filter((song) => {
-                let result = false;
-                if (song.animeVintage) {
-                    let year = parseInt(song.animeVintage.split(" "));
-                    result = year >= low && year <= high;
-                }
-                return keep ? result : !result;
+                const year = song.animeVintage ? Number(song.animeVintage.split(" ")[1]) : NaN;
+                const match = Number.isInteger(year) && year >= low && year <= high;
+                return keep ? match : !match;
             });
         }
         else {
             songList = songList.filter((song) => {
-                let result = song.animeVintage && song.animeVintage.toLowerCase().includes(text);
-                return keep ? result : !result;
+                const match = song.animeVintage && song.animeVintage.toLowerCase().includes(text);
+                return keep ? match : !match;
             });
         }
     }
     else if (key === "Rebroadcast") {
         songList = songList.filter((song) => {
-            let result = Boolean(song.rebroadcast);
-            return keep ? result : !result;
+            const match = Boolean(song.rebroadcast);
+            return keep ? match : !match;
         });
     }
     else if (key === "Dub") {
         songList = songList.filter((song) => {
-            let result = Boolean(song.dub);
-            return keep ? result : !result;
+            const match = Boolean(song.dub);
+            return keep ? match : !match;
         });
     }
     else if (key === "Correct") {
         songList = songList.filter((song) => {
-            let result = song.correctGuess === true;
-            return keep ? result : !result;
+            const match = song.correctGuess === true;
+            return keep ? match : !match;
         });
     }
     else if (key === "Incorrect") {
         songList = songList.filter((song) => {
-            let result = song.incorrectGuess === true;
-            return keep ? result : !result;
+            const match = song.incorrectGuess === true;
+            return keep ? match : !match;
         });
     }
     createSongListTable(true);
@@ -2670,7 +2700,7 @@ function songTypeText(type, typeNumber) {
 
 // input 3 links, return formatted catbox link object
 function createCatboxLinkObject(audio, video480, video720) {
-    let links = {};
+    const links = {};
     if (fileHostOverride) {
         if (audio) links["0"] = "https://" + hostDict[fileHostOverride] + "/" + audio.split("/").slice(-1)[0];
         if (video480) links["480"] = "https://" + hostDict[fileHostOverride] + "/" + video480.split("/").slice(-1)[0];
@@ -2748,7 +2778,7 @@ function startHotkeyRecord() {
 // input hotKeys[action] and convert the data to a string for the input field
 function bindingToText(b) {
     if (!b) return "";
-    let keys = [];
+    const keys = [];
     if (b.ctrl) keys.push("CTRL");
     if (b.alt) keys.push("ALT");
     if (b.shift) keys.push("SHIFT");
@@ -2793,7 +2823,7 @@ function preventCodeInjection(text) {
 
 // split a string into chunks
 function splitIntoChunks(str, chunkSize) {
-    let chunks = [];
+    const chunks = [];
     for (let i = 0; i < str.length; i += chunkSize) {
         chunks.push(str.slice(i, i + chunkSize));
     }
@@ -2803,7 +2833,7 @@ function splitIntoChunks(str, chunkSize) {
 // convert base 10 number to base 36
 function base10to36(number) {
     if (number === 0) return 0;
-    let digits = "0123456789abcdefghijklmnopqrstuvwxyz";
+    const digits = "0123456789abcdefghijklmnopqrstuvwxyz";
     let result = "";
     while (number > 0) {
         let remainder = number % 36;
@@ -2816,10 +2846,10 @@ function base10to36(number) {
 // convert base 36 number to base 10
 function base36to10(number) {
     number = String(number);
-    let digits = "0123456789abcdefghijklmnopqrstuvwxyz";
+    const digits = "0123456789abcdefghijklmnopqrstuvwxyz";
     let result = 0;
     for (let i = 0; i < number.length; i++) {
-        let digit = digits.indexOf(number[i]);
+        const digit = digits.indexOf(number[i]);
         if (digit === -1) return null;
         result = result * 36 + digit;
     }
@@ -2833,9 +2863,9 @@ class Chunk {
         this.isComplete = false;
     }
     append(text) {
-        let regex = /^§CSL\w(\w)/.exec(text);
+        const regex = /^§CSL\w(\w)/.exec(text);
         if (regex) {
-            let index = base36to10(regex[1]);
+            const index = base36to10(regex[1]);
             if (text.endsWith("$")) {
                 this.chunkMap[index] = text.slice(6, -1);
                 this.isComplete = true;
@@ -2850,7 +2880,7 @@ class Chunk {
     }
     decode() {
         if (this.isComplete) {
-            let result = Object.values(this.chunkMap).reduce((a, b) => a + b);
+            const result = Object.values(this.chunkMap).reduce((a, b) => a + b);
             try {
                 return decodeURIComponent(atob(result));
             }
@@ -2869,8 +2899,8 @@ class Chunk {
 
 // input myanimelist username, return list of mal ids
 async function getMalIdsFromMyanimelist(username) {
-    let malIds = [];
-    let statuses = [];
+    const malIds = [];
+    const statuses = [];
     if ($("#cslgListImportWatchingCheckbox").prop("checked")) {
         statuses.push("watching");
     }
@@ -2886,11 +2916,11 @@ async function getMalIdsFromMyanimelist(username) {
     if ($("#cslgListImportPlanningCheckbox").prop("checked")) {
         statuses.push("plan_to_watch");
     }
-    for (let status of statuses) {
+    for (const status of statuses) {
         $("#cslgListImportText").text(`Retrieving Myanimelist: ${status}`);
         let nextPage = `https://api.myanimelist.net/v2/users/${username}/animelist?offset=0&limit=1000&nsfw=true&status=${status}`;
         while (nextPage) {
-            let result = await new Promise((resolve, reject) => {
+            const result = await new Promise((resolve, reject) => {
                 GM_xmlhttpRequest({
                     method: "GET",
                     url: nextPage,
@@ -2904,7 +2934,7 @@ async function getMalIdsFromMyanimelist(username) {
                 $("#cslgListImportText").text(`MAL API Error: ${result.error}`);
             }
             else {
-                for (let anime of result.data) {
+                for (const anime of result.data) {
                     malIds.push(anime.node.id);
                 }
                 nextPage = result.paging.next;
@@ -2916,8 +2946,8 @@ async function getMalIdsFromMyanimelist(username) {
 
 // input anilist username, return list of mal ids
 async function getMalIdsFromAnilist(username) {
-    let malIds = [];
-    let statuses = [];
+    const malIds = [];
+    const statuses = [];
     let pageNumber = 1;
     let hasNextPage = true;
     if ($("#cslgListImportWatchingCheckbox").prop("checked")) {
@@ -2941,9 +2971,9 @@ async function getMalIdsFromAnilist(username) {
             await new Promise(r => setTimeout(r, 60000));
         }
         $("#cslgListImportText").text(`Retrieving Anilist: page ${pageNumber}`);
-        let data = await getAnilistData(username, statuses, pageNumber);
+        const data = await getAnilistData(username, statuses, pageNumber);
         if (data) {
-            for (let item of data.mediaList) {
+            for (const item of data.mediaList) {
                 if (item.media.idMal) {
                     malIds.push(item.media.idMal);
                 }
@@ -2965,7 +2995,7 @@ async function getMalIdsFromAnilist(username) {
 
 // input username, status, and page number
 function getAnilistData(username, statuses, pageNumber) {
-    let query = `
+    const query = `
         query {
             Page (page: ${pageNumber}, perPage: 50) {
                 pageInfo {
@@ -2982,7 +3012,7 @@ function getAnilistData(username, statuses, pageNumber) {
             }
         }
     `;
-    let data = {
+    const data = {
         method: "POST",
         headers: { "Content-Type": "application/json", "Accept": "application/json" },
         body: JSON.stringify({ query: query })
@@ -2998,12 +3028,12 @@ async function getSongListFromMalIds(malIds) {
     if (!malIds) malIds = [];
     if (malIds.length === 0) return;
     $("#cslgListImportText").text(`Anime: 0 / ${malIds.length} | Songs: ${importedSongList.length}`);
-    let url = "https://anisongdb.com/api/malIDs_request";
+    const url = "https://anisongdb.com/api/malIDs_request";
     let idsProcessed = 0;
     for (let i = 0; i < malIds.length; i += 500) {
-        let segment = malIds.slice(i, i + 500);
+        const segment = malIds.slice(i, i + 500);
         idsProcessed += segment.length;
-        let data = {
+        const data = {
             method: "POST",
             headers: { "Accept": "application/json", "Content-Type": "application/json" },
             body: JSON.stringify({ "malIds": segment })
@@ -3035,9 +3065,9 @@ async function startImport() {
     $("#cslgListImportActionContainer").hide();
     if ($("#cslgListImportSelect").val() === "myanimelist") {
         if (malClientId) {
-            let username = $("#cslgListImportUsernameInput").val().trim();
+            const username = $("#cslgListImportUsernameInput").val().trim();
             if (username) {
-                let malIds = await getMalIdsFromMyanimelist(username);
+                const malIds = await getMalIdsFromMyanimelist(username);
                 await getSongListFromMalIds(malIds);
             }
             else {
@@ -3049,9 +3079,9 @@ async function startImport() {
         }
     }
     else if ($("#cslgListImportSelect").val() === "anilist") {
-        let username = $("#cslgListImportUsernameInput").val().trim();
+        const username = $("#cslgListImportUsernameInput").val().trim();
         if (username) {
-            let malIds = await getMalIdsFromAnilist(username);
+            const malIds = await getMalIdsFromAnilist(username);
             await getSongListFromMalIds(malIds);
         }
         else {
@@ -3088,7 +3118,7 @@ function saveSettings() {
 
 // apply styles
 function applyStyles() {
-    let tableHighlightColor = getComputedStyle(document.documentElement).getPropertyValue("--accentColorContrast") || "#4497ea";
+    const tableHighlightColor = getComputedStyle(document.documentElement).getPropertyValue("--accentColorContrast") || "#4497ea";
     let css = /*css*/ `
         #lnCustomSongListButton {
             right: ${CSLButtonCSS};
