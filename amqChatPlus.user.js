@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Chat Plus
 // @namespace    https://github.com/kempanator
-// @version      0.35
+// @version      0.36
 // @description  Add new features to chat and messages
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -41,7 +41,7 @@ const loadInterval = setInterval(() => {
     }
 }, 500);
 
-const SCRIPT_VERSION = "0.35";
+const SCRIPT_VERSION = "0.36";
 const SCRIPT_NAME = "Chat Plus";
 const saveData = validateLocalStorage("chatPlus");
 const tenorApiKey = "LIVDSRZULELA";
@@ -533,6 +533,104 @@ function setup() {
         }
     }).observe(document.querySelector("#activeChatScrollContainer"), { childList: true, subtree: false });
 
+    // create new class for emoji selector on answer input
+    class AnswerBoxEmoteWrapper {
+        constructor($input, inputIdentifer, customClassName = "") {
+            this.$input = $input;
+            this.items = [];
+            this.counter = 0;
+            this.displayed = false;
+            this.currentWord = null;
+            $.contextMenu({
+                selector: inputIdentifer,
+                trigger: "none",
+                className: customClassName,
+                position: (opt) => {
+                    const { left, top } = this.$input.offset();
+                    opt.$menu.css({ width: 280, top: top - 10, left: left, transform: "translateY(-100%)" });
+                },
+                build: () => {
+                    const itemMap = {};
+                    this.items.forEach(({ name, src, srcset }) => {
+                        const $img = $("<img>", { class: "amqEmoji", sizes: "30px" });
+                        if (srcset) $img.attr("srcset", srcset);
+                        $img.attr("src", src);
+                        itemMap[name] = {
+                            name: name,
+                            className: "context-menu-item emoteSelectorItem",
+                            icon: (opt, $itemElement) => {
+                                $itemElement.prepend($img);
+                            },
+                            callback: () => {
+                                const text = this.$input.val();
+                                const targetIndex = $input[0].selectionStart;
+                                const prevSpaceIndex = text.lastIndexOf(" ", targetIndex - 1);
+                                const prevEmojiIndex = text.lastIndexOf(":", targetIndex - 1);
+                                const prevIndex = prevSpaceIndex > prevEmojiIndex ? prevSpaceIndex + 1 : prevEmojiIndex;
+                                const nextSpaceIndex = text.indexOf(" ", targetIndex);
+                                const begin = prevIndex < 0 ? 0 : prevIndex;
+                                const end = nextSpaceIndex < 0 ? text.length : nextSpaceIndex;
+                                const newText = text.slice(0, begin) + translateShortcodeToUnicode(name).text + text.slice(end);
+                                const textMaxLength = this.$input.attr("maxlength");
+                                if (textMaxLength && newText.length > parseInt(textMaxLength)) {
+                                    newText = newText.slice(0, parseInt(textMaxLength));
+                                }
+                                this.$input.val(newText);
+                                const newCursorPosition = begin + name.length;
+                                this.$input[0].selectionEnd = newCursorPosition;
+                            },
+                        };
+                    });
+                    return {
+                        items: itemMap,
+                    };
+                },
+                events: {
+                    show: () => {
+                        this.displayed = true;
+                        setTimeout(() => {
+                            $(document).off("keydown.contextMenu").on("keydown.contextMenu", EmoteSelectorInputWrapper.prototype.CUSTOM_KEY_HANDLER.bind(this));
+                        }, 1);
+                    },
+                    hide: () => {
+                        this.displayed = false;
+                    },
+                },
+                animation: { duration: 0, show: "slideDown", hide: "slideUp" },
+            });
+        }
+        handleKeypress() {
+            if (options.disableEmojis) return;
+            const { word, entries } = emoteSelector.handleKeypress(this.$input);
+            this.items = entries;
+            this.counter++;
+            if (entries.length) {
+                if (this.currentWord !== word) {
+                    this.display();
+                }
+            }
+            else {
+                this.hide();
+            }
+            this.currentWord = word;
+        }
+        display() {
+            if (this.displayed) {
+                this.$input.contextMenu("hide");
+                this.$input.contextMenu();
+            }
+            else {
+                this.$input.contextMenu();
+                this.displayed = true;
+            }
+        }
+        hide() {
+            if (this.displayed) {
+                this.$input.contextMenu("hide");
+            }
+        }
+    }
+
     // add joypixels emojis list to the game
     if (fetchEmojiList) {
         fetch(joypixelsUrl)
@@ -542,9 +640,14 @@ function setup() {
     }
 
     // auto convert shortcodes
-    $("#qpAnswerInput").on("input", convertText);
+    const $qpAnswerInput = $("#qpAnswerInput");
+    $qpAnswerInput.on("input", convertText);
     $("#mhRoomNameInput").on("input", convertText);
     $("#hostCustomQuizRoomName").on("input", convertText);
+
+    // setup emoji selector on answer input
+    const answerEmoteSelector = new AnswerBoxEmoteWrapper($qpAnswerInput, "#qpAnswerInput");
+    $qpAnswerInput.on("keyup", () => { answerEmoteSelector.handleKeypress() });
 
     AMQ_addScriptData({
         name: SCRIPT_NAME,
