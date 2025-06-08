@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.140
+// @version      0.141
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -105,7 +105,7 @@ OTHER
 
 "use strict";
 if (typeof Listener === "undefined") return;
-const SCRIPT_VERSION = "0.140";
+const SCRIPT_VERSION = "0.141";
 const SCRIPT_NAME = "Mega Commands";
 const saveData = validateLocalStorage("megaCommands");
 const originalOrder = { qb: [], gm: [] };
@@ -869,26 +869,16 @@ function setup() {
         if (acReverse || acPlaybackRate) {
             const url = formatURL(data.videoInfo.videoMap?.catbox?.[0]);
             if (url) {
-                let arrayBuffer = await urlToArrayBuffer(url);
-                let audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-                if (acReverse) {
-                    audioBuffer = reverseAudioBuffer(audioBuffer);
-                }
-                audioBuffers[quiz.infoContainer.currentSongNumber + 1] = { startPoint: data.startPont, audioBuffer: audioBuffer };
+                const arrayBuffer = await urlToArrayBuffer(url);
+                const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+                if (acReverse) reverseAudioBuffer(audioBuffer);
+                audioBuffers[quiz.infoContainer.currentSongNumber + 1] = { startPoint: data.startPoint, audioBuffer: audioBuffer };
             }
         }
     }).bindListener();
     new Listener("game invite", (data) => {
-        if (autoAcceptInvite && !inRoom()) {
-            if (autoAcceptInvite === "all") {
-                roomBrowser.fireSpectateGame(data.gameId, undefined, true);
-            }
-            else if (autoAcceptInvite === "friends" && socialTab.isFriend(data.sender)) {
-                roomBrowser.fireSpectateGame(data.gameId, undefined, true);
-            }
-            else if (Array.isArray(autoAcceptInvite) && autoAcceptInvite.includes(data.sender.toLowerCase())) {
-                roomBrowser.fireSpectateGame(data.gameId, undefined, true);
-            }
+        if (autoAcceptInvite && !inRoom() && checkAutoInvite(data.sender)) {
+            roomBrowser.fireSpectateGame(data.gameId, undefined, true);
         }
     }).bindListener();
     new Listener("friend state change", (data) => {
@@ -919,7 +909,9 @@ function setup() {
             }
             if (playerDetection.players.length) {
                 for (const player of playerDetection.players) {
-                    if (room.players.includes(player)) popoutMessages.displayStandardMessage(player, `Room ${room.id}: ${room.settings.roomName}`);
+                    if (room.players.includes(player)) {
+                        popoutMessages.displayStandardMessage(player, `Room ${room.id}: ${room.settings.roomName}`);
+                    }
                 }
             }
         }
@@ -936,16 +928,8 @@ function setup() {
         }
     }).bindListener();
     new Listener("nexus game invite", (data) => {
-        if (autoAcceptInvite && !inRoom()) {
-            if (autoAcceptInvite === "all") {
-                socket.sendCommand({ type: "nexus", command: "join dungeon lobby", data: { lobbyId: data.lobbyId } });
-            }
-            else if (autoAcceptInvite === "friends" && socialTab.isFriend(data.sender)) {
-                socket.sendCommand({ type: "nexus", command: "join dungeon lobby", data: { lobbyId: data.lobbyId } });
-            }
-            else if (Array.isArray(autoAcceptInvite) && autoAcceptInvite.includes(data.sender.toLowerCase())) {
-                socket.sendCommand({ type: "nexus", command: "join dungeon lobby", data: { lobbyId: data.lobbyId } });
-            }
+        if (autoAcceptInvite && !inRoom() && checkAutoInvite(data.sender)) {
+            socket.sendCommand({ type: "nexus", command: "join dungeon lobby", data: { lobbyId: data.lobbyId } });
         }
     }).bindListener();
     new Listener("nexus lobby host change", (data) => {
@@ -1688,7 +1672,9 @@ function setup() {
     });
 
     updateCommandListWindow();
-    $("#optionListSettings").before(`<li class="clickAble" onclick="$('#mcSettingsModal').modal('show')">Commands</li>`);
+    $("#optionListSettings").before($("<li>", { class: "clickAble", text: "Commands" }).click(() => {
+        $("#mcSettingsModal").modal("show");
+    }));
 
     applyStyles();
     AMQ_addScriptData({
@@ -1732,25 +1718,21 @@ async function parseCommand(messageText, type, target) {
     const command = split[0].slice(commandPrefix.length);
     if (command === "players") {
         let list = getPlayerList();
-        if (split[1]) {
-            if (split[1].startsWith("l")) {
-                list = list.map((p) => p.toLowerCase());
-            }
-            else if (split[1].startsWith("u")) {
-                list = list.map((p) => p.toUpperCase());
-            }
+        if (split[1]?.startsWith("l")) {
+            list = list.map(p => p.toLowerCase());
+        }
+        else if (split[1]?.startsWith("u")) {
+            list = list.map(p => p.toUpperCase());
         }
         sendMessage(list.join(", "), type, target);
     }
     else if (command === "spectators") {
         let list = getSpectatorList();
-        if (split[1]) {
-            if (split[1].startsWith("l")) {
-                list = list.map((p) => p.toLowerCase());
-            }
-            else if (split[1].startsWith("u")) {
-                list = list.map((p) => p.toUpperCase());
-            }
+        if (split[1]?.startsWith("l")) {
+            list = list.map(p => p.toLowerCase());
+        }
+        else if (split[1]?.startsWith("u")) {
+            list = list.map(p => p.toUpperCase());
         }
         sendMessage(list.join(", "), type, target);
     }
@@ -3801,6 +3783,50 @@ async function parseCommand(messageText, type, target) {
             sendMessage(tagList.map((x) => `${x.tag}: ${x.id}`).join(", "), type, target);
         }
     }
+    else if (command === "artistid") {
+        const id = parseInt(split[1]);
+        if (isNaN(id)) return;
+        let timedOut = false;
+        const timeoutHandle = setTimeout(() => {
+            timedOut = true;
+            listener.unbindListener();
+        }, 2000);
+        const listener = new Listener("artist hover information", (data) => {
+            if (timedOut) return;
+            clearTimeout(timeoutHandle);
+            listener.unbindListener();
+            console.log(data.hoverInfo);
+            sendMessage(data.hoverInfo.name, type, target);
+        });
+        listener.bindListener();
+        socket.sendCommand({
+            type: "library",
+            command: "artist hover information",
+            data: { artistId: id }
+        });
+    }
+    else if (command === "groupid") {
+        const id = parseInt(split[1]);
+        if (isNaN(id)) return;
+        let timedOut = false;
+        const timeoutHandle = setTimeout(() => {
+            timedOut = true;
+            listener.unbindListener();
+        }, 2000);
+        const listener = new Listener("artist hover information", (data) => {
+            if (timedOut) return;
+            clearTimeout(timeoutHandle);
+            listener.unbindListener();
+            console.log(data.hoverInfo);
+            sendMessage(data.hoverInfo.name, type, target);
+        });
+        listener.bindListener();
+        socket.sendCommand({
+            type: "library",
+            command: "artist hover information",
+            data: { groupId: id }
+        });
+    }
     else if (command === "list" || command === "animelist") {
         if (split.length === 1) {
             if ($("#aniListUserNameInput").val()) {
@@ -4563,7 +4589,7 @@ function startHotkeyRecord() {
 // input hotKeys[action] and convert the data to a string for the input field
 function bindingToText(b) {
     if (!b) return "";
-    let keys = [];
+    const keys = [];
     if (b.ctrl) keys.push("CTRL");
     if (b.alt) keys.push("ALT");
     if (b.shift) keys.push("SHIFT");
@@ -4942,7 +4968,7 @@ function changeGameSettings(settings) {
 function getClosestNameInRoom(text) {
     const name = text.toLowerCase();
     const list = [];
-    for (player of getEveryoneInRoom()) {
+    for (const player of getEveryoneInRoom()) {
         const lower = player.toLowerCase();
         if (lower === name) {
             return player;
@@ -5080,6 +5106,14 @@ function checkAutoHost() {
             socket.sendCommand({ type: "nexus", command: "nexus promote host", data: { name: getPlayerNameCorrectCase(autoHost) } });
         }
     }
+}
+
+// check conditions for auto accepting a game invite
+function checkAutoInvite(name) {
+    if (autoAcceptInvite === "all") return true;
+    if (autoAcceptInvite === "friends" && socialTab.isFriend(name)) return true;
+    if (Array.isArray(autoAcceptInvite) && autoAcceptInvite.includes(name.toLowerCase())) return true;
+    return false;
 }
 
 // join ranked, options: NOVICE, EXPERT  (themed is expert)
@@ -5244,7 +5278,7 @@ function autoList() {
     if (autoInvite) list.push("Auto Invite: " + autoInvite);
     if (autoAcceptInvite) list.push("Auto Accept Invite: Enabled");
     if (autoVoteLobby) list.push("Auto Vote Lobby: Enabled");
-    if (autoSwitch.mode) list.push("Auto Switch: " + autoSwitch);
+    if (autoSwitch.mode) list.push("Auto Switch: " + autoSwitch.mode);
     if (autoStatus) list.push("Auto Status: " + autoStatus);
     if (autoJoinRoom) list.push("Auto Join Room: " + autoJoinRoom.id);
     if (autoDownloadSong.length) list.push("Auto Download Song: " + autoDownloadSong.join(", "));
@@ -5574,17 +5608,19 @@ async function downloadSong(url) {
     element.remove();
 }
 
-// input audio buffer, return reversed audio buffer
+// reverse audio buffer in place
 function reverseAudioBuffer(audioBuffer) {
-    let reversedBuffer = audioContext.createBuffer(audioBuffer.numberOfChannels, audioBuffer.length, audioBuffer.sampleRate);
     for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
-        let inputData = audioBuffer.getChannelData(channel);
-        let outputData = reversedBuffer.getChannelData(channel);
-        for (let i = 0; i < audioBuffer.length; i++) {
-            outputData[i] = inputData[audioBuffer.length - i - 1];
+        const data = audioBuffer.getChannelData(channel);
+        const len = data.length;
+        const half = Math.floor(len / 2);
+        for (let i = 0; i < half; i++) {
+            const tmp = data[i];
+            data[i] = data[len - 1 - i];
+            data[len - 1 - i] = tmp;
         }
     }
-    return reversedBuffer;
+    return audioBuffer;
 }
 
 // validate json data in local storage
@@ -5601,49 +5637,54 @@ function validateLocalStorage(item) {
 
 // import local storage
 function importLocalStorage() {
-    $("body").remove("#mcUploadLocalStorageInput").append($(`<input type="file" id="mcUploadLocalStorageInput" style="display: none"></input>`).on("change", function () {
-        if (this.files.length) {
-            this.files[0].text().then((data) => {
-                try {
-                    let json = JSON.parse(data);
-                    if (typeof json === "object" && Object.values(json).every((x) => typeof x === "string")) {
-                        let keys = Object.keys(json);
-                        for (let key of keys) {
-                            localStorage.setItem(key, json[key]);
-                        }
-                        createLocalStorageList();
-                        messageDisplayer.displayMessage(`${keys.length} item${keys.length === 1 ? "" : "s"} loaded into local storage`);
+    $("#mcUploadLocalStorageInput").remove();
+    const $input = $("<input", { id: "mcUploadLocalStorageInput", type: "file", accept: ".json", style: "display: none" });
+    $input.on("change", function () {
+        if (!this.files.length) return;
+        this.files[0].text().then((data) => {
+            try {
+                const json = JSON.parse(data);
+                if (typeof json === "object" && Object.values(json).every((x) => typeof x === "string")) {
+                    const keys = Object.keys(json);
+                    for (const key of keys) {
+                        localStorage.setItem(key, json[key]);
                     }
-                    else {
-                        messageDisplayer.displayMessage("Upload Error");
-                    }
+                    createLocalStorageList();
+                    messageDisplayer.displayMessage(`${keys.length} item${keys.length === 1 ? "" : "s"} loaded into local storage`);
                 }
-                catch {
+                else {
                     messageDisplayer.displayMessage("Upload Error");
                 }
-                finally {
-                    $(this).remove();
-                }
-            });
-        }
-    }));
-    $("#mcUploadLocalStorageInput").trigger("click");
+            }
+            catch {
+                messageDisplayer.displayMessage("Upload Error");
+            }
+            finally {
+                $input.remove();
+            }
+        });
+    });
+    $input.appendTo("body").trigger("click");
 }
 
 // export local storage
 function exportLocalStorage() {
-    let date = new Date();
-    let dateFormatted = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, 0)}-${String(date.getDate()).padStart(2, 0)}`;
-    let timeFormatted = `${String(date.getHours()).padStart(2, 0)}.${String(date.getMinutes()).padStart(2, 0)}.${String(date.getSeconds()).padStart(2, 0)}`;
-    let storage = {};
-    for (let key of Object.keys(localStorage)) {
+    const date = new Date();
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, 0);
+    const day = String(date.getDate()).padStart(2, 0);
+    const hour = String(date.getHours()).padStart(2, 0);
+    const minute = String(date.getMinutes()).padStart(2, 0);
+    const second = String(date.getSeconds()).padStart(2, 0);
+    const storage = {};
+    for (const key of Object.keys(localStorage)) {
         storage[key] = localStorage[key];
     }
     delete storage["__paypal_storage__"];
-    let text = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(storage));
-    let element = document.createElement("a");
+    const text = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(storage));
+    const element = document.createElement("a");
     element.setAttribute("href", text);
-    element.setAttribute("download", `amq local storage export - ${selfName} ${dateFormatted} ${timeFormatted}.json`);
+    element.setAttribute("download", `amq local storage export - ${selfName} ${year}-${month}-${day} ${hour}.${minute}.${second}.json`);
     document.body.appendChild(element);
     element.click();
     element.remove();
