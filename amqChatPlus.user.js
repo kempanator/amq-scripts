@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Chat Plus
 // @namespace    https://github.com/kempanator
-// @version      0.36
+// @version      0.37
 // @description  Add new features to chat and messages
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -41,7 +41,7 @@ const loadInterval = setInterval(() => {
     }
 }, 500);
 
-const SCRIPT_VERSION = "0.36";
+const SCRIPT_VERSION = "0.37";
 const SCRIPT_NAME = "Chat Plus";
 const saveData = validateLocalStorage("chatPlus");
 const tenorApiKey = "LIVDSRZULELA";
@@ -570,7 +570,7 @@ function setup() {
                                 const nextSpaceIndex = text.indexOf(" ", targetIndex);
                                 const begin = prevIndex < 0 ? 0 : prevIndex;
                                 const end = nextSpaceIndex < 0 ? text.length : nextSpaceIndex;
-                                const newText = text.slice(0, begin) + translateShortcodeToUnicode(name).text + text.slice(end);
+                                let newText = text.slice(0, begin) + translateShortcodeToUnicode(name).text + text.slice(end);
                                 const textMaxLength = this.$input.attr("maxlength");
                                 if (textMaxLength && newText.length > parseInt(textMaxLength)) {
                                     newText = newText.slice(0, parseInt(textMaxLength));
