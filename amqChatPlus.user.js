@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Chat Plus
 // @namespace    https://github.com/kempanator
-// @version      0.37
+// @version      0.38
 // @description  Add new features to chat and messages
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -41,7 +41,7 @@ const loadInterval = setInterval(() => {
     }
 }, 500);
 
-const SCRIPT_VERSION = "0.37";
+const SCRIPT_VERSION = "0.38";
 const SCRIPT_NAME = "Chat Plus";
 const saveData = validateLocalStorage("chatPlus");
 const tenorApiKey = "LIVDSRZULELA";
@@ -589,7 +589,7 @@ function setup() {
                     show: () => {
                         this.displayed = true;
                         setTimeout(() => {
-                            $(document).off("keydown.contextMenu").on("keydown.contextMenu", EmoteSelectorInputWrapper.prototype.CUSTOM_KEY_HANDLER.bind(this));
+                            $(document).off("keydown.contextMenu").on("keydown.contextMenu", AnswerBoxEmoteWrapper.prototype.CUSTOM_KEY_HANDLER.bind(this));
                         }, 1);
                     },
                     hide: () => {
@@ -630,6 +630,13 @@ function setup() {
             }
         }
     }
+
+    // create new custom key handler for AnswerBoxEmoteWrapper, must not activate when dropdown is visible
+    const oldCustomKeyHandler = EmoteSelectorInputWrapper.prototype.CUSTOM_KEY_HANDLER;
+    AnswerBoxEmoteWrapper.prototype.CUSTOM_KEY_HANDLER = function (e) {
+        if (quiz.answerInput.typingInput.autoCompleteController.awesomepleteInstance.ul.getAttribute("hidden") === null) return;
+        oldCustomKeyHandler.apply(this, arguments);
+    };
 
     // add joypixels emojis list to the game
     if (fetchEmojiList) {
