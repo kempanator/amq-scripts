@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Score Counter
 // @namespace    https://github.com/kempanator
-// @version      0.5
+// @version      0.6
 // @description  Adds a user interface to keep track of custom score game modes
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -14,57 +14,59 @@
 
 "use strict";
 if (typeof Listener === "undefined") return;
-let loadInterval = setInterval(() => {
-    if ($("#loadingScreen").hasClass("hidden")) {
+const loadInterval = setInterval(() => {
+    if (document.querySelector("#loadingScreen.hidden")) {
         clearInterval(loadInterval);
         setup();
     }
 }, 500);
 
-const version = "0.5";
+const SCRIPT_VERSION = "0.6";
+const SCRIPT_NAME = "Custom Score Counter";
 const saveData = validateLocalStorage("customScoreCounter");
 let teams = {}; //[1: {number: 1, players: ["name"], correct: 0, score: 0}]
 let soloBonus = 0; //bonus points for solo correct guess
-let scoreMap = {1: {}, 2: {}, 3: {}, 4: {}};
-let scoreTableSort = {mode: "team", ascending: true};
-let hotKeys = {
-    cscWindow: saveData.hotKeys?.cscWindow ?? {altKey: false, ctrlKey: false, key: ""}
-};
+let scoreMap = { 1: {}, 2: {}, 3: {}, 4: {} };
+let scoreTableSort = { mode: "team", ascending: true };
 let cscWindow;
+let hotKeys = {
+    cscWindow: loadHotkey("cscWindow")
+};
 
+// setup
 function setup() {
-    new Listener("game chat update", (payload) => {
-        for (let message of payload.messages) {
+    new Listener("game chat update", (data) => {
+        for (let message of data.messages) {
             if (message.sender === selfName) parseMessage(message.message);
         }
     }).bindListener();
-    new Listener("Game Chat Message", (payload) => {
-        if (payload.sender === selfName) parseMessage(payload.message);
+    new Listener("Game Chat Message", (data) => {
+        if (data.sender === selfName) parseMessage(data.message);
     }).bindListener();
-    new Listener("Game Starting", (payload) => {
+    new Listener("Game Starting", (data) => {
         resetScores();
     }).bindListener();
-    new Listener("Join Game", (payload) => {
-        createTeamTable(payload.players || payload.quizState?.players);
+    new Listener("Join Game", (data) => {
+        createTeamTable(data.players || data.quizState?.players);
     }).bindListener();
-    new Listener("Spectate Game", (payload) => {
-        createTeamTable(payload.players || payload.quizState?.players);
+    new Listener("Spectate Game", (data) => {
+        createTeamTable(data.players || data.quizState?.players);
     }).bindListener();
-    new Listener("Player Changed To Spectator", (payload) => {
+    new Listener("Player Changed To Spectator", (data) => {
         setTimeout(() => {
             createTeamTable(Object.values(lobby.players));
         }, 0);
     }).bindListener();
-    new Listener("Spectator Change To Player", (payload) => {
+    new Listener("Spectator Change To Player", (data) => {
         setTimeout(() => {
             createTeamTable(Object.values(lobby.players));
         }, 0);
     }).bindListener();
-    new Listener("answer results", (payload) => {
+    new Listener("answer results", (data) => {
         if (Object.keys(teams).length === 0) return;
         let totalCorrect = 0;
-        let totalCorrectMap =  Object.fromEntries(Object.keys(teams).map(t => [t, 0])); //{teamNumber: #correct}
-        for (let player of payload.players) {
+        let totalCorrectMap = Object.fromEntries(Object.keys(teams).map(t => [t, 0])); //{teamNumber: #correct}
+        for (let player of data.players) {
             if (player.correct) {
                 let name = quiz.players[player.gamePlayerId]?.name;
                 let team = Object.values(teams).find(t => t.players.includes(name));
@@ -105,36 +107,56 @@ function setup() {
         id: "cscPanel",
         width: 1.0,
         height: "100%",
-        scrollable: {x: true, y: true}
+        scrollable: { x: true, y: true }
     });
 
-    $("#qpOptionContainer").width($("#qpOptionContainer").width() + 35);
-    $("#qpOptionContainer > div").append($(`<div id="qpCSC" class="clickAble qpOption"><i aria-hidden="true" class="fa fa-plus qpMenuItem"></i></div>`)
-        .click(() => {
-            cscWindow.isVisible() ? cscWindow.close() : cscWindow.open();
-        })
-        .popover({
-            content: "Custom Score Counter",
-            trigger: "hover",
-            placement: "bottom"
-        })
-    );
-
-    document.body.addEventListener("keydown", (event) => {
-        const key = event.key;
-        const altKey = event.altKey;
-        const ctrlKey = event.ctrlKey;
-        if (testHotkey("cscWindow", key, altKey, ctrlKey)) {
+    const hotkeyActions = {
+        cscWindow: () => {
             cscWindow.isVisible() ? cscWindow.close() : cscWindow.open();
         }
+    };
+
+    document.addEventListener("keydown", (event) => {
+        const key = event.key.toUpperCase();
+        const ctrl = event.ctrlKey;
+        const alt = event.altKey;
+        const shift = event.shiftKey;
+        const match = (b) => {
+            if (!b.key) return false;
+            if (key !== b.key) return false;
+            if (ctrl !== b.ctrl) return false;
+            if (alt !== b.alt) return false;
+            if (shift !== b.shift) return false;
+            return true;
+        }
+        for (const [action, bind] of Object.entries(hotKeys)) {
+            if (match(bind)) {
+                event.preventDefault();
+                hotkeyActions[action]();
+            }
+        }
     });
+
+    $("#qpOptionContainer")
+        .width((i, w) => w + 35)
+        .children("div")
+        .append($(`<div id="qpCSC" class="clickAble qpOption"><i aria-hidden="true" class="fa fa-plus qpMenuItem"></i></div>`)
+            .click(() => {
+                cscWindow.isVisible() ? cscWindow.close() : cscWindow.open();
+            })
+            .popover({
+                content: "Custom Score Counter",
+                trigger: "hover",
+                placement: "bottom"
+            })
+        );
 
     setupcscWindow();
     applyStyles();
     AMQ_addScriptData({
-        name: "Custom Score Counter",
+        name: SCRIPT_NAME,
         author: "kempanator",
-        version: version,
+        version: SCRIPT_VERSION,
         link: "https://github.com/kempanator/amq-scripts/raw/main/amqCustomScoreCounter.user.js",
         description: `
             <p>Type /csc or click the + button in the options bar during quiz to open the custom score counter user interface</p>
@@ -154,41 +176,80 @@ function sendChatMessage(text, teamChat) {
     socket.sendCommand({
         type: "lobby",
         command: "game chat message",
-        data: {msg: String(text), teamMessage: Boolean(teamChat)}
+        data: { msg: String(text), teamMessage: Boolean(teamChat) }
     });
 }
 
-// create hotkey element
-function createHotkeyElement(title, key, selectID, inputID) {
-    let $select = $(`<select id="${selectID}" style="padding: 3px 0;"></select>`).append(`<option>ALT</option>`).append(`<option>CTRL</option>`).append(`<option>CTRL ALT</option>`).append(`<option>-</option>`);
-    let $input = $(`<input id="${inputID}" type="text" maxlength="1" style="width: 40px;">`).val(hotKeys[key].key);
-    $select.on("change", () => {
-        hotKeys[key] = {
-            "altKey": $select.val().includes("ALT"),
-            "ctrlKey": $select.val().includes("CTRL"),
-            "key": $input.val().toLowerCase()
-        }
-        saveSettings();
-    });
-    $input.on("change", () => {
-        hotKeys[key] = {
-            "altKey": $select.val().includes("ALT"),
-            "ctrlKey": $select.val().includes("CTRL"),
-            "key": $input.val().toLowerCase()
-        }
-        saveSettings();
-    })
-    if (hotKeys[key].altKey && hotKeys[key].ctrlKey) $select.val("CTRL ALT");
-    else if (hotKeys[key].altKey) $select.val("ALT");
-    else if (hotKeys[key].ctrlKey) $select.val("CTRL");
-    else $select.val("-");
-    $("#cscHotkeyTable tbody").append($(`<tr></tr>`).append($(`<td></td>`).text(title)).append($(`<td></td>`).append($select)).append($(`<td></td>`).append($input)));
+// load hotkey from local storage, input optional default values
+function loadHotkey(action, key = "", ctrl = false, alt = false, shift = false) {
+    const item = saveData.hotKeys?.[action];
+    return {
+        key: (item?.key ?? key).toUpperCase(),
+        ctrl: item?.ctrl ?? item?.ctrlKey ?? ctrl,
+        alt: item?.alt ?? item?.altKey ?? alt,
+        shift: item?.shift ?? item?.shiftKey ?? shift
+    }
 }
 
-// test hotkey
-function testHotkey(action, key, altKey, ctrlKey) {
-    let hotkey = hotKeys[action];
-    return key === hotkey.key && altKey === hotkey.altKey && ctrlKey === hotkey.ctrlKey;
+// create hotkey rows and add to table
+function createHotkeyTable(data) {
+    const $tbody = $("#cscHotkeyTable tbody");
+    for (const { action, title } of data) {
+        const $input = $("<input>", { type: "text", class: "hk-input", readonly: true, "data-action": action })
+            .val(bindingToText(hotKeys[action]))
+            .on("click", startHotkeyRecord);
+        $tbody.append($("<tr>")
+            .append($("<td>", { text: title }))
+            .append($("<td>").append($input)));
+    }
+}
+
+// begin hotkey capture on click
+function startHotkeyRecord() {
+    const $input = $(this);
+    if ($input.hasClass("recording")) return;
+    const action = $input.data("action");
+    const capture = (e) => {
+        e.stopImmediatePropagation();
+        e.preventDefault();
+        if (!e.key) return;
+        if (["Shift", "Control", "Alt", "Meta"].includes(e.key)) return;
+        if ((e.key === "Delete" || e.key === "Backspace" || e.key === "Escape") && !e.altKey && !e.ctrlKey && !e.shiftKey && !e.metaKey) {
+            hotKeys[action] = {
+                key: "",
+                ctrl: false,
+                alt: false,
+                shift: false
+            };
+        }
+        else {
+            hotKeys[action] = {
+                key: e.key.toUpperCase(),
+                ctrl: e.ctrlKey,
+                alt: e.altKey,
+                shift: e.shiftKey
+            };
+        }
+        saveSettings();
+        finish();
+    };
+    const finish = () => {
+        document.removeEventListener("keydown", capture, true);
+        $input.removeClass("recording").val(bindingToText(hotKeys[action])).off("blur", finish);
+    };
+    document.addEventListener("keydown", capture, true);
+    $input.addClass("recording").val("Press keys…").on("blur", finish);
+}
+
+// input hotKeys[action] and convert the data to a string for the input field
+function bindingToText(b) {
+    if (!b) return "";
+    const keys = [];
+    if (b.ctrl) keys.push("CTRL");
+    if (b.alt) keys.push("ALT");
+    if (b.shift) keys.push("SHIFT");
+    if (b.key) keys.push(b.key === " " ? "SPACE" : b.key);
+    return keys.join(" + ");
 }
 
 // get players list
@@ -205,14 +266,14 @@ function getPlayers() {
 // crteate team table, input array of Player objects
 function createTeamTable(players) {
     if (!players) return;
-    let $tbody = $("#cscTeamTable tbody").empty();
+    const $tbody = $("#cscTeamTable tbody").empty();
     players.sort((a, b) => a.name.localeCompare(b.name));
     for (let player of players) {
-        let team = Object.values(teams).find(t => t.players.includes(player.name));
+        const team = Object.values(teams).find(t => t.players.includes(player.name));
         $tbody.append($(`<tr></tr>`)
-            .append($(`<td class="name"></td>`).text(player.name))
-            .append($(`<td class="team"></td>`)
-                .append($(`<input type="text">`).val(team?.number || ""))
+            .append($("<td>", { class: "name", text: player.name }))
+            .append($("<td>", { class: "team" })
+                .append($("<input>", { type: "text" }).val(team?.number || ""))
             )
         );
     }
@@ -221,15 +282,15 @@ function createTeamTable(players) {
 // update team table
 function updateTeamTable() {
     teams = {};
-    for (let tr of $("#cscTeamTable tbody tr")) {
-        let name = $(tr).find("td.name").text();
-        let teamNumber = $(tr).find("input").val();
+    for (const tr of $("#cscTeamTable tbody tr")) {
+        const name = $(tr).find("td.name").text();
+        const teamNumber = $(tr).find("input").val();
         if (!isNaN(teamNumber) && teamNumber > 0) {
             if (teams.hasOwnProperty(teamNumber)) {
                 teams[teamNumber].players.push(name);
             }
             else {
-                teams[teamNumber] = {number: teamNumber, players: [name], correct: 0, score: 0};
+                teams[teamNumber] = { number: teamNumber, players: [name], correct: 0, score: 0 };
             }
         }
     }
@@ -237,18 +298,18 @@ function updateTeamTable() {
 
 // shuffle teams
 function shuffleTeams() {
-    let players = getPlayers();
-    let teamSize = parseInt($("#cscTeamSizeInput").val());
+    const players = getPlayers();
+    const teamSize = parseInt($("#cscTeamSizeInput").val());
     if (isNaN(teamSize) || teamSize < 1) return;
     let numTeams = Math.ceil(players.length / teamSize);
     teams = {};
     for (let i = 1; i <= numTeams; i++) {
-        teams[i] = {number: i, players: [], correct: 0, score: 0};
+        teams[i] = { number: i, players: [], correct: 0, score: 0 };
     }
-    let ids = shuffleArray(players.map(p => p.gamePlayerId));
+    const ids = shuffleArray(players.map(p => p.gamePlayerId));
     for (let i = 0; i < ids.length; i++) {
-        let id = ids[i];
-        let name = players.find(p => p.gamePlayerId === id)?._name;
+        const id = ids[i];
+        const name = players.find(p => p.gamePlayerId === id)?._name;
         teams[i % numTeams + 1].players.push(name);
     }
     createTeamTable(players);
@@ -256,7 +317,7 @@ function shuffleTeams() {
 
 // import current team setup from lobby
 function importTeamsFromLobby() {
-    let teamSize = parseInt(hostModal.$teamSize.val()) || 0;
+    const teamSize = parseInt(hostModal.$teamSize.val()) || 0;
     if (teamSize > 1) {
         $("#cscTeamSizeInput").val(teamSize);
         let players = getPlayers();
@@ -268,7 +329,7 @@ function importTeamsFromLobby() {
                     teams[teamNumber].players.push(player.name);
                 }
                 else {
-                    teams[teamNumber] = {number: teamNumber, players: [player.name], correct: 0, score: 0};
+                    teams[teamNumber] = { number: teamNumber, players: [player.name], correct: 0, score: 0 };
                 }
             }
         }
@@ -281,18 +342,18 @@ function importTeamsFromLobby() {
 
 // import current team setup from chat
 function importTeamsFromChat() {
+    const players = getPlayers();
     let importStarted = false;
-    let players = getPlayers();
     let tempTeams = {};
     for (let message of $("#gcMessageContainer .gcMessage").toArray().reverse()) {
-        let text = $(message).text();
-        let regex = /^Team ([0-9]+):(.+) - [0-9]+$/.exec(text);
+        const text = $(message).text();
+        const regex = /^Team ([0-9]+):(.+) - [0-9]+$/.exec(text);
         if (regex) {
             importStarted = true;
-            let teamNumber = parseInt(regex[1]);
-            let names = regex[2].split(/[\s,]+/).filter(Boolean);
+            const teamNumber = parseInt(regex[1]);
+            const names = regex[2].split(/[\s,]+/).filter(Boolean);
             if (!tempTeams.hasOwnProperty(teamNumber)) {
-                tempTeams[teamNumber] = {number: teamNumber, players: names, correct: 0, score: 0};
+                tempTeams[teamNumber] = { number: teamNumber, players: names, correct: 0, score: 0 };
             }
         }
         else if (importStarted) {
@@ -302,7 +363,7 @@ function importTeamsFromChat() {
     if (importStarted) {
         teams = tempTeams;
         if (Object.keys(teams).length) {
-            let teamSize = Math.max(...Object.values(teams).map(t => t.players.length));
+            const teamSize = Math.max(...Object.values(teams).map(t => t.players.length));
             $("#cscTeamSizeInput").val(teamSize);
         }
         createTeamTable(players);
@@ -315,7 +376,7 @@ function importTeamsFromChat() {
 // update score table
 function updateScoreTable() {
     if (Object.keys(teams).length === 0) return;
-    let $tbody = $("#cscScoreTable tbody").empty();
+    const $tbody = $("#cscScoreTable tbody").empty();
     let sortedKeys = Object.keys(teams);
     if (scoreTableSort.mode === "team") {
         sortedKeys.sort((a, b) => a - b);
@@ -329,24 +390,24 @@ function updateScoreTable() {
     if (!scoreTableSort.ascending) {
         sortedKeys.reverse();
     }
-    for (let key of sortedKeys) {
-        let team = teams[key];
+    for (const key of sortedKeys) {
+        const team = teams[key];
         $tbody.append(`<tr><td>${team.number}: ${team.players.join(", ")}</td><td class="correct">${team.correct}</td><td class="score">${team.score}</td></tr>`);
     }
 }
 
 // create score map user inputs
 function createScoreMap(teamSize) {
-    let $thead = $("#cscScoreMapTable thead").empty();
-    let $tbody = $("#cscScoreMapTable tbody").empty();
+    const $thead = $("#cscScoreMapTable thead").empty();
+    const $tbody = $("#cscScoreMapTable tbody").empty();
     if (teamSize) $("#cscTeamSizeInput").val(teamSize);
     else teamSize = parseInt($("#cscTeamSizeInput").val());
     if (isNaN(teamSize) || teamSize < 1) return;
     $thead.append(`<tr><th colspan="${teamSize + 2}" style="text-align: center;"># Correct</th></tr>`);
     for (let i = 0; i <= teamSize; i++) {
-        let $tr = $(`<tr></tr>`);
+        const $tr = $(`<tr></tr>`);
         for (let j = 0; j <= teamSize + 1; j++) {
-            let $td = $(`<td></td>`);
+            const $td = $("<td>");
             if (i === 0 && j === 0) {
                 //$td.text("");
             }
@@ -367,7 +428,7 @@ function createScoreMap(teamSize) {
 
 // read score map user inputs and update score maps
 function updateScoreMap() {
-    let inputs = $("#cscScoreMapTable input").toArray().map(x => parseFloat(x.value) || 0);
+    const inputs = $("#cscScoreMapTable input").toArray().map(x => parseFloat(x.value) || 0);
     if (inputs.length === 0) return;
     scoreMap = {};
     let start = 0;
@@ -389,14 +450,13 @@ function resetScores() {
     updateScoreTable();
 }
 
-// reset tabs in csc window
-function tabReset() {
-    $("#cscTeamTab").removeClass("selected");
-    $("#cscScoreTab").removeClass("selected");
-    $("#cscSettingsTab").removeClass("selected");
-    $("#cscTeamContainer").hide();
-    $("#cscScoreContainer").hide();
-    $("#cscSettingsContainer").hide();
+// reset all tabs and switch to the inputted tab
+function switchTab(tab) {
+    const $w = $("#cscWindow");
+    $w.find(".tab").removeClass("selected");
+    $w.find(".tabSection").hide();
+    $w.find(`#${tab}Tab`).addClass("selected");
+    $w.find(`#${tab}Container`).show();
 }
 
 // used for sorting table contents when you click a header
@@ -418,24 +478,18 @@ function setupcscWindow() {
         }))
         .append(`<h2>Custom Score Counter</h2>`)
         .append($(`<div class="tabContainer">`)
-        .append($(`<div id="cscTeamTab" class="tab clickAble selected"><span>Teams</span></div>`).click(function() {
-            tabReset();
-            $(this).addClass("selected");
-            $("#cscTeamContainer").show();
-        }))
-        .append($(`<div id="cscScoreTab" class="tab clickAble"><span>Score</span></div>`).click(function() {
-            tabReset();
-            $(this).addClass("selected");
-            $("#cscScoreContainer").show();
-        }))
-        .append($(`<div id="cscSettingsTab" class="tab clickAble"><span>Settings</span></div>`).click(function() {
-            tabReset();
-            $(this).addClass("selected");
-            $("#cscSettingsContainer").show();
-        }))
-    );
+            .append($(`<div id="cscTeamTab" class="tab clickAble selected"><span>Teams</span></div>`).click(() => {
+                switchTab("cscTeam");
+            }))
+            .append($(`<div id="cscScoreTab" class="tab clickAble"><span>Score</span></div>`).click(() => {
+                switchTab("cscScore");
+            }))
+            .append($(`<div id="cscSettingsTab" class="tab clickAble"><span>Settings</span></div>`).click(() => {
+                switchTab("cscSettings");
+            }))
+        );
     cscWindow.panels[0].panel
-        .append($(`<div id="cscTeamContainer" style="padding: 10px;"></div>`)
+        .append($(`<div id="cscTeamContainer" class="tabSection" style="padding: 10px;"></div>`)
             .append($(`<button id="cscResetButton" style="user-select: none;">Reset</button>`).click(() => {
                 teams = {};
                 createTeamTable(getPlayers());
@@ -447,7 +501,7 @@ function setupcscWindow() {
                 swal({
                     title: "Select Import Method",
                     input: "select",
-                    inputOptions: {1: "From Chat", 2: "From Lobby Settings", 3: "Text"},
+                    inputOptions: { 1: "From Chat", 2: "From Lobby Settings", 3: "Text" },
                     showCancelButton: true,
                     cancelButtonText: "Cancel",
                     allowOutsideClick: true
@@ -474,7 +528,7 @@ function setupcscWindow() {
             }))
             .append($(`<table id="cscTeamTable" style="margin-top: 10px;"><thead><tr><th>Name</th><th class="team">Team #</th></tr></thead><tbody></tbody></table>`))
         )
-        .append($(`<div id="cscScoreContainer" style="padding: 10px;"></div>`).hide()
+        .append($(`<div id="cscScoreContainer" class="tabSection" style="padding: 10px;"></div>`).hide()
             .append($(`<table id="cscScoreTable"></table>`)
                 .append($(`<thead></thead>`)
                     .append($(`<tr></tr>`)
@@ -495,13 +549,13 @@ function setupcscWindow() {
                 .append($(`<tbody></tbody>`))
             )
         )
-        .append($(`<div id="cscSettingsContainer" style="padding: 10px;"></div>`).hide()
+        .append($(`<div id="cscSettingsContainer" class="tabSection" style="padding: 10px;"></div>`).hide()
             .append($(`<div></div>`)
                 .append($(`<span>Preset:</span>`))
                 .append($(`<select id="cscPresetSelect" style="margin-left: 5px; padding: 4px 2px;"></select>`)
                     .append(`<option>-</option>`)
                     .append(`<option>yashadox</option>`)
-                    .on("change", function() {
+                    .on("change", function () {
                         if (this.value === "-") {
                             soloBonus = 0;
                             scoreMap = {};
@@ -511,10 +565,10 @@ function setupcscWindow() {
                         else if (this.value === "yashadox") {
                             soloBonus = 1;
                             scoreMap = {
-                                1: {0: 0, 1: 1},
-                                2: {0: 0, 1: 1, 2: 1.75},
-                                3: {0: 0, 1: 1, 2: 1.75, 3: 2.25},
-                                4: {0: 0, 1: 1, 2: 1.75, 3: 2.25, 4: 2.5}
+                                1: { 0: 0, 1: 1 },
+                                2: { 0: 0, 1: 1, 2: 1.75 },
+                                3: { 0: 0, 1: 1, 2: 1.75, 3: 2.25 },
+                                4: { 0: 0, 1: 1, 2: 1.75, 3: 2.25, 4: 2.5 }
                             };
                             $("#cscSoloBonusInput").val(soloBonus);
                             createScoreMap(4);
@@ -522,15 +576,16 @@ function setupcscWindow() {
                     })
                 )
                 .append($(`<span style="margin: 0 5px 0 15px">Solo Bonus:</span>`))
-                .append($(`<input id="cscSoloBonusInput" type="text" style="width: 40px;">`).on("change", function() {
+                .append($(`<input id="cscSoloBonusInput" type="text" style="width: 40px;">`).on("change", function () {
                     soloBonus = parseFloat(this.value) || 0;
                 }))
             )
             .append($(`<table id="cscScoreMapTable" style="margin-top: 10px;"><thead></thead><tbody></tbody></table>`))
-            .append(`<table id="cscHotkeyTable" style="margin-top: 20px;"><thead><tr><th>Action</th><th>Modifier</th><th>Key</th></tr></thead><tbody></tbody></table>`)
-        )
-    ;
-    createHotkeyElement("Open this window", "cscWindow", "cscWindowSelect", "cscWindowInput");
+            .append(`<table id="cscHotkeyTable" style="margin-top: 20px;"><thead><tr><th>Action</th><th>Keybind</th></tr></thead><tbody></tbody></table>`)
+        );
+    createHotkeyTable([
+        { action: "cscWindow", title: "Open This Window" },
+    ]);
     createScoreMap();
 
     $("#cscTeamTable").on("change", "input", (event) => {
@@ -556,6 +611,18 @@ function setupcscWindow() {
     })
 }
 
+// validate json data in local storage
+function validateLocalStorage(item) {
+    try {
+        const json = JSON.parse(localStorage.getItem(item));
+        if (!json || typeof json !== "object") return {};
+        return json;
+    }
+    catch {
+        return {};
+    }
+}
+
 // save settings
 function saveSettings() {
     localStorage.setItem("customScoreCounter", JSON.stringify({
@@ -563,23 +630,9 @@ function saveSettings() {
     }));
 }
 
-// validate json data in local storage
-function validateLocalStorage(item) {
-    try {
-        return JSON.parse(localStorage.getItem(item)) || {};
-    }
-    catch {
-        return {};
-    }
-}
-
 // apply styles
 function applyStyles() {
-    //$("#customScoreCounterStyle").remove();
-    let style = document.createElement("style");
-    style.type = "text/css";
-    style.id = "customScoreCounterStyle";
-    style.appendChild(document.createTextNode(`
+    let css = /*css*/ `
         #qpCSC {
             width: 30px;
             margin-right: 5px;
@@ -635,6 +688,21 @@ function applyStyles() {
         #cscHotkeyTable td {
             padding: 2px 20px 2px 0;
         }
-    `));
-    document.head.appendChild(style);
+        #cscHotkeyTable input.hk-input {
+            width: 200px;
+            color: black;
+            cursor: pointer;
+            user-select: none;
+        }
+    `;
+    let style = document.getElementById("customScoreCounterStyle");
+    if (style) {
+        style.textContent = css.trim();
+    }
+    else {
+        style = document.createElement("style");
+        style.id = "customScoreCounterStyle";
+        style.textContent = css.trim();
+        document.head.appendChild(style);
+    }
 }
