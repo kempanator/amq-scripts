@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Chat Plus
 // @namespace    https://github.com/kempanator
-// @version      0.38
+// @version      0.39
 // @description  Add new features to chat and messages
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -41,7 +41,7 @@ const loadInterval = setInterval(() => {
     }
 }, 500);
 
-const SCRIPT_VERSION = "0.38";
+const SCRIPT_VERSION = "0.39";
 const SCRIPT_NAME = "Chat Plus";
 const saveData = validateLocalStorage("chatPlus");
 const tenorApiKey = "LIVDSRZULELA";
@@ -581,9 +581,7 @@ function setup() {
                             },
                         };
                     });
-                    return {
-                        items: itemMap,
-                    };
+                    return { items: itemMap };
                 },
                 events: {
                     show: () => {
@@ -601,8 +599,16 @@ function setup() {
         }
         handleKeypress() {
             if (options.disableEmojis) return;
-            const { word, entries } = emoteSelector.handleKeypress(this.$input);
-            this.items = entries;
+            const word = emoteSelector.getCurrentWord(this.$input);
+            let entries = [];
+            if (emoteSelector.EMOJI_REGEX.test(word)) {
+                entries = emoteSelector.getEmojiMatches(word).map((shortcode) => {
+                    const text = translateShortcodeToUnicode(shortcode).text;
+                    const tweSrc = $(twemoji.parse(text)).attr("src");
+                    return { name: shortcode, src: tweSrc, srcset: null };
+                });
+            }
+            this.items = entries.slice(0, 10);
             this.counter++;
             if (entries.length) {
                 if (this.currentWord !== word) {
@@ -631,9 +637,9 @@ function setup() {
         }
     }
 
-    // create new custom key handler for AnswerBoxEmoteWrapper, must not activate when dropdown is visible
+    // create new custom key handler for AnswerBoxEmoteWrapper, must not activate when anime dropdown is visible
     const oldCustomKeyHandler = EmoteSelectorInputWrapper.prototype.CUSTOM_KEY_HANDLER;
-    AnswerBoxEmoteWrapper.prototype.CUSTOM_KEY_HANDLER = function (e) {
+    AnswerBoxEmoteWrapper.prototype.CUSTOM_KEY_HANDLER = function () {
         if (quiz.answerInput.typingInput.autoCompleteController.awesomepleteInstance.ul.getAttribute("hidden") === null) return;
         oldCustomKeyHandler.apply(this, arguments);
     };
@@ -671,6 +677,8 @@ function setup() {
                 <li>6. Load images/audio/video directly in chat</li>
                 <li>7. Add a gif search window in chat using tenor</li>
                 <li>8. Drag & drop or copy & paste file into chat/dm to automatically upload to litterbox</li>
+                <li>9. Emoji shortcode convert in answer box and room title</li>
+                <li>10. More emojis</li>
             </ul>
         `
     });
