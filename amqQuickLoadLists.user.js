@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Quick Load Lists
 // @namespace    https://github.com/kempanator
-// @version      0.16
+// @version      0.17
 // @description  Adds a window for saving and quick loading anime lists
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -26,7 +26,7 @@ const loadInterval = setInterval(() => {
     }
 }, 500);
 
-const SCRIPT_VERSION = "0.16";
+const SCRIPT_VERSION = "0.17";
 const SCRIPT_NAME = "Quick Load Lists";
 const saveData = validateLocalStorage("quickLoadLists");
 let quickLoadListsWindow;
@@ -112,11 +112,11 @@ function setup() {
                 saveSettings();
             }))
             .append($(`<button class="btn btn-default" style="width: 34px; margin: 6px 2px 2px 2px; padding: 6px 0;"><i class="fa fa-plus" aria-hidden="true"></i></button>`).click(() => {
-                createEditRow($("#qllEditTable"), "", "anilist", true, true, true, true, true);
+                createEditRow($("#qllEditTable"), "", "anilist", true, true, true, true, true, "");
             }))
         )
         .append($(`<div id="qllSettingsContainer" class="tabSection"></div>`)
-            .append(`<div id="qllHotkeyContainer"><table id="qllHotkeyTable"><thead><tr><th>Action</th><th>Key</th></tr></thead><tbody></tbody></table></div>`)
+            .append(`<div id="qllHotkeyContainer"><table id="qllHotkeyTable"><thead><tr><th>Action</th><th>Keybind</th></tr></thead><tbody></tbody></table></div>`)
             .append($(`<div></div>`)
                 .append($(`<span>Selected Color:</span>`))
                 .append($(`<input id="qllSelectedColor" type="color">`).val(selectedColor).on("change", function () {
@@ -137,7 +137,7 @@ function setup() {
             )
         );
 
-    createHotkeyRows([
+    createHotkeyTable([
         { action: "qllWindow", title: "Open This Window" },
         { action: "animeListModal", title: "Open Anime List Modal" },
         { action: "removeList", title: "Remove List" }
@@ -170,7 +170,7 @@ function setup() {
             return true;
         }
         for (const [action, bind] of Object.entries(hotKeys)) {
-            if (match(bind) && hotkeyActions.hasOwnProperty(action)) {
+            if (match(bind)) {
                 event.preventDefault();
                 hotkeyActions[action]();
             }
@@ -183,7 +183,7 @@ function setup() {
     options.$INCLUDE_DROPPED_CHECKBOX.click(checkSelectedList);
     options.$INCLUDE_PLANNING_CHECKBOX.click(checkSelectedList);
 
-    $("#optionListSettings").before($(`<li class="clickAble">Load Lists</li>`).click(() => {
+    $("#optionListSettings").before($("<li>", { class: "clickAble", text: "Load Lists" }).click(() => {
         quickLoadListsWindow.open();
     }));
     switchTab("qllUse");
@@ -471,7 +471,8 @@ function createEditRow($table, username, type, watching, completed, hold, droppe
         .appendTo($row);
 
     // username input
-    $("<input>", { class: "form-control username", type: "text", placeholder: "username", value: username })
+    $("<input>", { class: "form-control username", type: "text", placeholder: "username" })
+        .val(username)
         .appendTo($row);
 
     // list database select
@@ -513,7 +514,8 @@ function createEditRow($table, username, type, watching, completed, hold, droppe
         .appendTo($row);
 
     // comment input
-    $("<input>", { class: "form-control comment", type: "text", placeholder: "comment", value: comment })
+    $("<input>", { class: "form-control comment", type: "text", placeholder: "comment" })
+        .val(comment)
         .appendTo($row);
 
     // delete button
@@ -538,8 +540,8 @@ function loadHotkey(action, key = "", ctrl = false, alt = false, shift = false, 
     }
 }
 
-// create hotkey row and add to table
-function createHotkeyRows(data) {
+// create hotkey rows and add to table
+function createHotkeyTable(data) {
     const $tbody = $("#qllHotkeyTable tbody");
     for (const { action, title } of data) {
         const $input = $("<input>", { type: "text", class: "hk-input", readonly: true, "data-action": action })
