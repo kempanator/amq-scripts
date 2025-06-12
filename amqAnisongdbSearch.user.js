@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Anisongdb Search
 // @namespace    https://github.com/kempanator
-// @version      0.21
+// @version      0.22
 // @description  Adds a window to search anisongdb.com in game
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -27,7 +27,7 @@ const loadInterval = setInterval(() => {
     }
 }, 500);
 
-const SCRIPT_VERSION = "0.21";
+const SCRIPT_VERSION = "0.22";
 const SCRIPT_NAME = "Anisongdb Search";
 const saveData = validateLocalStorage("anisongdbSearch");
 let anisongdbWindow;
@@ -177,7 +177,7 @@ function setup() {
         }
     });
 
-    createHotkeyRows([
+    createHotkeyTable([
         { action: "adbsWindow", title: "AnisongDB Window" }
     ]);
     switchTab("adbsSearch");
@@ -187,7 +187,10 @@ function setup() {
         saveSettings();
     });
     $("#adbsPartialCheckbox").prop("checked", true);
-    $("#optionListSettings").before(`<li class="clickAble" onclick="$('#anisongdbWindow').show()">AnisongDB</li>`);
+    $("#optionListSettings").before($("<li>", { class: "clickAble", text: "AnisongDB" }).click(() => {
+        anisongdbWindow.open();
+    }));
+
     applyStyles();
     AMQ_addScriptData({
         name: SCRIPT_NAME,
@@ -411,7 +414,7 @@ function loadHotkey(action, key = "", ctrl = false, alt = false, shift = false) 
 }
 
 // create hotkey rows and add to table
-function createHotkeyRows(data) {
+function createHotkeyTable(data) {
     const $tbody = $("#adbsHotkeyTable tbody");
     for (const { action, title } of data) {
         const $input = $("<input>", { type: "text", class: "hk-input", readonly: true, "data-action": action })
@@ -463,7 +466,7 @@ function startHotkeyRecord() {
 // input hotKeys[action] and convert the data to a string for the input field
 function bindingToText(b) {
     if (!b) return "";
-    let keys = [];
+    const keys = [];
     if (b.ctrl) keys.push("CTRL");
     if (b.alt) keys.push("ALT");
     if (b.shift) keys.push("SHIFT");
