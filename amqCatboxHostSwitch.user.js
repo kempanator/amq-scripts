@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Catbox Host Switch
 // @namespace    https://github.com/kempanator
-// @version      0.19
+// @version      0.20
 // @description  Switch your catbox host
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -27,7 +27,8 @@ const loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.19";
+const SCRIPT_VERSION = "0.20";
+const SCRIPT_NAME = "Catbox Host Switch";
 const saveData = validateLocalStorage("catboxHostSwitch");
 const hostDict = { 1: "eudist.animemusicquiz.com", 2: "nawdist.animemusicquiz.com", 3: "naedist.animemusicquiz.com" };
 let catboxHost = parseInt(saveData.catboxHost);
@@ -37,7 +38,7 @@ if (!hostDict.hasOwnProperty(catboxHost)) catboxHost = 0;
 function setup() {
     $("#settingsVideoHostsContainer .col-xs-6").first()
         .append("<h4>Catbox Link</h4>")
-        .append($("<select>", { id: "chsSelect", class: "form-control", css: { "width": "180px", "padding": "6px 6px", "margin": "auto" } })
+        .append($(`<select id="chsSelect" class="form-control" style="width: 180px; padding: 6px 6px; margin: auto;"></select>`)
             .append(`<option value="0">default link</option>`)
             .append(`<option value="1">eudist.animemusicquiz.com</option>`)
             .append(`<option value="2">nawdist.animemusicquiz.com</option>`)
@@ -88,9 +89,9 @@ function setup() {
     };
 
     AMQ_addScriptData({
-        name: "Catbox Host Switch",
+        name: SCRIPT_NAME,
         author: "kempanator",
-        version: version,
+        version: SCRIPT_VERSION,
         link: "https://github.com/kempanator/amq-scripts/raw/main/amqCatboxHostSwitch.user.js",
         description: `
             <p>Modify all incoming catbox song links</p>
