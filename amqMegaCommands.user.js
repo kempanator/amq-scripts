@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.141
+// @version      0.142
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -105,7 +105,7 @@ OTHER
 
 "use strict";
 if (typeof Listener === "undefined") return;
-const SCRIPT_VERSION = "0.141";
+const SCRIPT_VERSION = "0.142";
 const SCRIPT_NAME = "Mega Commands";
 const saveData = validateLocalStorage("megaCommands");
 const originalOrder = { qb: [], gm: [] };
@@ -973,7 +973,7 @@ function setup() {
             quiz.answerInput.typingInput.autoSubmitEligible = false;
         }
     }).on("keypress", (event) => {
-        if (event.which === 13) {
+        if (event.key === "Enter") {
             if (muteSubmit && !volumeController.muted) {
                 volumeController.setMuted(true);
                 volumeController.adjustVolume();
@@ -984,7 +984,7 @@ function setup() {
         }
     });
     $("#brMap").keypress((event) => {
-        if (event.which === 32 && printLoot && battleRoyal.inView) {
+        if (event.code === "Space" && printLoot && battleRoyal.inView) {
             $("#brMapContent .brMapObject").popover($(".popover").length ? "hide" : "show");
         }
     });
@@ -5623,46 +5623,29 @@ function reverseAudioBuffer(audioBuffer) {
     return audioBuffer;
 }
 
-// validate json data in local storage
-function validateLocalStorage(item) {
-    try {
-        const json = JSON.parse(localStorage.getItem(item));
-        if (!json || typeof json !== "object") return {};
-        return json;
-    }
-    catch {
-        return {};
-    }
-}
-
 // import local storage
 function importLocalStorage() {
     $("#mcUploadLocalStorageInput").remove();
-    const $input = $("<input", { id: "mcUploadLocalStorageInput", type: "file", accept: ".json", style: "display: none" });
-    $input.on("change", function () {
-        if (!this.files.length) return;
-        this.files[0].text().then((data) => {
-            try {
-                const json = JSON.parse(data);
-                if (typeof json === "object" && Object.values(json).every((x) => typeof x === "string")) {
-                    const keys = Object.keys(json);
-                    for (const key of keys) {
-                        localStorage.setItem(key, json[key]);
-                    }
-                    createLocalStorageList();
-                    messageDisplayer.displayMessage(`${keys.length} item${keys.length === 1 ? "" : "s"} loaded into local storage`);
-                }
-                else {
-                    messageDisplayer.displayMessage("Upload Error");
-                }
+    const $input = $("<input>", { id: "mcUploadLocalStorageInput", type: "file", accept: ".json", style: "display: none" });
+    $input.on("change", async function () {
+        try {
+            const json = JSON.parse(await this.files[0].text());
+            if (typeof json !== "object" || !Object.values(json).every((x) => typeof x === "string")) {
+                throw new Error("Invalid Format");
             }
-            catch {
-                messageDisplayer.displayMessage("Upload Error");
+            for (const [key, value] of Object.entries(json)) {
+                localStorage.setItem(key, value);
             }
-            finally {
-                $input.remove();
-            }
-        });
+            createLocalStorageList();
+            const count = Object.keys(json).length;
+            messageDisplayer.displayMessage(`${count} item${count === 1 ? "" : "s"} loaded into local storage`);
+        }
+        catch {
+            messageDisplayer.displayMessage("Upload Error");
+        }
+        finally {
+            $input.remove();
+        }
     });
     $input.appendTo("body").trigger("click");
 }
@@ -5712,6 +5695,18 @@ function loadHotkey(action, key = "", ctrl = false, alt = false, shift = false) 
         ctrl: item?.ctrl ?? item?.ctrlKey ?? ctrl,
         alt: item?.alt ?? item?.altKey ?? alt,
         shift: item?.shift ?? item?.shiftKey ?? shift
+    }
+}
+
+// validate json data in local storage
+function validateLocalStorage(item) {
+    try {
+        const json = JSON.parse(localStorage.getItem(item));
+        if (!json || typeof json !== "object") return {};
+        return json;
+    }
+    catch {
+        return {};
     }
 }
 
