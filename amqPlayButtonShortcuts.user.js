@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Play Button Shortcuts
 // @namespace    https://github.com/kempanator
-// @version      0.8
+// @version      0.9
 // @description  Add Solo, Multiplayer, Nexus shortcuts to the play button
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -20,7 +20,8 @@ const loadInterval = setInterval(() => {
     }
 }, 500);
 
-const version = "0.8";
+const SCRIPT_VERSION = "0.9";
+const SCRIPT_NAME = "Play Button Shortcuts";
 $("#mpPlayButton").removeAttr("data-toggle data-target").empty().append(/*html*/`
     <div id="mpPlayButtonPlay" data-toggle="modal" data-target="#gameModeSelector">Play</div>
     <ul>
@@ -33,9 +34,9 @@ applyStyles();
 
 function setup() {
     AMQ_addScriptData({
-        name: "Play Button Shortcuts",
+        name: SCRIPT_NAME,
         author: "kempanator",
-        version: version,
+        version: SCRIPT_VERSION,
         link: "https://github.com/kempanator/amq-scripts/raw/main/amqPlayButtonShortcuts.user.js",
         description: `
             <p>Add Solo, Multiplayer, Nexus shortcuts to the play button</p>
@@ -45,7 +46,6 @@ function setup() {
 
 // apply styles
 function applyStyles() {
-    //$("#playButtonShortcutsStyle").remove();
     let css = /*css*/ `
         #mpPlayButton {
             height: 120px;
@@ -67,8 +67,14 @@ function applyStyles() {
             color: #4497EA;
         }
     `;
-    const style = document.createElement("style");
-    style.id = "playButtonShortcutsStyle";
-    style.textContent = css.trim();
-    document.head.appendChild(style);
+    let style = document.getElementById("playButtonShortcutsStyle");
+    if (style) {
+        style.textContent = css.trim();
+    }
+    else {
+        style = document.createElement("style");
+        style.id = "playButtonShortcutsStyle";
+        style.textContent = css.trim();
+        document.head.appendChild(style);
+    }
 }
