@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Show All Song Links
 // @namespace    https://github.com/kempanator
-// @version      0.10
+// @version      0.11
 // @description  Show all song links in the song info container
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -13,14 +13,15 @@
 
 "use strict";
 if (typeof Listener === "undefined") return;
-let loadInterval = setInterval(() => {
-    if ($("#loadingScreen").hasClass("hidden")) {
+const loadInterval = setInterval(() => {
+    if (document.querySelector("#loadingScreen.hidden")) {
         clearInterval(loadInterval);
         setup();
     }
 }, 500);
 
-const version = "0.10";
+const SCRIPT_VERSION = "0.11";
+const SCRIPT_NAME = "Show All Song Links";
 const LISTS = [
     { label: "ANI", key: "aniListId", url: "https://anilist.co/anime/" },
     { label: "KIT", key: "kitsuId", url: "https://kitsu.io/anime/" },
@@ -53,9 +54,9 @@ function setup() {
 
     applyStyles();
     AMQ_addScriptData({
-        name: "Show All Song Links",
+        name: SCRIPT_NAME,
         author: "kempanator",
-        version: version,
+        version: SCRIPT_VERSION,
         link: "https://github.com/kempanator/amq-scripts/raw/main/amqShowAllSongLinks.user.js",
         description: `
             <p>Show all song links in the song info container</p>
@@ -85,7 +86,6 @@ function buildLink(url, text) {
 
 // apply styles
 function applyStyles() {
-    //$("#showAllSongLinksStyle").remove();
     let css = /*css*/ `
         #qpSongInfoLinkRow b a {
             margin: 0 3px;
@@ -94,8 +94,14 @@ function applyStyles() {
             z-index: 1;
         }
     `;
-    const style = document.createElement("style");
-    style.id = "showAllSongLinksStyle";
-    style.textContent = css.trim();
-    document.head.appendChild(style);
+    let style = document.getElementById("showAllSongLinksStyle");
+    if (style) {
+        style.textContent = css.trim();
+    }
+    else {
+        style = document.createElement("style");
+        style.id = "showAllSongLinksStyle";
+        style.textContent = css.trim();
+        document.head.appendChild(style);
+    }
 }
