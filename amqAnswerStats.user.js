@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Answer Stats
 // @namespace    https://github.com/kempanator
-// @version      0.37
+// @version      0.38
 // @description  Adds a window to display quiz answer stats
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -19,6 +19,7 @@ Features:
 2. Add a window to track average guess time for players' correct answers
 3. Add a window to lookup all players' answers for the current game
 4. Add a window to compare all answers between selected players
+4. Add a window to display the quiz song distribution by song type and difficulty
 */
 
 "use strict";
@@ -30,7 +31,7 @@ const loadInterval = setInterval(() => {
     }
 }, 500);
 
-const SCRIPT_VERSION = "0.37";
+const SCRIPT_VERSION = "0.38";
 const SCRIPT_NAME = "Answer Stats";
 const regionMap = { E: "Eastern", C: "Central", W: "Western" };
 const saveData = validateLocalStorage("answerStats");
@@ -479,14 +480,8 @@ function setup() {
             answerStatsWindow.close();
         }))
         .append($(`<i class="fa fa-cog clickAble" style="font-size: 22px; top: 11px; right: 42px; position: absolute;" aria-hidden="true"></i>`).click(() => {
-            if ($("#asSettingsContainer").is(":visible")) {
-                $("#asMainContainer").show();
-                $("#asSettingsContainer").hide();
-            }
-            else {
-                $("#asMainContainer").hide();
-                $("#asSettingsContainer").show();
-            }
+            $("#asMainContainer").toggle();
+            $("#asSettingsContainer").toggle();
         }))
         .append(`<h2>Answer Stats</h2>`)
         .append($("<div>", { class: "tabContainer" })
@@ -1180,7 +1175,7 @@ function displayAnswerCompareResults(text) {
             if (answer) {
                 answer.correct ? numCorrect++ : numWrong++;
                 $row.append($("<td>", { text: answer.text })
-                    .prepend(`<i class="fa ${answer.correct ? "fa-check" : "fa-times"}" aria-hidden="true">></i>`));
+                    .prepend(`<i class="fa ${answer.correct ? "fa-check" : "fa-times"}" aria-hidden="true"></i>`));
             }
             else {
                 $row.append("<td>");
@@ -1674,11 +1669,11 @@ function validateLocalStorage(item) {
 
 // save settings
 function saveSettings() {
-    localStorage.setItem("answerStats", JSON.stringify(
+    localStorage.setItem("answerStats", JSON.stringify({
         showPlayerColors,
         showCustomColors,
         hotKeys
-    ));
+    }));
 }
 
 // apply styles
