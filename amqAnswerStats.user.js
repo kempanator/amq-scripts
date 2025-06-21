@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Answer Stats
 // @namespace    https://github.com/kempanator
-// @version      0.38
+// @version      0.39
 // @description  Adds a window to display quiz answer stats
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -31,7 +31,7 @@ const loadInterval = setInterval(() => {
     }
 }, 500);
 
-const SCRIPT_VERSION = "0.38";
+const SCRIPT_VERSION = "0.39";
 const SCRIPT_NAME = "Answer Stats";
 const regionMap = { E: "Eastern", C: "Central", W: "Western" };
 const saveData = validateLocalStorage("answerStats");
@@ -117,36 +117,39 @@ function setup() {
         const otherAnswerIdList = []; //unique incorrect answers
         const invalidAnswerIdList = [];
         const noAnswerIdList = [];
+        const info = data.songInfo;
         songHistory[songNumber] = {
-            animeRomajiName: data.songInfo.animeNames.romaji,
-            animeEnglishName: data.songInfo.animeNames.english,
-            altAnimeNames: data.songInfo.altAnimeNames,
-            altAnimeNamesAnswers: data.songInfo.altAnimeNamesAnswers,
-            animeType: data.songInfo.animeType,
-            animeVintage: data.songInfo.vintage,
-            animeTags: data.songInfo.animeTags,
-            animeGenre: data.songInfo.animeGenre,
+            animeRomajiName: info.animeNames.romaji,
+            animeEnglishName: info.animeNames.english,
+            altAnimeNames: info.altAnimeNames,
+            altAnimeNamesAnswers: info.altAnimeNamesAnswers,
+            animeType: info.animeType,
+            animeVintage: info.vintage,
+            animeTags: info.animeTags,
+            animeGenre: info.animeGenre,
             songNumber: songNumber,
-            songArtist: data.songInfo.artist,
-            songName: data.songInfo.songName,
-            songType: data.songInfo.type,
-            songTypeNumber: data.songInfo.typeNumber,
-            songTypeText: typeText(data.songInfo.type, data.songInfo.typeNumber),
-            songDifficulty: data.songInfo.animeDifficulty,
-            rebroadcast: data.songInfo.rebroadcast,
-            dub: data.songInfo.dub,
-            annId: data.songInfo.siteIds.annId,
-            malId: data.songInfo.siteIds.malId,
-            kitsuId: data.songInfo.siteIds.kitsuId,
-            aniListId: data.songInfo.siteIds.aniListId,
+            songArtist: info.artist ?? info.artistInfo.name,
+            songArranger: info.arrangerInfo.name,
+            songComposer: info.composerInfo.name,
+            songName: info.songName,
+            songType: info.type,
+            songTypeNumber: info.typeNumber,
+            songTypeText: typeText(info.type, info.typeNumber),
+            songDifficulty: info.animeDifficulty,
+            rebroadcast: info.rebroadcast,
+            dub: info.dub,
+            annId: info.siteIds.annId,
+            malId: info.siteIds.malId,
+            kitsuId: info.siteIds.kitsuId,
+            aniListId: info.siteIds.aniListId,
             startPoint: currentPlayer?.startPoint ?? null,
-            audio: data.songInfo.videoTargetMap.catbox?.[0] ?? data.songInfo.videoTargetMap.openingsmoe?.[0] ?? null,
-            video480: data.songInfo.videoTargetMap.catbox?.[480] ?? data.songInfo.videoTargetMap.openingsmoe?.[480] ?? null,
-            video720: data.songInfo.videoTargetMap.catbox?.[720] ?? data.songInfo.videoTargetMap.openingsmoe?.[720] ?? null,
+            audio: info.videoTargetMap.catbox?.[0] ?? info.videoTargetMap.openingsmoe?.[0] ?? null,
+            video480: info.videoTargetMap.catbox?.[480] ?? info.videoTargetMap.openingsmoe?.[480] ?? null,
+            video720: info.videoTargetMap.catbox?.[720] ?? info.videoTargetMap.openingsmoe?.[720] ?? null,
             groupSlotMap: { ...data.groupMap },
             answers: {}
         };
-        for (const anime of data.songInfo.altAnimeNames.concat(data.songInfo.altAnimeNamesAnswers)) {
+        for (const anime of info.altAnimeNames.concat(info.altAnimeNamesAnswers)) {
             correctAnswerIdList[anime] = [];
         }
         for (const player of data.players) {
@@ -205,7 +208,12 @@ function setup() {
                         index = listLowerCase.findIndex((value) => answerLowerCase === value);
                         if (index > -1) {
                             const wrongAnime = quiz.answerInput.typingInput.autoCompleteController.list[index];
-                            incorrectAnswerIdList[wrongAnime] ? incorrectAnswerIdList[wrongAnime].push(player.id) : incorrectAnswerIdList[wrongAnime] = [player.id];
+                            if (incorrectAnswerIdList.hasOwnProperty(wrongAnime)) {
+                                incorrectAnswerIdList[wrongAnime].push(player.id);
+                            }
+                            else {
+                                incorrectAnswerIdList[wrongAnime] = [player.id];
+                            }
                         }
                         else {
                             invalidAnswerIdList.push(player.id);
@@ -269,7 +277,7 @@ function setup() {
             const totalSeconds = String(Math.round(currentPlayer?.videoLength) % 60).padStart(2, 0);
             $("#asSongGuessRow").empty().append(`
                 <span><b>Correct:</b> ${numCorrect}/${activePlayers} ${(numCorrect / activePlayers * 100).toFixed(2)}%</span>
-                <span style="margin-left: 20px"><b>Dif:</b> ${Number(data.songInfo.animeDifficulty).toFixed(2)}</span>
+                <span style="margin-left: 20px"><b>Dif:</b> ${Number(info.animeDifficulty).toFixed(2)}</span>
                 <span style="margin-left: 20px"><b>Sample:</b> ${currentMinutes}:${currentSeconds} / ${totalMinutes}:${totalSeconds}</span>
             `);
             //<span style="margin-left: 20px"><b>Rig:</b> ${data.watched}</span>
@@ -1343,25 +1351,25 @@ function difficultyInfoText(roomName) {
                 <tbody>
                     <tr>
                         <td>60-100</td>
-                        <td>9</td>
+                        <td>4</td>
                         <td>2</td>
                         <td>1</td>
                     </tr>
                     <tr>
                         <td>45-60</td>
-                        <td>8</td>
-                        <td>2</td>
+                        <td>6</td>
+                        <td>3</td>
                         <td>2</td>
                     </tr>
                     <tr>
                         <td>30-45</td>
-                        <td>5</td>
-                        <td>2</td>
-                        <td>2</td>
+                        <td>6</td>
+                        <td>3</td>
+                        <td>3</td>
                     </tr>
                     <tr>
                         <td>25-35</td>
-                        <td>3</td>
+                        <td>5</td>
                         <td>2</td>
                         <td>2</td>
                     </tr>
@@ -1369,13 +1377,13 @@ function difficultyInfoText(roomName) {
                         <td>0-25</td>
                         <td>2</td>
                         <td>2</td>
-                        <td>1</td>
+                        <td>2</td>
                     </tr>
                     <tr>
                         <td>Total</td>
-                        <td>27</td>
+                        <td>23</td>
+                        <td>12</td>
                         <td>10</td>
-                        <td>8</td>
                     </tr>
                 </tbody>
             </table>
