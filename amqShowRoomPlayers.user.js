@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Show Room Players
 // @namespace    https://github.com/kempanator
-// @version      0.26
+// @version      0.27
 // @description  Adds extra functionality to room tiles
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -22,15 +22,15 @@ New room tile features:
 
 "use strict";
 if (typeof Listener === "undefined") return;
-let loadInterval = setInterval(() => {
-    if ($("#loadingScreen").hasClass("hidden")) {
+const loadInterval = setInterval(() => {
+    if (document.querySelector("#loadingScreen.hidden")) {
         clearInterval(loadInterval);
         setup();
     }
 }, 500);
 
-const version = "0.26";
-//const saveData = validateLocalStorage("showRoomPlayers");
+const SCRIPT_VERSION = "0.27";
+const SCRIPT_NAME = "Show Room Players";
 let showPlayerColors = true;
 let showCustomColors = true;
 let customColorMap = {};
@@ -62,10 +62,12 @@ function setup() {
             }, 1);
         }
     }).bindListener();
+
+    applyStyles();
     AMQ_addScriptData({
-        name: "Show Room Players",
+        name: SCRIPT_NAME,
         author: "kempanator",
-        version: version,
+        version: SCRIPT_VERSION,
         link: "https://github.com/kempanator/amq-scripts/raw/main/amqShowRoomPlayers.user.js",
         description: `
             <ul><b>New room tile features:</b>
@@ -77,7 +79,6 @@ function setup() {
             </ul>
         `
     });
-    applyStyles();
 }
 
 // override updateFriends function to also show invisible friends
@@ -101,7 +102,7 @@ RoomBrowser.prototype.removeRoomTile = function (tileId) {
 // add click event to host name to open player profile
 RoomTile.prototype.clickHostName = function (host) {
     this.$tile.find(".rbrHost").css("cursor", "pointer").off("click").click(() => {
-        playerProfileController.loadProfile(host, $(`#rbRoom-${this.id}`), {}, () => {}, false, true);
+        playerProfileController.loadProfile(host, $(`#rbRoom-${this.id}`), {}, () => { }, false, true);
     });
 };
 
@@ -109,13 +110,21 @@ RoomTile.prototype.clickHostName = function (host) {
 RoomTile.prototype.refreshRoomPlayers = function () {
     const $progress = this.$tile.find(".rbrProgressContainer");
     const players = [...this._players].sort((a, b) => a.localeCompare(b));
-    const $list = $("<ul></ul>");
+    const $list = $("<ul>");
     for (const player of players) {
-        const $li = $("<li></li>").addClass("srpPlayer").text(player);
-        if (player === selfName) $li.addClass("self");
-        else if (socialTab.isFriend(player)) $li.addClass("friend");
-        else if (socialTab.isBlocked(player)) $li.addClass("blocked");
-        if (customColorMap.hasOwnProperty(player.toLowerCase())) $li.addClass("customColor" + customColorMap[player.toLowerCase()]);
+        const $li = $("<li>", { class: "srpPlayer", text: player });
+        if (player === selfName) {
+            $li.addClass("self");
+        }
+        else if (socialTab.isFriend(player)) {
+            $li.addClass("friend");
+        }
+        else if (socialTab.isBlocked(player)) {
+            $li.addClass("blocked");
+        }
+        if (customColorMap.hasOwnProperty(player.toLowerCase())) {
+            $li.addClass("customColor" + customColorMap[player.toLowerCase()]);
+        }
         $list.append($li);
     }
 
@@ -169,14 +178,7 @@ RoomTile.prototype.refreshRoomPlayers = function () {
                 $pop.on("mouseleave.srp", closePopover);
                 $tile.on("mouseleave.srp", closePopover);
                 $pop.on("click.srp", "li", e => {
-                    playerProfileController.loadProfile(
-                        e.target.innerText,
-                        $tile,
-                        {},
-                        () => {},
-                        false,
-                        true
-                    );
+                    playerProfileController.loadProfile(e.target.innerText, $tile, {}, () => { }, false, true);
                 });
             });
     }
@@ -258,7 +260,6 @@ function validateLocalStorage(item) {
 
 // apply styles
 function applyStyles() {
-    //$("#showRoomPlayersStyle").remove();
     const saveDataHF = validateLocalStorage("highlightFriendsSettings");
     const selfColor = saveDataHF.smColorSelfColor ?? "#80c7ff";
     const friendColor = saveDataHF.smColorFriendColor ?? "#80ff80";
@@ -298,8 +299,14 @@ function applyStyles() {
             `;
         });
     }
-    const style = document.createElement("style");
-    style.id = "showRoomPlayersStyle";
-    style.textContent = css.trim();
-    document.head.appendChild(style);
+    let style = document.getElementById("showRoomPlayersStyle");
+    if (style) {
+        style.textContent = css.trim();
+    }
+    else {
+        style = document.createElement("style");
+        style.id = "showRoomPlayersStyle";
+        style.textContent = css.trim();
+        document.head.appendChild(style);
+    }
 }
