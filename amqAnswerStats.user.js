@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Answer Stats
 // @namespace    https://github.com/kempanator
-// @version      0.39
+// @version      0.40
 // @description  Adds a window to display quiz answer stats
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -31,7 +31,7 @@ const loadInterval = setInterval(() => {
     }
 }, 500);
 
-const SCRIPT_VERSION = "0.39";
+const SCRIPT_VERSION = "0.40";
 const SCRIPT_NAME = "Answer Stats";
 const regionMap = { E: "Eastern", C: "Central", W: "Western" };
 const saveData = validateLocalStorage("answerStats");
@@ -45,7 +45,7 @@ let distributionWindow;
 let answers = {}; //{1: {name, id, answer, correct}, ...}
 let songHistory = {}; //{1: {romaji, english, number, artist, song, type, vintage, difficulty, fastestSpeed, fastestPlayers, answers: {1: {id, text, speed, correct, rank, score, invalidAnswer, uniqueAnswer, noAnswer}, ...}, ...}
 let playerInfo = {}; //{1: {name, id, level, score, rank, box, averageSpeed, correctSpeedList}, ...}
-let listLowerCase = [];
+let animeListLower = []; //store lowercase version for faster compare speed
 let averageSpeedSort = { mode: "score", ascending: false };
 let songHistoryFilter = { type: "all" };
 let songHistorySort = { mode: "position", ascending: true };
@@ -62,15 +62,18 @@ let hotKeys = {
 };
 
 function setup() {
-    new Listener("get all song names", () => {
-        setTimeout(() => {
-            listLowerCase = quiz.answerInput.typingInput.autoCompleteController.list.map(x => x.toLowerCase());
-        }, 1);
+    new Listener("get all song names", (data) => {
+        animeListLower = data.names.map(x => x.toLowerCase());
     }).bindListener();
-    new Listener("update all song names", () => {
-        setTimeout(() => {
-            listLowerCase = quiz.answerInput.typingInput.autoCompleteController.list.map(x => x.toLowerCase());
-        }, 1);
+    new Listener("update all song names", (data) => {
+        if (data.deleted.length) {
+            const deletedLower = data.deleted.map(x => x.toLowerCase());
+            animeListLower = animeListLower.filter(name => !deletedLower.includes(name));
+        }
+        if (data.new.length) {
+            const newLower = data.new.map(x => x.toLowerCase());
+            animeListLower.push(...newLower);
+        }
     }).bindListener();
     new Listener("Game Starting", (data) => {
         resetHistory();
@@ -93,7 +96,7 @@ function setup() {
         }
     }).bindListener();
     new Listener("player answers", (data) => {
-        if (!quiz.answerInput.typingInput.autoCompleteController.list.length) {
+        if (!animeListLower.length) {
             quiz.answerInput.typingInput.autoCompleteController.updateList();
         }
         answers = {};
@@ -107,7 +110,7 @@ function setup() {
     }).bindListener();
     new Listener("answer results", (data) => {
         if (Object.keys(answers).length === 0) return;
-        if (listLowerCase.length === 0) return;
+        if (animeListLower.length === 0) return;
         const currentPlayer = quizVideoController.getCurrentPlayer();
         const songNumber = parseInt(quiz.infoContainer.$currentSongCount.text());
         if (songNumber < Math.max(...Object.keys(songHistory).map(x => parseInt(x)))) songHistory = {}; //handle jam reset
@@ -119,8 +122,8 @@ function setup() {
         const noAnswerIdList = [];
         const info = data.songInfo;
         songHistory[songNumber] = {
-            animeRomajiName: info.animeNames.romaji,
-            animeEnglishName: info.animeNames.english,
+            animeRomajiName: info.animeNames?.romaji,
+            animeEnglishName: info.animeNames?.english,
             altAnimeNames: info.altAnimeNames,
             altAnimeNamesAnswers: info.altAnimeNamesAnswers,
             animeType: info.animeType,
@@ -129,8 +132,8 @@ function setup() {
             animeGenre: info.animeGenre,
             songNumber: songNumber,
             songArtist: info.artist ?? info.artistInfo.name,
-            songArranger: info.arrangerInfo.name,
-            songComposer: info.composerInfo.name,
+            songArranger: info.arrangerInfo?.name,
+            songComposer: info.composerInfo?.name,
             songName: info.songName,
             songType: info.type,
             songTypeNumber: info.typeNumber,
@@ -138,14 +141,14 @@ function setup() {
             songDifficulty: info.animeDifficulty,
             rebroadcast: info.rebroadcast,
             dub: info.dub,
-            annId: info.siteIds.annId,
-            malId: info.siteIds.malId,
-            kitsuId: info.siteIds.kitsuId,
-            aniListId: info.siteIds.aniListId,
+            annId: info.siteIds?.annId,
+            malId: info.siteIds?.malId,
+            kitsuId: info.siteIds?.kitsuId,
+            aniListId: info.siteIds?.aniListId,
             startPoint: currentPlayer?.startPoint ?? null,
-            audio: info.videoTargetMap.catbox?.[0] ?? info.videoTargetMap.openingsmoe?.[0] ?? null,
-            video480: info.videoTargetMap.catbox?.[480] ?? info.videoTargetMap.openingsmoe?.[480] ?? null,
-            video720: info.videoTargetMap.catbox?.[720] ?? info.videoTargetMap.openingsmoe?.[720] ?? null,
+            audio: info.videoTargetMap?.catbox?.[0] ?? info.videoTargetMap?.openingsmoe?.[0] ?? null,
+            video480: info.videoTargetMap?.catbox?.[480] ?? info.videoTargetMap?.openingsmoe?.[480] ?? null,
+            video720: info.videoTargetMap?.catbox?.[720] ?? info.videoTargetMap?.openingsmoe?.[720] ?? null,
             groupSlotMap: { ...data.groupMap },
             answers: {}
         };
@@ -205,9 +208,9 @@ function setup() {
                         correctAnswerIdList[Object.keys(correctAnswerIdList)[index]].push(player.id);
                     }
                     else {
-                        index = listLowerCase.findIndex((value) => answerLowerCase === value);
+                        index = animeListLower.findIndex((value) => answerLowerCase === value);
                         if (index > -1) {
-                            const wrongAnime = quiz.answerInput.typingInput.autoCompleteController.list[index];
+                            const wrongAnime = quiz.answerInput.typingInput.autoCompleteController.list[index] ?? animeListLower[index];
                             if (incorrectAnswerIdList.hasOwnProperty(wrongAnime)) {
                                 incorrectAnswerIdList[wrongAnime].push(player.id);
                             }
