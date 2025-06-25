@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ New Game Mode UI
 // @namespace    https://github.com/kempanator
-// @version      0.31
+// @version      0.32
 // @description  Adds a user interface to new game mode to keep track of guesses
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -22,7 +22,7 @@ const loadInterval = setInterval(() => {
     }
 }, 500);
 
-const SCRIPT_VERSION = "0.31";
+const SCRIPT_VERSION = "0.32";
 const SCRIPT_NAME = "New Game Mode UI";
 const saveData = validateLocalStorage("newGameModeUI");
 let ngmWindow;
@@ -55,7 +55,7 @@ function setup() {
         if (data.sender === selfName) parseMessage(data.message);
     }).bindListener();
     new Listener("Game Starting", (data) => {
-        const selfPlayer = data.players.find((player) => player.name === selfName);
+        const selfPlayer = data.players.find(p => p.name === selfName);
         if (selfPlayer?.inGame && hostModal.$teamSize.slider("getValue") > 1 && hostModal.$scoring.slider("getValue") === quiz.SCORE_TYPE_IDS.LIVES) {
             updateWindow(data.players);
         }
@@ -98,7 +98,7 @@ function setup() {
     }).bindListener();
     new Listener("player answers", (data) => {
         if (quiz.teamMode && !quiz.isSpectator && hostModal.$scoring.slider("getValue") === quiz.SCORE_TYPE_IDS.LIVES) {
-            Object.keys(answers).forEach((id) => answers[id].speed = amqAnswerTimesUtility.playerTimes[id]);
+            Object.keys(answers).forEach(id => answers[id].speed = amqAnswerTimesUtility.playerTimes[id]);
         }
     }).bindListener();
     new Listener("answer results", (data) => {
@@ -117,7 +117,7 @@ function setup() {
                         setTimeout(() => { countButtons[index].removeClass("ngmAnimateCorrect") }, 2000);
                         if (halfMode) {
                             guessCounter[index] -= 1;
-                            if (guessCounter.every((x) => x <= 0)) guessCounter = [...initialGuessCount];
+                            if (guessCounter.every(x => x <= 0)) guessCounter = [...initialGuessCount];
                         }
                         else {
                             if (remainingGuesses === 1) guessCounter = [...initialGuessCount];
@@ -160,7 +160,7 @@ function setup() {
                                 countButtons[index].addClass("ngmAnimateWrong");
                                 setTimeout(() => { countButtons[index].removeClass("ngmAnimateWrong") }, 2000);
                                 guessCounter[index] -= .5;
-                                if (guessCounter.every((x) => x <= 0)) guessCounter = [...initialGuessCount];
+                                if (guessCounter.every(x => x <= 0)) guessCounter = [...initialGuessCount];
                                 countButtons.forEach((element, i) => { element.text(guessCounter[i]) });
                                 if (autoSendTeamCount === 1) {
                                     sendChatMessage(guessCounter.join(halfMode ? " " : ""), true);
@@ -310,6 +310,7 @@ function clearWindow() {
     teamSlot = null;
     correctGuesses = 0;
     remainingGuesses = 0;
+    answers = {};
 }
 
 // input array of Player objects
@@ -346,7 +347,7 @@ function resetCounter() {
         const halfText = $("#ngmHalfGuessInput").val().trim().toLowerCase();
         if (halfText) {
             if (halfText.length === teamList.length && /^[h-]+$/.test(halfText)) {
-                halfModeList = halfText.split("").map((x) => x === "h");
+                halfModeList = halfText.split("").map(x => x === "h");
             }
             else {
                 return counterError();
@@ -374,7 +375,7 @@ function resetCounter() {
             return counterError();
         }
         else {
-            remainingGuesses = halfModeList.some((x) => x === true) ? null : totalGuesses - (correctGuesses % totalGuesses);
+            remainingGuesses = halfModeList.some(x => x === true) ? null : totalGuesses - (correctGuesses % totalGuesses);
             $("#ngmRemainingGuesses").text(remainingGuesses ? `Remaining Guesses: ${remainingGuesses}` : "");
         }
     }
@@ -389,7 +390,7 @@ function counterError() {
     guessCounter = [];
     initialGuessCount = [];
     halfModeList = [];
-    countButtons.forEach((x) => x.addClass("disabled").text("-"));
+    countButtons.forEach(x => x.addClass("disabled").text("-"));
     $("#ngmCorrectAnswers").text("Invalid Settings");
     $("#ngmRemainingGuesses").text("");
 }
@@ -397,10 +398,10 @@ function counterError() {
 // setup ngm window
 function setupNGMWindow() {
     ngmWindow.window.find(".modal-header").empty()
-        .append($(`<i class="fa fa-times clickAble" style="font-size: 25px; top: 8px; right: 15px; position: absolute;" aria-hidden="true"></i>`).click(() => {
+        .append($(`<i class="fa fa-times clickAble" style="font-size: 25px; top: 8px; right: 12px; position: absolute;" aria-hidden="true"></i>`).click(() => {
             ngmWindow.close();
         }))
-        .append($(`<i class="fa fa-cog clickAble" style="font-size: 22px; top: 11px; right: 42px; position: absolute;" aria-hidden="true"></i>`).click(() => {
+        .append($(`<i class="fa fa-cog clickAble" style="font-size: 22px; top: 11px; right: 36px; position: absolute;" aria-hidden="true"></i>`).click(() => {
             $("#ngmMainContainer").toggle();
             $("#ngmSettingsContainer").toggle();
         }))
@@ -657,10 +658,8 @@ function applyStyles() {
             padding: 0;
             line-height: normal;
         }
-        #ngmWindow .close {
-            top: 15px;
-            right: 15px;
-            position: absolute;
+        #ngmWindow .modal-header i.fa:hover {
+            opacity: .7;
         }
         #ngmTitle {
             font-size: 20px;
