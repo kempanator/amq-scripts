@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Answer Stats
 // @namespace    https://github.com/kempanator
-// @version      0.40
+// @version      0.41
 // @description  Adds a window to display quiz answer stats
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -31,7 +31,7 @@ const loadInterval = setInterval(() => {
     }
 }, 500);
 
-const SCRIPT_VERSION = "0.40";
+const SCRIPT_VERSION = "0.41";
 const SCRIPT_NAME = "Answer Stats";
 const regionMap = { E: "Eastern", C: "Central", W: "Western" };
 const saveData = validateLocalStorage("answerStats");
@@ -45,7 +45,7 @@ let distributionWindow;
 let answers = {}; //{1: {name, id, answer, correct}, ...}
 let songHistory = {}; //{1: {romaji, english, number, artist, song, type, vintage, difficulty, fastestSpeed, fastestPlayers, answers: {1: {id, text, speed, correct, rank, score, invalidAnswer, uniqueAnswer, noAnswer}, ...}, ...}
 let playerInfo = {}; //{1: {name, id, level, score, rank, box, averageSpeed, correctSpeedList}, ...}
-let animeListLower = []; //store lowercase version for faster compare speed
+let animeListMap = {}; //store lowercase version for faster compare speed
 let averageSpeedSort = { mode: "score", ascending: false };
 let songHistoryFilter = { type: "all" };
 let songHistorySort = { mode: "position", ascending: true };
@@ -63,16 +63,17 @@ let hotKeys = {
 
 function setup() {
     new Listener("get all song names", (data) => {
-        animeListLower = data.names.map(x => x.toLowerCase());
+        animeListMap = data.names.reduce((map, anime) => {
+            map[anime.toLowerCase()] = anime;
+            return map;
+        }, {});
     }).bindListener();
     new Listener("update all song names", (data) => {
-        if (data.deleted.length) {
-            const deletedLower = data.deleted.map(x => x.toLowerCase());
-            animeListLower = animeListLower.filter(name => !deletedLower.includes(name));
+        for (const anime of data.deleted) {
+            delete animeListMap[anime.toLowerCase()];
         }
-        if (data.new.length) {
-            const newLower = data.new.map(x => x.toLowerCase());
-            animeListLower.push(...newLower);
+        for (const anime of data.new) {
+            animeListMap[anime.toLowerCase()] = anime;
         }
     }).bindListener();
     new Listener("Game Starting", (data) => {
@@ -96,7 +97,7 @@ function setup() {
         }
     }).bindListener();
     new Listener("player answers", (data) => {
-        if (!animeListLower.length) {
+        if (Object.keys(animeListMap).length === 0) {
             quiz.answerInput.typingInput.autoCompleteController.updateList();
         }
         answers = {};
@@ -110,7 +111,7 @@ function setup() {
     }).bindListener();
     new Listener("answer results", (data) => {
         if (Object.keys(answers).length === 0) return;
-        if (animeListLower.length === 0) return;
+        if (Object.keys(animeListMap).length === 0) return;
         const currentPlayer = quizVideoController.getCurrentPlayer();
         const songNumber = parseInt(quiz.infoContainer.$currentSongCount.text());
         if (songNumber < Math.max(...Object.keys(songHistory).map(x => parseInt(x)))) songHistory = {}; //handle jam reset
@@ -157,74 +158,63 @@ function setup() {
         }
         for (const player of data.players) {
             const quizPlayer = answers[player.gamePlayerId];
-            if (quizPlayer) {
-                quizPlayer.correct = player.correct;
-                const speed = validateSpeed(amqAnswerTimesUtility.playerTimes[player.gamePlayerId]);
-                if (player.correct && speed) correctPlayers[answers[player.gamePlayerId].id] = speed;
-                const item = playerInfo[player.gamePlayerId];
-                if (item) {
-                    item.level = player.level;
-                    item.score = getScore(player);
-                    item.rank = player.position;
-                    if (player.correct && speed) {
-                        item.correctSpeedList.push(speed);
-                        item.averageSpeed = item.correctSpeedList.reduce((a, b) => a + b) / item.correctSpeedList.length;
-                        item.standardDeviation = Math.sqrt(item.correctSpeedList.map((x) => (x - item.averageSpeed) ** 2).reduce((a, b) => a + b) / item.correctSpeedList.length);
-                    }
+            if (!quizPlayer) continue;
+            quizPlayer.correct = player.correct;
+            const speed = validateSpeed(amqAnswerTimesUtility.playerTimes[player.gamePlayerId]);
+            if (player.correct && speed) correctPlayers[answers[player.gamePlayerId].id] = speed;
+            const item = playerInfo[player.gamePlayerId];
+            if (item) {
+                item.level = player.level;
+                item.score = getScore(player);
+                item.rank = player.position;
+                if (player.correct && speed) {
+                    item.correctSpeedList.push(speed);
+                    item.averageSpeed = item.correctSpeedList.reduce((a, b) => a + b) / item.correctSpeedList.length;
+                    item.standardDeviation = Math.sqrt(item.correctSpeedList.map((x) => (x - item.averageSpeed) ** 2).reduce((a, b) => a + b) / item.correctSpeedList.length);
                 }
-                else {
-                    playerInfo[player.gamePlayerId] = {
-                        name: quizPlayer.name,
-                        id: player.gamePlayerId,
-                        level: player.level,
-                        score: getScore(player),
-                        rank: player.position,
-                        correctSpeedList: (player.correct && speed) ? [speed] : [],
-                        averageSpeed: (player.correct && speed) ? speed : 0,
-                        standardDeviation: 0
-                    };
-                }
-                songHistory[songNumber].answers[player.gamePlayerId] = {
+            }
+            else {
+                playerInfo[player.gamePlayerId] = {
+                    name: quizPlayer.name,
                     id: player.gamePlayerId,
-                    text: answers[player.gamePlayerId].answer,
-                    speed: speed,
-                    correct: player.correct,
+                    level: player.level,
+                    score: getScore(player),
                     rank: player.position,
-                    score: getScore(player)
+                    correctSpeedList: (player.correct && speed) ? [speed] : [],
+                    averageSpeed: (player.correct && speed) ? speed : 0,
+                    standardDeviation: 0
                 };
             }
+            songHistory[songNumber].answers[player.gamePlayerId] = {
+                id: player.gamePlayerId,
+                text: answers[player.gamePlayerId].answer,
+                speed: speed,
+                correct: player.correct,
+                rank: player.position,
+                score: getScore(player)
+            };
         }
         for (const player of Object.values(answers)) {
             const answerItem = songHistory[songNumber].answers[player.id];
-            if (answerItem) {
-                if (player.answer.trim() === "") {
-                    noAnswerIdList.push(player.id);
-                    answerItem.noAnswer = true;
-                }
-                else {
-                    const answerLowerCase = player.answer.toLowerCase();
-                    let index = Object.keys(correctAnswerIdList).findIndex((value) => answerLowerCase === value.toLowerCase());
-                    if (index > -1) {
-                        correctAnswerIdList[Object.keys(correctAnswerIdList)[index]].push(player.id);
-                    }
-                    else {
-                        index = animeListLower.findIndex((value) => answerLowerCase === value);
-                        if (index > -1) {
-                            const wrongAnime = quiz.answerInput.typingInput.autoCompleteController.list[index] ?? animeListLower[index];
-                            if (incorrectAnswerIdList.hasOwnProperty(wrongAnime)) {
-                                incorrectAnswerIdList[wrongAnime].push(player.id);
-                            }
-                            else {
-                                incorrectAnswerIdList[wrongAnime] = [player.id];
-                            }
-                        }
-                        else {
-                            invalidAnswerIdList.push(player.id);
-                            answerItem.invalidAnswer = true;
-                        }
-                    }
-                }
+            if (!answerItem) continue;
+            if (player.answer.trim() === "") {
+                noAnswerIdList.push(player.id);
+                answerItem.noAnswer = true;
+                continue;
             }
+            const answerLC = player.answer.toLowerCase();
+            const correctKey = Object.keys(correctAnswerIdList).find(k => k.toLowerCase() === answerLC);
+            if (correctKey) {
+                correctAnswerIdList[correctKey].push(player.id);
+                continue;
+            }
+            if (animeListMap.hasOwnProperty(answerLC)) {
+                const anime = animeListMap[answerLC];
+                (incorrectAnswerIdList[anime] ??= []).push(player.id);
+                continue;
+            }
+            invalidAnswerIdList.push(player.id);
+            answerItem.invalidAnswer = true;
         }
         const numCorrect = Object.keys(correctPlayers).length;
         const averageSpeed = numCorrect ? Math.round(Object.values(correctPlayers).reduce((a, b) => a + b) / numCorrect) : null;
