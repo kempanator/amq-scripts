@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Quick Load Lists
 // @namespace    https://github.com/kempanator
-// @version      0.17
+// @version      0.18
 // @description  Adds a window for saving and quick loading anime lists
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -26,7 +26,7 @@ const loadInterval = setInterval(() => {
     }
 }, 500);
 
-const SCRIPT_VERSION = "0.17";
+const SCRIPT_VERSION = "0.18";
 const SCRIPT_NAME = "Quick Load Lists";
 const saveData = validateLocalStorage("quickLoadLists");
 let quickLoadListsWindow;
@@ -63,13 +63,13 @@ function setup() {
     });
 
     $("#settingsAnimeListContainer > div .row:eq(2)")
-        .append($(`<div class="col-xs-6"></div>`)
-            .append($(`<label>Quick Load Lists Script</label>`))
-            .append($(`<div></div>`)
-                .append($(`<button class="btn btn-primary">Open</button>`).click(() => {
+        .append($("<div>", { class: "col-xs-6" })
+            .append("<label>", { text: "Quick Load Lists Script" })
+            .append($("<div>")
+                .append($("<button>", { class: "btn btn-primary", text: "Open" }).click(() => {
                     quickLoadListsWindow.open();
                 }))
-                .append($(`<button class="btn btn-danger" style="margin-left: 8px">Clear</button>`).click(() => {
+                .append($("<button>", { class: "btn btn-danger", text: "Clear", style: "margin-left: 8px;" }).click(() => {
                     $("#qllTable .qllRow").removeClass("selected");
                     removeAllLists();
                     messageDisplayer.displayMessage("Current List Cleared");
@@ -90,7 +90,7 @@ function setup() {
             messageDisplayer.displayMessage("Current List Cleared");
         }))
         .append(`<h2>Quick Load Lists</h2>`)
-        .append($(`<div class="tabContainer">`)
+        .append($("<div>", { class: "tabContainer" })
             .append($(`<div id="qllUseTab" class="tab clickAble"><span>Use</span></div>`).click(() => {
                 switchTab("qllUse");
             }))
@@ -102,36 +102,38 @@ function setup() {
             }))
         );
     quickLoadListsWindow.panels[0].panel
-        .append($(`<div id="qllUseContainer" class="tabSection"></div>`)
+        .append($("<div>", { id: "qllUseContainer", class: "tabSection" })
             .append(`<table id="qllTable"><thead></thead><tbody></tbody></table>`)
         )
-        .append($(`<div id="qllEditContainer" class="tabSection"></div>`)
-            .append($(`<button class="btn btn-success" style="margin: 5px 2px 2px 5px">Save</button>`).click(() => {
+        .append($("<div>", { id: "qllEditContainer", class: "tabSection" })
+            .append($("<button>", { class: "btn btn-success", text: "Save", style: "margin: 5px 2px 2px 5px" }).click(() => {
                 saveEditTable();
                 createListTable();
                 saveSettings();
             }))
-            .append($(`<button class="btn btn-default" style="width: 34px; margin: 6px 2px 2px 2px; padding: 6px 0;"><i class="fa fa-plus" aria-hidden="true"></i></button>`).click(() => {
-                createEditRow($("#qllEditTable"), "", "anilist", true, true, true, true, true, "");
-            }))
+            .append($("<button>", { class: "btn btn-default", style: "width: 34px; margin: 6px 2px 2px 2px; padding: 6px 0;" })
+                .append(`<i class="fa fa-plus" aria-hidden="true"></i>`)
+                .click(() => {
+                    createEditRow($("#qllEditTable"), "", "anilist", true, true, true, true, true, "");
+                }))
         )
-        .append($(`<div id="qllSettingsContainer" class="tabSection"></div>`)
-            .append(`<div id="qllHotkeyContainer"><table id="qllHotkeyTable"><thead><tr><th>Action</th><th>Keybind</th></tr></thead><tbody></tbody></table></div>`)
-            .append($(`<div></div>`)
-                .append($(`<span>Selected Color:</span>`))
-                .append($(`<input id="qllSelectedColor" type="color">`).val(selectedColor).on("change", function () {
+        .append($("<div>", { id: "qllSettingsContainer", class: "tabSection" })
+            .append(`<table id="qllHotkeyTable"><thead><tr><th>Action</th><th>Keybind</th></tr></thead><tbody></tbody></table>`)
+            .append($("<div>")
+                .append(`<span>Selected Color:</span>`)
+                .append($("<input>", { id: "qllSelectedColor", type: "color", val: selectedColor }).on("change", function () {
                     selectedColor = this.value;
                     saveSettings();
                     applyStyles();
                 }))
             )
-            .append($(`<div></div>`)
-                .append($(`<label class="btn btn-default">Import</label>`)
-                    .append($(`<input type="file" style="display: none">`).on("change", function () {
+            .append($("<div>")
+                .append($("<label>", { class: "btn btn-default", text: "Import" })
+                    .append($("<input>", { type: "file", accept: ".json", style: "display: none;" }).on("change", function () {
                         handleImport(this);
                     }))
                 )
-                .append($(`<button class="btn btn-default" style="margin-left: 5px">Export</button>`).click(function () {
+                .append($("<button>", { class: "btn btn-default", text: "Export", style: "margin-left: 5px;" }).click(function () {
                     handleExport();
                 }))
             )
@@ -611,7 +613,7 @@ function updateSettingsUI() {
 
 // save edit table
 function saveEditTable() {
-    savedLists = $("#qllEditTable .qllEditRow").get().map(row => {
+    savedLists = $("#qllEditTable .qllEditRow").toArray().map(row => {
         const $row = $(row);
         return {
             username: $row.find(".username").val(),
