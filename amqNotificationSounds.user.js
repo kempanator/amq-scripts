@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         AMQ Notification Sounds
-// @namespace    https://github.com/kempanator
+// @namespace    http://tampermonkey.net/
 // @version      2.5
 // @description  Adds notification sounds
 // @author       kempanator
