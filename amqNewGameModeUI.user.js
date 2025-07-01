@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ New Game Mode UI
 // @namespace    https://github.com/kempanator
-// @version      0.32
+// @version      0.33
 // @description  Adds a user interface to new game mode to keep track of guesses
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -22,8 +22,6 @@ const loadInterval = setInterval(() => {
     }
 }, 500);
 
-const SCRIPT_VERSION = "0.32";
-const SCRIPT_NAME = "New Game Mode UI";
 const saveData = validateLocalStorage("newGameModeUI");
 let ngmWindow;
 let initialGuessCount = []; //list of initial # guesses for your team [5, 5, 5, 5]
@@ -48,11 +46,15 @@ let hotKeys = {
 function setup() {
     new Listener("game chat update", (data) => {
         for (const message of data.messages) {
-            if (message.sender === selfName) parseMessage(message.message);
+            if (message.sender === selfName) {
+                parseMessage(message.message);
+            }
         }
     }).bindListener();
     new Listener("Game Chat Message", (data) => {
-        if (data.sender === selfName) parseMessage(data.message);
+        if (data.sender === selfName) {
+            parseMessage(data.message);
+        }
     }).bindListener();
     new Listener("Game Starting", (data) => {
         const selfPlayer = data.players.find(p => p.name === selfName);
@@ -173,7 +175,7 @@ function setup() {
                     }
                 }
             }
-            correctGuesses = data.players.find((player) => player.gamePlayerId === quiz.ownGamePlayerId).correctGuesses;
+            correctGuesses = data.players.find(p => p.gamePlayerId === quiz.ownGamePlayerId).correctGuesses;
             $("#ngmCorrectAnswers").text(`Correct Answers: ${correctGuesses}`);
             if (halfMode) {
                 remainingGuesses = null;
@@ -249,16 +251,8 @@ function setup() {
     $("#qpOptionContainer")
         .width((i, w) => w + 35)
         .children("div")
-        .append($(`
-            <div id="qpNGM" class="clickAble qpOption">
-                <svg class="qpMenuItem" aria-hidden="true"
-                    viewBox="0 0 30 20" fill="currentColor">
-                    <rect x="4"  y="0" width="4"  height="12"/>
-                    <rect x="0"  y="4" width="12" height="4"/>
-                    <rect x="16" y="4" width="13" height="4"/>
-                    <path d="M9 17 Q13.5 12 18 16 T27 14" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
-                </svg>
-            </div>`)
+        .append($("<div>", { id: "qpNGM", class: "clickAble qpOption" })
+            .append(ngmSvg)
             .click(() => {
                 ngmWindow.isVisible() ? ngmWindow.close() : ngmWindow.open();
             })
@@ -272,9 +266,9 @@ function setup() {
     setupNGMWindow();
     applyStyles();
     AMQ_addScriptData({
-        name: SCRIPT_NAME,
+        name: "New Game Mode UI",
         author: "kempanator",
-        version: SCRIPT_VERSION,
+        version: GM_info.script.version,
         link: "https://github.com/kempanator/amq-scripts/raw/main/amqNewGameModeUI.user.js",
         description: `
             <p>Click the button in the options bar during quiz to open the new game mode user interface</p>
@@ -398,14 +392,18 @@ function counterError() {
 // setup ngm window
 function setupNGMWindow() {
     ngmWindow.window.find(".modal-header").empty()
-        .append($(`<i class="fa fa-times clickAble" style="font-size: 25px; top: 8px; right: 12px; position: absolute;" aria-hidden="true"></i>`).click(() => {
-            ngmWindow.close();
-        }))
-        .append($(`<i class="fa fa-cog clickAble" style="font-size: 22px; top: 11px; right: 36px; position: absolute;" aria-hidden="true"></i>`).click(() => {
-            $("#ngmMainContainer").toggle();
-            $("#ngmSettingsContainer").toggle();
-        }))
-        .append(`<div id="ngmTitle">NGM</div><div id="ngmCorrectAnswers"></div><div id="ngmRemainingGuesses"></div>`);
+        .append($("<i>", { class: "fa fa-times clickAble", style: "font-size: 25px; top: 8px; right: 12px; position: absolute;", "aria-hidden": "true" })
+            .click(() => {
+                ngmWindow.close();
+            }))
+        .append($("<i>", { class: "fa fa-cog clickAble", style: "font-size: 22px; top: 11px; right: 36px; position: absolute;", "aria-hidden": "true" })
+            .click(() => {
+                $("#ngmMainContainer").toggle();
+                $("#ngmSettingsContainer").toggle();
+            }))
+        .append($("<div>", { id: "ngmTitle", text: "NGM" }))
+        .append($("<div>", { id: "ngmCorrectAnswers" }))
+        .append($("<div>", { id: "ngmRemainingGuesses" }));
     ngmWindow.panels[0].panel.append(`
         <div id="ngmMainContainer">
             <div id="ngmGuessContainer" style="margin: 0 2px;">
@@ -424,24 +422,24 @@ function setupNGMWindow() {
     const $row3 = $("<div>", { style: "margin: 0 2px;" });
     const $row4 = $("<div>", { style: "margin: 0 2px;" });
     $row1.append($("<div>", { class: "ngmButton ngmStatus red" })
-        .append(`<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><line x1="6" y1="10" x2="14" y2="10"/></svg>`)
+        .append(minusSvg)
         .click(() => {
             sendChatMessage("-", true);
         })
     );
     $row1.append($("<div>", { class: "ngmButton ngmStatus yellow" })
-        .append(`<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M4 10 q3 -4 6 0 t6 0"/></svg>`)
+        .append(tildeSvg)
         .click(() => {
             sendChatMessage("~", true);
         })
     );
     $row1.append($("<div>", { class: "ngmButton ngmStatus green" })
-        .append(`<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><line x1="10" y1="6" x2="10" y2="14"/><line x1="6" y1="10" x2="14" y2="10"/></svg>`)
+        .append(plusSvg)
         .click(() => {
             sendChatMessage("+", true);
         })
     );
-    $row2.append($(`<div class="ngmButton white" style="width: 60px;">Reset</div>`)
+    $row2.append($("<div>", { class: "ngmButton white", text: "Reset", style: "width: 60px;" })
         .click(() => {
             quiz.inQuiz ? resetCounter() : clearWindow();
         })
@@ -449,7 +447,10 @@ function setupNGMWindow() {
     $row2.append($("<input>", { id: "ngmInitialGuessCountInput", type: "text" })
         .popover({
             title: "Initial Guess Count",
-            content: "<p>use a single number to give everyone on your team the specified guess count</p><p>use several numbers to give each person on your team a different guess count</p><p>example: 5 or 5454</p>",
+            content: `
+                <p>use a single number to give everyone on your team the specified guess count</p>
+                <p>use several numbers to give each person on your team a different guess count</p>
+                <p>example: 5 or 5454</p>`,
             placement: "bottom",
             trigger: "hover",
             container: "body",
@@ -477,7 +478,9 @@ function setupNGMWindow() {
     $row3.append($("<input>", { id: "ngmHalfGuessInput", class: "disabled", type: "text" })
         .popover({
             title: "",
-            content: `<p>For each person on your team (in order) type "h" or "-" to enable/disable half point deductions</p><p>Example: h-h-</p><p>Leave blank to enable for everyone</p>`,
+            content: `
+                <p>For each person on your team (in order) type "h" or "-" to enable/disable half point deductions</p>
+                <p>Example: h-h-</p><p>Leave blank to enable for everyone</p>`,
             placement: "bottom",
             trigger: "hover",
             container: "body",
@@ -494,7 +497,10 @@ function setupNGMWindow() {
         })
         .popover({
             title: "Answer Validation",
-            content: `<p>White: None<br>deduct .5 if the person has any text in their answer box</p><p>Blue: Normal<br>if at least 1 valid answer do strict mode, else none</p><p>Purple: Strict<br>only deduct .5 on valid answers</p>`,
+            content: `
+                <p>White: None<br>deduct .5 if the person has any text in their answer box</p>
+                <p>Blue: Normal<br>if at least 1 valid answer do strict mode, else none</p>
+                <p>Purple: Strict<br>only deduct .5 on valid answers</p>`,
             placement: "bottom",
             trigger: "hover",
             container: "body",
@@ -511,7 +517,7 @@ function setupNGMWindow() {
         })
         .popover({
             title: "Auto Track",
-            content: "<p>Attempt to auto update team guess counter</p>",
+            content: `<p>Attempt to auto update team guess counter</p>`,
             placement: "bottom",
             trigger: "hover",
             container: "body",
@@ -527,7 +533,7 @@ function setupNGMWindow() {
         })
         .popover({
             title: "Auto Throw Self Count",
-            content: "When a song starts, send your current count to the answer box",
+            content: `<p>When a song starts, send your current count to the answer box</p>`,
             placement: "bottom",
             trigger: "hover",
             container: "body",
@@ -544,7 +550,9 @@ function setupNGMWindow() {
         })
         .popover({
             title: "Auto Send Team Count",
-            content: "<p>On answer reveal, send team guess count to chat</p><p>Blue: team chat<br>Purple: public chat</p>",
+            content: `
+                <p>On answer reveal, send team guess count to chat</p>
+                <p>Blue: team chat<br>Purple: public chat</p>`,
             placement: "bottom",
             trigger: "hover",
             container: "body",
@@ -554,6 +562,32 @@ function setupNGMWindow() {
     );
     $("#ngmMainContainer").append($row1, $row2, $row3, $row4);
 }
+
+// html for svg icons
+const ngmSvg = `
+    <svg class="qpMenuItem" aria-hidden="true"
+        viewBox="0 0 30 20" fill="currentColor">
+        <rect x="4"  y="0" width="4"  height="12"/>
+        <rect x="0"  y="4" width="12" height="4"/>
+        <rect x="16" y="4" width="13" height="4"/>
+        <path d="M9 17 Q13.5 12 18 16 T27 14" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+    </svg>`;
+
+const minusSvg = `
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true">
+        <line x1="6" y1="10" x2="14" y2="10"/>
+    </svg>`;
+
+const tildeSvg = `
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true">
+        <path d="M4 10 q3 -4 6 0 t6 0"/>
+    </svg>`;
+
+const plusSvg = `
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true">
+        <line x1="10" y1="6" x2="10" y2="14"/>
+        <line x1="6" y1="10" x2="14" y2="10"/>
+    </svg>`;
 
 // load hotkey from local storage, input optional default values
 function loadHotkey(action, key = "", ctrl = false, alt = false, shift = false) {
