@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Answer Stats
 // @namespace    https://github.com/kempanator
-// @version      0.41
+// @version      0.42
 // @description  Adds a window to display quiz answer stats
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -31,8 +31,6 @@ const loadInterval = setInterval(() => {
     }
 }, 500);
 
-const SCRIPT_VERSION = "0.41";
-const SCRIPT_NAME = "Answer Stats";
 const regionMap = { E: "Eastern", C: "Central", W: "Western" };
 const saveData = validateLocalStorage("answerStats");
 let showPlayerColors = saveData.showPlayerColors ?? true;
@@ -114,10 +112,11 @@ function setup() {
         if (Object.keys(animeListMap).length === 0) return;
         const currentPlayer = quizVideoController.getCurrentPlayer();
         const songNumber = parseInt(quiz.infoContainer.$currentSongCount.text());
-        if (songNumber < Math.max(...Object.keys(songHistory).map(x => parseInt(x)))) songHistory = {}; //handle jam reset
+        const maxSongNumber = Math.max(...Object.keys(songHistory).map(Number));
+        if (songNumber < maxSongNumber) songHistory = {}; //handle jam reset
         const correctPlayers = {}; //{id: answer speed, ...}
-        const correctAnswerIdList = {}; //{title: [], ...}
-        const incorrectAnswerIdList = {}; //{title: [], ...}
+        const correctAnswerIdMap = {}; //{title: [], ...}
+        const incorrectAnswerIdMap = {}; //{title: [], ...}
         const otherAnswerIdList = []; //unique incorrect answers
         const invalidAnswerIdList = [];
         const noAnswerIdList = [];
@@ -154,7 +153,7 @@ function setup() {
             answers: {}
         };
         for (const anime of info.altAnimeNames.concat(info.altAnimeNamesAnswers)) {
-            correctAnswerIdList[anime] = [];
+            correctAnswerIdMap[anime] = [];
         }
         for (const player of data.players) {
             const quizPlayer = answers[player.gamePlayerId];
@@ -203,14 +202,14 @@ function setup() {
                 continue;
             }
             const answerLC = player.answer.toLowerCase();
-            const correctKey = Object.keys(correctAnswerIdList).find(k => k.toLowerCase() === answerLC);
+            const correctKey = Object.keys(correctAnswerIdMap).find(k => k.toLowerCase() === answerLC);
             if (correctKey) {
-                correctAnswerIdList[correctKey].push(player.id);
+                correctAnswerIdMap[correctKey].push(player.id);
                 continue;
             }
             if (animeListMap.hasOwnProperty(answerLC)) {
                 const anime = animeListMap[answerLC];
-                (incorrectAnswerIdList[anime] ??= []).push(player.id);
+                (incorrectAnswerIdMap[anime] ??= []).push(player.id);
                 continue;
             }
             invalidAnswerIdList.push(player.id);
@@ -222,20 +221,18 @@ function setup() {
         const fastestPlayers = Object.keys(correctPlayers).filter((id) => correctPlayers[id] === fastestSpeed);
         songHistory[songNumber].fastestSpeed = fastestSpeed;
         songHistory[songNumber].fastestPlayers = fastestPlayers;
-        for (const anime of Object.keys(incorrectAnswerIdList)) {
-            if (incorrectAnswerIdList[anime].length === 1) {
-                const id = incorrectAnswerIdList[anime][0];
+        for (const anime of Object.keys(incorrectAnswerIdMap)) {
+            if (incorrectAnswerIdMap[anime].length === 1) {
+                const id = incorrectAnswerIdMap[anime][0];
                 otherAnswerIdList.push(id);
                 songHistory[songNumber].answers[id].uniqueAnswer = true;
             }
         }
-        const correctSortedKeys = Object.keys(correctAnswerIdList).sort((a, b) => correctAnswerIdList[b].length - correctAnswerIdList[a].length);
-        const incorrectSortedKeys = Object.keys(incorrectAnswerIdList).sort((a, b) => incorrectAnswerIdList[b].length - incorrectAnswerIdList[a].length);
+        const correctSortedKeys = Object.keys(correctAnswerIdMap).sort((a, b) => correctAnswerIdMap[b].length - correctAnswerIdMap[a].length);
+        const incorrectSortedKeys = Object.keys(incorrectAnswerIdMap).sort((a, b) => incorrectAnswerIdMap[b].length - incorrectAnswerIdMap[a].length);
         answers = {};
 
         setTimeout(() => {
-            //const $asMainContainer = $("#asMainContainer");
-            //const totalPlayers = $("#qpScoreBoardEntryContainer .qpStandingItem").length;
             const activePlayers = $("#qpScoreBoardEntryContainer .qpStandingItem:not(.disabled)").length;
             const roomName = hostModal.$roomName.val();
             const difficultyList = songHistoryWindow.currentGameTab.table.rows.map((x) => parseFloat(x.songInfo.animeDifficulty) || 0);
@@ -245,15 +242,14 @@ function setup() {
                 <span style="margin-left: 20px"><b>Song:</b> ${songNumber}/${quiz.infoContainer.$totalSongCount.text()}</span>
                 <span style="margin-left: 20px"><b>Host:</b> ${hostText(currentPlayer?.currentVideoUrl)}</span>
             `);
-            //<span style="margin-left: 20px"><b>Total Players:</b> ${totalPlayers}</span>
             $("#asSongDistributionRow span").remove();
             $("#asSongDistributionRow").append(`
-                <span style="margin-left: 10px"><b>OP:</b> ${songTypeList.filter((x) => x === 1).length}</span>
-                <span style="margin-left: 10px"><b>ED:</b> ${songTypeList.filter((x) => x === 2).length}</span>
-                <span style="margin-left: 10px"><b>IN:</b> ${songTypeList.filter((x) => x === 3).length}</span>
-                <span style="margin-left: 20px"><b>Easy:</b> ${difficultyList.filter((x) => x >= 60).length}</span>
-                <span style="margin-left: 10px"><b>Medium:</b> ${difficultyList.filter((x) => x >= 25 && x < 60).length}</span>
-                <span style="margin-left: 10px"><b>Hard:</b> ${difficultyList.filter((x) => x < 25).length}</span>
+                <span style="margin-left: 10px"><b>OP:</b> ${songTypeList.filter(x => x === 1).length}</span>
+                <span style="margin-left: 10px"><b>ED:</b> ${songTypeList.filter(x => x === 2).length}</span>
+                <span style="margin-left: 10px"><b>IN:</b> ${songTypeList.filter(x => x === 3).length}</span>
+                <span style="margin-left: 20px"><b>Easy:</b> ${difficultyList.filter(x => x >= 60).length}</span>
+                <span style="margin-left: 10px"><b>Medium:</b> ${difficultyList.filter(x => x >= 25 && x < 60).length}</span>
+                <span style="margin-left: 10px"><b>Hard:</b> ${difficultyList.filter(x => x < 25).length}</span>
             `);
             const options = $("#asDistributionButton").data("bs.popover").options;
             if (quiz.gameMode === "Ranked") {
@@ -273,7 +269,6 @@ function setup() {
                 <span style="margin-left: 20px"><b>Dif:</b> ${Number(info.animeDifficulty).toFixed(2)}</span>
                 <span style="margin-left: 20px"><b>Sample:</b> ${currentMinutes}:${currentSeconds} / ${totalMinutes}:${totalSeconds}</span>
             `);
-            //<span style="margin-left: 20px"><b>Rig:</b> ${data.watched}</span>
             if (numCorrect && !quiz.soloMode && !quiz.teamMode) {
                 const $speedRow = $("#asAnswerSpeedRow").empty().show();
                 $speedRow.append(`<span><b>Average:</b> ${averageSpeed}ms</span><span style="margin-left: 20px"><b>Fastest:</b> ${fastestSpeed}ms - </span>`);
@@ -310,14 +305,14 @@ function setup() {
                 answerHistoryWindow.open();
             }));
             for (const anime of correctSortedKeys) {
-                if (correctAnswerIdList[anime].length > 0) {
+                if (correctAnswerIdMap[anime].length > 0) {
                     $ulCorrect.append($("<li>")
                         .append($("<span>", { class: "answerStatsAnimeTitle", text: anime, style: "cursor: pointer;" }).click(() => {
                             songHistoryFilter = { type: "answer", answer: anime };
                             displaySongHistoryResults(songNumber);
                             answerHistoryWindow.open()
                         }))
-                        .append($("<span>", { class: "answerStatsNumber", text: correctAnswerIdList[anime].length }))
+                        .append($("<span>", { class: "answerStatsNumber", text: correctAnswerIdMap[anime].length }))
                     );
                 }
             }
@@ -328,14 +323,14 @@ function setup() {
                 answerHistoryWindow.open();
             }));
             for (const anime of incorrectSortedKeys) {
-                if (incorrectAnswerIdList[anime].length > 1) {
+                if (incorrectAnswerIdMap[anime].length > 1) {
                     $ulWrong.append($("<li>")
                         .append($("<span>", { class: "answerStatsAnimeTitle", text: anime, style: "cursor: pointer;" }).click(() => {
                             songHistoryFilter = { type: "answer", answer: anime };
                             displaySongHistoryResults(songNumber);
                             answerHistoryWindow.open();
                         }))
-                        .append($("<span>", { class: "answerStatsNumber", text: incorrectAnswerIdList[anime].length }))
+                        .append($("<span>", { class: "answerStatsNumber", text: incorrectAnswerIdMap[anime].length }))
                     );
                 }
             }
@@ -534,13 +529,6 @@ function setup() {
                     distributionWindow.isVisible() ? distributionWindow.close() : distributionWindow.open();
                 })
             )
-            /*.append($("<div>", { id: "mcInfoTab", class: "tab clickAble", style: "width: 45px; margin-right: -10px; padding-right: 8px; float: right;" })
-                .append(`<h5><i class="fa fa-info-circle" aria-hidden="true"></i></h5>`)
-                .click(function () {
-                    //$(this).addClass("selected");
-                    //$("#asSettingsContainer").show();
-                }))
-            */
         );
 
     answerStatsWindow.panels[0].panel.append(/*html*/`
@@ -785,7 +773,8 @@ function setup() {
     $("#qpOptionContainer")
         .width((i, w) => w + 35)
         .children("div")
-        .append($(`<div id="qpAnswerStats" class="clickAble qpOption"><i aria-hidden="true" class="fa fa-list-alt qpMenuItem"></i></div>`)
+        .append($("<div>", { id: "qpAnswerStats", class: "clickAble qpOption" })
+            .append(`<i class="fa fa-list-alt qpMenuItem" aria-hidden="true"></i>`)
             .click(() => {
                 answerStatsWindow.isVisible() ? answerStatsWindow.close() : answerStatsWindow.open();
             })
@@ -803,9 +792,9 @@ function setup() {
 
     applyStyles();
     AMQ_addScriptData({
-        name: SCRIPT_NAME,
+        name: "Answer Stats",
         author: "kempanator",
-        version: SCRIPT_VERSION,
+        version: GM_info.script.version,
         link: "https://github.com/kempanator/amq-scripts/raw/main/amqAnswerStats.user.js",
         description: `
             <p>Click the button in the options bar during quiz to open the answer stats window</p>
@@ -911,10 +900,11 @@ function displaySongHistoryResults(songNumber) {
     songHistoryFilter.type === "all" ? answerHistoryWindow.window.find(".filterButton").hide() : answerHistoryWindow.window.find(".filterButton").show();
     //answerHistoryWindow.window.find(".infoButton").data("bs.popover").options.title = "Song " + songNumber;
     answerHistoryWindow.window.find(".infoButton").data("bs.popover").options.content = $("<div>")
-        .append($("<p>").text(song.songName))
-        .append($("<p>").text(song.songArtist))
-        .append($("<p>").text(options.useRomajiNames ? song.animeRomajiName : song.animeEnglishName).css("color", getComputedStyle(document.documentElement).getPropertyValue("--accentColorContrast") || "#4497ea"))
-        .append($("<p>").text(`${song.songTypeText} (${Number(song.songDifficulty).toFixed(1)}) ${song.animeVintage}`))
+        .append($("<p>", { text: song.songName }))
+        .append($("<p>", { text: song.songArtist }))
+        .append($("<p>", { text: options.useRomajiNames ? song.animeRomajiName : song.animeEnglishName })
+            .css("color", getComputedStyle(document.documentElement).getPropertyValue("--accentColorContrast") || "#4497ea"))
+        .append($("<p>", { text: `${song.songTypeText} (${Number(song.songDifficulty).toFixed(1)}) ${song.animeVintage}` }))
     answerHistoryWindow.panels[0].clear();
     const $table = $("<table>", { id: "answerHistoryTable", class: "styledTable songMode" });
     const $thead = $("<thead>");
@@ -996,7 +986,7 @@ function displaySongHistoryResults(songNumber) {
     });
     $tbody.on("click", "td", (event) => {
         if (event.target.classList.contains("name")) {
-            displayPlayerHistoryResults(Object.values(playerInfo).find((player) => player.name === event.target.innerText).id);
+            displayPlayerHistoryResults(Object.values(playerInfo).find(p => p.name === event.target.innerText).id);
         }
         else if (event.target.classList.contains("box")) {
             selectAvatarGroup(parseInt(event.target.innerText));
@@ -1128,7 +1118,7 @@ function displayFastestSpeedResults() {
         }
     });
     $tbody.on("click", "span", (event) => {
-        displayPlayerHistoryResults(Object.values(playerInfo).find((player) => player.name === event.target.innerText).id);
+        displayPlayerHistoryResults(Object.values(playerInfo).find(p => p.name === event.target.innerText).id);
     });
     $table.append($thead, $tbody);
     answerHistoryWindow.panels[0].panel.append($table);
