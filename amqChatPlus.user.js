@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Chat Plus
 // @namespace    https://github.com/kempanator
-// @version      0.39
+// @version      0.40
 // @description  Add new features to chat and messages
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -41,8 +41,6 @@ const loadInterval = setInterval(() => {
     }
 }, 500);
 
-const SCRIPT_VERSION = "0.39";
-const SCRIPT_NAME = "Chat Plus";
 const saveData = validateLocalStorage("chatPlus");
 const tenorApiKey = "LIVDSRZULELA";
 const litterboxUrl = "https://litterbox.catbox.moe/resources/internals/api.php";
@@ -50,9 +48,9 @@ const joypixelsUrl = "https://cdn.jsdelivr.net/npm/emoji-toolkit@latest/emoji.js
 const skinModifiers = [0x1F3FB, 0x1F3FC, 0x1F3FD, 0x1F3FE, 0x1F3FF];
 const hairModifiers = [0x1F9B0, 0x1F9B1, 0x1F9B2, 0x1F9B3];
 const genderModifiers = [0x2642, 0x2640];
-const imageUrlRegex = /https?:\/\/\S+\.(?:png|jpe?g|gif|webp|bmp|tiff)/i;
-const audioUrlRegex = /https?:\/\/\S+\.(?:mp3|ogg|m4a|flac|wav)/i;
-const videoUrlRegex = /https?:\/\/\S+\.(?:webm|mp4|mkv|avi|mov)/i;
+const imageUrlRegex = /^https?:\/\/\S+\.(?:png|jpe?g|gif|webp|bmp|tiff)$/i;
+const audioUrlRegex = /^https?:\/\/\S+\.(?:mp3|ogg|m4a|flac|wav)$/i;
+const videoUrlRegex = /^https?:\/\/\S+\.(?:webm|mp4|mkv|avi|mov)$/i;
 let gcTimestamps = saveData.gcTimestamps ?? true;
 let ncTimestamps = saveData.ncTimestamps ?? true;
 let dmTimestamps = saveData.dmTimestamps ?? true;
@@ -462,7 +460,7 @@ function setup() {
                 if (gcTimestamps) {
                     if ($node.is(".gcTimestamp, .ps__scrollbar-y-rail, .ps__scrollbar-x-rail")) continue;
                     const $timestamp = $("<span>", { class: "gcTimestamp", text: getTimestamp() });
-                    if ($node.find(".gcTeamMessageIcon").length === 1) {
+                    if ($node.find(".gcTeamMessageIcon").length) {
                         $node.find(".gcTeamMessageIcon").after($timestamp);
                     }
                     else {
@@ -663,9 +661,9 @@ function setup() {
     $qpAnswerInput.on("keyup", () => { answerEmoteSelector.handleKeypress() });
 
     AMQ_addScriptData({
-        name: SCRIPT_NAME,
+        name: "Chat Plus",
         author: "kempanator",
-        version: SCRIPT_VERSION,
+        version: GM_info.script.version,
         link: "https://github.com/kempanator/amq-scripts/raw/main/amqChatPlus.user.js",
         description: `
             <ul><b>New chat/message features:</b>
@@ -725,7 +723,7 @@ function appendThumbnail(url) {
                     }
                 });
             } else {
-                $gcInput.val((i, v) => v + url);
+                $gcInput.val((index, value) => value + url);
             }
         })
         .appendTo($tenorGifContainer);
@@ -735,56 +733,58 @@ function appendThumbnail(url) {
 function createMediaElement($node, type, src, autoLoad) {
     const atBottom = gameChat.$chatMessageContainer.scrollTop() + gameChat.$chatMessageContainer.innerHeight() >= gameChat.$chatMessageContainer[0].scrollHeight - 100;
     $node.find(".gcLoadMediaContainer").remove();
-    const $container = $(`<div class="gcLoadMediaContainer"></div>`);
+    const $container = $("<div>", { class: "gcLoadMediaContainer" });
     if (type === "img") {
         if (autoLoad) {
-            const $img = $(`<img class="gcLoadedImage">`).attr("src", src).on("load", () => gcCheckAtBottom(atBottom));
-            const $button = $(`<button class="btn gcCloseMedia"><i class="fa fa-close"></i></button>`).hide().click(() => {
-                createMediaElement($node, type, src, false);
-            });
-            $container.append($img);
-            $container.append($button);
-            $container.hover(() => $button.show(), () => $button.hide());
+            const $img = $("<img>", { class: "gcLoadedImage", src: src })
+                .on("load", () => gcCheckAtBottom(atBottom));
+            const $closeButton = $("<button>", { class: "btn gcCloseMedia" })
+                .append(`<i class="fa fa-close" aria-hidden="true"></i>`)
+                .click(() => createMediaElement($node, type, src, false))
+                .hide();
+            $container.append($img, $closeButton);
+            $container.hover(() => $closeButton.show(), () => $closeButton.hide());
         }
         else {
-            $container.append($(`<button class="btn gcLoadMediaButton">Load Image</button>`).click(() => {
-                createMediaElement($node, type, src, true);
-            }));
+            const $loadButton = $("<button>", { class: "btn gcLoadMediaButton", text: "Load Image" })
+                .click(() => createMediaElement($node, type, src, true));
+            $container.append($loadButton);
             gcCheckAtBottom(atBottom);
         }
     }
     else if (type === "audio") {
         if (autoLoad) {
-            const $audio = $(`<audio class="gcLoadedAudio" controls></audio>`).attr("src", src);
-            const $button = $(`<button class="btn gcCloseMedia"><i class="fa fa-close"></i></button>`).hide().click(() => {
-                createMediaElement($node, type, src, false);
-            });
-            $container.append($audio);
-            $container.append($button);
-            $container.hover(() => $button.show(), () => $button.hide());
+            const $audio = $("<audio>", { class: "gcLoadedAudio", controls: true, src: src });
+            const $closeButton = $("<button>", { class: "btn gcCloseMedia" })
+                .append(`<i class="fa fa-close" aria-hidden="true"></i>`)
+                .click(() => createMediaElement($node, type, src, false))
+                .hide();
+            $container.append($audio, $closeButton);
+            $container.hover(() => $closeButton.show(), () => $closeButton.hide());
             gcCheckAtBottom(atBottom);
         }
         else {
-            $container.append($(`<button class="btn gcLoadMediaButton">Load Audio</button>`).click(() => {
-                createMediaElement($node, type, src, true);
-            }));
+            const $loadButton = $("<button>", { class: "btn gcLoadMediaButton", text: "Load Audio" })
+                .click(() => createMediaElement($node, type, src, true));
+            $container.append($loadButton);
             gcCheckAtBottom(atBottom);
         }
     }
     else if (type === "video") {
         if (autoLoad) {
-            const $video = $(`<video class="gcLoadedVideo" controls></video>`).attr("src", src).on("canplay", () => gcCheckAtBottom(atBottom));
-            const $button = $(`<button class="btn gcCloseMedia"><i class="fa fa-close"></i></button>`).hide().click(() => {
-                createMediaElement($node, type, src, false);
-            });
-            $container.append($video);
-            $container.append($button);
-            $container.hover(() => $button.show(), () => $button.hide());
+            const $video = $("<video>", { class: "gcLoadedVideo", controls: true, src: src })
+                .on("canplay", () => gcCheckAtBottom(atBottom));
+            const $closeButton = $("<button>", { class: "btn gcCloseMedia" })
+                .append(`<i class="fa fa-close" aria-hidden="true"></i>`)
+                .click(() => createMediaElement($node, type, src, false))
+                .hide();
+            $container.append($video, $closeButton);
+            $container.hover(() => $closeButton.show(), () => $closeButton.hide());
         }
         else {
-            $container.append($(`<button class="btn gcLoadMediaButton">Load Video</button>`).click(() => {
-                createMediaElement($node, type, src, true);
-            }));
+            const $loadButton = $("<button>", { class: "btn gcLoadMediaButton", text: "Load Video" })
+                .click(() => createMediaElement($node, type, src, true));
+            $container.append($loadButton);
             gcCheckAtBottom(atBottom);
         }
     }
@@ -881,13 +881,17 @@ function populateEmojiMaps(catalogue) {
     for (const data of Object.values(catalogue)) {
         const codePoints = data.code_points.fully_qualified.split("-").map(cp => parseInt(cp, 16));
         if (!hasSkinTone(codePoints) && !hasHair(codePoints) && !hasGender(codePoints)) {
-            const names = [data.shortname].concat(data.shortname_alternates || []);
+            /*const names = [data.shortname].concat(data.shortname_alternates || []);
             for (const name of names) {
                 if (!EMOJI_SHORTCODE_MAP.hasOwnProperty(name)) {
                     EMOJI_SHORTCODE_MAP[name] = codePoints;
                     EMOJI_SHORTCODE_LIST.push(name);
                 }
-            };
+            };*/
+            if (!EMOJI_SHORTCODE_MAP.hasOwnProperty(data.shortname)) {
+                EMOJI_SHORTCODE_MAP[data.shortname] = codePoints;
+                EMOJI_SHORTCODE_LIST.push(data.shortname);
+            }
             const emoji = String.fromCodePoint(...codePoints);
             if (!EMOJI_TO_NAME_MAP.hasOwnProperty(emoji)) {
                 EMOJI_TO_NAME_MAP[emoji] = data.shortname;
@@ -902,14 +906,22 @@ ChatBox.prototype.writeMessage = function (sender, msg, emojis, allowHtml) {
     const timestamp = getTimestamp();
     const atBottom = this.$CHAT_CONTENT.scrollTop() + this.$CHAT_CONTENT.innerHeight() >= this.$CHAT_CONTENT[0].scrollHeight - 20;
     let dmUsernameClass = "dmUsername";
-    if (sender === selfName) dmUsernameClass += " self";
-    else if (socialTab.isFriend(sender)) dmUsernameClass += " friend";
-    if (customColorMap.hasOwnProperty(sender.toLowerCase())) dmUsernameClass += " customColor" + customColorMap[sender.toLowerCase()];
-    let newDMFormat;
-    if (dmTimestamps) newDMFormat = `\n\t<li>\n\t\t<span class="dmTimestamp">${timestamp}</span> <span class="${dmUsernameClass}">${sender}:</span> ${msg}\n\t</li>\n`;
-    else newDMFormat = `\n\t<li>\n\t\t<span class="${dmUsernameClass}">${sender}:</span> ${msg}\n\t</li>\n`;
+    if (sender === selfName) {
+        dmUsernameClass += " self";
+    }
+    else if (socialTab.isFriend(sender)) {
+        dmUsernameClass += " friend";
+    }
+    if (customColorMap.hasOwnProperty(sender.toLowerCase())) {
+        dmUsernameClass += " customColor" + customColorMap[sender.toLowerCase()];
+    }
+    const newDMFormat = dmTimestamps
+        ? `\n\t<li>\n\t\t<span class="dmTimestamp">${timestamp}</span> <span class="${dmUsernameClass}">${sender}:</span> ${msg}\n\t</li>\n`
+        : `\n\t<li>\n\t\t<span class="${dmUsernameClass}">${sender}:</span> ${msg}\n\t</li>\n`;
     this.$CHAT_CONTENT.append(newDMFormat);
-    if (atBottom) this.$CHAT_CONTENT.scrollTop(this.$CHAT_CONTENT.prop("scrollHeight"));
+    if (atBottom) {
+        this.$CHAT_CONTENT.scrollTop(this.$CHAT_CONTENT.prop("scrollHeight"));
+    }
     this.$CHAT_CONTENT.perfectScrollbar("update");
 };
 
