@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.81
+// @version      0.82
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -44,8 +44,6 @@ const loadInterval = setInterval(() => {
     }
 }, 500);
 
-const SCRIPT_VERSION = "0.81";
-const SCRIPT_NAME = "Custom Song List Game";
 const saveData = validateLocalStorage("customSongListGame");
 const hostDict = { 1: "eudist.animemusicquiz.com", 2: "nawdist.animemusicquiz.com", 3: "naedist.animemusicquiz.com" };
 let CSLButtonCSS = saveData.CSLButtonCSS || "calc(25% - 250px)";
@@ -620,7 +618,7 @@ function setup() {
                         <div id="cslgInfoContainer" class="tabSection" style="text-align: center; margin: 10px 0;">
                             <h4>Script Info</h4>
                             <div>Created by: kempanator</div>
-                            <div>Version: ${SCRIPT_VERSION}</div>
+                            <div>Version: ${GM_info.script.version}</div>
                             <div><a href="https://github.com/kempanator/amq-scripts/blob/main/amqCustomSongListGame.user.js" target="blank">Github</a> <a href="https://github.com/kempanator/amq-scripts/raw/main/amqCustomSongListGame.user.js" target="blank">Install</a></div>
                             <h4 style="margin-top: 20px;">Custom CSS</h4>
                             <div><span style="font-size: 15px; margin-right: 17px;">#lnCustomSongListButton </span>right: <input id="cslgCSLButtonCSSInput" type="text" style="width: 150px; color: black;"></div>
@@ -1006,7 +1004,8 @@ function setup() {
             quizOver();
         },
         mergeAll: () => {
-            mergedSongList = Array.from(new Set(mergedSongList.concat(songList).map((x) => JSON.stringify(x)))).map((x) => JSON.parse(x));
+            const set = new Set(mergedSongList.concat(songList).map(JSON.stringify));
+            mergedSongList = Array.from(set, JSON.parse);
             createMergedSongListTable();
         },
         clearSongList: () => {
@@ -1068,9 +1067,9 @@ function setup() {
 
     applyStyles();
     AMQ_addScriptData({
-        name: SCRIPT_NAME,
+        name: "Custom Song List Game",
         author: "kempanator",
-        version: SCRIPT_VERSION,
+        version: GM_info.script.version,
         link: "https://github.com/kempanator/amq-scripts/raw/main/amqCustomSongListGame.user.js",
         description: `
             </ul><b>How to start a custom song list game:</b>
@@ -1591,21 +1590,31 @@ function fireListener(type, data) {
 
 // send csl chat message
 function cslMessage(text) {
-    if (!isRankedMode()) {
+    if (!isQuizOfTheDay()) {
         socket.sendCommand({ type: "lobby", command: "game chat message", data: { msg: String(text), teamMessage: false } });
     }
 }
 
 // send a client side message to game chat
-function sendSystemMessage(message) {
-    if (gameChat.open) {
-        setTimeout(() => { gameChat.systemMessage(String(message)) }, 1);
-    }
+function sendSystemMessage(message, message2) {
+    setTimeout(() => {
+        if (gameChat.open) {
+            if (message2) {
+                gameChat.systemMessage(String(message), String(message2));
+            }
+            else {
+                gameChat.systemMessage(String(message));
+            }
+        }
+        else if (nexus.inCoopLobby) {
+            nexusCoopChat.displayServerMessage({ message: String(message) });
+        }
+    }, 0);
 }
 
 // parse message
 function parseMessage(content, sender) {
-    if (isRankedMode()) return;
+    if (isQuizOfTheDay()) return;
     let player;
     if (lobby.inLobby) player = Object.values(lobby.players).find((x) => x._name === sender);
     else if (quiz.inQuiz) player = Object.values(quiz.players).find((x) => x._name === sender);
@@ -1701,7 +1710,7 @@ function parseMessage(content, sender) {
         cslMessage(`Autocomplete: ${animeListLower.length ? "✅" : "⛔"}`);
     }
     else if (content === "§CSL22") { //version
-        cslMessage(`CSL version ${SCRIPT_VERSION}`);
+        cslMessage(`CSL version ${GM_info.script.version}`);
     }
     else if (content.startsWith("§CSL3")) { //next song link
         if (quiz.cslActive && isHost) {
@@ -2192,7 +2201,7 @@ function handleData(data) {
         }
         else return;
     }
-    for (let song of data) {
+    for (const song of data) {
         let animeRomajiName = song.animeRomajiName ?? song.animeJPName ?? song.songInfo?.animeNames?.romaji ?? song.anime?.romaji ?? song.animeRomaji ?? song.animeRom ?? "";
         let animeEnglishName = song.animeEnglishName ?? song.animeENName ?? song.songInfo?.animeNames?.english ?? song.anime?.english ?? song.animeEnglish ?? song.animeEng ?? "";
         let altAnimeNames = song.altAnimeNames ?? song.songInfo?.altAnimeNames ?? [].concat(animeRomajiName, animeEnglishName, song.animeAltName || []);
@@ -2287,9 +2296,9 @@ function handleData(data) {
             });
         }
     }
-    for (let song of songList) {
-        let otherAnswers = new Set();
-        for (let s of songList) {
+    for (const song of songList) {
+        const otherAnswers = new Set();
+        for (const s of songList) {
             if (s.songName === song.songName && s.songArtist === song.songArtist) {
                 s.altAnimeNames.forEach((x) => otherAnswers.add(x));
             }
@@ -2785,7 +2794,7 @@ function bindingToText(b) {
 }
 
 // return true if you are in a ranked lobby or quiz
-function isRankedMode() {
+function isQuizOfTheDay() {
     const types = ["Ranked", "Themed"];
     if (lobby.inLobby) {
         if (types.includes(lobby.settings.gameMode)) {
@@ -3021,6 +3030,7 @@ function getAnilistData(username, statuses, pageNumber) {
         .catch(error => console.log(error));
 }
 
+// convert list of mal ids to anisongdb song list
 async function getSongListFromMalIds(malIds) {
     importedSongList = [];
     if (!malIds) malIds = [];
