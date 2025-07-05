@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Notification Sounds
 // @namespace    http://tampermonkey.net/
-// @version      2.5
+// @version      2.6
 // @description  Adds notification sounds
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -26,8 +26,6 @@ const loadInterval = setInterval(() => {
     }
 }, 500);
 
-const SCRIPT_VERSION = "2.5";
-const SCRIPT_NAME = "Notification Sounds";
 const saveData = validateLocalStorage("notificationSounds");
 let soundOnlyWhenFocused = saveData.soundOnlyWhenFocused ?? false;
 let volume = saveData.volume ?? 50;
@@ -148,10 +146,10 @@ function setup() {
 
     applyStyles();
     AMQ_addScriptData({
-        name: SCRIPT_NAME,
+        name: "Notification Sounds",
         author: "kempanator",
-        version: SCRIPT_VERSION,
-        link: "https://github.com/amq-script-project/AMQ-Scripts/raw/master/gameplay/amqNotificationSounds.user.js",
+        version: GM_info.script.version,
+        link: "https://github.com/kempanator/amq-scripts/raw/main/amqNotificationSounds.user.js",
         description: `
             <ul><b>Makes notification sounds for the following:</b>
                 <li>1. DM</li>
