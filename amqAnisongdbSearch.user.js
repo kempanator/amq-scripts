@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Anisongdb Search
 // @namespace    https://github.com/kempanator
-// @version      0.23
+// @version      0.24
 // @description  Adds a window to search anisongdb.com in game
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -27,14 +27,15 @@ const loadInterval = setInterval(() => {
     }
 }, 500);
 
-const SCRIPT_VERSION = "0.23";
-const SCRIPT_NAME = "Anisongdb Search";
 const saveData = validateLocalStorage("anisongdbSearch");
 let anisongdbWindow;
 let injectSearchButtons = saveData.injectSearchButtons ?? true;
 let tableSort = { mode: "anime", ascending: true };
 let hotKeys = {
-    adbsWindow: loadHotkey("adbsWindow")
+    adbsWindow: loadHotkey("adbsWindow"),
+    doAnimeSearch: loadHotkey("doAnimeSearch"),
+    doArtistSearch: loadHotkey("doArtistSearch"),
+    doComposerSearch: loadHotkey("doComposerSearch")
 }
 
 function setup() {
@@ -44,13 +45,13 @@ function setup() {
             $("#adbsSearchButtonRow").remove();
             $("#qpSongInfoLinkRow").before($("<div>", { id: "adbsSearchButtonRow", class: "row" })
                 .append("<h5><b>AnisongDB Search</b></h5>")
-                .append($("<button>", { text: "Anime" }).click(() => {
+                .append($("<button>", { text: "Anime" }).on("click", () => {
                     anisongdbWindow.open();
                     $("#adbsQueryMode").val("Anime");
                     $("#adbsQueryInput").val(data.songInfo.animeNames.romaji);
                     getAnisongdbData("anime", data.songInfo.animeNames.romaji, false);
                 }))
-                .append($("<button>", { text: "Artist" }).click(() => {
+                .append($("<button>", { text: "Artist" }).on("click", () => {
                     anisongdbWindow.open();
                     $("#adbsQueryMode").val("Artist");
                     $("#adbsQueryInput").val(data.songInfo.artist);
@@ -79,23 +80,23 @@ function setup() {
     });
     anisongdbWindow.window.find(".modal-header").empty()
         .append($("<i>", { class: "fa fa-times clickAble", "aria-hidden": "true", style: "font-size: 25px; top: 8px; right: 15px; position: absolute;" })
-            .click(() => {
+            .on("click", () => {
                 anisongdbWindow.close();
             }))
         .append($("<i>", { class: "fa fa-globe clickAble", "aria-hidden": "true", style: "font-size: 22px; top: 11px; right: 42px; position: absolute;" })
-            .click(() => {
-                window.open("https://anisongdb.com", "_blank");
+            .on("click", () => {
+                open("https://anisongdb.com", "_blank", "noreferrer");
             }))
         .append($("<h2>", { text: "AnisongDB Search" }))
         .append($("<div>", { class: "tabContainer" })
             .append($("<div>", { class: "tab clickAble" })
                 .append($("<span>", { text: "Search" }))
-                .click(() => {
+                .on("click", () => {
                     switchTab("adbsSearch");
                 }))
             .append($("<div>", { class: "tab clickAble" })
                 .append($("<span>", { text: "Settings" }))
-                .click(() => {
+                .on("click", () => {
                     switchTab("adbsSettings");
                 }))
         );
@@ -112,14 +113,16 @@ function setup() {
                     .append($("<option>", { text: "Ann Id" }))
                     .append($("<option>", { text: "Mal Id" }))
                 )
-                .append($("<input>", { id: "adbsQueryInput", type: "text", style: "width: 300px; padding: 0 2px;" }).keypress((event) => {
-                    if (event.key === "Enter") {
+                .append($("<input>", { id: "adbsQueryInput", type: "text", style: "width: 300px; padding: 0 2px;" })
+                    .on("keypress", (event) => {
+                        if (event.key === "Enter") {
+                            doSearch();
+                        }
+                    }))
+                .append($("<button>", { id: "anisongdbSearchButtonGo", text: "Go" })
+                    .on("click", () => {
                         doSearch();
-                    }
-                }))
-                .append($("<button>", { id: "anisongdbSearchButtonGo", text: "Go" }).click(() => {
-                    doSearch();
-                }))
+                    }))
                 .append($("<label>", { class: "clickable", style: "padding: 0 4px 0 0; margin: 0 0 0 10px; vertical-align: middle;" })
                     .append("Partial")
                     .append($("<input>", { id: "adbsPartialCheckbox", type: "checkbox", checked: true }))
@@ -162,10 +165,11 @@ function setup() {
             .append($("<div>", { style: "margin-top: 10px;" })
                 .append($("<span>", { text: "Song info Box Buttons" }))
                 .append($("<div>", { class: "customCheckbox", style: "margin: 0 0 0 8px; vertical-align: middle;" })
-                    .append($("<input>", { type: "checkbox", id: "adbsButtonsCheckbox", checked: injectSearchButtons })).click(function () {
-                        injectSearchButtons = !injectSearchButtons;
-                        saveSettings();
-                    })
+                    .append($("<input>", { type: "checkbox", id: "adbsButtonsCheckbox", checked: injectSearchButtons })
+                        .on("click", () => {
+                            injectSearchButtons = !injectSearchButtons;
+                            saveSettings();
+                        }))
                     .append($("<label>", { for: "adbsButtonsCheckbox" })
                         .append($("<i>", { class: "fa fa-check", "aria-hidden": "true" }))
                     )
@@ -176,6 +180,30 @@ function setup() {
     const hotkeyActions = {
         adbsWindow: () => {
             anisongdbWindow.isVisible() ? anisongdbWindow.close() : anisongdbWindow.open();
+        },
+        doAnimeSearch: () => {
+            const query = quiz.infoContainer.$name.text().trim();
+            if (!query) return;
+            anisongdbWindow.open();
+            $("#adbsQueryMode").val("Anime");
+            $("#adbsQueryInput").val(query);
+            getAnisongdbData("anime", query, false);
+        },
+        doArtistSearch: () => {
+            const query = quiz.infoContainer.artistInformation?.name;
+            if (!query) return;
+            anisongdbWindow.open();
+            $("#adbsQueryMode").val("Artist");
+            $("#adbsQueryInput").val(query);
+            getAnisongdbData("artist", query, false);
+        },
+        doComposerSearch: () => {
+            const query = quiz.infoContainer.composerInformation?.name;
+            if (!query) return;
+            anisongdbWindow.open();
+            $("#adbsQueryMode").val("Composer");
+            $("#adbsQueryInput").val(query);
+            getAnisongdbData("composer", query, false);
         }
     };
 
@@ -201,7 +229,10 @@ function setup() {
     });
 
     createHotkeyTable([
-        { action: "adbsWindow", title: "AnisongDB Window" }
+        { action: "adbsWindow", title: "Open this window" },
+        { action: "doAnimeSearch", title: "Do anime search" },
+        { action: "doArtistSearch", title: "Do artist search" },
+        { action: "doComposerSearch", title: "Do composer search" }
     ]);
     switchTab("adbsSearch");
     $("#optionListSettings").before($("<li>", { class: "clickAble", text: "AnisongDB" }).click(() => {
@@ -210,9 +241,9 @@ function setup() {
 
     applyStyles();
     AMQ_addScriptData({
-        name: SCRIPT_NAME,
+        name: "Anisongdb Search",
         author: "kempanator",
-        version: SCRIPT_VERSION,
+        version: GM_info.script.version,
         link: "https://github.com/kempanator/amq-scripts/raw/main/amqAnisongdbSearch.user.js",
         description: `
             <p>Add a window to search anisongdb.com</p>
@@ -331,10 +362,10 @@ function doSearch() {
 
 // create anisongdb results table
 function createTable(json) {
-    const key = options.useRomajiNames ? "animeJPName" : "animeENName";
+    const language = options.useRomajiNames ? "animeJPName" : "animeENName";
     $("#adbsInfoText").text("");
     $("#adbsTable tbody").empty().append(json.map((result) => $("<tr>")
-        .append($("<td>", { class: "anime", text: result[key] }))
+        .append($("<td>", { class: "anime", text: result[language] }))
         .append($("<td>", { class: "artist", text: result.songArtist }))
         .append($("<td>", { class: "song", text: result.songName }))
         .append($("<td>", { class: "type", text: shortenType(result.songType) }))
@@ -380,7 +411,8 @@ function shortenType(type) {
 
 // translate song type text to amq values (input example: Opening 1, ED2)
 function translateTypeText(text) {
-    const songType = ({ "O": 1, "E": 2, "I": 3 })[text[0]] || null;
+    const map = { "O": 1, "E": 2, "I": 3 };
+    const songType = map[text.charAt(0)] || null;
     const songTypeNumber = parseInt(text.match(/([0-9]+)/)) || null;
     return { songType, songTypeNumber };
 }
