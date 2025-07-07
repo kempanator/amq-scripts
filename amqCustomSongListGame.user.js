@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.82
+// @version      0.83
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -103,7 +103,7 @@ let hotKeys = {
 function setup() {
     new Listener("New Player", (data) => {
         if (quiz.cslActive && quiz.inQuiz && quiz.isHost) {
-            const player = Object.values(quiz.players).find((p) => p._name === data.name);
+            const player = Object.values(quiz.players).find(p => p._name === data.name);
             if (player) {
                 sendSystemMessage(`CSL: reconnecting ${data.name}`);
                 cslMessage("§CSL0" + btoa(`${showSelection}§${currentSong}§${totalSongs}§${guessTime}§${extraGuessTime}§${fastSkip ? "1" : "0"}`));
@@ -116,7 +116,7 @@ function setup() {
     }).bindListener();
     new Listener("New Spectator", (data) => {
         if (quiz.cslActive && quiz.inQuiz && quiz.isHost) {
-            const player = Object.values(quiz.players).find((p) => p._name === data.name);
+            const player = Object.values(quiz.players).find(p => p._name === data.name);
             if (player) {
                 sendSystemMessage(`CSL: reconnecting ${data.name}`);
                 cslMessage("§CSL17" + btoa(data.name));
@@ -135,7 +135,7 @@ function setup() {
     }).bindListener();
     new Listener("Spectator Change To Player", (data) => {
         if (quiz.cslActive && quiz.inQuiz && quiz.isHost) {
-            const player = Object.values(quiz.players).find((p) => p._name === data.name);
+            const player = Object.values(quiz.players).find(p => p._name === data.name);
             if (player) {
                 cslMessage("§CSL0" + btoa(`${showSelection}§${currentSong}§${totalSongs}§${guessTime}§${extraGuessTime}§${fastSkip ? "1" : "0"}`));
             }
@@ -147,7 +147,7 @@ function setup() {
     }).bindListener();
     new Listener("Player Change To Spectator", (data) => {
         if (quiz.cslActive && quiz.inQuiz && quiz.isHost) {
-            const player = Object.values(quiz.players).find((p) => p._name === data.name);
+            const player = Object.values(quiz.players).find(p => p._name === data.name);
             if (player) {
                 cslMessage("§CSL17" + btoa(data.name));
             }
@@ -262,7 +262,10 @@ function setup() {
             }
         }
         else {
-            socket.sendCommand({ type: "quiz", command: quiz.pauseButton.pauseOn ? "quiz unpause" : "quiz pause" });
+            socket.sendCommand({
+                type: "quiz",
+                command: quiz.pauseButton.pauseOn ? "quiz unpause" : "quiz pause"
+            });
         }
     });
 
@@ -619,7 +622,7 @@ function setup() {
                             <h4>Script Info</h4>
                             <div>Created by: kempanator</div>
                             <div>Version: ${GM_info.script.version}</div>
-                            <div><a href="https://github.com/kempanator/amq-scripts/blob/main/amqCustomSongListGame.user.js" target="blank">Github</a> <a href="https://github.com/kempanator/amq-scripts/raw/main/amqCustomSongListGame.user.js" target="blank">Install</a></div>
+                            <div><a href="https://github.com/kempanator/amq-scripts/blob/main/amqCustomSongListGame.user.js" target="_blank">Github</a> <a href="https://github.com/kempanator/amq-scripts/raw/main/amqCustomSongListGame.user.js" target="_blank">Install</a></div>
                             <h4 style="margin-top: 20px;">Custom CSS</h4>
                             <div><span style="font-size: 15px; margin-right: 17px;">#lnCustomSongListButton </span>right: <input id="cslgCSLButtonCSSInput" type="text" style="width: 150px; color: black;"></div>
                             <div style="margin: 10px 0"><button id="cslgResetCSSButton" style="color: black; margin-right: 10px;">Reset</button><button id="cslgApplyCSSButton" style="color: black;">Save</button></div>
@@ -703,7 +706,8 @@ function setup() {
         }
     });
     $("#cslgMergeAllButton").click(() => {
-        mergedSongList = Array.from(new Set(mergedSongList.concat(songList).map((x) => JSON.stringify(x)))).map((x) => JSON.parse(x));
+        const set = new Set(mergedSongList.concat(songList).map(JSON.stringify));
+        mergedSongList = Array.from(set, JSON.parse);
         createMergedSongListTable();
     }).popover({
         content: "Add all to merged",
@@ -741,7 +745,8 @@ function setup() {
         fileHostOverride = parseInt(this.value);
     });
     $("#cslgMergeButton").click(() => {
-        mergedSongList = Array.from(new Set(mergedSongList.concat(songList).map((x) => JSON.stringify(x)))).map((x) => JSON.parse(x));
+        const set = new Set(mergedSongList.concat(songList).map(JSON.stringify));
+        mergedSongList = Array.from(set, JSON.parse);
         createMergedSongListTable();
     });
     $("#cslgMergeClearButton").click(() => {
@@ -750,16 +755,10 @@ function setup() {
     });
     $("#cslgMergeDownloadButton").click(() => {
         if (mergedSongList.length) {
-            const data = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(mergedSongList));
-            const element = document.createElement("a");
-            element.setAttribute("href", data);
-            element.setAttribute("download", "merged.json");
-            document.body.appendChild(element);
-            element.click();
-            element.remove();
+            downloadListJson(mergedSongList, "merged.json");
         }
         else {
-            messageDisplayer.displayMessage("No songs", "add some songs to the merged song list");
+            messageDisplayer.displayMessage("No songs", "Add some songs to the merged song list");
         }
     });
     $("#cslgAutocompleteButton").click(() => {
@@ -773,7 +772,7 @@ function setup() {
                     hostModal.displayHostSolo();
                 }, 200);
                 setTimeout(() => {
-                    const returnListener = new Listener("Host Game", (data) => {
+                    const returnListener = new Listener("Host Game", () => {
                         returnListener.unbindListener();
                         if (songList.length) createAnswerTable();
                         setTimeout(() => { openSettingsModal() }, 10);
@@ -811,38 +810,38 @@ function setup() {
         const year = String(date.getFullYear());
         const month = String(date.getMonth() + 1).padStart(2, 0);
         const day = String(date.getDate()).padStart(2, 0);
-        const data = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(importedSongList));
-        const element = document.createElement("a");
-        element.setAttribute("href", data);
-        element.setAttribute("download", `${username} ${listType} ${year}-${month}-${day} song list.json`);
-        document.body.appendChild(element);
-        element.click();
-        element.remove();
+        const fileName = `${username} ${listType} ${year}-${month}-${day} song list.json`;
+        downloadListJson(importedSongList, fileName);
     });
     $("#cslgStartButton").click(() => {
         validateStart();
     });
-    $("#cslgSongListTable").on("click", "i.fa-trash", (event) => {
-        const index = parseInt(event.target.parentElement.parentElement.querySelector("td.number").innerText) - 1;
-        songList.splice(index, 1);
-        createSongListTable(true);
-        createAnswerTable();
-    }).on("mouseenter", "i.fa-trash", (event) => {
-        event.target.parentElement.parentElement.classList.add("selected");
-    }).on("mouseleave", "i.fa-trash", (event) => {
-        event.target.parentElement.parentElement.classList.remove("selected");
-    });
-    $("#cslgSongListTable").on("click", "i.fa-plus", (event) => {
-        const index = parseInt(event.target.parentElement.parentElement.querySelector("td.number").innerText) - 1;
-        mergedSongList.push(songList[index]);
-        mergedSongList = Array.from(new Set(mergedSongList.map((x) => JSON.stringify(x)))).map((x) => JSON.parse(x));
-        createMergedSongListTable();
-    }).on("mouseenter", "i.fa-plus", (event) => {
-        event.target.parentElement.parentElement.classList.add("selected");
-    }).on("mouseleave", "i.fa-plus", (event) => {
-        event.target.parentElement.parentElement.classList.remove("selected");
-    });
-    $("#cslgAnswerButtonAdd").click(() => {
+    $("#cslgSongListTable")
+        .on("click", "th", function () {
+            const sort = $(this).data("sort");
+            if (!sort) return;
+            setSongListTableSort(sort);
+            createSongListTable();
+        })
+        .on("click", "i.fa-plus", function () {
+            const index = $(this).closest("tr").index();
+            mergedSongList.push(songList[index]);
+            mergedSongList = Array.from(new Set(mergedSongList.map(JSON.stringify))).map(JSON.parse);
+            createMergedSongListTable();
+        })
+        .on("click", "i.fa-trash", function () {
+            const index = $(this).closest("tr").index();
+            songList.splice(index, 1);
+            createSongListTable(true);
+            createAnswerTable();
+        })
+        .on("mouseenter", "i.fa-plus, i.fa-trash", function () {
+            $(this).closest("tr").addClass("selected");
+        })
+        .on("mouseleave", "i.fa-plus, i.fa-trash", function () {
+            $(this).closest("tr").removeClass("selected");
+        });
+    $("#cslgAnswerButtonAdd").click(function () {
         const oldName = $("#cslgOldAnswerInput").val().trim();
         const newName = $("#cslgNewAnswerInput").val().trim();
         if (oldName) {
@@ -853,70 +852,51 @@ function setup() {
         }
         //console.log(replacedAnswers);
     });
-    $("#cslgAnswerTable").on("click", "i.fa-pencil", (event) => {
-        const oldName = event.target.parentElement.parentElement.querySelector("td.oldName").innerText;
-        const newName = event.target.parentElement.parentElement.querySelector("td.newName").innerText;
+    $("#cslgAnswerTable").on("click", "i.fa-pencil", function () {
+        const $row = $(this).closest("tr");
+        const oldName = $row.find("td.oldName").text();
+        const newName = $row.find("td.newName").text();
         $("#cslgOldAnswerInput").val(oldName);
         $("#cslgNewAnswerInput").val(newName);
     });
-    $("#cslgMergedSongListTable").on("click", "i.fa-chevron-up", (event) => {
-        const index = parseInt(event.target.parentElement.parentElement.querySelector("td.number").innerText) - 1;
-        if (index !== 0) {
-            [mergedSongList[index], mergedSongList[index - 1]] = [mergedSongList[index - 1], mergedSongList[index]];
+    $("#cslgMergedSongListTable")
+        .on("click", "i.fa-chevron-up", function () {
+            const index = $(this).closest("tr").index();
+            if (index > 0) {
+                [mergedSongList[index], mergedSongList[index - 1]] = [mergedSongList[index - 1], mergedSongList[index]];
+                createMergedSongListTable();
+            }
+        })
+        .on("click", "i.fa-chevron-down", function () {
+            const index = $(this).closest("tr").index();
+            if (index < mergedSongList.length - 1) {
+                [mergedSongList[index], mergedSongList[index + 1]] = [mergedSongList[index + 1], mergedSongList[index]];
+                createMergedSongListTable();
+            }
+        })
+        .on("click", "i.fa-trash", function () {
+            const index = $(this).closest("tr").index();
+            mergedSongList.splice(index, 1);
             createMergedSongListTable();
-        }
-    }).on("mouseenter", "i.fa-chevron-up", (event) => {
-        event.target.parentElement.parentElement.classList.add("selected");
-    }).on("mouseleave", "i.fa-chevron-up", (event) => {
-        event.target.parentElement.parentElement.classList.remove("selected");
-    });
-    $("#cslgMergedSongListTable").on("click", "i.fa-chevron-down", (event) => {
-        const index = parseInt(event.target.parentElement.parentElement.querySelector("td.number").innerText) - 1;
-        if (index !== mergedSongList.length - 1) {
-            [mergedSongList[index], mergedSongList[index + 1]] = [mergedSongList[index + 1], mergedSongList[index]];
-            createMergedSongListTable();
-        }
-    }).on("mouseenter", "i.fa-chevron-down", (event) => {
-        event.target.parentElement.parentElement.classList.add("selected");
-    }).on("mouseleave", "i.fa-chevron-down", (event) => {
-        event.target.parentElement.parentElement.classList.remove("selected");
-    });
-    $("#cslgMergedSongListTable").on("click", "i.fa-trash", (event) => {
-        const index = parseInt(event.target.parentElement.parentElement.querySelector("td.number").innerText) - 1;
-        mergedSongList.splice(index, 1);
-        createMergedSongListTable();
-    }).on("mouseenter", "i.fa-trash", (event) => {
-        event.target.parentElement.parentElement.classList.add("selected");
-    }).on("mouseleave", "i.fa-trash", (event) => {
-        event.target.parentElement.parentElement.classList.remove("selected");
-    });
+        })
+        .on("mouseenter", "i.fa-chevron-up, i.fa-chevron-down, i.fa-trash", function () {
+            $(this).closest("tr").addClass("selected");
+        })
+        .on("mouseleave", "i.fa-chevron-up, i.fa-chevron-down, i.fa-trash", function () {
+            $(this).closest("tr").removeClass("selected");
+        });
     $("#cslgSongListModeSelect").val("Anisongdb").on("change", function () {
-        if (this.value === "Anisongdb") {
-            $("#cslgFileUploadRow").hide();
-            $("#cslgPreviousGameRow").hide();
-            $("#cslgFilterListRow").hide();
-            $("#cslgAnisongdbSearchRow").show();
+        const val = this.value;
+        const idMap = {
+            "Anisongdb": "#cslgAnisongdbSearchRow",
+            "Load File": "#cslgFileUploadRow",
+            "Previous Game": "#cslgPreviousGameRow",
+            "Filter List": "#cslgFilterListRow"
         }
-        else if (this.value === "Load File") {
-            $("#cslgAnisongdbSearchRow").hide();
-            $("#cslgPreviousGameRow").hide();
-            $("#cslgFilterListRow").hide();
-            $("#cslgFileUploadRow").show();
-            $("#cslgAnisongdbQueryInput").val("");
-        }
-        else if (this.value === "Previous Game") {
-            $("#cslgAnisongdbSearchRow").hide();
-            $("#cslgFileUploadRow").hide();
-            $("#cslgFilterListRow").hide();
-            $("#cslgPreviousGameRow").show();
-            LoadPreviousGameOptions();
-        }
-        else if (this.value === "Filter List") {
-            $("#cslgAnisongdbSearchRow").hide();
-            $("#cslgFileUploadRow").hide();
-            $("#cslgPreviousGameRow").hide();
-            $("#cslgFilterListRow").show();
-        }
+        $(Object.values(idMap).join(",")).hide();
+        $(idMap[val]).show();
+        if (val === "Load File") $("#cslgAnisongdbQueryInput").val("");
+        if (val === "Previous Game") LoadPreviousGameOptions();
     });
     $("#cslgAnisongdbModeSelect").val("Artist");
     $("#cslgAnisongdbPartialCheckbox").prop("checked", true);
@@ -1022,16 +1002,10 @@ function setup() {
         },
         downloadMerged: () => {
             if (mergedSongList.length) {
-                const data = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(mergedSongList));
-                const element = document.createElement("a");
-                element.setAttribute("href", data);
-                element.setAttribute("download", "merged.json");
-                document.body.appendChild(element);
-                element.click();
-                element.remove();
+                downloadListJson(mergedSongList, "merged.json");
             }
             else {
-                messageDisplayer.displayMessage("No songs", "add some songs to the merged song list");
+                messageDisplayer.displayMessage("No songs", "Add some songs to the merged song list");
             }
         },
         tableMode: () => {
@@ -1090,28 +1064,28 @@ function validateStart() {
     if (!lobby.inLobby) return;
     songOrder = {};
     if (!lobby.isHost) {
-        return messageDisplayer.displayMessage("Unable to start", "must be host");
+        return messageDisplayer.displayMessage("Unable to start", "Must be host");
     }
     if (lobby.numberOfPlayers !== lobby.numberOfPlayersReady) {
-        return messageDisplayer.displayMessage("Unable to start", "all players must be ready");
+        return messageDisplayer.displayMessage("Unable to start", "All players must be ready");
     }
     if (!songList || !songList.length) {
-        return messageDisplayer.displayMessage("Unable to start", "no songs");
+        return messageDisplayer.displayMessage("Unable to start", "No songs");
     }
     if (animeListLower.length === 0) {
-        return messageDisplayer.displayMessage("Unable to start", "autocomplete list empty");
+        return messageDisplayer.displayMessage("Unable to start", "Autocomplete list empty");
     }
     const numSongs = parseInt($("#cslgSettingsSongs").val());
     if (isNaN(numSongs) || numSongs < 1) {
-        return messageDisplayer.displayMessage("Unable to start", "invalid number of songs");
+        return messageDisplayer.displayMessage("Unable to start", "Invalid number of songs");
     }
     guessTime = parseInt($("#cslgSettingsGuessTime").val());
     if (isNaN(guessTime) || guessTime < 1 || guessTime > 99) {
-        return messageDisplayer.displayMessage("Unable to start", "invalid guess time");
+        return messageDisplayer.displayMessage("Unable to start", "Invalid guess time");
     }
     extraGuessTime = parseInt($("#cslgSettingsExtraGuessTime").val());
     if (isNaN(extraGuessTime) || extraGuessTime < 0 || extraGuessTime > 15) {
-        return messageDisplayer.displayMessage("Unable to start", "invalid extra guess time");
+        return messageDisplayer.displayMessage("Unable to start", "Invalid extra guess time");
     }
     const startPointText = $("#cslgSettingsStartPoint").val().trim();
     if (/^[0-9]+$/.test(startPointText)) {
@@ -1122,10 +1096,10 @@ function validateStart() {
         startPointRange = [parseInt(regex[1]), parseInt(regex[2])];
     }
     else {
-        return messageDisplayer.displayMessage("Unable to start", "song start sample must be a number or range 0-100");
+        return messageDisplayer.displayMessage("Unable to start", "Song start sample must be a number or range 0-100");
     }
     if (startPointRange[0] < 0 || startPointRange[0] > 100 || startPointRange[1] < 0 || startPointRange[1] > 100 || startPointRange[0] > startPointRange[1]) {
-        return messageDisplayer.displayMessage("Unable to start", "song start sample must be a number or range 0-100");
+        return messageDisplayer.displayMessage("Unable to start", "Song start sample must be a number or range 0-100");
     }
     const difficultyText = $("#cslgSettingsDifficulty").val().trim();
     if (/^[0-9]+[\s-]+[0-9]+$/.test(difficultyText)) {
@@ -1133,10 +1107,10 @@ function validateStart() {
         difficultyRange = [parseInt(regex[1]), parseInt(regex[2])];
     }
     else {
-        return messageDisplayer.displayMessage("Unable to start", "difficulty must be a range 0-100");
+        return messageDisplayer.displayMessage("Unable to start", "Difficulty must be a range 0-100");
     }
     if (difficultyRange[0] < 0 || difficultyRange[0] > 100 || difficultyRange[1] < 0 || difficultyRange[1] > 100 || difficultyRange[0] > difficultyRange[1]) {
-        return messageDisplayer.displayMessage("Unable to start", "difficulty must be a range 0-100");
+        return messageDisplayer.displayMessage("Unable to start", "Difficulty must be a range 0-100");
     }
     const ops = $("#cslgSettingsOPCheckbox").prop("checked");
     const eds = $("#cslgSettingsEDCheckbox").prop("checked");
@@ -1161,7 +1135,7 @@ function validateStart() {
     songKeys.slice(0, numSongs).forEach((key, i) => { songOrder[i + 1] = parseInt(key) });
     totalSongs = Object.keys(songOrder).length;
     if (totalSongs === 0) {
-        return messageDisplayer.displayMessage("Unable to start", "no songs");
+        return messageDisplayer.displayMessage("Unable to start", "No songs");
     }
     fastSkip = $("#cslgSettingsFastSkip").prop("checked");
     $("#cslgSettingsModal").modal("hide");
@@ -1616,8 +1590,8 @@ function sendSystemMessage(message, message2) {
 function parseMessage(content, sender) {
     if (isQuizOfTheDay()) return;
     let player;
-    if (lobby.inLobby) player = Object.values(lobby.players).find((x) => x._name === sender);
-    else if (quiz.inQuiz) player = Object.values(quiz.players).find((x) => x._name === sender);
+    if (lobby.inLobby) player = Object.values(lobby.players).find(x => x._name === sender);
+    else if (quiz.inQuiz) player = Object.values(quiz.players).find(x => x._name === sender);
     const isHost = sender === cslMultiplayer.host;
     if (content.startsWith("§CSL0")) { //start quiz
         if (lobby.inLobby && sender === lobby.hostName && !quiz.cslActive) {
@@ -1699,7 +1673,7 @@ function parseMessage(content, sender) {
                 socket.sendCommand({ type: "lobby", command: "change to player" });
             }
             else if (quiz.cslActive && quiz.inQuiz) {
-                const player = Object.values(quiz.players).find((p) => p._name === name);
+                const player = Object.values(quiz.players).find(p => p._name === name);
                 if (player) {
                     fireListener("Rejoining Player", { "name": name, "gamePlayerId": player.gamePlayerId });
                 }
@@ -1910,7 +1884,9 @@ function isCorrectAnswer(songNumber, answer) {
     if (!answer) return false;
     answer = answer.toLowerCase();
     const song = songList[songOrder[songNumber]];
-    const correctAnswers = [].concat((song.altAnimeNames || []), (song.altAnimeNamesAnswers || []));
+    const altAnimeNames = song.altAnimeNames || [];
+    const altAnimeNamesAnswers = song.altAnimeNamesAnswers || [];
+    const correctAnswers = [...altAnimeNames, ...altAnimeNamesAnswers];
     for (const a1 of correctAnswers) {
         const a2 = replacedAnswers[a1];
         if (a2 && a2.toLowerCase() === answer) return true;
@@ -2060,12 +2036,17 @@ function LoadPreviousGameOptions() {
     const games = [];
     for (const game of Object.values(songHistoryWindow.tabs[2].gameMap)) {
         if (game.songTable.rows.length) {
-            games.push({ roomName: game.roomName, startTime: game.startTime, quizId: game.quizId });
+            games.push({
+                roomName: game.roomName,
+                startTime: game.startTime,
+                quizId: game.quizId
+            });
         }
     }
     games.sort((a, b) => b.startTime - a.startTime);
     for (const game of games) {
-        $select.append($("<option></option>").val(game.quizId).text(`${game.roomName} - ${game.startTime.format("YYYY-MM-DD HH:mm")}`));
+        const text = `${game.roomName} - ${game.startTime.format("YYYY-MM-DD HH:mm")}`;
+        $select.append($("<option>", { text: text, val: game.quizId }));
     }
 }
 
@@ -2155,35 +2136,38 @@ function getAnisongdbData(mode, query, ops, eds, ins, partial, ignoreDuplicates,
             body: JSON.stringify(json)
         };
     }
-    fetch(url, data).then(res => res.json()).then(json => {
-        if (debug) console.log(json);
-        handleData(json);
-        songList = songList.filter((song) => songTypeFilter(song, ops, eds, ins));
-        setSongListTableSort();
-        if (!Array.isArray(json)) {
+    fetch(url, data)
+        .then(res => res.json())
+        .then(json => {
+            if (debug) console.log(json);
+            handleData(json);
+            songList = songList.filter(song => songTypeFilter(song, ops, eds, ins));
+            setSongListTableSort();
+            if (!Array.isArray(json)) {
+                $("#cslgSongListCount").text("Songs: 0");
+                $("#cslgMergeCurrentCount").text("Current song list: 0 songs");
+                $("#cslgSongListTable tbody").empty();
+                $("#cslgSongListWarning").text(JSON.stringify(json));
+            }
+            else if (songList.length === 0 && isRankedRunning()) {
+                $("#cslgSongListCount").text("Songs: 0");
+                $("#cslgMergeCurrentCount").text("Current song list: 0 songs");
+                $("#cslgSongListTable tbody").empty();
+                $("#cslgSongListWarning").text("AnisongDB is not available during ranked");
+            }
+            else {
+                createSongListTable(true);
+            }
+            createAnswerTable();
+        })
+        .catch(res => {
+            songList = [];
+            setSongListTableSort();
             $("#cslgSongListCount").text("Songs: 0");
             $("#cslgMergeCurrentCount").text("Current song list: 0 songs");
             $("#cslgSongListTable tbody").empty();
-            $("#cslgSongListWarning").text(JSON.stringify(json));
-        }
-        else if (songList.length === 0 && isRankedRunning()) {
-            $("#cslgSongListCount").text("Songs: 0");
-            $("#cslgMergeCurrentCount").text("Current song list: 0 songs");
-            $("#cslgSongListTable tbody").empty();
-            $("#cslgSongListWarning").text("AnisongDB is not available during ranked");
-        }
-        else {
-            createSongListTable(true);
-        }
-        createAnswerTable();
-    }).catch(res => {
-        songList = [];
-        setSongListTableSort();
-        $("#cslgSongListCount").text("Songs: 0");
-        $("#cslgMergeCurrentCount").text("Current song list: 0 songs");
-        $("#cslgSongListTable tbody").empty();
-        $("#cslgSongListWarning").text(res.toString());
-    });
+            $("#cslgSongListWarning").text(res.toString());
+        });
 }
 
 function handleData(data) {
@@ -2300,10 +2284,10 @@ function handleData(data) {
         const otherAnswers = new Set();
         for (const s of songList) {
             if (s.songName === song.songName && s.songArtist === song.songArtist) {
-                s.altAnimeNames.forEach((x) => otherAnswers.add(x));
+                s.altAnimeNames.forEach(x => otherAnswers.add(x));
             }
         }
-        song.altAnimeNamesAnswers = Array.from(otherAnswers).filter((x) => !song.altAnimeNames.includes(x));
+        song.altAnimeNamesAnswers = Array.from(otherAnswers).filter(x => !song.altAnimeNames.includes(x));
     }
 }
 
@@ -2312,6 +2296,7 @@ function createSongListTable(skipSort) {
     $("#cslgSongListCount").text("Songs: " + songList.length);
     $("#cslgMergeCurrentCount").text(`Current song list: ${songList.length} song${songList.length === 1 ? "" : "s"}`);
     $("#cslgSongListWarning").text("");
+    const language = options.useRomajiNames ? "animeRomajiName" : "animeEnglishName";
     const $thead = $("#cslgSongListTable thead").empty();
     const $tbody = $("#cslgSongListTable tbody").empty();
     if (!skipSort) {
@@ -2325,9 +2310,7 @@ function createSongListTable(skipSort) {
             songList.sort((a, b) => a.songDifficulty - b.songDifficulty);
         }
         else if (songListTableSort.mode === "anime") {
-            options.useRomajiNames
-                ? songList.sort((a, b) => a.animeRomajiName.localeCompare(b.animeRomajiName))
-                : songList.sort((a, b) => a.animeEnglishName.localeCompare(b.animeEnglishName));
+            songList.sort((a, b) => a[language].localeCompare(b[language]));
         }
         else if (songListTableSort.mode === "songType") {
             songList.sort((a, b) => songTypeSortValue(a, b));
@@ -2351,18 +2334,9 @@ function createSongListTable(skipSort) {
     if (songListTableView === 0) {
         $thead.append($("<tr>")
             .append($("<th>", { class: "number", text: "#" }))
-            .append($("<th>", { class: "song clickAble", text: "Song" }).click(() => {
-                setSongListTableSort("songName");
-                createSongListTable();
-            }))
-            .append($("<th>", { class: "artist clickAble", text: "Artist" }).click(() => {
-                setSongListTableSort("artist");
-                createSongListTable();
-            }))
-            .append($("<th>", { class: "difficulty clickAble", text: "Dif" }).click(() => {
-                setSongListTableSort("difficulty");
-                createSongListTable();
-            }))
+            .append($("<th>", { class: "song clickAble", text: "Song", "data-sort": "songName" }))
+            .append($("<th>", { class: "artist clickAble", text: "Artist", "data-sort": "artist" }))
+            .append($("<th>", { class: "difficulty clickAble", text: "Dif", "data-sort": "difficulty" }))
             .append($("<th>", { class: "action" }))
         );
         songList.forEach((song, i) => {
@@ -2372,53 +2346,39 @@ function createSongListTable(skipSort) {
                 .append($("<td>", { class: "artist", text: song.songArtist }))
                 .append($("<td>", { class: "difficulty", text: Number.isFinite(song.songDifficulty) ? Math.floor(song.songDifficulty) : "" }))
                 .append($("<td>", { class: "action" })
-                    .append(`<i class="fa fa-plus clickAble" aria-hidden="true"></i> <i class="fa fa-trash clickAble" aria-hidden="true"></i>`))
+                    .append(`<i class="fa fa-plus clickAble" aria-hidden="true"></i>`)
+                    .append(`<i class="fa fa-trash clickAble" aria-hidden="true"></i>`)
+                )
             );
         });
     }
     else if (songListTableView === 1) {
         $thead.append($("<tr>")
             .append($("<th>", { class: "number", text: "#" }))
-            .append($("<th>", { class: "anime clickAble", text: "Anime" }).click(() => {
-                setSongListTableSort("anime");
-                createSongListTable();
-            }))
-            .append($("<th>", { class: "songType clickAble", text: "Type" }).click(() => {
-                setSongListTableSort("songType");
-                createSongListTable();
-            }))
-            .append($("<th>", { class: "vintage clickAble", text: "Vintage" }).click(() => {
-                setSongListTableSort("vintage");
-                createSongListTable();
-            }))
+            .append($("<th>", { class: "anime clickAble", text: "Anime", "data-sort": "anime" }))
+            .append($("<th>", { class: "songType clickAble", text: "Type", "data-sort": "songType" }))
+            .append($("<th>", { class: "vintage clickAble", text: "Vintage", "data-sort": "vintage" }))
             .append($("<th>", { class: "action" }))
         );
         songList.forEach((song, i) => {
             $tbody.append($("<tr>")
                 .append($("<td>", { class: "number", text: i + 1 }))
-                .append($("<td>", { class: "anime", text: options.useRomajiNames ? song.animeRomajiName : song.animeEnglishName }))
+                .append($("<td>", { class: "anime", text: song[language] }))
                 .append($("<td>", { class: "songType", text: songTypeText(song.songType, song.songTypeNumber) }))
                 .append($("<td>", { class: "vintage", text: song.animeVintage }))
                 .append($("<td>", { class: "action" })
-                    .append(`<i class="fa fa-plus clickAble" aria-hidden="true"></i> <i class="fa fa-trash clickAble" aria-hidden="true"></i>`))
+                    .append(`<i class="fa fa-plus clickAble" aria-hidden="true"></i>`)
+                    .append(`<i class="fa fa-trash clickAble" aria-hidden="true"></i>`)
+                )
             );
         });
     }
     else if (songListTableView === 2) {
         $thead.append($("<tr>")
             .append($("<th>", { class: "number", text: "#" }))
-            .append($("<th>", { class: "link clickAble", text: "MP3" }).click(() => {
-                setSongListTableSort("mp3");
-                createSongListTable();
-            }))
-            .append($("<th>", { class: "link clickAble", text: "480" }).click(() => {
-                setSongListTableSort("480");
-                createSongListTable();
-            }))
-            .append($("<th>", { class: "link clickAble", text: "720" }).click(() => {
-                setSongListTableSort("720");
-                createSongListTable();
-            }))
+            .append($("<th>", { class: "link clickAble", text: "MP3", "data-sort": "mp3" }))
+            .append($("<th>", { class: "link clickAble", text: "480", "data-sort": "480" }))
+            .append($("<th>", { class: "link clickAble", text: "720", "data-sort": "720" }))
             .append($("<th>", { class: "action" }))
         );
         songList.forEach((song, i) => {
@@ -2431,7 +2391,9 @@ function createSongListTable(skipSort) {
                 .append($("<td>", { class: "link" })
                     .append(createLinkElement(song.video720)))
                 .append($("<td>", { class: "action" })
-                    .append(`<i class="fa fa-plus clickAble" aria-hidden="true"></i> <i class="fa fa-trash clickAble" aria-hidden="true"></i>`))
+                    .append(`<i class="fa fa-plus clickAble" aria-hidden="true"></i>`)
+                    .append(`<i class="fa fa-trash clickAble" aria-hidden="true"></i>`)
+                )
             );
         });
     }
@@ -2442,13 +2404,17 @@ function createMergedSongListTable() {
     $("#cslgMergedSongListCount").text("Merged: " + mergedSongList.length);
     $("#cslgMergeTotalCount").text(`Merged song list: ${mergedSongList.length} song${mergedSongList.length === 1 ? "" : "s"}`);
     const $tbody = $("#cslgMergedSongListTable tbody").empty();
+    const language = options.useRomajiNames ? "animeRomajiName" : "animeEnglishName";
     mergedSongList.forEach((song, i) => {
         $tbody.append($("<tr>")
             .append($("<td>", { class: "number", text: i + 1 }))
-            .append($("<td>", { class: "anime", text: options.useRomajiNames ? song.animeRomajiName : song.animeEnglishName }))
+            .append($("<td>", { class: "anime", text: song[language] }))
             .append($("<td>", { class: "songType", text: songTypeText(song.songType, song.songTypeNumber) }))
             .append($("<td>", { class: "action" })
-                .append(`<i class="fa fa-chevron-up clickAble" aria-hidden="true"></i><i class="fa fa-chevron-down clickAble" aria-hidden="true"></i> <i class="fa fa-trash clickAble" aria-hidden="true"></i>`))
+                .append(`<i class="fa fa-chevron-up clickAble" aria-hidden="true"></i>`)
+                .append(`<i class="fa fa-chevron-down clickAble" aria-hidden="true"></i>`)
+                .append(`<i class="fa fa-trash clickAble" aria-hidden="true"></i>`)
+            )
         );
     });
 }
@@ -2467,7 +2433,7 @@ function createAnswerTable() {
         const missingAnimeList = [];
         for (const song of songList) {
             const answers = [song.animeEnglishName, song.animeRomajiName].concat(song.altAnimeNames, song.altAnimeNamesAnswers);
-            answers.forEach((x) => animeList.add(x));
+            answers.forEach(x => animeList.add(x));
         }
         for (const anime of animeList) {
             if (!animeListLower.includes(anime.toLowerCase())) {
@@ -3046,22 +3012,25 @@ async function getSongListFromMalIds(malIds) {
             headers: { "Accept": "application/json", "Content-Type": "application/json" },
             body: JSON.stringify({ "malIds": segment })
         };
-        await fetch(url, data).then(res => res.json()).then(json => {
-            if (Array.isArray(json)) {
-                importedSongList = importedSongList.concat(json);
-                $("#cslgListImportText").text(`Anime: ${idsProcessed} / ${malIds.length} | Songs: ${importedSongList.length}`);
-            }
-            else {
+        await fetch(url, data)
+            .then(res => res.json())
+            .then(json => {
+                if (Array.isArray(json)) {
+                    importedSongList = importedSongList.concat(json);
+                    $("#cslgListImportText").text(`Anime: ${idsProcessed} / ${malIds.length} | Songs: ${importedSongList.length}`);
+                }
+                else {
+                    importedSongList = [];
+                    $("#cslgListImportText").text("anisongdb error");
+                    console.log(json);
+                    throw new Error("did not receive an array from anisongdb");
+                }
+            })
+            .catch(res => {
                 importedSongList = [];
                 $("#cslgListImportText").text("anisongdb error");
-                console.log(json);
-                throw new Error("did not receive an array from anisongdb");
-            }
-        }).catch(res => {
-            importedSongList = [];
-            $("#cslgListImportText").text("anisongdb error");
-            console.log(res);
-        });
+                console.log(res);
+            });
     }
 }
 
@@ -3071,7 +3040,8 @@ async function startImport() {
     importRunning = true;
     $("#cslgListImportStartButton").addClass("disabled");
     $("#cslgListImportActionContainer").hide();
-    if ($("#cslgListImportSelect").val() === "myanimelist") {
+    const val = $("#cslgListImportSelect").val();
+    if (val === "myanimelist") {
         if (malClientId) {
             const username = $("#cslgListImportUsernameInput").val().trim();
             if (username) {
@@ -3086,7 +3056,7 @@ async function startImport() {
             $("#cslgListImportText").text("Missing MAL Client ID");
         }
     }
-    else if ($("#cslgListImportSelect").val() === "anilist") {
+    else if (val === "anilist") {
         const username = $("#cslgListImportUsernameInput").val().trim();
         if (username) {
             const malIds = await getMalIdsFromAnilist(username);
@@ -3099,6 +3069,17 @@ async function startImport() {
     if (importedSongList.length) $("#cslgListImportActionContainer").show();
     $("#cslgListImportStartButton").removeClass("disabled");
     importRunning = false;
+}
+
+// input list and file name, download json file
+function downloadListJson(list, fileName) {
+    const data = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(list));
+    const element = document.createElement("a");
+    element.setAttribute("href", data);
+    element.setAttribute("download", fileName);
+    document.body.appendChild(element);
+    element.click();
+    element.remove();
 }
 
 // validate json data in local storage
@@ -3178,6 +3159,9 @@ function applyStyles() {
         #cslgSongListTable .action {
             width: 35px;
         }
+        #cslgSongListTable .action i.fa-trash {
+            margin-left: 4px;
+        }
         #cslgSongListTable .action i.fa-plus:hover {
             color: #5cb85c;
         }
@@ -3205,6 +3189,9 @@ function applyStyles() {
         }
         #cslgMergedSongListTable .action {
             width: 55px;
+        }
+        #cslgMergedSongListTable .action i.fa-trash {
+            margin-left: 4px;
         }
         #cslgMergedSongListTable .action i.fa-chevron-up:hover, #cslgMergedSongListTable .action i.fa-chevron-down:hover {
             color: #f0ad4e;
