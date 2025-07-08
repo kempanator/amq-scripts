@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.142
+// @version      0.143
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -23,6 +23,7 @@ IMPORTANT: disable these scripts before installing
 - command invite by minigamer42
 - no dropdown by juvian
 - no sample reset by miyuki
+- may the sample go on by einlar
 
 GAME SETTINGS
 /size [2-40]              change room size
@@ -105,12 +106,10 @@ OTHER
 
 "use strict";
 if (typeof Listener === "undefined") return;
-const SCRIPT_VERSION = "0.142";
-const SCRIPT_NAME = "Mega Commands";
 const saveData = validateLocalStorage("megaCommands");
 const originalOrder = { qb: [], gm: [] };
 let animeList;
-let animeAutoCompleteLowerCase = [];
+let animeListLower = []; //store lowercase version for faster compare speed
 let autoAcceptInvite = saveData.autoAcceptInvite ?? "";
 if (autoAcceptInvite === false) autoAcceptInvite = "";
 if (autoAcceptInvite === true) autoAcceptInvite = "friends";
@@ -319,8 +318,8 @@ const loadInterval = setInterval(() => {
 
 function setup() {
     saveSettings();
-    if (lastUsedVersion && SCRIPT_VERSION !== lastUsedVersion) {
-        popoutMessages.displayStandardMessage("Mega Commands", "updated to version " + SCRIPT_VERSION);
+    if (lastUsedVersion && GM_info.script.version !== lastUsedVersion) {
+        popoutMessages.displayStandardMessage("Mega Commands", "updated to version " + GM_info.script.version);
     }
 
     // open dm chat box to yourself
@@ -359,12 +358,14 @@ function setup() {
             autoKey = !autoKey;
             saveSettings();
             sendSystemMessage(`auto key ${autoKey ? "enabled" : "disabled"}`);
+            updateCommandListWindow("autoKey");
         },
         dropdown: () => {
             dropdown = !dropdown;
+            quiz.answerInput.typingInput.autoCompleteController.newList();
             saveSettings();
             sendSystemMessage(`dropdown ${dropdown ? "enabled" : "disabled"}`);
-            quiz.answerInput.typingInput.autoCompleteController.newList();
+            updateCommandListWindow("dropdown");
         },
         mute: () => {
             volumeController.setMuted(!volumeController.muted);
@@ -645,10 +646,10 @@ function setup() {
         }
         if (dropdownInSpec && quiz.isSpectator) {
             setTimeout(() => {
-                if (!quiz.answerInput.typingInput.autoCompleteController.list.length) {
+                if (!animeListLower.length) {
                     quiz.answerInput.typingInput.autoCompleteController.updateList();
                 }
-                $("#qpAnswerInput").removeAttr("disabled").val("");
+                quiz.answerInput.typingInput.$input.removeAttr("disabled").val("");
             }, 1);
         }
     }).bindListener();
@@ -679,11 +680,11 @@ function setup() {
     }).bindListener();
     new Listener("team member answer", (data) => {
         if (autoCopy && autoCopy === quiz.players[data.gamePlayerId]._name.toLowerCase()) {
-            const currentText = $("#qpAnswerInput").val();
+            const currentText = quiz.answerInput.typingInput.$input.val();
             quiz.answerInput.setNewAnswer(data.answer);
-            $("#qpAnswerInput").val(currentText);
+            quiz.answerInput.typingInput.$input.val(currentText);
         }
-        if (autoVoteSkip === "valid" && !quiz.skipController._toggled && animeAutoCompleteLowerCase.includes(data.answer.toLowerCase())) {
+        if (autoVoteSkip === "valid" && !quiz.skipController._toggled && animeListLower.includes(data.answer.toLowerCase())) {
             quiz.skipClicked();
         }
     }).bindListener();
@@ -695,8 +696,10 @@ function setup() {
         }
         if (dropdownInSpec && quiz.isSpectator) {
             setTimeout(() => {
-                if (!quiz.answerInput.typingInput.autoCompleteController.list.length) quiz.answerInput.typingInput.autoCompleteController.updateList();
-                $("#qpAnswerInput").removeAttr("disabled");
+                if (!animeListLower.length) {
+                    quiz.answerInput.typingInput.autoCompleteController.updateList();
+                }
+                quiz.answerInput.typingInput.$input.removeAttr("disabled");
             }, 1);
         }
     }).bindListener();
@@ -902,7 +905,7 @@ function setup() {
     new Listener("New Rooms", (data) => {
         for (const room of data) {
             if (playerDetection.invisible) {
-                const list = room.players.filter((player) => socialTab.offlineFriends.hasOwnProperty(player));
+                const list = room.players.filter(p => socialTab.offlineFriends.hasOwnProperty(p));
                 if (list.length) {
                     popoutMessages.displayStandardMessage(`${list.join(", ")} (invisible)`, `Room ${room.id}: ${room.settings.roomName}`);
                 }
@@ -949,15 +952,18 @@ function setup() {
             popoutMessages.displayStandardMessage("friend name change", data.oldName + " => " + data.newName);
         }
     }).bindListener();
-    new Listener("get all song names", () => {
-        setTimeout(() => {
-            animeAutoCompleteLowerCase = quiz.answerInput.typingInput.autoCompleteController.list.map(x => x.toLowerCase());
-        }, 10);
+    new Listener("get all song names", (data) => {
+        animeListLower = data.names.map(x => x.toLowerCase());
     }).bindListener();
-    new Listener("update all song names", () => {
-        setTimeout(() => {
-            animeAutoCompleteLowerCase = quiz.answerInput.typingInput.autoCompleteController.list.map(x => x.toLowerCase());
-        }, 10);
+    new Listener("update all song names", (data) => {
+        if (data.deleted.length) {
+            const deletedList = data.deleted.map(x => x.toLowerCase());
+            animeListLower = animeListLower.filter(name => !deletedList.includes(name));
+        }
+        if (data.new.length) {
+            const newLower = data.new.map(x => x.toLowerCase());
+            animeListLower.push(...newLower);
+        }
     }).bindListener();
     new Listener("server state change", (data) => {
         if (alerts.serverStatus.chat) {
@@ -967,6 +973,8 @@ function setup() {
             popoutMessages.displayStandardMessage("Server Status", `${data.name} ${data.online ? "online" : "offline"}`);
         }
     }).bindListener();
+
+    // monitor the answer input box
     $("#qpAnswerInput").on("input", (event) => {
         if (autoKey) {
             socket.sendCommand({ type: "quiz", command: "quiz answer", data: { answer: event.target.value || " " } });
@@ -983,11 +991,15 @@ function setup() {
             }
         }
     });
+
+    // battle royale popovers
     $("#brMap").keypress((event) => {
         if (event.code === "Space" && printLoot && battleRoyal.inView) {
             $("#brMapContent .brMapObject").popover($(".popover").length ? "hide" : "show");
         }
     });
+
+    // check auto join on log in
     if (autoJoinRoom) {
         if (autoJoinRoom.rejoin) {
             if (document.querySelector(".swal2-container")) {
@@ -1036,6 +1048,7 @@ function setup() {
         }
     }
 
+    // enable all buttons in player profile
     new MutationObserver(function () {
         if (enableAllProfileButtons) {
             $("#playerProfileLayer .ppFooterOptionIcon").removeClass("disabled");
@@ -1241,8 +1254,8 @@ function setup() {
                         <div id="mcInfoContainer" class="tabSection" style="text-align: center; margin: 20px 0;">
                             <h4>Script Info</h4>
                             <div>Created by: kempanator</div>
-                            <div>Version: ${SCRIPT_VERSION}</div>
-                            <div><a href="https://github.com/kempanator/amq-scripts/blob/main/amqMegaCommands.user.js" target="blank">Github</a> <a href="https://github.com/kempanator/amq-scripts/raw/main/amqMegaCommands.user.js" target="blank">Install</a></div>
+                            <div>Version: ${GM_info.script.version}</div>
+                            <div><a href="https://github.com/kempanator/amq-scripts/blob/main/amqMegaCommands.user.js" target="_blank">Github</a> <a href="https://github.com/kempanator/amq-scripts/raw/main/amqMegaCommands.user.js" target="_blank">Install</a></div>
                             <div style="margin-top: 10px;"><span style="margin-right: 10px;">Command Prefix:</span><input id="mcCommandPrefixInput" type="text" maxlength="2" style="width: 30px; color: black;"></div>
                             <div style="margin-top: 10px;"><span style="margin-right: 10px;">MAL Client ID:</span><input id="mcMalClientIdInput" type="text" style="width: 300px; color: black;"></div>
                             <h4 style="margin-top: 20px;">Other</h4>
@@ -1584,6 +1597,7 @@ function setup() {
     });
     $("#mcDropDownButton").click(function () {
         dropdown = !dropdown;
+        quiz.answerInput.typingInput.autoCompleteController.newList();
         saveSettings();
         sendSystemMessage(`drop down ${dropdown ? "enabled" : "disabled"}`);
         toggleCommandButton($(this), dropdown);
@@ -1678,9 +1692,9 @@ function setup() {
 
     applyStyles();
     AMQ_addScriptData({
-        name: SCRIPT_NAME,
+        name: "Mega Commands",
         author: "kempanator",
-        version: SCRIPT_VERSION,
+        version: GM_info.script.version,
         link: "https://github.com/kempanator/amq-scripts/raw/main/amqMegaCommands.user.js",
         description: `
             <p>A large collection of commands for quality of life improvements and automation utilities</p>
@@ -1791,26 +1805,19 @@ async function parseCommand(messageText, type, target) {
             const name = getRandomOtherTeammate();
             if (name) sendMessage(name, type, target);
         }
-        else if (/^\S+ (pt|playerteams?|warlords?)$/.test(content)) {
-            if (hostModal.$teamSize.slider("getValue") === 1) return sendMessage("team size must be greater than 1", type, target);
-            const dict = getTeamDictionary();
-            const teams = Object.keys(dict).sort((a, b) => a - b);
-            teams.forEach((team, i) => {
-                const name = dict[team][randomIntInc(0, dict[team].length - 1)];
-                setTimeout(() => { sendMessage(`Team ${team}: ${name}`, type, target) }, (i + 1) * 200);
-            });
-        }
-        else if (/^\S+ (pt|playerteams?|warlords?) [0-9]+$/.test(content)) {
+        else if (/^\S+ (pt|playerteams?|warlords?)( [0-9]+)?$/.test(content)) {
             const teamSize = hostModal.$teamSize.slider("getValue");
             if (teamSize === 1) return sendMessage("team size must be greater than 1", type, target);
-            const number = parseInt(split[2]);
-            if (!number || number > teamSize) return sendMessage("invalid number", type, target);
-            const dict = getTeamDictionary();
-            const teams = Object.keys(dict).sort((a, b) => a - b);
+            const num = parseInt(split[2] ?? 1);
+            if (!num || num > teamSize) return sendMessage("invalid number", type, target);
+            const teamMap = getTeamMap();
+            const teams = Object.keys(teamMap).sort((a, b) => a - b);
             teams.forEach((team, i) => {
-                shuffleArray(dict[team]);
-                const chosen = dict[team].slice(0, number);
-                setTimeout(() => { sendMessage(`Team ${team}: ${chosen.join(", ")}`, type, target) }, (i + 1) * 200);
+                shuffleArray(teamMap[team]);
+                const chosen = teamMap[team].slice(0, num);
+                setTimeout(() => {
+                    sendMessage(`Team ${team}: ${chosen.join(", ")}`, type, target);
+                }, (i + 1) * 200);
             });
         }
         else if (/^\S+ (s|spec|spectators?)$/.test(content)) {
@@ -1824,7 +1831,9 @@ async function parseCommand(messageText, type, target) {
                 shuffleArray(players);
                 for (let i = 0; i < Math.ceil(players.length / teamSize); i++) {
                     const slice = players.slice(i * teamSize, Math.min((i + 1) * teamSize, players.length));
-                    setTimeout(() => { sendMessage(`Team ${i + 1}: ${slice.join(", ")}`, type, target) }, (i + 1) * 200);
+                    setTimeout(() => {
+                        sendMessage(`Team ${i + 1}: ${slice.join(", ")}`, type, target);
+                    }, (i + 1) * 200);
                 }
             }
             else {
@@ -1833,29 +1842,25 @@ async function parseCommand(messageText, type, target) {
         }
         else if (/^\S+ relays?$/.test(content)) {
             if (hostModal.$teamSize.slider("getValue") === 1) return sendMessage("team size must be greater than 1", type, target);
-            const dict = getTeamDictionary();
-            const teams = Object.keys(dict).sort((a, b) => a - b);
+            const teamMap = getTeamMap();
+            const teams = Object.keys(teamMap).sort((a, b) => a - b);
             teams.forEach((team, i) => {
-                setTimeout(() => { sendMessage(`Team ${team}: ` + shuffleArray(dict[team]).join(" ➜ "), type, target) }, (i + 1) * 100);
+                setTimeout(() => {
+                    sendMessage(`Team ${team}: ` + shuffleArray(teamMap[team]).join(" ➜ "), type, target);
+                }, (i + 1) * 100);
             });
         }
-        else if (/^\S+ genres?$/.test(content)) {
+        else if (/^\S+ genres?( [0-9]+)?$/.test(content)) {
+            const num = parseInt(split[2] ?? 1);
             const list = Object.values(idTranslator.genreNames);
-            sendMessage(randomItem(list), type, target);
+            const chosen = shuffleArray(list).slice(0, num).join(", ");
+            sendMessage(chosen, type, target);
         }
-        else if (/^\S+ genres? [0-9]+$/.test(content)) {
-            const number = parseInt(/^\S+ \S+ ([0-9]+)$/.exec(content)[1]);
-            const list = Object.values(idTranslator.genreNames);
-            if (number <= list.length) sendMessage(shuffleArray(list).slice(0, number).join(", "), type, target);
-        }
-        else if (/^\S+ tags?$/.test(content)) {
+        else if (/^\S+ tags?( [0-9]+)?$/.test(content)) {
+            const num = parseInt(split[2] ?? 1);
             const list = Object.values(idTranslator.tagNames);
-            sendMessage(randomItem(list), type, target);
-        }
-        else if (/^\S+ tags? [0-9]+$/.test(content)) {
-            const number = parseInt(/^\S+ \S+ ([0-9]+)$/.exec(content)[1]);
-            const list = Object.values(idTranslator.tagNames);
-            if (number <= list.length) sendMessage(shuffleArray(list).slice(0, number).join(", "), type, target);
+            const chosen = shuffleArray(list).slice(0, num).join(", ");
+            sendMessage(chosen, type, target);
         }
         else if (/^\S+ (a|ani|anilist) \S+$/.test(content)) {
             const username = split[2];
@@ -1885,7 +1890,7 @@ async function parseCommand(messageText, type, target) {
             }
         }
         else if (/^\S+ .+,.+$/.test(content)) {
-            const list = messageText.slice(messageText.indexOf(" ") + 1).split(",").map((x) => x.trim()).filter(Boolean);
+            const list = messageText.slice(messageText.indexOf(" ") + 1).split(",").map(x => x.trim()).filter(Boolean);
             if (list.length > 1) sendMessage(randomItem(list), type, target);
         }
     }
@@ -1910,7 +1915,7 @@ async function parseCommand(messageText, type, target) {
             if (list.length > 1) sendMessage(shuffleArray(list).join(", "), type, target);
         }
         else if (/^\S+ .+$/.test(content)) {
-            const list = messageText.slice(messageText.indexOf(" ") + 1).split(",").map((x) => x.trim()).filter(Boolean);
+            const list = messageText.slice(messageText.indexOf(" ") + 1).split(",").map(x => x.trim()).filter(Boolean);
             if (list.length > 1) sendMessage(shuffleArray(list).join(", "), type, target);
         }
     }
@@ -3011,7 +3016,7 @@ async function parseCommand(messageText, type, target) {
             volumeController.adjustVolume();
         }
         else {
-            const option = parseFloat(/^\S+ ([0-9]+)$/.exec(content)[1]) / 100;
+            const option = parseFloat(split[1]) / 100;
             if (isNaN(option)) return;
             volumeController.volume = option;
             volumeController.setMuted(false);
@@ -3059,15 +3064,15 @@ async function parseCommand(messageText, type, target) {
     }
     else if (["dropdown", "dd"].includes(command)) {
         dropdown = !dropdown;
+        quiz.answerInput.typingInput.autoCompleteController.newList();
         saveSettings();
         sendMessage(`dropdown ${dropdown ? "enabled" : "disabled"}`, type, target, true);
-        quiz.answerInput.typingInput.autoCompleteController.newList();
         updateCommandListWindow("dropdown");
     }
     else if (["dropdownspectate", "dropdownspec", "dds"].includes(command)) {
         dropdownInSpec = !dropdownInSpec;
+        if (dropdownInSpec) quiz.answerInput.typingInput.$input.removeAttr("disabled");
         saveSettings();
-        if (dropdownInSpec) $("#qpAnswerInput").removeAttr("disabled");
         sendMessage(`dropdown while spectating ${dropdownInSpec ? "enabled" : "disabled"}`, type, target, true);
         updateCommandListWindow("dropdownInSpec");
     }
@@ -3254,7 +3259,6 @@ async function parseCommand(messageText, type, target) {
             setTimeout(() => { sendMessage(`${n} alien${n === 1 ? "" : "s"} chosen`, type, target) }, 500 * n);
         }
     }
-
     else if (["background", "bg", "wallpaper"].includes(command)) {
         if (split.length === 1) {
             backgroundURL = "";
@@ -3441,11 +3445,11 @@ async function parseCommand(messageText, type, target) {
     }
     else if (["fil", "fiq", "fig", "fir", "friendsinlobby", "friendsinquiz", "friendsingame", "friendsinroom"].includes(command)) {
         if (lobby.inLobby) {
-            const list = Object.values(lobby.players).map((player) => player._name).filter((player) => socialTab.isFriend(player));
+            const list = Object.values(lobby.players).map(p => p._name).filter(p => socialTab.isFriend(p));
             sendMessage(list.length ? list.join(", ") : "(none)", type, target);
         }
         else if (quiz.inQuiz) {
-            const list = Object.values(quiz.players).map((player) => player._name).filter((player) => socialTab.isFriend(player));
+            const list = Object.values(quiz.players).map(p => p._name).filter(p => socialTab.isFriend(p));
             sendMessage(list.length ? list.join(", ") : "(none)", type, target);
         }
     }
@@ -3723,7 +3727,7 @@ async function parseCommand(messageText, type, target) {
             sendMessage("https://github.com/kempanator/amq-scripts/raw/main/amqMegaCommands.user.js", type, target);
         }
         else if (split[1] === "version") {
-            sendMessage(SCRIPT_VERSION, type, target);
+            sendMessage(GM_info.script.version, type, target);
         }
         else if (split[1] === "clear") {
             localStorage.removeItem("megaCommands");
@@ -3742,7 +3746,7 @@ async function parseCommand(messageText, type, target) {
     }
     else if (command === "version") {
         if (split.length === 1) {
-            sendMessage("Mega Commands - " + SCRIPT_VERSION, type, target, true);
+            sendMessage("Mega Commands - " + GM_info.script.version, type, target, true);
         }
         else {
             sendMessage(getScriptVersion(content.slice(content.indexOf(" ") + 1)), type, target);
@@ -3795,7 +3799,7 @@ async function parseCommand(messageText, type, target) {
             if (timedOut) return;
             clearTimeout(timeoutHandle);
             listener.unbindListener();
-            console.log(data.hoverInfo);
+            //console.log(data.hoverInfo);
             sendMessage(data.hoverInfo.name, type, target);
         });
         listener.bindListener();
@@ -3817,7 +3821,7 @@ async function parseCommand(messageText, type, target) {
             if (timedOut) return;
             clearTimeout(timeoutHandle);
             listener.unbindListener();
-            console.log(data.hoverInfo);
+            //console.log(data.hoverInfo);
             sendMessage(data.hoverInfo.name, type, target);
         });
         listener.bindListener();
@@ -4065,7 +4069,7 @@ async function parseCommand(messageText, type, target) {
     }
     else if (command === "lookup") {
         if (split.length === 1) return;
-        if (!animeAutoCompleteLowerCase.length) return sendMessage("missing autocomplete", type, target, true);
+        if (!animeListLower.length) return sendMessage("missing autocomplete", type, target, true);
         const query = content.slice(content.indexOf(" ") + 1);
         if (!query.includes("_")) return;
         const regexChar = function (char) {
@@ -4074,7 +4078,7 @@ async function parseCommand(messageText, type, target) {
             return char;
         }
         const re = new RegExp("^" + query.split("").map(regexChar).join("") + "$");
-        const results = animeAutoCompleteLowerCase.filter((anime) => re.test(anime));
+        const results = animeListLower.filter((anime) => re.test(anime));
         if (results.length === 0) {
             sendMessage("no results", type, target);
         }
@@ -4179,7 +4183,7 @@ function parseIncomingDM(messageText, sender) {
         }
         if (command === "forceversion" || command === "fver" || command === "fv") {
             if (split.length === 1) {
-                sendMessage(SCRIPT_VERSION, "dm", sender);
+                sendMessage(GM_info.script.version, "dm", sender);
             }
             else {
                 const option = content.slice(content.indexOf(" ") + 1);
@@ -4236,7 +4240,7 @@ function parseForceAll(messageText, type) {
     const content = messageText.toLowerCase();
     const split = content.split(/\s+/);
     if (/^\/forceall (ver|version)$/.test(content)) {
-        sendMessage(SCRIPT_VERSION, type);
+        sendMessage(GM_info.script.version, type);
     }
     else if (/^\/forceall (ver|version) .+$/.test(content)) {
         sendMessage(getScriptVersion(/^\S+ \S+ (.+)$/.exec(content)[1]), type);
@@ -4787,13 +4791,13 @@ function getAllFriends() {
 // return array of names of players in game
 function getPlayerList() {
     if (lobby.inLobby) {
-        return Object.values(lobby.players).map((player) => player._name);
+        return Object.values(lobby.players).map(p => p._name);
     }
     if (quiz.inQuiz) {
-        return Object.values(quiz.players).map((player) => player._name);
+        return Object.values(quiz.players).map(p => p._name);
     }
     if (battleRoyal.inView) {
-        return Object.values(battleRoyal.players).map((player) => player._name);
+        return Object.values(battleRoyal.players).map(p => p._name);
     }
     if (nexus.inNexusLobby || nexus.inNexusGame) {
         if (Object.keys(nexusCoopChat.playerMap).length) {
@@ -4806,7 +4810,7 @@ function getPlayerList() {
 
 // return array of names of spectators
 function getSpectatorList() {
-    return gameChat.spectators.map((player) => player.name);
+    return gameChat.spectators.map(p => p.name);
 }
 
 // return array of names of players and spectators
@@ -4815,54 +4819,54 @@ function getEveryoneInRoom() {
 }
 
 // return object with team numbers as keys and list of player names as each value
-function getTeamDictionary() {
-    const teamDictionary = {};
+function getTeamMap() {
+    const obj = {};
     if (lobby.inLobby) {
         for (const player of Object.values(lobby.players)) {
             const teamNumber = player.lobbySlot.$TEAM_DISPLAY_TEXT.text();
-            if (isNaN(parseInt(teamNumber))) return {};
-            if (teamDictionary.hasOwnProperty(teamNumber)) {
-                teamDictionary[teamNumber].push(player._name);
+            if (isNaN(parseInt(teamNumber))) continue;
+            if (obj.hasOwnProperty(teamNumber)) {
+                obj[teamNumber].push(player._name);
             }
             else {
-                teamDictionary[teamNumber] = [player._name];
+                obj[teamNumber] = [player._name];
             }
         }
     }
     else if (quiz.inQuiz) {
         for (const player of Object.values(quiz.players)) {
-            if (teamDictionary.hasOwnProperty(player.teamNumber)) {
-                teamDictionary[player.teamNumber].push(player._name);
+            if (obj.hasOwnProperty(player.teamNumber)) {
+                obj[player.teamNumber].push(player._name);
             }
             else {
-                teamDictionary[player.teamNumber] = [player._name];
+                obj[player.teamNumber] = [player._name];
             }
         }
     }
     else if (battleRoyal.inView) {
         for (const player of Object.values(battleRoyal.players)) {
-            if (teamDictionary.hasOwnProperty(player.teamNumber)) {
-                teamDictionary[player.teamNumber].push(player._name);
+            if (obj.hasOwnProperty(player.teamNumber)) {
+                obj[player.teamNumber].push(player._name);
             }
             else {
-                teamDictionary[player.teamNumber] = [player._name];
+                obj[player.teamNumber] = [player._name];
             }
         }
     }
-    return teamDictionary;
+    return obj;
 }
 
 // input team number, return list of names of players on team
 function getTeamList(team) {
     if (!Number.isInteger(team)) return [];
     if (lobby.inLobby) {
-        return Object.values(lobby.players).filter((player) => parseInt(player.lobbySlot.$TEAM_DISPLAY_TEXT.text()) === team).map((player) => player._name);
+        return Object.values(lobby.players).filter(p => parseInt(p.lobbySlot.$TEAM_DISPLAY_TEXT.text()) === team).map(p => p._name);
     }
     if (quiz.inQuiz) {
-        return Object.values(quiz.players).filter((player) => player.teamNumber === team).map((player) => player._name);
+        return Object.values(quiz.players).filter(p => p.teamNumber === team).map(p => p._name);
     }
     if (battleRoyal.inView) {
-        return Object.values(battleRoyal.players).filter((player) => player.teamNumber === team).map((player) => player._name);
+        return Object.values(battleRoyal.players).filter(p => p.teamNumber === team).map(p => p._name);
     }
     return [];
 }
@@ -4894,13 +4898,13 @@ function getTeamNumber(name) {
 
 // return a random player name in the room besides yourself
 function getRandomOtherPlayer() {
-    const list = getPlayerList().filter((player) => player !== selfName);
+    const list = getPlayerList().filter(p => p !== selfName);
     return list[Math.floor(Math.random() * list.length)];
 }
 
 // return a random player name on your team besides yourself
 function getRandomOtherTeammate() {
-    const list = getTeamList(getTeamNumber(selfName)).filter((player) => player !== selfName);
+    const list = getTeamList(getTeamNumber(selfName)).filter(p => p !== selfName);
     return list[Math.floor(Math.random() * list.length)];
 }
 
@@ -5653,7 +5657,7 @@ function importLocalStorage() {
 // export local storage
 function exportLocalStorage() {
     const date = new Date();
-    const year = date.getFullYear();
+    const year = String(date.getFullYear());
     const month = String(date.getMonth() + 1).padStart(2, 0);
     const day = String(date.getDate()).padStart(2, 0);
     const hour = String(date.getHours()).padStart(2, 0);
@@ -5720,7 +5724,7 @@ function saveSettings() {
     settings.commandPrefix = commandPrefix;
     settings.enableAllProfileButtons = enableAllProfileButtons;
     settings.hotKeys = hotKeys;
-    settings.lastUsedVersion = SCRIPT_VERSION;
+    settings.lastUsedVersion = GM_info.script.version;
     settings.malClientId = malClientId;
     settings.playerDetection = playerDetection;
     settings.printLoot = printLoot;
