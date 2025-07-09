@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Quick Load Lists
 // @namespace    https://github.com/kempanator
-// @version      0.18
+// @version      0.19
 // @description  Adds a window for saving and quick loading anime lists
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -26,8 +26,6 @@ const loadInterval = setInterval(() => {
     }
 }, 500);
 
-const SCRIPT_VERSION = "0.18";
-const SCRIPT_NAME = "Quick Load Lists";
 const saveData = validateLocalStorage("quickLoadLists");
 let quickLoadListsWindow;
 let savedLists = saveData.savedLists ?? [];
@@ -66,76 +64,106 @@ function setup() {
         .append($("<div>", { class: "col-xs-6" })
             .append("<label>", { text: "Quick Load Lists Script" })
             .append($("<div>")
-                .append($("<button>", { class: "btn btn-primary", text: "Open" }).click(() => {
-                    quickLoadListsWindow.open();
-                }))
-                .append($("<button>", { class: "btn btn-danger", text: "Clear", style: "margin-left: 8px;" }).click(() => {
-                    $("#qllTable .qllRow").removeClass("selected");
-                    removeAllLists();
-                    messageDisplayer.displayMessage("Current List Cleared");
-                }))
+                .append($("<button>", { class: "btn btn-primary", text: "Open" })
+                    .on("click", () => {
+                        quickLoadListsWindow.open();
+                    }))
+                .append($("<button>", { class: "btn btn-danger", text: "Clear", style: "margin-left: 8px;" })
+                    .on("click", () => {
+                        $("#qllTable .qllRow").removeClass("selected");
+                        removeAllLists();
+                        messageDisplayer.displayMessage("Current List Cleared");
+                    }))
             )
         );
     quickLoadListsWindow.window.find(".modal-header").empty()
-        .append($(`<i class="fa fa-times clickAble" style="font-size: 25px; top: 8px; right: 15px; position: absolute;" aria-hidden="true"></i>`).click(() => {
-            quickLoadListsWindow.close();
-        }))
-        .append($(`<i class="fa fa-list-alt clickAble" style="font-size: 22px; top: 11px; right: 42px; position: absolute;" aria-hidden="true"></i>`).click(() => {
-            $("#settingModal").modal("show");
-            options.selectTab("settingsAnimeListContainer", $("#smAnimeListTab"));
-        }))
-        .append($(`<i class="fa fa-trash clickAble" style="font-size: 23px; top: 8px; right: 73px; position: absolute;" aria-hidden="true"></i>`).click(() => {
-            $("#qllTable .qllRow").removeClass("selected");
-            removeAllLists();
-            messageDisplayer.displayMessage("Current List Cleared");
-        }))
-        .append(`<h2>Quick Load Lists</h2>`)
+        .append($("<i>", { class: "fa fa-times clickAble", "aria-hidden": "true", style: "font-size: 25px; top: 8px; right: 15px; position: absolute;" })
+            .on("click", () => {
+                quickLoadListsWindow.close();
+            }))
+        .append($("<i>", { class: "fa fa-list-alt clickAble", "aria-hidden": "true", style: "font-size: 22px; top: 11px; right: 42px; position: absolute;" })
+            .popover({
+                content: "Show anime list settings",
+                trigger: "hover",
+                placement: "bottom"
+            })
+            .on("click", () => {
+                $("#settingModal").modal("show");
+                options.selectTab("settingsAnimeListContainer", $("#smAnimeListTab"));
+            }))
+        .append($("<i>", { class: "fa fa-trash clickAble", "aria-hidden": "true", style: "font-size: 23px; top: 8px; right: 73px; position: absolute;" })
+            .popover({
+                content: "Clear current list",
+                trigger: "hover",
+                placement: "bottom"
+            })
+            .on("click", () => {
+                $("#qllTable .qllRow").removeClass("selected");
+                removeAllLists();
+                messageDisplayer.displayMessage("Current List Cleared");
+            }))
+        .append("<h2>Quick Load Lists</h2>")
         .append($("<div>", { class: "tabContainer" })
-            .append($(`<div id="qllUseTab" class="tab clickAble"><span>Use</span></div>`).click(() => {
-                switchTab("qllUse");
-            }))
-            .append($(`<div id="qllEditTab" class="tab clickAble"><span>Edit</span></div>`).click(() => {
-                switchTab("qllEdit");
-            }))
-            .append($(`<div id="qllSettingsTab" class="tab clickAble"><span>Settings</span></div>`).click(() => {
-                switchTab("qllSettings");
-            }))
+            .append($("<div>", { id: "qllUseTab", class: "tab clickAble" })
+                .append("<span>Use</span>")
+                .on("click", () => {
+                    switchTab("qllUse");
+                }))
+            .append($("<div>", { id: "qllEditTab", class: "tab clickAble" })
+                .append("<span>Edit</span>")
+                .on("click", () => {
+                    switchTab("qllEdit");
+                }))
+            .append($("<div>", { id: "qllSettingsTab", class: "tab clickAble" })
+                .append("<span>Settings</span>")
+                .on("click", () => {
+                    switchTab("qllSettings");
+                }))
         );
     quickLoadListsWindow.panels[0].panel
         .append($("<div>", { id: "qllUseContainer", class: "tabSection" })
             .append(`<table id="qllTable"><thead></thead><tbody></tbody></table>`)
         )
         .append($("<div>", { id: "qllEditContainer", class: "tabSection" })
-            .append($("<button>", { class: "btn btn-success", text: "Save", style: "margin: 5px 2px 2px 5px" }).click(() => {
-                saveEditTable();
-                createListTable();
-                saveSettings();
-            }))
+            .append($("<button>", { class: "btn btn-success", text: "Save", style: "margin: 5px 2px 2px 5px" })
+                .on("click", () => {
+                    saveEditTable();
+                    createListTable();
+                    saveSettings();
+                })
+            )
             .append($("<button>", { class: "btn btn-default", style: "width: 34px; margin: 6px 2px 2px 2px; padding: 6px 0;" })
                 .append(`<i class="fa fa-plus" aria-hidden="true"></i>`)
-                .click(() => {
+                .on("click", () => {
                     createEditRow($("#qllEditTable"), "", "anilist", true, true, true, true, true, "");
-                }))
+                })
+            )
         )
         .append($("<div>", { id: "qllSettingsContainer", class: "tabSection" })
             .append(`<table id="qllHotkeyTable"><thead><tr><th>Action</th><th>Keybind</th></tr></thead><tbody></tbody></table>`)
             .append($("<div>")
-                .append(`<span>Selected Color:</span>`)
-                .append($("<input>", { id: "qllSelectedColor", type: "color", val: selectedColor }).on("change", function () {
-                    selectedColor = this.value;
-                    saveSettings();
-                    applyStyles();
-                }))
+                .append("<span>Selected Color:</span>")
+                .append($("<input>", { id: "qllSelectedColor", type: "color", val: selectedColor })
+                    .on("change", function () {
+                        selectedColor = this.value;
+                        saveSettings();
+                        applyStyles();
+                    })
+                )
             )
             .append($("<div>")
                 .append($("<label>", { class: "btn btn-default", text: "Import" })
-                    .append($("<input>", { type: "file", accept: ".json", style: "display: none;" }).on("change", function () {
-                        handleImport(this);
-                    }))
+                    .append($("<input>", { type: "file", accept: ".json", style: "display: none;" })
+                        .on("change", function () {
+                            handleImport(this);
+                        })
+                    )
                 )
-                .append($("<button>", { class: "btn btn-default", text: "Export", style: "margin-left: 5px;" }).click(function () {
-                    handleExport();
-                }))
+                .append($("<button>", { class: "btn btn-default", text: "Export", style: "margin-left: 5px;" })
+                    .on("click", function () {
+                        handleExport();
+                    })
+                )
             )
         );
 
@@ -193,9 +221,9 @@ function setup() {
     createEditTable();
     applyStyles();
     AMQ_addScriptData({
-        name: SCRIPT_NAME,
+        name: "Quick Load Lists",
         author: "kempanator",
-        version: SCRIPT_VERSION,
+        version: GM_info.script.version,
         link: "https://github.com/kempanator/amq-scripts/raw/main/amqQuickLoadLists.user.js",
         description: `
             <p>Adds a window for saving and quick loading anime lists</p>
@@ -303,13 +331,21 @@ function getListURL(username, type) {
 
 // when you click a username in the table
 function loadList($row, username, type, watching, completed, hold, dropped, planning) {
-    const listTypeMap = { anilist: "ANILIST", myanimelist: "MAL", kitsu: "KITSU" };
-    const userNameInputMap = { anilist: "#aniListUserNameInput", myanimelist: "#malUserNameInput", kitsu: "#kitsuUserNameInput" };
+    const listTypeMap = {
+        anilist: "ANILIST",
+        myanimelist: "MAL",
+        kitsu: "KITSU"
+    };
+    const usernameInputMap = {
+        anilist: "#aniListUserNameInput",
+        myanimelist: "#malUserNameInput",
+        kitsu: "#kitsuUserNameInput"
+    };
     const listener = new Listener("anime list update result", (data) => {
         listener.unbindListener();
         $("#qllTable .qllRow").removeClass("selected");
         if (data.success) {
-            $(userNameInputMap[type]).val(username);
+            $(usernameInputMap[type]).val(username);
             setAllStatusCheckboxes(watching, completed, hold, dropped, planning);
             $row.addClass("selected");
         }
@@ -426,7 +462,7 @@ function createListTable() {
     for (const list of savedLists) {
         const { username, type, watching, completed, hold, dropped, planning, comment } = list;
         const $row = $("<tr>", { class: "qllRow" })
-            .append($("<td>", { class: "username", text: username }).click(() => {
+            .append($("<td>", { class: "username", text: username }).on("click", () => {
                 loadList($row, username, type, watching, completed, hold, dropped, planning);
             }))
             .append($("<td>", { class: "type" })
@@ -488,31 +524,31 @@ function createEditRow($table, username, type, watching, completed, hold, droppe
     // watching button
     $("<button>", { class: "btn btn-default status watching", text: "W" })
         .toggleClass("off", !watching)
-        .click(function () { $(this).toggleClass("off"); })
+        .on("click", function () { $(this).toggleClass("off"); })
         .appendTo($row);
 
     // completed button
     $("<button>", { class: "btn btn-default status completed", text: "C" })
         .toggleClass("off", !completed)
-        .click(function () { $(this).toggleClass("off"); })
+        .on("click", function () { $(this).toggleClass("off"); })
         .appendTo($row);
 
     // hold button
     $("<button>", { class: "btn btn-default status hold", text: "H" })
         .toggleClass("off", !hold)
-        .click(function () { $(this).toggleClass("off"); })
+        .on("click", function () { $(this).toggleClass("off"); })
         .appendTo($row);
 
     // dropped button
     $("<button>", { class: "btn btn-default status dropped", text: "D" })
         .toggleClass("off", !dropped)
-        .click(function () { $(this).toggleClass("off"); })
+        .on("click", function () { $(this).toggleClass("off"); })
         .appendTo($row);
 
     // planning button
     $("<button>", { class: "btn btn-default status planning", text: "P" })
         .toggleClass("off", !planning)
-        .click(function () { $(this).toggleClass("off"); })
+        .on("click", function () { $(this).toggleClass("off"); })
         .appendTo($row);
 
     // comment input
@@ -523,9 +559,7 @@ function createEditRow($table, username, type, watching, completed, hold, droppe
     // delete button
     $("<button>", { class: "btn btn-danger delete" })
         .append($("<i>", { class: "fa fa-minus", "aria-hidden": "true" }))
-        .on("click", () => {
-            $row.remove();
-        })
+        .on("click", () => { $row.remove(); })
         .appendTo($row);
 
     $table.append($row);
