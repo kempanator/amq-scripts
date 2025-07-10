@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Anisongdb Search
 // @namespace    https://github.com/kempanator
-// @version      0.24
+// @version      0.25
 // @description  Adds a window to search anisongdb.com in game
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -131,27 +131,23 @@ function setup() {
             .append($("<table>", { id: "adbsTable", class: "styledTable" })
                 .append($("<thead>")
                     .append($("<tr>")
-                        .append($("<th>", { class: "anime", text: "Anime" }))
-                        .append($("<th>", { class: "artist", text: "Artist" }))
-                        .append($("<th>", { class: "song", text: "Song" }))
-                        .append($("<th>", { class: "type", text: "Type" }))
-                        .append($("<th>", { class: "vintage", text: "Vintage" }))
+                        .append($("<th>", { class: "anime", text: "Anime", "data-sort": "anime" }))
+                        .append($("<th>", { class: "artist", text: "Artist", "data-sort": "artist" }))
+                        .append($("<th>", { class: "song", text: "Song", "data-sort": "song" }))
+                        .append($("<th>", { class: "type", text: "Type", "data-sort": "type" }))
+                        .append($("<th>", { class: "vintage", text: "Vintage", "data-sort": "vintage" }))
                     )
                     .on("click", "th", (event) => {
-                        for (const className of ["anime", "artist", "song", "type", "vintage"]) {
-                            if (event.target.classList.contains(className)) {
-                                tableSortChange(className);
-                                sortAnisongdbTableEntries();
-                                break;
-                            }
-                        }
+                        const sortKey = event.currentTarget.getAttribute("data-sort");
+                        tableSortChange(sortKey);
+                        sortAnisongdbTableEntries();
                     })
                 )
                 .append($("<tbody>")
                     .on("click", "td", (event) => {
                         for (const className of ["anime", "artist", "song"]) {
-                            if (event.target.classList.contains(className)) {
-                                getAnisongdbData(className, event.target.innerText);
+                            if (event.currentTarget.classList.contains(className)) {
+                                getAnisongdbData(className, event.currentTarget.innerText, false);
                                 break;
                             }
                         }
