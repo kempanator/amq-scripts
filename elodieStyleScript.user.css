@@ -1,6 +1,6 @@
 /* ==UserStyle==
 @name         Elodie's AMQ Style Script
-@version      10.2.18
+@version      10.2.19
 @namespace    userstyles.world/user/melodyelodie
 @description  A custom theme for animemusicquiz.com
 @author       melodyelodie
@@ -32,7 +32,7 @@ Changelog:
     - fixed readability on autocomplete dropdown
   10.3
     - styled boss, hint, jam modes
-    - styled new song library and custom quiz creator
+    - styled song library and custom quiz creator
 
 
 Installing:
@@ -165,7 +165,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         --wrongAnswerColorTransparent: color-mix(in srgb, var(--wrongAnswerColor), transparent 80%);
         --songHistoryCorrectColorHover: color-mix(in srgb, var(--songHistoryCorrectColor), white 5%);
         --songHistoryWrongColorHover: color-mix(in srgb, var(--songHistoryWrongColor), white 5%);
-        --elodieStyleScriptVersion: 10.2.18;
+        --elodieStyleScriptVersion: 10.2.19;
     }
     
     
@@ -225,7 +225,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         --wrongAnswerColorTransparent: color-mix(in srgb, var(--wrongAnswerColor), transparent 80%);
         --songHistoryCorrectColorHover: color-mix(in srgb, var(--songHistoryCorrectColor), white 15%);
         --songHistoryWrongColorHover: color-mix(in srgb, var(--songHistoryWrongColor), white 15%);
-        --elodieStyleScriptVersion: 10.2.18;
+        --elodieStyleScriptVersion: 10.2.19;
     }
     */
     
@@ -1228,9 +1228,12 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     #gcChatMenu > div.selected {
         background-color: var(--secondaryColor);
     }
-    #gcEmojiPickerContainer {
+    .emojiPickerContainer {
         background-color: var(--primaryColor);
         box-shadow: 0 0 10px var(--boxShadowColor);
+    }
+    .emojiPickerContainer::before {
+        background: var(--primaryColor);
     }
     .emojiPickerHeader {
         border-bottom: none;
@@ -2485,7 +2488,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         box-shadow: 0 0 10px 2px var(--boxShadowColor);
     }
     #pmLinkAccountButton:hover {
-        box-shadow: 0px 0px 10px 2px var(--accentColor);;
+        box-shadow: 0px 0px 10px 2px var(--accentColor);
     }
 
 
@@ -4079,12 +4082,6 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     }
 
 
-    /* Kempanator's New Game Mode UI Script */
-    #qpNGM {
-        filter: brightness(var(--brightnessMod));
-    }
-
-
     /* Kempanator's Play Button Shortcuts Script */
     #mpPlayButtonPlay:hover {
         color: var(--accentColor);
@@ -4110,7 +4107,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
 
 
     /* Kempanator's AnisongDB Search Script */
-    #anisongdbTable tbody tr:hover {
+    #adbsTable tbody tr:hover {
         color: var(--accentColorContrast);
     }
     
