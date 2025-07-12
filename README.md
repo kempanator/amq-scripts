@@ -22,6 +22,9 @@ click on a script name below to install
 ### [AMQ New Game Mode UI](https://github.com/kempanator/amq-scripts/raw/main/amqNewGameModeUI.user.js)
 - A fully automatic guess counter for your team in new game mode https://imgur.com/a/OqrQ6nI
 
+### [AMQ Notification Sounds](https://github.com/kempanator/amq-scripts/raw/main/amqNotificationSounds.user.js)
+- Play notification sounds on certain game events
+
 ### [AMQ Play Button Shortcuts](https://github.com/kempanator/amq-scripts/raw/main/amqPlayButtonShortcuts.user.js)
 - Add Solo, Multiplayer, Nexus shortcuts to the play button https://imgur.com/a/9nmYmSt
 
