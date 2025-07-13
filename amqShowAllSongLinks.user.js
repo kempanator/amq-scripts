@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Show All Song Links
 // @namespace    https://github.com/kempanator
-// @version      0.11
+// @version      0.12
 // @description  Show all song links in the song info container
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -20,8 +20,6 @@ const loadInterval = setInterval(() => {
     }
 }, 500);
 
-const SCRIPT_VERSION = "0.11";
-const SCRIPT_NAME = "Show All Song Links";
 const LISTS = [
     { label: "ANI", key: "aniListId", url: "https://anilist.co/anime/" },
     { label: "KIT", key: "kitsuId", url: "https://kitsu.io/anime/" },
@@ -54,9 +52,9 @@ function setup() {
 
     applyStyles();
     AMQ_addScriptData({
-        name: SCRIPT_NAME,
+        name: "Show All Song Links",
         author: "kempanator",
-        version: SCRIPT_VERSION,
+        version: GM_info.script.version,
         link: "https://github.com/kempanator/amq-scripts/raw/main/amqShowAllSongLinks.user.js",
         description: `
             <p>Show all song links in the song info container</p>
@@ -81,7 +79,7 @@ function getSongUrl(data, type) {
 
 // build link element in song info box
 function buildLink(url, text) {
-    return $(`<a href="${url}" target="_blank">${text}</a>`).toggleClass("disabled", !url);
+    return $("<a>", { href: url, target: "_blank", rel: "noreferrer", text: text }).toggleClass("disabled", !url);
 }
 
 // apply styles
