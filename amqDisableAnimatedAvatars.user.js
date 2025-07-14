@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Disable Animated Avatars
 // @namespace    https://github.com/kempanator
-// @version      0.3
+// @version      0.4
 // @description  Disable animated avatars in AMQ
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -13,10 +13,8 @@
 
 "use strict";
 if (typeof Listener === "undefined") return;
-const SCRIPT_VERSION = "0.3";
-const SCRIPT_NAME = "Disable Animated Avatars";
 
-SpineApp.prototype.render = function(canvas) {
+SpineApp.prototype.render = function (canvas) {
     let renderer = canvas.renderer;
     if (!this.paused) {
         canvas.clear(0, 0, 0, 0);
@@ -27,22 +25,22 @@ SpineApp.prototype.render = function(canvas) {
     }
 }
 
-SpineApp.prototype.setAnimation = function(animationName, loop) {
+SpineApp.prototype.setAnimation = function (animationName, loop) {
     this.paused = false;
     if (this.animationState) this.animationState.setAnimation(0, animationName, loop);
 }
 
-SpineAnimation.prototype.updatePose = function(poseId) {
+SpineAnimation.prototype.updatePose = function (poseId) {
     this.poseId = poseId;
     this.spineApp.setAnimation(this.POSE_ID_ANIMATION_NAMES[this.poseId], true);
 }
 
-SimpleAnimationController.prototype.runAnimation = function() {}
+SimpleAnimationController.prototype.runAnimation = function () { }
 
 AMQ_addScriptData({
-    name: SCRIPT_NAME,
+    name: "Disable Animated Avatars",
     author: "kempanator",
-    version: SCRIPT_VERSION,
+    version: GM_info.script.version,
     link: "https://github.com/kempanator/amq-scripts/raw/main/amqDisableAnimatedAvatars.user.js",
     description: `<p>Disable animated avatars in lobby, quiz, and friends list</p>`
 });
