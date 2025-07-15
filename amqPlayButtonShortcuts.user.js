@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Play Button Shortcuts
 // @namespace    https://github.com/kempanator
-// @version      0.9
+// @version      0.10
 // @description  Add Solo, Multiplayer, Nexus shortcuts to the play button
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -20,8 +20,6 @@ const loadInterval = setInterval(() => {
     }
 }, 500);
 
-const SCRIPT_VERSION = "0.9";
-const SCRIPT_NAME = "Play Button Shortcuts";
 $("#mpPlayButton").removeAttr("data-toggle data-target").empty().append(/*html*/`
     <div id="mpPlayButtonPlay" data-toggle="modal" data-target="#gameModeSelector">Play</div>
     <ul>
@@ -34,13 +32,11 @@ applyStyles();
 
 function setup() {
     AMQ_addScriptData({
-        name: SCRIPT_NAME,
+        name: "Play Button Shortcuts",
         author: "kempanator",
-        version: SCRIPT_VERSION,
+        version: GM_info.script.version,
         link: "https://github.com/kempanator/amq-scripts/raw/main/amqPlayButtonShortcuts.user.js",
-        description: `
-            <p>Add Solo, Multiplayer, Nexus shortcuts to the play button</p>
-        `
+        description: `<p>Add Solo, Multiplayer, Nexus shortcuts to the play button</p>`
     });
 }
 
