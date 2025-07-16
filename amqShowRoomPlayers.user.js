@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Show Room Players
 // @namespace    https://github.com/kempanator
-// @version      0.27
+// @version      0.28
 // @description  Adds extra functionality to room tiles
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -29,8 +29,6 @@ const loadInterval = setInterval(() => {
     }
 }, 500);
 
-const SCRIPT_VERSION = "0.27";
-const SCRIPT_NAME = "Show Room Players";
 let showPlayerColors = true;
 let showCustomColors = true;
 let customColorMap = {};
@@ -65,9 +63,9 @@ function setup() {
 
     applyStyles();
     AMQ_addScriptData({
-        name: SCRIPT_NAME,
+        name: "Show Room Players",
         author: "kempanator",
-        version: SCRIPT_VERSION,
+        version: GM_info.script.version,
         link: "https://github.com/kempanator/amq-scripts/raw/main/amqShowRoomPlayers.user.js",
         description: `
             <ul><b>New room tile features:</b>
@@ -101,9 +99,12 @@ RoomBrowser.prototype.removeRoomTile = function (tileId) {
 
 // add click event to host name to open player profile
 RoomTile.prototype.clickHostName = function (host) {
-    this.$tile.find(".rbrHost").css("cursor", "pointer").off("click").click(() => {
-        playerProfileController.loadProfile(host, $(`#rbRoom-${this.id}`), {}, () => { }, false, true);
-    });
+    this.$tile.find(".rbrHost")
+        .css("cursor", "pointer")
+        .off("click")
+        .on("click", () => {
+            playerProfileController.loadProfile(host, $(`#rbRoom-${this.id}`), {}, () => { }, false, true);
+        });
 };
 
 // create or update room players popover
