@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Catbox Host Switch
 // @namespace    https://github.com/kempanator
-// @version      0.20
+// @version      0.21
 // @description  Switch your catbox host
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -27,8 +27,6 @@ const loadInterval = setInterval(() => {
     }
 }, 500);
 
-const SCRIPT_VERSION = "0.20";
-const SCRIPT_NAME = "Catbox Host Switch";
 const saveData = validateLocalStorage("catboxHostSwitch");
 const hostDict = { 1: "eudist.animemusicquiz.com", 2: "nawdist.animemusicquiz.com", 3: "naedist.animemusicquiz.com" };
 let catboxHost = parseInt(saveData.catboxHost);
@@ -89,9 +87,9 @@ function setup() {
     };
 
     AMQ_addScriptData({
-        name: SCRIPT_NAME,
+        name: "Catbox Host Switch",
         author: "kempanator",
-        version: SCRIPT_VERSION,
+        version: GM_info.script.version,
         link: "https://github.com/kempanator/amq-scripts/raw/main/amqCatboxHostSwitch.user.js",
         description: `
             <p>Modify all incoming catbox song links</p>
