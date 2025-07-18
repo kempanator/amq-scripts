@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Anisongdb Utilities
 // @namespace    https://github.com/kempanator
-// @version      0.15
+// @version      0.16
 // @description  some extra functions for anisongdb.com
 // @author       kempanator
 // @match        https://anisongdb.com/*
@@ -21,8 +21,6 @@ Features:
 */
 
 "use strict";
-const SCRIPT_VERSION = "0.15";
-const SCRIPT_NAME = "Anisongdb Utilities";
 const saveData = validateLocalStorage("anisongdbUtilities");
 const hostDict = { 1: "eudist", 2: "nawdist", 3: "naedist" };
 let catboxHost = parseInt(saveData.catboxHost);
@@ -176,12 +174,12 @@ function setup() {
     });
 
     // step through song list by certain amount
-    function stepSong(count) {
+    function stepSong(amount) {
         const tdList = document.querySelectorAll("i.fa-music");
         const len = tdList.length;
         if (!len) return;
         const index = Array.from(tdList).findIndex(e => getComputedStyle(e).color === "rgb(226, 148, 4)");
-        const newIndex = index === -1 ? 0 : (((index + count) % len) + len) % len;
+        const newIndex = index === -1 ? 0 : (((index + amount) % len) + len) % len;
         tdList[newIndex].click();
     }
 
@@ -192,7 +190,7 @@ function setup() {
     settingsModal.innerHTML = /*html*/`
         <div class="modal-content">
             <h2 style="text-align: center;">AnisongDB Utilities Script Settings</h2>
-            <p style="text-align: center;">By: kempanator<br>Version: ${SCRIPT_VERSION}<br><a href="https://github.com/kempanator/amq-scripts/blob/main/anisongdbUtilities.user.js" target="_blank">Github</a> <a href="https://github.com/kempanator/amq-scripts/raw/main/anisongdbUtilities.user.js" target="_blank">Install</a></p>
+            <p style="text-align: center;">By: kempanator<br>Version: ${GM_info.script.version}<br><a href="https://github.com/kempanator/amq-scripts/blob/main/anisongdbUtilities.user.js" target="_blank">Github</a> <a href="https://github.com/kempanator/amq-scripts/raw/main/anisongdbUtilities.user.js" target="_blank">Install</a></p>
             <p><label><input id="auHideTextCheckbox" type="checkbox">Hide AMQ text</label></p>
             <p><label><input id="auAdvancedCheckbox" type="checkbox">Advanced view by default</label></p>
             <p><label><input id="auRenameJsonCheckbox" type="checkbox">Rename JSON to search input</label></p>
