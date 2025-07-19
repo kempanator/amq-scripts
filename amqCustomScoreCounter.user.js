@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Score Counter
 // @namespace    https://github.com/kempanator
-// @version      0.6
+// @version      0.7
 // @description  Adds a user interface to keep track of custom score game modes
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -21,8 +21,6 @@ const loadInterval = setInterval(() => {
     }
 }, 500);
 
-const SCRIPT_VERSION = "0.6";
-const SCRIPT_NAME = "Custom Score Counter";
 const saveData = validateLocalStorage("customScoreCounter");
 let teams = {}; //[1: {number: 1, players: ["name"], correct: 0, score: 0}]
 let soloBonus = 0; //bonus points for solo correct guess
@@ -36,7 +34,7 @@ let hotKeys = {
 // setup
 function setup() {
     new Listener("game chat update", (data) => {
-        for (let message of data.messages) {
+        for (const message of data.messages) {
             if (message.sender === selfName) parseMessage(message.message);
         }
     }).bindListener();
@@ -66,10 +64,10 @@ function setup() {
         if (Object.keys(teams).length === 0) return;
         let totalCorrect = 0;
         let totalCorrectMap = Object.fromEntries(Object.keys(teams).map(t => [t, 0])); //{teamNumber: #correct}
-        for (let player of data.players) {
+        for (const player of data.players) {
             if (player.correct) {
-                let name = quiz.players[player.gamePlayerId]?.name;
-                let team = Object.values(teams).find(t => t.players.includes(name));
+                const name = quiz.players[player.gamePlayerId]?.name;
+                const team = Object.values(teams).find(t => t.players.includes(name));
                 if (team) {
                     team.correct += 1;
                     totalCorrect += 1;
@@ -77,8 +75,8 @@ function setup() {
                 }
             }
         }
-        for (let teamNumber of Object.keys(totalCorrectMap)) {
-            let teamSize = teams[teamNumber].players.length;
+        for (const teamNumber of Object.keys(totalCorrectMap)) {
+            const teamSize = teams[teamNumber].players.length;
             if (scoreMap.hasOwnProperty(teamSize)) {
                 if (scoreMap[teamSize].hasOwnProperty(totalCorrectMap[teamNumber])) {
                     teams[teamNumber].score += scoreMap[teamSize][totalCorrectMap[teamNumber]];
@@ -86,7 +84,7 @@ function setup() {
             }
         }
         if (soloBonus && totalCorrect === 1) {
-            let teamNumber = Object.keys(totalCorrectMap).find(t => totalCorrectMap[t]);
+            const teamNumber = Object.keys(totalCorrectMap).find(t => totalCorrectMap[t]);
             if (teamNumber) teams[teamNumber].score += soloBonus;
         }
         updateScoreTable();
@@ -140,7 +138,8 @@ function setup() {
     $("#qpOptionContainer")
         .width((i, w) => w + 35)
         .children("div")
-        .append($(`<div id="qpCSC" class="clickAble qpOption"><i aria-hidden="true" class="fa fa-plus qpMenuItem"></i></div>`)
+        .append($("<div>", { id: "qpCSC", class: "clickAble qpOption" })
+            .append(`<i class="fa fa-plus qpMenuItem" aria-hidden="true"></i>`)
             .click(() => {
                 cscWindow.isVisible() ? cscWindow.close() : cscWindow.open();
             })
@@ -154,9 +153,9 @@ function setup() {
     setupcscWindow();
     applyStyles();
     AMQ_addScriptData({
-        name: SCRIPT_NAME,
+        name: "Custom Score Counter",
         author: "kempanator",
-        version: SCRIPT_VERSION,
+        version: GM_info.script.version,
         link: "https://github.com/kempanator/amq-scripts/raw/main/amqCustomScoreCounter.user.js",
         description: `
             <p>Type /csc or click the + button in the options bar during quiz to open the custom score counter user interface</p>
@@ -268,9 +267,9 @@ function createTeamTable(players) {
     if (!players) return;
     const $tbody = $("#cscTeamTable tbody").empty();
     players.sort((a, b) => a.name.localeCompare(b.name));
-    for (let player of players) {
+    for (const player of players) {
         const team = Object.values(teams).find(t => t.players.includes(player.name));
-        $tbody.append($(`<tr></tr>`)
+        $tbody.append($("<tr>")
             .append($("<td>", { class: "name", text: player.name }))
             .append($("<td>", { class: "team" })
                 .append($("<input>", { type: "text" }).val(team?.number || ""))
@@ -282,9 +281,10 @@ function createTeamTable(players) {
 // update team table
 function updateTeamTable() {
     teams = {};
-    for (const tr of $("#cscTeamTable tbody tr")) {
-        const name = $(tr).find("td.name").text();
-        const teamNumber = $(tr).find("input").val();
+    for (const element of $("#cscTeamTable tbody tr")) {
+        const $tr = $(element);
+        const name = $tr.find("td.name").text();
+        const teamNumber = $tr.find("input").val();
         if (!isNaN(teamNumber) && teamNumber > 0) {
             if (teams.hasOwnProperty(teamNumber)) {
                 teams[teamNumber].players.push(name);
@@ -301,7 +301,7 @@ function shuffleTeams() {
     const players = getPlayers();
     const teamSize = parseInt($("#cscTeamSizeInput").val());
     if (isNaN(teamSize) || teamSize < 1) return;
-    let numTeams = Math.ceil(players.length / teamSize);
+    const numTeams = Math.ceil(players.length / teamSize);
     teams = {};
     for (let i = 1; i <= numTeams; i++) {
         teams[i] = { number: i, players: [], correct: 0, score: 0 };
@@ -320,10 +320,10 @@ function importTeamsFromLobby() {
     const teamSize = parseInt(hostModal.$teamSize.val()) || 0;
     if (teamSize > 1) {
         $("#cscTeamSizeInput").val(teamSize);
-        let players = getPlayers();
+        const players = getPlayers();
         teams = {};
-        for (let player of players) {
-            let teamNumber = player.teamNumber ?? Number(player.lobbySlot.$TEAM_DISPLAY_TEXT.text());
+        for (const player of players) {
+            const teamNumber = player.teamNumber ?? Number(player.lobbySlot.$TEAM_DISPLAY_TEXT.text());
             if (teamNumber) {
                 if (teams.hasOwnProperty(teamNumber)) {
                     teams[teamNumber].players.push(player.name);
@@ -344,8 +344,8 @@ function importTeamsFromLobby() {
 function importTeamsFromChat() {
     const players = getPlayers();
     let importStarted = false;
-    let tempTeams = {};
-    for (let message of $("#gcMessageContainer .gcMessage").toArray().reverse()) {
+    const tempTeams = {};
+    for (const message of $("#gcMessageContainer .gcMessage").toArray().reverse()) {
         const text = $(message).text();
         const regex = /^Team ([0-9]+):(.+) - [0-9]+$/.exec(text);
         if (regex) {
@@ -377,7 +377,7 @@ function importTeamsFromChat() {
 function updateScoreTable() {
     if (Object.keys(teams).length === 0) return;
     const $tbody = $("#cscScoreTable tbody").empty();
-    let sortedKeys = Object.keys(teams);
+    const sortedKeys = Object.keys(teams);
     if (scoreTableSort.mode === "team") {
         sortedKeys.sort((a, b) => a - b);
     }
@@ -392,7 +392,11 @@ function updateScoreTable() {
     }
     for (const key of sortedKeys) {
         const team = teams[key];
-        $tbody.append(`<tr><td>${team.number}: ${team.players.join(", ")}</td><td class="correct">${team.correct}</td><td class="score">${team.score}</td></tr>`);
+        $tbody.append($("<tr>")
+            .append($("<td>", { text: `${team.number}: ${team.players.join(", ")}` }))
+            .append($("<td>", { class: "correct", text: team.correct }))
+            .append($("<td>", { class: "score", text: team.score }))
+        );
     }
 }
 
@@ -405,7 +409,7 @@ function createScoreMap(teamSize) {
     if (isNaN(teamSize) || teamSize < 1) return;
     $thead.append(`<tr><th colspan="${teamSize + 2}" style="text-align: center;"># Correct</th></tr>`);
     for (let i = 0; i <= teamSize; i++) {
-        const $tr = $(`<tr></tr>`);
+        const $tr = $("<tr>");
         for (let j = 0; j <= teamSize + 1; j++) {
             const $td = $("<td>");
             if (i === 0 && j === 0) {
@@ -443,7 +447,7 @@ function updateScoreMap() {
 // reset scores for all teams
 function resetScores() {
     if (Object.keys(teams).length === 0) return;
-    for (let team of Object.values(teams)) {
+    for (const team of Object.values(teams)) {
         team.correct = 0;
         team.score = 0;
     }
@@ -473,115 +477,128 @@ function tableSortChange(obj, mode) {
 // setup csc window
 function setupcscWindow() {
     cscWindow.window.find(".modal-header").empty()
-        .append($(`<i class="fa fa-times clickAble" style="font-size: 25px; top: 8px; right: 15px; position: absolute;" aria-hidden="true"></i>`).click(() => {
-            cscWindow.close();
-        }))
-        .append(`<h2>Custom Score Counter</h2>`)
-        .append($(`<div class="tabContainer">`)
-            .append($(`<div id="cscTeamTab" class="tab clickAble selected"><span>Teams</span></div>`).click(() => {
-                switchTab("cscTeam");
+        .append($("<i>", { class: "fa fa-times clickAble", style: "font-size: 25px; top: 8px; right: 15px; position: absolute;", "aria-hidden": "true" })
+            .on("click", () => {
+                cscWindow.close();
             }))
-            .append($(`<div id="cscScoreTab" class="tab clickAble"><span>Score</span></div>`).click(() => {
-                switchTab("cscScore");
-            }))
-            .append($(`<div id="cscSettingsTab" class="tab clickAble"><span>Settings</span></div>`).click(() => {
-                switchTab("cscSettings");
-            }))
+        .append($("<h2>", { text: "Custom Score Counter" }))
+        .append($("<div>", { class: "tabContainer" })
+            .append($("<div>", { id: "cscTeamTab", class: "tab clickAble selected" })
+                .append($("<span>", { text: "Teams" }))
+                .on("click", () => {
+                    switchTab("cscTeam");
+                }))
+            .append($("<div>", { id: "cscScoreTab", class: "tab clickAble" })
+                .append($("<span>", { text: "Score" }))
+                .on("click", () => {
+                    switchTab("cscScore");
+                }))
+            .append($("<div>", { id: "cscSettingsTab", class: "tab clickAble" })
+                .append($("<span>", { text: "Settings" }))
+                .on("click", () => {
+                    switchTab("cscSettings");
+                }))
         );
     cscWindow.panels[0].panel
-        .append($(`<div id="cscTeamContainer" class="tabSection" style="padding: 10px;"></div>`)
-            .append($(`<button id="cscResetButton" style="user-select: none;">Reset</button>`).click(() => {
-                teams = {};
-                createTeamTable(getPlayers());
-            }))
-            .append($(`<button id="cscShuffleButton" style="user-select: none;">Shuffle</button>`).click(() => {
-                shuffleTeams();
-            }))
-            .append($(`<button id="cscImportButton" style="user-select: none;">Import</button>`).click(() => {
-                swal({
-                    title: "Select Import Method",
-                    input: "select",
-                    inputOptions: { 1: "From Chat", 2: "From Lobby Settings", 3: "Text" },
-                    showCancelButton: true,
-                    cancelButtonText: "Cancel",
-                    allowOutsideClick: true
-                }).then((result) => {
-                    if (result.value) {
-                        if (result.value === "1") {
-                            importTeamsFromChat();
+        .append($("<div>", { id: "cscTeamContainer", class: "tabSection", style: "padding: 10px;" })
+            .append($("<button>", { id: "cscResetButton", text: "Reset", style: "user-select: none;" })
+                .on("click", () => {
+                    teams = {};
+                    createTeamTable(getPlayers());
+                }))
+            .append($("<button>", { id: "cscShuffleButton", text: "Shuffle", style: "user-select: none;" })
+                .on("click", () => {
+                    shuffleTeams();
+                }))
+            .append($("<button>", { id: "cscImportButton", text: "Import", style: "user-select: none;" })
+                .on("click", () => {
+                    swal({
+                        title: "Select Import Method",
+                        input: "select",
+                        inputOptions: { 1: "From Chat", 2: "From Lobby Settings", 3: "Text" },
+                        showCancelButton: true,
+                        cancelButtonText: "Cancel",
+                        allowOutsideClick: true
+                    }).then((result) => {
+                        if (result.value) {
+                            if (result.value === "1") {
+                                importTeamsFromChat();
+                            }
+                            else if (result.value === "2") {
+                                importTeamsFromLobby();
+                            }
+                            else if (result.value === "3") {
+                                messageDisplayer.displayMessage("not implemented yet");
+                            }
                         }
-                        else if (result.value === "2") {
-                            importTeamsFromLobby();
-                        }
-                        else if (result.value === "3") {
-                            messageDisplayer.displayMessage("not implemented yet");
-                        }
+                    });
+                }))
+            .append($("<span>", { text: "Team size:", style: "margin-left: 15px;" }))
+            .append($("<input>", { id: "cscTeamSizeInput", type: "number", min: 1, max: 99, style: "width: 40px; margin-left: 5px;" })
+                .val(4)
+                .on("change", createScoreMap))
+            .append($("<button>", { id: "cscToChatButton", text: "To Chat", style: "user-select: none; margin-left: 15px;" })
+                .on("click", () => {
+                    for (const team of Object.values(teams)) {
+                        sendChatMessage(`Team ${team.number}: ${team.players.join(", ")} - ${team.score}`);
                     }
-                });
-            }))
-            .append($(`<span style="margin-left: 15px;">Team size:</span>`))
-            .append($(`<input id="cscTeamSizeInput" type="number" min="1" max="99" style="width: 40px; margin-left: 5px;">`).val(4).on("change", () => createScoreMap()))
-            .append($(`<button id="cscToChatButton" style="user-select: none; margin-left: 15px;">To Chat</button>`).click(() => {
-                for (let team of Object.values(teams)) {
-                    sendChatMessage(`Team ${team.number}: ${team.players.join(", ")} - ${team.score}`);
-                }
-            }))
-            .append($(`<table id="cscTeamTable" style="margin-top: 10px;"><thead><tr><th>Name</th><th class="team">Team #</th></tr></thead><tbody></tbody></table>`))
-        )
-        .append($(`<div id="cscScoreContainer" class="tabSection" style="padding: 10px;"></div>`).hide()
-            .append($(`<table id="cscScoreTable"></table>`)
-                .append($(`<thead></thead>`)
-                    .append($(`<tr></tr>`)
-                        .append($(`<th>Team</th>`).click(() => {
-                            tableSortChange(scoreTableSort, "team");
-                            updateScoreTable();
-                        }))
-                        .append($(`<th class="correct">Correct</th>`).click(() => {
-                            tableSortChange(scoreTableSort, "correct");
-                            updateScoreTable();
-                        }))
-                        .append($(`<th class="score">Score</th>`).click(() => {
-                            tableSortChange(scoreTableSort, "score");
-                            updateScoreTable();
-                        }))
+                }))
+            .append($("<table>", { id: "cscTeamTable", style: "margin-top: 10px;" })
+                .append($("<thead>")
+                    .append($("<tr>")
+                        .append($("<th>", { text: "Name" }))
+                        .append($("<th>", { class: "team", text: "Team #" }))
                     )
                 )
-                .append($(`<tbody></tbody>`))
+                .append($("<tbody>"))
             )
         )
-        .append($(`<div id="cscSettingsContainer" class="tabSection" style="padding: 10px;"></div>`).hide()
-            .append($(`<div></div>`)
-                .append($(`<span>Preset:</span>`))
-                .append($(`<select id="cscPresetSelect" style="margin-left: 5px; padding: 4px 2px;"></select>`)
-                    .append(`<option>-</option>`)
-                    .append(`<option>yashadox</option>`)
+        .append($("<div>", { id: "cscScoreContainer", class: "tabSection", style: "padding: 10px; display: none;" })
+            .append($("<table>", { id: "cscScoreTable" })
+                .append($("<thead>")
+                    .append($("<tr>")
+                        .append($("<th>", { class: "team", text: "Team", "data-sort": "team" }))
+                        .append($("<th>", { class: "correct", text: "Correct", "data-sort": "correct" }))
+                        .append($("<th>", { class: "score", text: "Score", "data-sort": "score" }))
+                    )
+                    .on("click", "th", (event) => {
+                        const sortKey = event.currentTarget.getAttribute("data-sort");
+                        if (!sortKey) return;
+                        tableSortChange(scoreTableSort, sortKey);
+                        updateScoreTable();
+                    }))
+                .append($("<tbody>"))
+            )
+        )
+        .append($("<div>", { id: "cscSettingsContainer", class: "tabSection", style: "padding: 10px; display: none;" })
+            .append($("<div>")
+                .append($("<span>", { text: "Preset:" }))
+                .append($("<select>", { id: "cscPresetSelect", style: "margin-left: 5px; padding: 4px 2px;" })
+                    .append($("<option>", { text: "-" }))
+                    .append($("<option>", { text: "yashadox" }))
                     .on("change", function () {
-                        if (this.value === "-") {
-                            soloBonus = 0;
-                            scoreMap = {};
-                            $("#cscSoloBonusInput").val("");
-                            createScoreMap();
-                        }
-                        else if (this.value === "yashadox") {
-                            soloBonus = 1;
-                            scoreMap = {
-                                1: { 0: 0, 1: 1 },
-                                2: { 0: 0, 1: 1, 2: 1.75 },
-                                3: { 0: 0, 1: 1, 2: 1.75, 3: 2.25 },
-                                4: { 0: 0, 1: 1, 2: 1.75, 3: 2.25, 4: 2.5 }
-                            };
-                            $("#cscSoloBonusInput").val(soloBonus);
-                            createScoreMap(4);
-                        }
+                        presetChange(this.value);
                     })
                 )
-                .append($(`<span style="margin: 0 5px 0 15px">Solo Bonus:</span>`))
-                .append($(`<input id="cscSoloBonusInput" type="text" style="width: 40px;">`).on("change", function () {
-                    soloBonus = parseFloat(this.value) || 0;
-                }))
+                .append($("<span>", { text: "Solo Bonus:", style: "margin: 0 5px 0 15px;" }))
+                .append($("<input>", { id: "cscSoloBonusInput", type: "text", style: "width: 40px;" })
+                    .on("change", function () {
+                        soloBonus = parseFloat(this.value) || 0;
+                    }))
             )
-            .append($(`<table id="cscScoreMapTable" style="margin-top: 10px;"><thead></thead><tbody></tbody></table>`))
-            .append(`<table id="cscHotkeyTable" style="margin-top: 20px;"><thead><tr><th>Action</th><th>Keybind</th></tr></thead><tbody></tbody></table>`)
+            .append($("<table>", { id: "cscScoreMapTable", style: "margin-top: 10px;" })
+                .append($("<thead>"))
+                .append($("<tbody>"))
+            )
+            .append($("<table>", { id: "cscHotkeyTable", style: "margin-top: 20px;" })
+                .append($("<thead>")
+                    .append($("<tr>")
+                        .append($("<th>", { text: "Action" }))
+                        .append($("<th>", { text: "Keybind" }))
+                    )
+                )
+                .append($("<tbody>"))
+            )
         );
     createHotkeyTable([
         { action: "cscWindow", title: "Open This Window" },
@@ -592,15 +609,15 @@ function setupcscWindow() {
         updateTeamTable();
     }).on("keydown", "input", (event) => {
         if (event.key === "ArrowDown" || event.key === "Enter") {
-            let inputs = $("#cscTeamTable input");
-            let index = inputs.index(event.target);
+            const inputs = $("#cscTeamTable input");
+            const index = inputs.index(event.target);
             if (index < inputs.length - 1) {
                 inputs.eq(index + 1).focus();
             }
         }
         else if (event.key === "ArrowUp") {
-            let inputs = $("#cscTeamTable input");
-            let index = inputs.index(event.target);
+            const inputs = $("#cscTeamTable input");
+            const index = inputs.index(event.target);
             if (index > 0) {
                 inputs.eq(index - 1).focus();
             }
@@ -609,6 +626,27 @@ function setupcscWindow() {
     $("#cscScoreMapTable").on("change", "input", (event) => {
         updateScoreMap();
     })
+}
+
+// handle preset select
+function presetChange(value) {
+    if (value === "-") {
+        soloBonus = 0;
+        scoreMap = {};
+        $("#cscSoloBonusInput").val("");
+        createScoreMap();
+    }
+    else if (value === "yashadox") {
+        soloBonus = 1;
+        scoreMap = {
+            1: { 0: 0, 1: 1 },
+            2: { 0: 0, 1: 1, 2: 1.75 },
+            3: { 0: 0, 1: 1, 2: 1.75, 3: 2.25 },
+            4: { 0: 0, 1: 1, 2: 1.75, 3: 2.25, 4: 2.5 }
+        };
+        $("#cscSoloBonusInput").val(soloBonus);
+        createScoreMap(4);
+    }
 }
 
 // validate json data in local storage
