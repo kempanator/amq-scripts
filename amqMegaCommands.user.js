@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.143
+// @version      0.144
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -228,7 +228,7 @@ const rules = {
 };
 const scripts = {
     "highlightfriends": "https://github.com/nyamu-amq/amq_scripts/raw/master/amqHighlightFriends.user.js",
-    "notificationsounds": "https://github.com/amq-script-project/AMQ-Scripts/raw/master/gameplay/amqNotificationSounds.user.js",
+    "notificationsounds": "https://github.com/kempanator/amq-scripts/raw/main/amqNotificationSounds.user.js",
     "songlistui": "https://github.com/joske2865/AMQ-Scripts/raw/master/amqSongListUI.user.js",
     "answertime": "https://github.com/amq-script-project/AMQ-Scripts/raw/master/gameplay/amqPlayerAnswerTimeDisplay.user.js",
     "speedrun": "https://github.com/joske2865/AMQ-Scripts/raw/master/amqSpeedrun.user.js",
@@ -240,7 +240,7 @@ const scripts = {
     "newgamemodeui": "https://github.com/kempanator/amq-scripts/raw/main/amqNewGameModeUI.user.js",
     "quickloadlists": "https://github.com/kempanator/amq-scripts/raw/main/amqQuickLoadLists.user.js",
     "showroomplayers": "https://github.com/kempanator/amq-scripts/raw/main/amqShowRoomPlayers.user.js",
-    "spy": "https://github.com/ayyu/amq-userscripts/raw/refs/heads/master/userscripts/amqHostSpyMode.user.js",
+    "spy": "https://github.com/ayyu/amq-userscripts/raw/master/userscripts/amqHostSpyMode.user.js",
     "elodiestyle": "https://userstyles.world/style/1435"
 };
 const info = {
@@ -1732,22 +1732,16 @@ async function parseCommand(messageText, type, target) {
     const command = split[0].slice(commandPrefix.length);
     if (command === "players") {
         let list = getPlayerList();
-        if (split[1]?.startsWith("l")) {
-            list = list.map(p => p.toLowerCase());
-        }
-        else if (split[1]?.startsWith("u")) {
-            list = list.map(p => p.toUpperCase());
-        }
+        const mode = (split[1] || "").charAt(0);
+        if (mode === "l") list = list.map(p => p.toLowerCase());
+        if (mode === "u") list = list.map(p => p.toUpperCase());
         sendMessage(list.join(", "), type, target);
     }
     else if (command === "spectators") {
         let list = getSpectatorList();
-        if (split[1]?.startsWith("l")) {
-            list = list.map(p => p.toLowerCase());
-        }
-        else if (split[1]?.startsWith("u")) {
-            list = list.map(p => p.toUpperCase());
-        }
+        const mode = (split[1] || "").charAt(0);
+        if (mode === "l") list = list.map(p => p.toLowerCase());
+        if (mode === "u") list = list.map(p => p.toUpperCase());
         sendMessage(list.join(", "), type, target);
     }
     else if (command === "teammates") {
@@ -1756,7 +1750,10 @@ async function parseCommand(messageText, type, target) {
             list = getTeamList(getTeamNumber(selfName));
         }
         else if (split.length === 2) {
-            if (split[1].startsWith("l")) {
+            if (isPlayer(split[1])) {
+                list = getTeamList(getTeamNumber(split[1]));
+            }
+            else if (split[1].startsWith("l")) {
                 list = getTeamList(getTeamNumber(selfName)).map(p => p.toLowerCase());
             }
             else if (split[1].startsWith("u")) {
@@ -1767,14 +1764,20 @@ async function parseCommand(messageText, type, target) {
             }
         }
         else {
-            if (split[2].startsWith("l")) {
-                list = getTeamList(parseInt(split[1])).map(p => p.toLowerCase());
+            if (isPlayer(split[1])) {
+                list = getTeamList(getTeamNumber(split[1]));
             }
-            else if (split[2].startsWith("u")) {
-                list = getTeamList(parseInt(split[1])).map(p => p.toUpperCase());
+            else {
+                list = getTeamList(parseInt(split[1]));
             }
+            const mode = split[2].charAt(0);
+            if (mode === "l") list = list.map(p => p.toLowerCase());
+            if (mode === "u") list = list.map(p => p.toUpperCase());
         }
         sendMessage(list.join(", "), type, target);
+    }
+    else if (command === "teamnumber" || command === "teamnum") {
+        sendMessage(getTeamNumber(split[1] || selfName), type, target);
     }
     else if (command === "roll") {
         if (split.length === 1) {
@@ -2590,7 +2593,7 @@ async function parseCommand(messageText, type, target) {
         checkAutoReady();
         updateCommandListWindow("autoReady");
     }
-    else if (command === "autostart") {
+    else if (command === "autostart" || command === "astart" || command === "ast") {
         if (split.length === 1) {
             if (autoStart.remaining) {
                 autoStart.remaining = 0;
@@ -4728,6 +4731,7 @@ function isQuizOfTheDay() {
 
 // return true if player is your friend
 function isFriend(name) {
+    if (!name) return false;
     name = name.toLowerCase();
     for (const friend of getAllFriends()) {
         if (friend.toLowerCase() === name) return true;
@@ -4737,6 +4741,7 @@ function isFriend(name) {
 
 // return true if player is in lobby or quiz (not spectating)
 function isPlayer(name) {
+    if (!name) return false;
     name = name.toLowerCase();
     if (lobby.inLobby) {
         for (const player of Object.values(lobby.players)) {
@@ -4766,6 +4771,7 @@ function isPlayer(name) {
 
 // return true if player is spectator
 function isSpectator(name) {
+    if (!name) return false;
     name = name.toLowerCase();
     for (const player of gameChat.spectators) {
         if (player.name.toLowerCase() === name) return true;
@@ -5316,7 +5322,7 @@ function getScriptVersion(input) {
     return "not found";
 }
 
-// return random integer between a and b, both inclusvie
+// return random integer between a and b, both inclusive
 function randomIntInc(a, b) {
     if (a === undefined) return NaN;
     if (b === undefined) return a;
