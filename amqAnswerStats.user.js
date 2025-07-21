@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Answer Stats
 // @namespace    https://github.com/kempanator
-// @version      0.42
+// @version      0.43
 // @description  Adds a window to display quiz answer stats
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -235,8 +235,8 @@ function setup() {
         setTimeout(() => {
             const activePlayers = $("#qpScoreBoardEntryContainer .qpStandingItem:not(.disabled)").length;
             const roomName = hostModal.$roomName.val();
-            const difficultyList = songHistoryWindow.currentGameTab.table.rows.map((x) => parseFloat(x.songInfo.animeDifficulty) || 0);
-            const songTypeList = songHistoryWindow.currentGameTab.table.rows.map((x) => x.songInfo.type);
+            const difficultyList = songHistoryWindow.currentGameTab.table.rows.map(x => parseFloat(x.songInfo.animeDifficulty) || 0);
+            const songTypeList = songHistoryWindow.currentGameTab.table.rows.map(x => x.songInfo.type);
             $("#asRoomInfoRow").empty().append(`
                 <span><b>${roomNameText()}</b></span>
                 <span style="margin-left: 20px"><b>Song:</b> ${songNumber}/${quiz.infoContainer.$totalSongCount.text()}</span>
@@ -273,10 +273,11 @@ function setup() {
                 const $speedRow = $("#asAnswerSpeedRow").empty().show();
                 $speedRow.append(`<span><b>Average:</b> ${averageSpeed}ms</span><span style="margin-left: 20px"><b>Fastest:</b> ${fastestSpeed}ms - </span>`);
                 fastestPlayers.forEach((id, i) => {
-                    $speedRow.append($("<span>", { text: playerInfo[id].name, style: "cursor: pointer;" }).click(() => {
-                        displayPlayerHistoryResults(id);
-                        answerHistoryWindow.open();
-                    }));
+                    $speedRow.append($("<span>", { text: playerInfo[id].name, style: "cursor: pointer;" })
+                        .on("click", () => {
+                            displayPlayerHistoryResults(id);
+                            answerHistoryWindow.open();
+                        }));
                     if (i < fastestPlayers.length - 1) $speedRow.append(", ");
                 });
             }
@@ -287,11 +288,11 @@ function setup() {
                 const $correctRow = $("#asCorrectPlayersRow").empty().show();
                 $correctRow.append(`<span><b>Correct Players: </b></span>`);
                 Object.keys(correctPlayers).forEach((id, i) => {
-                    const playerElement = $("<span>", { text: playerInfo[id].name, style: "cursor: pointer;" }).click(() => {
-                        displayPlayerHistoryResults(id);
-                        answerHistoryWindow.open();
-                    });
-                    $correctRow.append(playerElement);
+                    $correctRow.append($("<span>", { text: playerInfo[id].name, style: "cursor: pointer;" })
+                        .on("click", () => {
+                            displayPlayerHistoryResults(id);
+                            answerHistoryWindow.open();
+                        }));
                     if (i < Object.keys(correctPlayers).length - 1) $correctRow.append(", ");
                 });
             }
@@ -299,68 +300,75 @@ function setup() {
                 $("#asCorrectPlayersRow").empty().hide();
             }
             const $ulCorrect = $("#asCorrectAnswersList").empty();
-            $ulCorrect.append($("<b>", { text: "Correct Answers:", style: "cursor: pointer;" }).click(() => {
-                songHistoryFilter = { type: "allCorrectAnswers" };
-                displaySongHistoryResults(songNumber);
-                answerHistoryWindow.open();
-            }));
+            $ulCorrect.append($("<b>", { text: "Correct Answers:", style: "cursor: pointer;" })
+                .on("click", () => {
+                    songHistoryFilter = { type: "allCorrectAnswers" };
+                    displaySongHistoryResults(songNumber);
+                    answerHistoryWindow.open();
+                }));
             for (const anime of correctSortedKeys) {
                 if (correctAnswerIdMap[anime].length > 0) {
                     $ulCorrect.append($("<li>")
-                        .append($("<span>", { class: "answerStatsAnimeTitle", text: anime, style: "cursor: pointer;" }).click(() => {
-                            songHistoryFilter = { type: "answer", answer: anime };
-                            displaySongHistoryResults(songNumber);
-                            answerHistoryWindow.open()
-                        }))
+                        .append($("<span>", { class: "answerStatsAnimeTitle", text: anime, style: "cursor: pointer;" })
+                            .on("click", () => {
+                                songHistoryFilter = { type: "answer", answer: anime };
+                                displaySongHistoryResults(songNumber);
+                                answerHistoryWindow.open()
+                            }))
                         .append($("<span>", { class: "answerStatsNumber", text: correctAnswerIdMap[anime].length }))
                     );
                 }
             }
             const $ulWrong = $("#asWrongAnswersList").empty();
-            $ulWrong.append($("<b>", { text: "Wrong Answers:", style: "cursor: pointer;" }).click(() => {
-                songHistoryFilter = { type: "allWrongAnswers" };
-                displaySongHistoryResults(songNumber);
-                answerHistoryWindow.open();
-            }));
+            $ulWrong.append($("<b>", { text: "Wrong Answers:", style: "cursor: pointer;" })
+                .on("click", () => {
+                    songHistoryFilter = { type: "allWrongAnswers" };
+                    displaySongHistoryResults(songNumber);
+                    answerHistoryWindow.open();
+                }));
             for (const anime of incorrectSortedKeys) {
                 if (incorrectAnswerIdMap[anime].length > 1) {
                     $ulWrong.append($("<li>")
-                        .append($("<span>", { class: "answerStatsAnimeTitle", text: anime, style: "cursor: pointer;" }).click(() => {
-                            songHistoryFilter = { type: "answer", answer: anime };
-                            displaySongHistoryResults(songNumber);
-                            answerHistoryWindow.open();
-                        }))
+                        .append($("<span>", { class: "answerStatsAnimeTitle", text: anime, style: "cursor: pointer;" })
+                            .on("click", () => {
+                                songHistoryFilter = { type: "answer", answer: anime };
+                                displaySongHistoryResults(songNumber);
+                                answerHistoryWindow.open();
+                            }))
                         .append($("<span>", { class: "answerStatsNumber", text: incorrectAnswerIdMap[anime].length }))
                     );
                 }
             }
             if (otherAnswerIdList.length > 0) {
                 $ulWrong.append($("<li>")
-                    .append($("<span>", { class: "answerStatsAnimeTitle", text: "Other Answer", style: "cursor: pointer;" }).click(() => {
-                        songHistoryFilter = { type: "uniqueValidWrongAnswers" };
-                        displaySongHistoryResults(songNumber);
-                        answerHistoryWindow.open();
-                    }))
+                    .append($("<span>", { class: "answerStatsAnimeTitle", text: "Other Answer", style: "cursor: pointer;" })
+                        .on("click", () => {
+                            songHistoryFilter = { type: "uniqueValidWrongAnswers" };
+                            displaySongHistoryResults(songNumber);
+                            answerHistoryWindow.open();
+                        }))
                     .append($("<span>", { class: "answerStatsNumber", text: otherAnswerIdList.length }))
                 );
             }
             if (invalidAnswerIdList.length > 0) {
                 $ulWrong.append($("<li>")
-                    .append($("<span>", { class: "answerStatsAnimeTitle", text: "Invalid Answer", style: "cursor: pointer;" }).click(() => {
-                        songHistoryFilter = { type: "invalidAnswers" };
-                        displaySongHistoryResults(songNumber);
-                        answerHistoryWindow.open();
-                    }))
+                    .append($("<span>", { class: "answerStatsAnimeTitle", text: "Invalid Answer", style: "cursor: pointer;" })
+                        .on("click", () => {
+                            songHistoryFilter = { type: "invalidAnswers" };
+                            displaySongHistoryResults(songNumber);
+                            answerHistoryWindow.open();
+                        }))
                     .append($("<span>", { class: "answerStatsNumber", text: invalidAnswerIdList.length }))
                 );
             }
             if (noAnswerIdList.length > 0) {
                 $ulWrong.append($("<li>")
-                    .append($("<span>", { class: "answerStatsAnimeTitle", text: "No Answer", style: "cursor: pointer;" }).click(() => {
-                        songHistoryFilter = { type: "noAnswers" };
-                        displaySongHistoryResults(songNumber);
-                        answerHistoryWindow.open();
-                    }))
+                    .append($("<span>", { class: "answerStatsAnimeTitle", text: "No Answer", style: "cursor: pointer;" })
+                        .on("click", () => {
+                            songHistoryFilter = { type: "noAnswers" };
+                            displaySongHistoryResults(songNumber);
+                            answerHistoryWindow.open();
+                        }))
                     .append($("<span>", { class: "answerStatsNumber", text: noAnswerIdList.length }))
                 );
             }
@@ -472,13 +480,15 @@ function setup() {
     });
 
     answerStatsWindow.window.find(".modal-header").empty()
-        .append($(`<i class="fa fa-times clickAble" style="font-size: 25px; top: 8px; right: 15px; position: absolute;" aria-hidden="true"></i>`).click(() => {
-            answerStatsWindow.close();
-        }))
-        .append($(`<i class="fa fa-cog clickAble" style="font-size: 22px; top: 11px; right: 42px; position: absolute;" aria-hidden="true"></i>`).click(() => {
-            $("#asMainContainer").toggle();
-            $("#asSettingsContainer").toggle();
-        }))
+        .append($("<i>", { class: "fa fa-times clickAble", "aria-hidden": "true", style: "font-size: 25px; top: 8px; right: 15px; position: absolute;" })
+            .on("click", () => {
+                answerStatsWindow.close();
+            }))
+        .append($("<i>", { class: "fa fa-cog clickAble", "aria-hidden": "true", style: "font-size: 22px; top: 11px; right: 42px; position: absolute;" })
+            .on("click", () => {
+                $("#asMainContainer").toggle();
+                $("#asSettingsContainer").toggle();
+            }))
         .append(`<h2>Answer Stats</h2>`)
         .append($("<div>", { class: "tabContainer" })
             .append($("<div>", { id: "asAnswerHistoryTab", class: "tab clickAble" })
@@ -489,7 +499,7 @@ function setup() {
                     trigger: "hover",
                     content: "complete answer history for all players and all songs in current quiz"
                 })
-                .click(() => {
+                .on("click", () => {
                     answerHistoryWindow.isVisible() ? answerHistoryWindow.close() : answerHistoryWindow.open();
                 })
             )
@@ -501,7 +511,7 @@ function setup() {
                     trigger: "hover",
                     content: "list everyone's average speed for correct answers"
                 })
-                .click(() => {
+                .on("click", () => {
                     answerSpeedWindow.isVisible() ? answerSpeedWindow.close() : answerSpeedWindow.open();
                 })
             )
@@ -513,7 +523,7 @@ function setup() {
                     trigger: "hover",
                     content: "compare answers between players to detect teaming"
                 })
-                .click(() => {
+                .on("click", () => {
                     answerCompareWindow.isVisible() ? answerCompareWindow.close() : answerCompareWindow.open();
                 })
             )
@@ -525,7 +535,7 @@ function setup() {
                     trigger: "hover",
                     content: "show anime distribution by type and difficulty"
                 })
-                .click(() => {
+                .on("click", () => {
                     distributionWindow.isVisible() ? distributionWindow.close() : distributionWindow.open();
                 })
             )
@@ -562,162 +572,182 @@ function setup() {
     });
 
     // setup answer history window
-    let $header = answerHistoryWindow.window.find(".modal-header");
-    $header.find("h2").remove();
-    $("<div>")
-        .append($("<span>", { text: "Answer History", style: "font-size: 23px; line-height: normal; margin: 6px 0 2px 8px;" }))
-        .append($("<label>", { class: "answerStatsIcon" })
-            .append($("<input>", { type: "file", accept: ".json", style: "display: none;" }).on("change", uploadHandler))
-            .append(`<i class="fa fa-folder-open-o" aria-hidden="true"></i>`)
-            .popover({
-                container: "#gameContainer",
-                placement: "top",
-                trigger: "hover",
-                content: "open json file"
-            }))
-        .append($(`<div class="answerStatsIcon"></div>`)
-            .append(`<i class="fa fa-floppy-o" aria-hidden="true"></i>`)
-            .popover({
-                container: "#gameContainer",
-                placement: "top",
-                trigger: "hover",
-                content: "save current game results to json file"
-            })
-            .click(() => {
-                saveResults();
-            }))
-        .append($(`<div class="answerStatsIcon"></div>`)
-            .append(`<i class="fa fa-clock-o" aria-hidden="true"></i>`)
-            .popover({
-                container: "#gameContainer",
-                placement: "top",
-                trigger: "hover",
-                content: "show fastest speed for each song"
-            })
-            .click(() => {
-                displayFastestSpeedResults();
-            }))
-        .append($("<div>", { class: "answerStatsIcon filterButton" })
-            .append(`<i class="fa fa-refresh" aria-hidden="true"></i>`)
-            .hide()
-            .popover({
-                container: "#gameContainer",
-                placement: "top",
-                trigger: "hover",
-                content: "reset answer filter"
-            })
-            .click(function () {
-                $(this).hide();
-                songHistoryFilter = { type: "all" };
-                displaySongHistoryResults(answerHistorySettings.songNumber);
-            }))
-        .appendTo($header);
-    $("<div>", { style: "float: left; margin-top: 3px;" })
-        .append(`<span id="answerHistoryCurrentSong" style="font-size: 16px; margin: 0 8px 0 8px;">Song: </span>`)
-        .append($("<div>", { class: "infoButton" })
-            .append(`<i class="fa fa-info-circle" aria-hidden="true"></i>`)
-            .hide()
-            .popover({
-                container: "#gameContainer",
-                placement: "bottom",
-                trigger: "hover",
-                html: true,
-                title: "",
-                content: ""
-            }))
-        .append($("<div>", { class: "answerStatsButton arrowButton", text: "«" }).hide().click(() => {
-            if (Object.keys(songHistory).length) {
-                songHistoryFilter = { type: "all" };
-                displaySongHistoryResults(parseInt(Object.keys(songHistory)[0]));
-            }
-        }))
-        .append($("<div>", { class: "answerStatsButton arrowButton", text: "‹" }).hide().click(() => {
-            if (Object.keys(songHistory).length) {
-                const songNumber = answerHistorySettings.songNumber;
-                if (songNumber !== Object.values(songHistory)[0].songNumber) {
+    answerHistoryWindow.window.find(".modal-header").empty()
+        .append($("<div>")
+            .append($("<i>", { class: "fa fa-times clickAble", "aria-hidden": "true", style: "font-size: 25px; top: 8px; right: 15px; position: absolute;" })
+                .on("click", () => {
+                    answerHistoryWindow.close();
+                }))
+            .append($("<span>", { text: "Answer History", style: "font-size: 23px; line-height: normal; margin: 6px 0 2px 8px;" }))
+            .append($("<label>", { class: "answerStatsIcon" })
+                .append($("<input>", { type: "file", accept: ".json", style: "display: none;" }).on("change", uploadHandler))
+                .append(`<i class="fa fa-folder-open-o" aria-hidden="true"></i>`)
+                .popover({
+                    container: "#gameContainer",
+                    placement: "top",
+                    trigger: "hover",
+                    content: "open json file"
+                }))
+            .append($("<div>", { class: "answerStatsIcon" })
+                .append(`<i class="fa fa-floppy-o" aria-hidden="true"></i>`)
+                .popover({
+                    container: "#gameContainer",
+                    placement: "top",
+                    trigger: "hover",
+                    content: "save current game results to json file"
+                })
+                .on("click", () => {
+                    saveResults();
+                }))
+            .append($("<div>", { class: "answerStatsIcon" })
+                .append(`<i class="fa fa-clock-o" aria-hidden="true"></i>`)
+                .popover({
+                    container: "#gameContainer",
+                    placement: "top",
+                    trigger: "hover",
+                    content: "show fastest speed for each song"
+                })
+                .on("click", () => {
+                    displayFastestSpeedResults();
+                }))
+            .append($("<div>", { class: "answerStatsIcon filterButton" })
+                .append(`<i class="fa fa-refresh" aria-hidden="true"></i>`)
+                .hide()
+                .popover({
+                    container: "#gameContainer",
+                    placement: "top",
+                    trigger: "hover",
+                    content: "reset answer filter"
+                })
+                .on("click", function () {
+                    $(this).hide();
                     songHistoryFilter = { type: "all" };
-                    displaySongHistoryResults(songNumber - 1);
-                }
-            }
-        }))
-        .append($("<div>", { class: "answerStatsButton arrowButton", text: "›" }).hide().click(() => {
-            if (Object.keys(songHistory).length) {
-                const songNumber = answerHistorySettings.songNumber;
-                if (songNumber !== Object.values(songHistory).slice(-1)[0].songNumber) {
-                    songHistoryFilter = { type: "all" };
-                    displaySongHistoryResults(songNumber + 1);
-                }
-            }
-        }))
-        .append($("<div>", { class: "answerStatsButton arrowButton", text: "»" }).hide().click(() => {
-            if (Object.keys(songHistory).length) {
-                songHistoryFilter = { type: "all" };
-                displaySongHistoryResults(Object.values(songHistory).slice(-1)[0].songNumber);
-            }
-        }))
-        .append($("<div>", { class: "answerStatsButton backButton", text: "back" }).hide().click(() => {
-            if (Object.keys(songHistory).length) {
-                if (songHistory[answerHistorySettings.songNumber]) {
                     displaySongHistoryResults(answerHistorySettings.songNumber);
-                }
-                else {
-                    displaySongHistoryResults(Object.values(songHistory).slice(-1)[0].songNumber);
-                }
-            }
-        }))
-        .append($(`<span id="answerHistoryCurrentPlayer" style="font-size: 16px; margin: 0 8px 0 8px;">Player: </span>`).hide().popover({
-            container: "#gameContainer",
-            placement: "top",
-            trigger: "hover",
-            html: true,
-            title: "",
-            content: ""
-        }))
-        .appendTo($header);
+                }))
+        )
+        .append($("<div>", { style: "float: left; margin-top: 3px;" })
+            .append(`<span id="answerHistoryCurrentSong" style="font-size: 16px; margin: 0 8px 0 8px;">Song: </span>`)
+            .append($("<div>", { class: "infoButton" })
+                .append(`<i class="fa fa-info-circle" aria-hidden="true"></i>`)
+                .hide()
+                .popover({
+                    container: "#gameContainer",
+                    placement: "bottom",
+                    trigger: "hover",
+                    html: true,
+                    title: "",
+                    content: ""
+                }))
+            .append($("<div>", { class: "answerStatsButton arrowButton", text: "«" }).hide()
+                .on("click", () => {
+                    if (Object.keys(songHistory).length) {
+                        songHistoryFilter = { type: "all" };
+                        displaySongHistoryResults(parseInt(Object.keys(songHistory)[0]));
+                    }
+                }))
+            .append($("<div>", { class: "answerStatsButton arrowButton", text: "‹" }).hide()
+                .on("click", () => {
+                    if (Object.keys(songHistory).length) {
+                        const songNumber = answerHistorySettings.songNumber;
+                        if (songNumber !== Object.values(songHistory)[0].songNumber) {
+                            songHistoryFilter = { type: "all" };
+                            displaySongHistoryResults(songNumber - 1);
+                        }
+                    }
+                }))
+            .append($("<div>", { class: "answerStatsButton arrowButton", text: "›" }).hide()
+                .on("click", () => {
+                    if (Object.keys(songHistory).length) {
+                        const songNumber = answerHistorySettings.songNumber;
+                        if (songNumber !== Object.values(songHistory).slice(-1)[0].songNumber) {
+                            songHistoryFilter = { type: "all" };
+                            displaySongHistoryResults(songNumber + 1);
+                        }
+                    }
+                }))
+            .append($("<div>", { class: "answerStatsButton arrowButton", text: "»" }).hide()
+                .on("click", () => {
+                    if (Object.keys(songHistory).length) {
+                        songHistoryFilter = { type: "all" };
+                        displaySongHistoryResults(Object.values(songHistory).slice(-1)[0].songNumber);
+                    }
+                }))
+            .append($("<div>", { class: "answerStatsButton backButton", text: "back" }).hide()
+                .on("click", () => {
+                    if (Object.keys(songHistory).length) {
+                        if (songHistory[answerHistorySettings.songNumber]) {
+                            displaySongHistoryResults(answerHistorySettings.songNumber);
+                        }
+                        else {
+                            displaySongHistoryResults(Object.values(songHistory).slice(-1)[0].songNumber);
+                        }
+                    }
+                }))
+            .append($(`<span id="answerHistoryCurrentPlayer" style="font-size: 16px; margin: 0 8px 0 8px;">Player: </span>`).hide()
+                .popover({
+                    container: "#gameContainer",
+                    placement: "top",
+                    trigger: "hover",
+                    html: true,
+                    title: "",
+                    content: ""
+                }))
+        );
 
     // setup average speed window
-    $header = answerSpeedWindow.window.find(".modal-header");
-    $header.find("h2").remove();
-    $header
+    answerSpeedWindow.window.find(".modal-header").empty()
+        .append($("<i>", { class: "fa fa-times clickAble", "aria-hidden": "true", style: "font-size: 25px; top: 8px; right: 15px; position: absolute;" })
+            .on("click", () => {
+                answerSpeedWindow.close();
+            }))
         .append($("<div>", { text: "Average Speed", style: "font-size: 23px; line-height: normal; margin: 6px 0 2px 8px" }))
         .append($("<div>", { style: "margin: 0 0 0 8px;" })
             .append(`<span style="font-size: 16px">Sort:</span>`)
-            .append($("<div>", { id: "averageSpeedSortModeButton", class: "answerStatsButton", text: averageSpeedSort.mode }).click(function () {
-                const modes = ["score", "time", "name"];
-                averageSpeedSort.mode = modes[(modes.indexOf(averageSpeedSort.mode) + 1) % modes.length];
-                $(this).text(averageSpeedSort.mode);
-                displayAverageSpeedResults();
-            }))
-            .append($("<div>", { id: "averageSpeedSortDirectionButton", class: "answerStatsButton", text: averageSpeedSort.ascending ? "🡅" : "🡇" }).click(function () {
-                averageSpeedSort.ascending = !averageSpeedSort.ascending;
-                $(this).text(averageSpeedSort.ascending ? "🡅" : "🡇");
-                displayAverageSpeedResults();
-            })));
+            .append($("<div>", { id: "averageSpeedSortModeButton", class: "answerStatsButton", text: averageSpeedSort.mode })
+                .on("click", function () {
+                    const modes = ["score", "time", "name"];
+                    averageSpeedSort.mode = modes[(modes.indexOf(averageSpeedSort.mode) + 1) % modes.length];
+                    $(this).text(averageSpeedSort.mode);
+                    displayAverageSpeedResults();
+                }))
+            .append($("<div>", { id: "averageSpeedSortDirectionButton", class: "answerStatsButton", text: averageSpeedSort.ascending ? "🡅" : "🡇" })
+                .on("click", function () {
+                    averageSpeedSort.ascending = !averageSpeedSort.ascending;
+                    $(this).text(averageSpeedSort.ascending ? "🡅" : "🡇");
+                    displayAverageSpeedResults();
+                }))
+        );
 
     // setup answer compare window
-    $header = answerCompareWindow.window.find(".modal-header");
-    $header.find("h2").remove();
-    $header
+    answerCompareWindow.window.find(".modal-header").empty()
+        .append($("<i>", { class: "fa fa-times clickAble", "aria-hidden": "true", style: "font-size: 25px; top: 8px; right: 15px; position: absolute;" })
+            .on("click", () => {
+                answerCompareWindow.close();
+            }))
         .append($("<div>", { text: "Answer Compare", style: "font-size: 23px; line-height: normal; margin: 6px 0 2px 8px;" }))
         .append($("<div>", { style: "float: left; margin: 3px 0 0 8px;" })
-            .append($("<input>", { id: "answerCompareSearchInput", type: "text" }).keypress((event) => {
-                if (event.key === "Enter") {
+            .append($("<input>", { id: "answerCompareSearchInput", type: "text" })
+                .on("keypress", (event) => {
+                    if (event.key === "Enter") {
+                        displayAnswerCompareResults($("#answerCompareSearchInput").val());
+                    }
+                }))
+            .append($("<div>", { id: "answerCompareButtonGo", class: "answerStatsButton", text: "Go" })
+                .on("click", () => {
                     displayAnswerCompareResults($("#answerCompareSearchInput").val());
-                }
-            }))
-            .append($("<div>", { id: "answerCompareButtonGo", class: "answerStatsButton", text: "Go" }).click(() => {
-                displayAnswerCompareResults($("#answerCompareSearchInput").val());
-            }))
+                }))
             .append($("<label>", { class: "clickAble", style: "margin-left: 10px;", text: "Correct" })
-                .append($("<input>", { id: "answerCompareHighlightCorrectCheckbox", type: "checkbox" }).click(() => {
-                    setTimeout(() => { displayAnswerCompareResults($("#answerCompareSearchInput").val()) }, 1);
-                })))
+                .append($("<input>", { id: "answerCompareHighlightCorrectCheckbox", type: "checkbox" })
+                    .on("click", () => {
+                        setTimeout(() => { displayAnswerCompareResults($("#answerCompareSearchInput").val()) }, 1);
+                    })))
             .append($("<label>", { class: "clickAble", style: "margin-left: 10px;", text: "Wrong" })
-                .append($("<input>", { id: "answerCompareHighlightWrongCheckbox", type: "checkbox" }).click(() => {
-                    setTimeout(() => { displayAnswerCompareResults($("#answerCompareSearchInput").val()) }, 1);
-                })))
+                .append($("<input>", { id: "answerCompareHighlightWrongCheckbox", type: "checkbox" })
+                    .on("click", () => {
+                        setTimeout(() => { displayAnswerCompareResults($("#answerCompareSearchInput").val()) }, 1);
+                    })))
         );
-    $answerCompareSearchInput = $header.find("#answerCompareSearchInput");
+    $answerCompareSearchInput = answerCompareWindow.window.find("#answerCompareSearchInput");
 
     createHotkeyTable([
         { action: "asWindow", title: "Open This Window" },
@@ -771,11 +801,11 @@ function setup() {
     });
 
     $("#qpOptionContainer")
-        .width((i, w) => w + 35)
+        .width((index, width) => width + 35)
         .children("div")
         .append($("<div>", { id: "qpAnswerStats", class: "clickAble qpOption" })
             .append(`<i class="fa fa-list-alt qpMenuItem" aria-hidden="true"></i>`)
-            .click(() => {
+            .on("click", () => {
                 answerStatsWindow.isVisible() ? answerStatsWindow.close() : answerStatsWindow.open();
             })
             .popover({
@@ -785,7 +815,7 @@ function setup() {
             })
         );
 
-    $("#optionListSettings").before($("<li>", { class: "clickAble", text: "Answer Stats" }).click(() => {
+    $("#optionListSettings").before($("<li>", { class: "clickAble", text: "Answer Stats" }).on("click", () => {
         answerStatsWindow.open();
     }));
     $("#asSettingsContainer").hide();
@@ -877,13 +907,15 @@ function displayAverageSpeedResults() {
         const $row = $("<div>").addClass(colorClass(player.name))
             .append($("<span>", { class: "time", text: Math.round(player.averageSpeed) }))
             //.append("<span>", { class: "time", text: Math.round(player.standardDeviation) })
-            .append($(`<i class="fa fa-id-card-o clickAble" aria-hidden="true"></i>`).click(() => {
-                playerProfileController.loadProfile(player.name, $("#answerSpeedWindow"), {}, () => { }, false, true);
-            }))
-            .append($("<span>", { class: "name", text: player.name, style: "cursor: pointer;" }).click(() => {
-                displayPlayerHistoryResults(id);
-                answerHistoryWindow.open();
-            }))
+            .append($("<i>", { class: "fa fa-id-card-o clickAble", "aria-hidden": "true" })
+                .on("click", () => {
+                    playerProfileController.loadProfile(player.name, $("#answerSpeedWindow"), {}, () => { }, false, true);
+                }))
+            .append($("<span>", { class: "name", text: player.name, style: "cursor: pointer;" })
+                .on("click", () => {
+                    displayPlayerHistoryResults(id);
+                    answerHistoryWindow.open();
+                }))
             .append($("<span>", { class: "score", text: player.score }));
         $results.append($row);
     }
@@ -894,6 +926,7 @@ function displayAverageSpeedResults() {
 function displaySongHistoryResults(songNumber) {
     const song = songHistory[songNumber];
     if (!song) return;
+    const langKey = options.useRomajiNames ? "animeRomajiName" : "animeEnglishName";
     answerHistoryWindow.window.find("#answerHistoryCurrentSong").text("Song: " + songNumber);
     answerHistoryWindow.window.find("#answerHistoryCurrentPlayer, .backButton").hide();
     answerHistoryWindow.window.find(".infoButton, .arrowButton, .speedButton").show();
@@ -902,7 +935,7 @@ function displaySongHistoryResults(songNumber) {
     answerHistoryWindow.window.find(".infoButton").data("bs.popover").options.content = $("<div>")
         .append($("<p>", { text: song.songName }))
         .append($("<p>", { text: song.songArtist }))
-        .append($("<p>", { text: options.useRomajiNames ? song.animeRomajiName : song.animeEnglishName })
+        .append($("<p>", { text: song[langKey] })
             .css("color", getComputedStyle(document.documentElement).getPropertyValue("--accentColorContrast") || "#4497ea"))
         .append($("<p>", { text: `${song.songTypeText} (${Number(song.songDifficulty).toFixed(1)}) ${song.animeVintage}` }))
     answerHistoryWindow.panels[0].clear();
@@ -910,13 +943,13 @@ function displaySongHistoryResults(songNumber) {
     const $thead = $("<thead>");
     const $tbody = $("<tbody>");
     $thead.append($("<tr>", { style: "cursor: pointer;" })
-        .append($("<th>", { class: "rank", text: "Rank" }))
-        .append($("<th>", { class: "box", text: "Box" }))
-        .append($("<th>", { class: "score", text: "Score" }))
-        .append($("<th>", { class: "level", text: "Level" }))
-        .append($("<th>", { class: "name", text: "Name" }))
-        .append($("<th>", { class: "speed", text: "Speed" }))
-        .append($("<th>", { class: "answer", text: "Answer" }))
+        .append($("<th>", { class: "rank", text: "Rank", "data-sort": "position" }))
+        .append($("<th>", { class: "box", text: "Box", "data-sort": "position" }))
+        .append($("<th>", { class: "score", text: "Score", "data-sort": "position" }))
+        .append($("<th>", { class: "level", text: "Level", "data-sort": "level" }))
+        .append($("<th>", { class: "name", text: "Name", "data-sort": "name" }))
+        .append($("<th>", { class: "speed", text: "Speed", "data-sort": "speed" }))
+        .append($("<th>", { class: "answer", text: "Answer", "data-sort": "answer" }))
     );
     let sortedIds = [];
     if (songHistorySort.mode === "position") {
@@ -965,28 +998,22 @@ function displaySongHistoryResults(songNumber) {
                 .append($("<td>", { class: "level", text: player.level }))
                 .append($("<td>", { class: "name", text: player.name, style: "cursor: pointer;" })
                     .prepend(`<i class="fa fa-id-card-o clickAble" aria-hidden="true"></i>`))
-                .append($("<td>", { class: "speed" }).text(answer.speed ? answer.speed : ""))
+                .append($("<td>", { class: "speed" , text: answer.speed || ""}))
                 .append($("<td>", { class: "answer", text: answer.text, style: "cursor: pointer;" })
                     .prepend(`<i class="fa ${answer.correct ? "fa-check" : "fa-times"}" aria-hidden="true"></i>`))
             );
         }
     }
     $thead.on("click", "th", (event) => {
-        const classMap = {
-            rank: "position",
-            box: "position",
-            score: "position",
-            level: "level",
-            name: "name",
-            speed: "speed",
-            answer: "answer"
-        }
-        tableSortChange(songHistorySort, classMap[event.target.classList[0]]);
+        const sortKey = event.currentTarget.getAttribute("data-sort");
+        if (!sortKey) return;
+        tableSortChange(songHistorySort, sortKey);
         displaySongHistoryResults(answerHistorySettings.songNumber);
     });
     $tbody.on("click", "td", (event) => {
         if (event.target.classList.contains("name")) {
-            displayPlayerHistoryResults(Object.values(playerInfo).find(p => p.name === event.target.innerText).id);
+            const id = Object.values(playerInfo).find(p => p.name === event.target.innerText).id;
+            displayPlayerHistoryResults(id);
         }
         else if (event.target.classList.contains("box")) {
             selectAvatarGroup(parseInt(event.target.innerText));
@@ -997,7 +1024,8 @@ function displaySongHistoryResults(songNumber) {
         }
     });
     $tbody.on("click", "i.fa-id-card-o", (event) => {
-        playerProfileController.loadProfile(event.target.parentElement.innerText, $("#answerHistoryWindow"), {}, () => { }, false, true);
+        const name = event.target.parentElement.innerText;
+        playerProfileController.loadProfile(name, $("#answerHistoryWindow"), {}, () => { }, false, true);
     });
     $table.append($thead, $tbody);
     answerHistoryWindow.panels[0].panel.append($table);
@@ -1022,18 +1050,18 @@ function displayPlayerHistoryResults(id) {
     const $thead = $("<thead>");
     const $tbody = $("<tbody>");
     $thead.append($("<tr>")
-        .append($("<th>", { class: "songNumber", text: "#", style: "cursor: pointer;" }))
-        .append($("<th>", { class: "songDifficulty", text: "Dif", style: "cursor: pointer;" }))
-        .append($("<th>", { class: "speed", text: "Speed", style: "cursor: pointer;" }))
-        .append($("<th>", { class: "answer", text: "Answer", style: "cursor: pointer;" }))
+        .append($("<th>", { class: "songNumber", text: "#", style: "cursor: pointer;", "data-sort": "songNumber" }))
+        .append($("<th>", { class: "songDifficulty", text: "Dif", style: "cursor: pointer;", "data-sort": "songDifficulty" }))
+        .append($("<th>", { class: "speed", text: "Speed", style: "cursor: pointer;", "data-sort": "speed" }))
+        .append($("<th>", { class: "answer", text: "Answer", style: "cursor: pointer;", "data-sort": "answer" }))
     );
     const sortedIds = Object.keys(songHistory).filter((songNumber) => songHistory[songNumber].answers[id]);
-    if (playerHistorySort.mode === "number") {
+    if (playerHistorySort.mode === "songNumber") {
         playerHistorySort.ascending
             ? sortedIds.sort((a, b) => parseInt(a) - parseInt(b))
             : sortedIds.sort((a, b) => parseInt(b) - parseInt(a));
     }
-    else if (playerHistorySort.mode === "difficulty") {
+    else if (playerHistorySort.mode === "songDifficulty") {
         playerHistorySort.ascending
             ? sortedIds.sort((a, b) => songHistory[a].songDifficulty - songHistory[b].songDifficulty)
             : sortedIds.sort((a, b) => songHistory[b].songDifficulty - songHistory[a].songDifficulty);
@@ -1059,24 +1087,15 @@ function displayPlayerHistoryResults(id) {
         );
     }
     $thead.on("click", "th", (event) => {
-        if (event.target.classList.contains("songNumber")) {
-            tableSortChange(playerHistorySort, "number");
-        }
-        else if (event.target.classList.contains("songDifficulty")) {
-            tableSortChange(playerHistorySort, "difficulty");
-        }
-        else if (event.target.classList.contains("speed")) {
-            tableSortChange(playerHistorySort, "speed");
-        }
-        else if (event.target.classList.contains("answer")) {
-            tableSortChange(playerHistorySort, "answer");
-        }
+        const sortKey = event.currentTarget.getAttribute("data-sort");
+        if (!sortKey) return;
+        tableSortChange(playerHistorySort, sortKey);
         displayPlayerHistoryResults(answerHistorySettings.playerId);
     });
     $tbody.on("click", "td", (event) => {
-        if (event.target.classList.contains("songNumber")) {
+        if (event.currentTarget.classList.contains("songNumber")) {
             songHistoryFilter = { type: "all" };
-            displaySongHistoryResults(parseInt(event.target.innerText));
+            displaySongHistoryResults(parseInt(event.currentTarget.innerText));
         }
     });
     $table.append($thead, $tbody);
@@ -1090,6 +1109,7 @@ function displayFastestSpeedResults() {
     answerHistoryWindow.window.find(".infoButton, .arrowButton, .filterButton, #answerHistoryCurrentPlayer").hide();
     answerHistoryWindow.window.find(".backButton").show();
     answerHistoryWindow.panels[0].clear();
+    const langKey = options.useRomajiNames ? "animeRomajiName" : "animeEnglishName";
     const $table = $("<table>", { id: "answerHistoryTable", class: "styledTable speedMode" });
     const $thead = $("<thead>");
     const $tbody = $("<tbody>");
@@ -1102,7 +1122,7 @@ function displayFastestSpeedResults() {
     for (const song of Object.values(songHistory)) {
         const $row = $("<tr>")
             .append($("<td>", { class: "songNumber", text: song.songNumber, style: "cursor: pointer;" }))
-            .append($("<td>", { class: "anime", text: options.useRomajiNames ? song.animeRomajiName : song.animeEnglishName }))
+            .append($("<td>", { class: "anime", text: song[langKey] }))
             .append($("<td>", { class: "speed", text: song.fastestSpeed ?? "" }))
             .append($("<td>", { class: "name" })
                 .append(song.fastestPlayers.map(id => {
@@ -1113,12 +1133,13 @@ function displayFastestSpeedResults() {
         $tbody.append($row);
     }
     $tbody.on("click", "td", (event) => {
-        if (event.target.classList.contains("songNumber")) {
+        if (event.currentTarget.classList.contains("songNumber")) {
             displaySongHistoryResults(parseInt(event.target.innerText));
         }
     });
     $tbody.on("click", "span", (event) => {
-        displayPlayerHistoryResults(Object.values(playerInfo).find(p => p.name === event.target.innerText).id);
+        const id = Object.values(playerInfo).find(p => p.name === event.target.innerText).id;
+        displayPlayerHistoryResults(id);
     });
     $table.append($thead, $tbody);
     answerHistoryWindow.panels[0].panel.append($table);
@@ -1157,10 +1178,11 @@ function displayAnswerCompareResults(text) {
         let numCorrect = 0;
         let numWrong = 0;
         const $row = $("<tr>");
-        $row.append($("<td>", { class: "songNumber", text: songNumber, style: "cursor: pointer;" }).click(() => {
-            displaySongHistoryResults(songNumber);
-            answerHistoryWindow.open();
-        }));
+        $row.append($("<td>", { class: "songNumber", text: songNumber, style: "cursor: pointer;" })
+            .on("click", () => {
+                displaySongHistoryResults(songNumber);
+                answerHistoryWindow.open();
+            }));
         for (const id of idList) {
             const answer = songHistory[songNumber].answers[id];
             if (answer) {
@@ -1745,10 +1767,8 @@ function applyStyles() {
             padding: 0;
             height: 74px;
         }
-        #answerSpeedWindow .close {
-            top: 15px;
-            right: 15px;
-            position: absolute;
+        #answerSpeedWindow .modal-header i.fa-times:hover {
+            opacity: .7;
         }
         #averageSpeedSortModeButton, #averageSpeedSortDirectionButton {
             margin: 5px 0 5px 5px;
@@ -1811,10 +1831,8 @@ function applyStyles() {
         #answerHistoryWindow .answerStatsButton:hover, #answerHistoryWindow .answerStatsIcon:hover {
             opacity: .8;
         }
-        #answerHistoryWindow .close {
-            top: 15px;
-            right: 15px;
-            position: absolute;
+        #answerHistoryWindow .modal-header i.fa-times:hover {
+            opacity: .7;
         }
         #answerHistoryTable {
             width: 100%;
@@ -1907,10 +1925,8 @@ function applyStyles() {
             vertical-align: -5px;
             cursor: pointer;
         }
-        #answerCompareWindow .close {
-            top: 15px;
-            right: 15px;
-            position: absolute;
+        #answerCompareWindow .modal-header i.fa-times:hover {
+            opacity: .7;
         }
         #answerCompareTable {
             width: 100%;
