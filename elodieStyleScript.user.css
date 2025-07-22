@@ -1,6 +1,6 @@
 /* ==UserStyle==
 @name         Elodie's AMQ Style Script
-@version      10.2.19
+@version      10.2.20
 @namespace    userstyles.world/user/melodyelodie
 @description  A custom theme for animemusicquiz.com
 @author       melodyelodie
@@ -165,7 +165,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         --wrongAnswerColorTransparent: color-mix(in srgb, var(--wrongAnswerColor), transparent 80%);
         --songHistoryCorrectColorHover: color-mix(in srgb, var(--songHistoryCorrectColor), white 5%);
         --songHistoryWrongColorHover: color-mix(in srgb, var(--songHistoryWrongColor), white 5%);
-        --elodieStyleScriptVersion: 10.2.19;
+        --elodieStyleScriptVersion: 10.2.20;
     }
     
     
@@ -225,7 +225,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         --wrongAnswerColorTransparent: color-mix(in srgb, var(--wrongAnswerColor), transparent 80%);
         --songHistoryCorrectColorHover: color-mix(in srgb, var(--songHistoryCorrectColor), white 15%);
         --songHistoryWrongColorHover: color-mix(in srgb, var(--songHistoryWrongColor), white 15%);
-        --elodieStyleScriptVersion: 10.2.19;
+        --elodieStyleScriptVersion: 10.2.20;
     }
     */
     
@@ -969,6 +969,14 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     }
     .loadBalanceStatusHostTextContainer {
         text-shadow: 0 0 5px var(--textShadowColor);
+    }
+    #admCheckoutButton {
+        background-color: var(--accentColor);
+        color: var(--textColor);
+    }
+    .stripeButton {
+        background-color: var(--accentColor);
+        color: var(--textColor);
     }
 
 
@@ -3593,6 +3601,11 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     }
     #nexusAbandonRunVoteContainer .leftVoteTimerBar {
         background-color: var(--accentColorLight);
+    }
+    .qpAvatarNexusShopContainer {
+        background-color: var(--primaryColorTransparent);
+        color: var(--textColor);
+        box-shadow: 0 0 10px 2px var(--boxShadowColor);
     }
 
 
