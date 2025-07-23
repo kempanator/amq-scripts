@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Quick Load Lists
 // @namespace    https://github.com/kempanator
-// @version      0.19
+// @version      0.20
 // @description  Adds a window for saving and quick loading anime lists
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -466,7 +466,7 @@ function createListTable() {
                 loadList($row, username, type, watching, completed, hold, dropped, planning);
             }))
             .append($("<td>", { class: "type" })
-                .append($("<a>", { href: getListURL(username, type), target: "_blank", text: shortenListType(type) }))
+                .append($("<a>", { href: getListURL(username, type), target: "_blank", rel: "noreferrer", text: shortenListType(type) }))
             )
             .append($("<td>", { class: "status" })
                 .append($("<span>", { text: "W" }).toggleClass("disabled", !watching))
