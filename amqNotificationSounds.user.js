@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Notification Sounds
 // @namespace    http://tampermonkey.net/
-// @version      2.6
+// @version      2.7
 // @description  Adds notification sounds
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -107,8 +107,7 @@ function setup() {
                     .append($("<p>", { id: "nsVolumeText", text: `Volume: ${volume}%`, style: "text-align: center; padding-top: 5px;" }))
                 )
                 .append($("<div>", { style: "text-align: center; padding-bottom: 15px;" })
-                    .append($("<input>", { id: "nsSoundModeCheckbox", type: "checkbox" })
-                        .prop("checked", soundOnlyWhenFocused)
+                    .append($("<input>", { id: "nsSoundModeCheckbox", type: "checkbox", checked: soundOnlyWhenFocused })
                         .on("click", () => {
                             soundOnlyWhenFocused = !soundOnlyWhenFocused;
                             saveSettings();
@@ -193,12 +192,12 @@ function checkChatMention(message) {
 function createSoundMenuElement(key) {
     const sound = sounds[key];
     return $("<div>", { "data-sound": key })
-        .append($("<input>", { type: "checkbox", checked: sound.flag }).click(() => {
+        .append($("<input>", { type: "checkbox", checked: sound.flag }).on("click", () => {
             sound.flag = !sound.flag;
             saveSettings();
         }))
         .append($("<span>", { text: sound.label }))
-        .append($("<i>", { class: "fa fa-volume-down", "aria-hidden": true }).click(() => {
+        .append($("<i>", { class: "fa fa-volume-down", "aria-hidden": true }).on("click", () => {
             const audio = sound.audio;
             audio.volume = volume / 100;
             audio.currentTime = 0;
