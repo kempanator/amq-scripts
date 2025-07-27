@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Highlight Friends
 // @namespace    https://github.com/kempanator
-// @version      2.0
+// @version      2.1
 // @description  Apply color to name of yourself and friends. and more
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -31,7 +31,7 @@ const loadInterval = setInterval(() => {
     }
 }, 500);
 
-const largeRooms = ["Ranked", "Themed", "Annivesary", "Event", "Jam"]; // gamemodes for friend view
+const largeRooms = ["Ranked", "Themed", "Event", "Jam"]; // gamemodes for friend view
 const saveData = validateLocalStorage("highlightFriendsSettings");
 const colorClassRegex = /(isSelf|isFriend|isBlocked|customColor\d+)/g;
 let smColorSelfColor = saveData.smColorSelfColor ?? "#80c7ff";
@@ -57,8 +57,6 @@ let smColorSpec = saveData.smColorSpec ?? true;
 let smColorLeave = saveData.smColorLeave ?? true;
 let smRemoveColor = saveData.smRemoveColor ?? false;
 let smRemoveGlow = saveData.smRemoveGlow ?? false;
-let smRemoveFriendColor = saveData.smRemoveFriendColor ?? false;
-let smRemoveFriendGlow = saveData.smRemoveFriendGlow ?? false
 let smOverrideRankedColor = saveData.smOverrideRankedColor ?? false;
 let tableFriendsOnly = false;
 let tableSort = { mode: "position", ascending: true }; //position, name, answer
@@ -638,21 +636,21 @@ function buildCustomColorList() {
                     .append(`<label for="smColorCustomCheckbox${index}"><i class="fa fa-check" aria-hidden="true"></i></label>`)
                 )
                 .append("<span>", { text: "Custom", style: "width: 60px; display: inline-block;" })
-                .append($("<input>", { id: "smColorCustomColor${index}", type: "color" })
+                .append($("<input>", { id: `smColorCustomColor${index}`, type: "color" })
                     .val(item.color)
                     .on("change", function () {
                         item.color = this.value;
                         saveSettings();
                         applyStyles();
                     }))
-                .append($("<input>", { id: "smColorCustomShadow${index}", type: "color", style: "margin-left: 10px;" })
+                .append($("<input>", { id: `smColorCustomShadow${index}`, type: "color", style: "margin-left: 10px;" })
                     .val(item.shadow)
                     .on("change", function () {
                         item.shadow = this.value;
                         saveSettings();
                         applyStyles();
                     }))
-                .append($("<input>", { id: "smColorCustomList${index}", type: "text", placeholder: "players", style: "color: black; width: 300px; margin: 0 10px 0 10px;" })
+                .append($("<input>", { id: `smColorCustomList${index}`, type: "text", placeholder: "players", style: "color: black; width: 300px; margin: 0 10px 0 10px;" })
                     .val(item.players.join(" "))
                     .on("change", function () {
                         item.players = this.value.toLowerCase().split(/[\s,]+/).filter(Boolean);
@@ -740,7 +738,7 @@ function colorLobbyPlayers() {
     }, 0);
 }
 
-// apply colors to specataor names
+// apply colors to spectator names
 function colorSpectators() {
     if (!quiz.inQuiz && !lobby.inLobby) return;
     setTimeout(() => {
@@ -1007,8 +1005,6 @@ function saveSettings() {
         smColorLeave,
         smRemoveColor,
         smRemoveGlow,
-        smRemoveFriendColor,
-        smRemoveFriendGlow,
         smOverrideRankedColor,
         customColors
     }));
