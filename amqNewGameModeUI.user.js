@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ New Game Mode UI
 // @namespace    https://github.com/kempanator
-// @version      0.33
+// @version      0.34
 // @description  Adds a user interface to new game mode to keep track of guesses
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -253,7 +253,7 @@ function setup() {
         .children("div")
         .append($("<div>", { id: "qpNGM", class: "clickAble qpOption" })
             .append(ngmSvg)
-            .click(() => {
+            .on("click", () => {
                 ngmWindow.isVisible() ? ngmWindow.close() : ngmWindow.open();
             })
             .popover({
@@ -315,7 +315,7 @@ function updateWindow(players) {
     teamSlot = teamList.indexOf(selfPlayer.gamePlayerId);
     correctGuesses = selfPlayer.correctGuesses;
     countButtons = teamList.map((id, index) => {
-        return $("<div>", { class: "ngmButton ngmCount" }).click(() => {
+        return $("<div>", { class: "ngmButton ngmCount" }).on("click", () => {
             if (guessCounter[index] > 0) {
                 guessCounter[index] -= (halfModeList[index] ? .5 : 1);
             }
@@ -393,11 +393,11 @@ function counterError() {
 function setupNGMWindow() {
     ngmWindow.window.find(".modal-header").empty()
         .append($("<i>", { class: "fa fa-times clickAble", style: "font-size: 25px; top: 8px; right: 12px; position: absolute;", "aria-hidden": "true" })
-            .click(() => {
+            .on("click", () => {
                 ngmWindow.close();
             }))
         .append($("<i>", { class: "fa fa-cog clickAble", style: "font-size: 22px; top: 11px; right: 36px; position: absolute;", "aria-hidden": "true" })
-            .click(() => {
+            .on("click", () => {
                 $("#ngmMainContainer").toggle();
                 $("#ngmSettingsContainer").toggle();
             }))
@@ -423,28 +423,28 @@ function setupNGMWindow() {
     const $row4 = $("<div>", { style: "margin: 0 2px;" });
     $row1.append($("<div>", { class: "ngmButton ngmStatus red" })
         .append(minusSvg)
-        .click(() => {
+        .on("click", () => {
             sendChatMessage("-", true);
         })
     );
     $row1.append($("<div>", { class: "ngmButton ngmStatus yellow" })
         .append(tildeSvg)
-        .click(() => {
+        .on("click", () => {
             sendChatMessage("~", true);
         })
     );
     $row1.append($("<div>", { class: "ngmButton ngmStatus green" })
         .append(plusSvg)
-        .click(() => {
+        .on("click", () => {
             sendChatMessage("+", true);
         })
     );
     $row2.append($("<div>", { class: "ngmButton white", text: "Reset", style: "width: 60px;" })
-        .click(() => {
+        .on("click", () => {
             quiz.inQuiz ? resetCounter() : clearWindow();
         })
     );
-    $row2.append($("<input>", { id: "ngmInitialGuessCountInput", type: "text" })
+    $row2.append($("<input>", { id: "ngmInitialGuessCountInput", type: "text", val: "5" })
         .popover({
             title: "Initial Guess Count",
             content: `
@@ -457,10 +457,9 @@ function setupNGMWindow() {
             animation: false,
             html: true
         })
-        .val("5")
     );
     $row3.append($("<div>", { class: "ngmButton white", text: "Half", style: "width: 50px;" })
-        .click(function () {
+        .on("click", function () {
             $(this).toggleClass("white blue");
             $("#ngmHalfGuessInput").toggleClass("disabled");
             $("#ngmAnswerValidationButton").toggleClass("disabled");
@@ -490,7 +489,7 @@ function setupNGMWindow() {
     );
     $row3.append($("<div>", { id: "ngmAnswerValidationButton", class: "ngmButton blue disabled", style: "width: 34px;" })
         .append(`<i class="fa fa-check" aria-hidden="true"></i>`)
-        .click(function () {
+        .on("click", function () {
             answerValidation = (answerValidation + 1) % 3;
             const classMap = { 0: "white", 1: "blue", 2: "purple" };
             $(this).removeClass("white blue purple").addClass(classMap[answerValidation]);
@@ -509,7 +508,7 @@ function setupNGMWindow() {
         })
     );
     $row4.append($("<div>", { class: "ngmButton white", style: "width: 50px;", text: "Auto" })
-        .click(function () {
+        .on("click", function () {
             autoTrackCount = !autoTrackCount;
             $(this).toggleClass("white blue");
             $("#ngmSelfCountButton").toggleClass("disabled");
@@ -527,7 +526,7 @@ function setupNGMWindow() {
     );
     $row4.append($("<div>", { id: "ngmSelfCountButton", class: "ngmButton white disabled", style: "width: 34px;" })
         .append(`<i class="fa fa-user" aria-hidden="true"></i>`)
-        .click(function () {
+        .on("click", function () {
             autoThrowSelfCount = !autoThrowSelfCount;
             $(this).toggleClass("white blue");
         })
@@ -543,7 +542,7 @@ function setupNGMWindow() {
     );
     $row4.append($("<div>", { id: "ngmTeamCountButton", class: "ngmButton white disabled", style: "width: 34px;" })
         .append(`<i class="fa fa-comment" aria-hidden="true"></i>`)
-        .click(function () {
+        .on("click", function () {
             autoSendTeamCount = (autoSendTeamCount + 1) % 3;
             const classMap = { 0: "white", 1: "blue", 2: "purple" };
             $(this).removeClass("white blue purple").addClass(classMap[autoSendTeamCount]);
@@ -565,8 +564,7 @@ function setupNGMWindow() {
 
 // html for svg icons
 const ngmSvg = `
-    <svg class="qpMenuItem" aria-hidden="true"
-        viewBox="0 0 30 20" fill="currentColor">
+    <svg class="qpMenuItem" aria-hidden="true" viewBox="0 0 30 20" fill="currentColor">
         <rect x="4"  y="0" width="4"  height="12"/>
         <rect x="0"  y="4" width="12" height="4"/>
         <rect x="16" y="4" width="13" height="4"/>
