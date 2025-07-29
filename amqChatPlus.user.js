@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Chat Plus
 // @namespace    https://github.com/kempanator
-// @version      0.40
+// @version      0.41
 // @description  Add new features to chat and messages
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -244,15 +244,15 @@ function setup() {
         trigger: "manual",
         content: ""
     });
-    $("#chatPlusGCTimestamps").prop("checked", gcTimestamps).click(() => {
+    $("#chatPlusGCTimestamps").prop("checked", gcTimestamps).on("click", () => {
         gcTimestamps = !gcTimestamps;
         saveSettings();
     });
-    $("#chatPlusNCTimestamps").prop("checked", ncTimestamps).click(() => {
+    $("#chatPlusNCTimestamps").prop("checked", ncTimestamps).on("click", () => {
         ncTimestamps = !ncTimestamps;
         saveSettings();
     });
-    $("#chatPlusDMTimestamps").prop("checked", dmTimestamps).click(() => {
+    $("#chatPlusDMTimestamps").prop("checked", dmTimestamps).on("click", () => {
         dmTimestamps = !dmTimestamps;
         saveSettings();
     });
@@ -260,17 +260,17 @@ function setup() {
         timeStampFormat = this.value;
         saveSettings();
     });
-    $("#chatPlusNCColor").prop("checked", ncColor).click(() => {
+    $("#chatPlusNCColor").prop("checked", ncColor).on("click", () => {
         ncColor = !ncColor;
         applyStyles();
         saveSettings();
     });
-    $("#chatPlusDMColor").prop("checked", dmColor).click(() => {
+    $("#chatPlusDMColor").prop("checked", dmColor).on("click", () => {
         dmColor = !dmColor;
         applyStyles();
         saveSettings();
     });
-    $("#chatPlusReformatBottomBar").prop("checked", reformatBottomBar).click(() => {
+    $("#chatPlusReformatBottomBar").prop("checked", reformatBottomBar).on("click", () => {
         reformatBottomBar = !reformatBottomBar;
         if (reformatBottomBar) {
             $("#chatPlusReformatBottomBarContainer, #chatPlusLoadBalancerContainer").removeClass("disabled");
@@ -281,47 +281,47 @@ function setup() {
         applyStyles();
         saveSettings();
     });
-    $("#chatPlusLoadBalancerPositionInput").val(loadBalancerFromLeft).blur(() => {
-        const number = parseInt($("#chatPlusLoadBalancerPositionInput").val());
+    $("#chatPlusLoadBalancerPositionInput").val(loadBalancerFromLeft).on("blur", function () {
+        const number = parseInt(this.value);
         if (Number.isInteger(number) && number >= 0) {
             loadBalancerFromLeft = number;
             applyStyles();
             saveSettings();
         }
     });
-    $("#chatPlusXPBarWidth").val(xpBarWidth).blur(() => {
-        const number = parseInt($("#chatPlusXPBarWidth").val());
+    $("#chatPlusXPBarWidth").val(xpBarWidth).on("blur", function () {
+        const number = parseInt(this.value);
         if (Number.isInteger(number) && number >= 0) {
             xpBarWidth = number;
             applyStyles();
             saveSettings();
         }
     });
-    $("#chatPlusXPBarFromRight").val(xpBarFromRight).blur(() => {
-        const number = parseInt($("#chatPlusXPBarFromRight").val());
+    $("#chatPlusXPBarFromRight").val(xpBarFromRight).on("blur", function () {
+        const number = parseInt(this.value);
         if (Number.isInteger(number) && number >= 0) {
             xpBarFromRight = number;
             applyStyles();
             saveSettings();
         }
     });
-    $("#chatPlusDMWidthExtension").val(dmWidthExtension).blur(() => {
-        const number = parseInt($("#chatPlusDMWidthExtension").val());
+    $("#chatPlusDMWidthExtension").val(dmWidthExtension).on("blur", function () {
+        const number = parseInt(this.value);
         if (Number.isInteger(number) && number >= 0) {
             dmWidthExtension = number;
             applyStyles();
             saveSettings();
         }
     });
-    $("#chatPlusDMHeightExtension").val(dmHeightExtension).blur(() => {
-        const number = parseInt($("#chatPlusDMHeightExtension").val());
+    $("#chatPlusDMHeightExtension").val(dmHeightExtension).on("blur", function () {
+        const number = parseInt(this.value);
         if (Number.isInteger(number) && number >= 0) {
             dmHeightExtension = number;
             applyStyles();
             saveSettings();
         }
     });
-    $("#chatPlusResizeNexusChat").prop("checked", resizeNexusChat).click(() => {
+    $("#chatPlusResizeNexusChat").prop("checked", resizeNexusChat).on("click", () => {
         resizeNexusChat = !resizeNexusChat;
         if (resizeNexusChat) {
             $("#nexusCoopMainContainer").css({
@@ -336,33 +336,32 @@ function setup() {
         }
         saveSettings();
     });
-    $("#chatPlusGCMaxMessages").val(gcMaxMessages).blur(() => {
-        const number = parseInt($("#chatPlusGCMaxMessages").val());
+    $("#chatPlusGCMaxMessages").val(gcMaxMessages).on("blur", function () {
+        const number = parseInt(this.value);
         if (Number.isInteger(number) && number > 0) {
             gcMaxMessages = number;
             gameChat.MAX_CHAT_MESSAGES = number;
             saveSettings();
         }
     });
-    $("#chatPlusNCMaxMessages").val(ncMaxMessages).blur(() => {
-        const number = parseInt($("#chatPlusNCMaxMessages").val());
+    $("#chatPlusNCMaxMessages").val(ncMaxMessages).on("blur", function () {
+        const number = parseInt(this.value);
         if (Number.isInteger(number) && number > 0) {
             ncMaxMessages = number;
             nexusCoopChat.MAX_CHAT_MESSAGES = number;
             saveSettings();
         }
     });
-    $("#chatPlusLoadMedia").prop("checked", gcLoadMediaButton).click(() => {
+    $("#chatPlusLoadMedia").prop("checked", gcLoadMediaButton).on("click", () => {
         gcLoadMediaButton = !gcLoadMediaButton;
-        if (gcLoadMediaButton) $("#chatPlusAutoLoadMediaContainer").removeClass("disabled");
-        else $("#chatPlusAutoLoadMediaContainer").addClass("disabled");
+        $("#chatPlusAutoLoadMediaContainer").toggleClass("disabled", !gcLoadMediaButton);
         saveSettings();
     });
     $("#chatPlusAutoLoadMediaSelect").val(gcAutoLoadMedia).on("change", function () {
         gcAutoLoadMedia = this.value;
         saveSettings();
     });
-    $("#chatPlusGifSearch").prop("checked", gifSearch).click(() => {
+    $("#chatPlusGifSearch").prop("checked", gifSearch).on("click", () => {
         gifSearch = !gifSearch;
         if (gifSearch) {
             $("#gcGifSearchOuterContainer").show();
@@ -376,19 +375,19 @@ function setup() {
         applyStyles();
         saveSettings();
     });
-    $("#chatPlusGifSearchHeight").val(gifSearchHeight).blur(() => {
-        const number = parseInt($("#chatPlusGifSearchHeight").val());
+    $("#chatPlusGifSearchHeight").val(gifSearchHeight).on("blur", function () {
+        const number = parseInt(this.value);
         if (!isNaN(number) && number >= 0) {
             gifSearchHeight = number;
             applyStyles();
             saveSettings();
         }
     });
-    $("#chatPlusGifSendOnClick").prop("checked", gifSendOnClick).click(() => {
+    $("#chatPlusGifSendOnClick").prop("checked", gifSendOnClick).on("click", () => {
         gifSendOnClick = !gifSendOnClick;
         saveSettings();
     });
-    $("#gcGifSearchButton").click(() => {
+    $("#gcGifSearchButton").on("click", () => {
         if ($("#gcGifContainer").is(":visible")) {
             $("#gcGifContainer").hide();
         }
@@ -397,15 +396,15 @@ function setup() {
             $("#tenorSearchInput").val("").focus();
         }
     });
-    $("#chatPlusUploadToLitterbox").prop("checked", fileUploadToLitterbox).click(() => {
+    $("#chatPlusUploadToLitterbox").prop("checked", fileUploadToLitterbox).on("click", () => {
         fileUploadToLitterbox = !fileUploadToLitterbox;
         saveSettings();
     });
-    $("#chatPlusMoreEmojis").prop("checked", fetchEmojiList).click(() => {
+    $("#chatPlusMoreEmojis").prop("checked", fetchEmojiList).on("click", () => {
         fetchEmojiList = !fetchEmojiList;
         saveSettings();
     });
-    $("#chatPlusConvertShortcodes").prop("checked", convertShortcodes).click(() => {
+    $("#chatPlusConvertShortcodes").prop("checked", convertShortcodes).on("click", () => {
         convertShortcodes = !convertShortcodes;
         saveSettings();
     });
@@ -417,9 +416,9 @@ function setup() {
             tenorPosition += imagesPerRequest;
         }
     });
-    $("#tenorSearchInput").on("keypress", (e) => {
-        if (e.key === "Enter") {
-            tenorQuery = e.target.value;
+    $("#tenorSearchInput").on("keypress", (event) => {
+        if (event.key === "Enter") {
+            tenorQuery = event.target.value;
             tenorPosition = imagesPerRequest;
             fetchTenorPage(tenorQuery, 0, true);
         }
@@ -740,14 +739,14 @@ function createMediaElement($node, type, src, autoLoad) {
                 .on("load", () => gcCheckAtBottom(atBottom));
             const $closeButton = $("<button>", { class: "btn gcCloseMedia" })
                 .append(`<i class="fa fa-close" aria-hidden="true"></i>`)
-                .click(() => createMediaElement($node, type, src, false))
+                .on("click", () => createMediaElement($node, type, src, false))
                 .hide();
             $container.append($img, $closeButton);
             $container.hover(() => $closeButton.show(), () => $closeButton.hide());
         }
         else {
             const $loadButton = $("<button>", { class: "btn gcLoadMediaButton", text: "Load Image" })
-                .click(() => createMediaElement($node, type, src, true));
+                .on("click", () => createMediaElement($node, type, src, true));
             $container.append($loadButton);
             gcCheckAtBottom(atBottom);
         }
@@ -757,7 +756,7 @@ function createMediaElement($node, type, src, autoLoad) {
             const $audio = $("<audio>", { class: "gcLoadedAudio", controls: true, src: src });
             const $closeButton = $("<button>", { class: "btn gcCloseMedia" })
                 .append(`<i class="fa fa-close" aria-hidden="true"></i>`)
-                .click(() => createMediaElement($node, type, src, false))
+                .on("click", () => createMediaElement($node, type, src, false))
                 .hide();
             $container.append($audio, $closeButton);
             $container.hover(() => $closeButton.show(), () => $closeButton.hide());
@@ -765,7 +764,7 @@ function createMediaElement($node, type, src, autoLoad) {
         }
         else {
             const $loadButton = $("<button>", { class: "btn gcLoadMediaButton", text: "Load Audio" })
-                .click(() => createMediaElement($node, type, src, true));
+                .on("click", () => createMediaElement($node, type, src, true));
             $container.append($loadButton);
             gcCheckAtBottom(atBottom);
         }
@@ -776,14 +775,14 @@ function createMediaElement($node, type, src, autoLoad) {
                 .on("canplay", () => gcCheckAtBottom(atBottom));
             const $closeButton = $("<button>", { class: "btn gcCloseMedia" })
                 .append(`<i class="fa fa-close" aria-hidden="true"></i>`)
-                .click(() => createMediaElement($node, type, src, false))
+                .on("click", () => createMediaElement($node, type, src, false))
                 .hide();
             $container.append($video, $closeButton);
             $container.hover(() => $closeButton.show(), () => $closeButton.hide());
         }
         else {
             const $loadButton = $("<button>", { class: "btn gcLoadMediaButton", text: "Load Video" })
-                .click(() => createMediaElement($node, type, src, true));
+                .on("click", () => createMediaElement($node, type, src, true));
             $container.append($loadButton);
             gcCheckAtBottom(atBottom);
         }
@@ -985,7 +984,9 @@ ChatBox.prototype.handleAlert = function (msg, callback) {
 const oldResetDrag = nexusCoopChat.resetDrag;
 nexusCoopChat.resetDrag = function () {
     oldResetDrag.apply(this, arguments);
-    if (resizeNexusChat) $("#nexusCoopMainContainer").removeAttr("style").css({ "resize": "both", "overflow": "hidden", "min-width": "0", "max-width": "none" });
+    if (resizeNexusChat) {
+        $("#nexusCoopMainContainer").removeAttr("style").css({ "resize": "both", "overflow": "hidden", "min-width": "0", "max-width": "none" });
+    }
 };
 
 // validate json data in local storage
