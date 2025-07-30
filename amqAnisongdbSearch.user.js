@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Anisongdb Search
 // @namespace    https://github.com/kempanator
-// @version      0.25
+// @version      0.26
 // @description  Adds a window to search anisongdb.com in game
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -89,12 +89,12 @@ function setup() {
             }))
         .append($("<h2>", { text: "AnisongDB Search" }))
         .append($("<div>", { class: "tabContainer" })
-            .append($("<div>", { class: "tab clickAble" })
+            .append($("<div>", { id: "adbsSearchTab", class: "tab clickAble" })
                 .append($("<span>", { text: "Search" }))
                 .on("click", () => {
                     switchTab("adbsSearch");
                 }))
-            .append($("<div>", { class: "tab clickAble" })
+            .append($("<div>", { id: "adbsSettingsTab", class: "tab clickAble" })
                 .append($("<span>", { text: "Settings" }))
                 .on("click", () => {
                     switchTab("adbsSettings");
@@ -231,7 +231,7 @@ function setup() {
         { action: "doComposerSearch", title: "Do composer search" }
     ]);
     switchTab("adbsSearch");
-    $("#optionListSettings").before($("<li>", { class: "clickAble", text: "AnisongDB" }).click(() => {
+    $("#optionListSettings").before($("<li>", { class: "clickAble", text: "AnisongDB" }).on("click", () => {
         anisongdbWindow.open();
     }));
 
@@ -316,22 +316,25 @@ function getAnisongdbData(mode, query, partial) {
             body: JSON.stringify(json)
         };
     }
-    fetch(url, data).then(res => res.json()).then(json => {
-        if (!Array.isArray(json)) {
+    fetch(url, data)
+        .then(res => res.json())
+        .then(json => {
+            if (!Array.isArray(json)) {
+                $("#adbsTable tbody").empty();
+                $("#adbsInfoText").text(JSON.stringify(json));
+            }
+            else if (json.length === 0 && isRankedRunning()) {
+                $("#adbsTable tbody").empty();
+                $("#adbsInfoText").text("AnisongDB is not available during ranked");
+            }
+            else {
+                createTable(json);
+            }
+        })
+        .catch(res => {
             $("#adbsTable tbody").empty();
-            $("#adbsInfoText").text(JSON.stringify(json));
-        }
-        else if (json.length === 0 && isRankedRunning()) {
-            $("#adbsTable tbody").empty();
-            $("#adbsInfoText").text("AnisongDB is not available during ranked");
-        }
-        else {
-            createTable(json);
-        }
-    }).catch(res => {
-        $("#adbsTable tbody").empty();
-        $("#adbsInfoText").text(res.toString());
-    })
+            $("#adbsInfoText").text(res.toString());
+        })
 }
 
 // return true if ranked/themed is running
@@ -382,7 +385,7 @@ function sortAnisongdbTableEntries() {
         rows.sort((a, b) => $(".song", a).text().localeCompare($(".song", b).text()));
     }
     else if (tableSort.mode === "type") {
-        rows.sort((a, b) => songTypeSortValue(translateTypeText($(".type", a).text()), translateTypeText($(".type", b).text())));
+        rows.sort((a, b) => songTypeSortValue($(".type", a).text(), $(".type", b).text()));
     }
     else if (tableSort.mode === "vintage") {
         rows.sort((a, b) => vintageSortValue($(".vintage", a).text(), $(".vintage", b).text()));
@@ -401,25 +404,22 @@ function switchTab(tab) {
 }
 
 // input full song type text, return shortened version
-function shortenType(type) {
+function shortenType(type = "") {
     return type.replace("Opening ", "OP").replace("Ending ", "ED").replace("Insert Song", "IN");
 }
 
-// translate song type text to amq values (input example: Opening 1, ED2)
-function translateTypeText(text) {
-    const map = { "O": 1, "E": 2, "I": 3 };
-    const songType = map[text.charAt(0)] || null;
-    const songTypeNumber = parseInt(text.match(/([0-9]+)/)) || null;
-    return { songType, songTypeNumber };
-}
-
-// get sorting value for song type
-function songTypeSortValue(a, b) {
-    if (a.songType !== b.songType) {
-        return a.songType - b.songType;
+// get sorting value for song type (input text example: Opening 1)
+function songTypeSortValue(a = "", b = "") {
+    const typeMap = { O: 1, E: 2, I: 3 };
+    const typeA = typeMap[a.charAt(0)];
+    const typeB = typeMap[b.charAt(0)];
+    if (typeA !== typeB) {
+        return typeA - typeB;
     }
-    if (a.songType !== 3 && b.songType !== 3) {
-        return (a.songTypeNumber || 0) - (b.songTypeNumber || 0);
+    const numberA = parseInt(a.match(/([0-9]+)/)) || 0;
+    const numberB = parseInt(b.match(/([0-9]+)/)) || 0;
+    if (typeA !== 3 && typeB !== 3) {
+        return numberA - numberB;
     }
     return 0;
 }
