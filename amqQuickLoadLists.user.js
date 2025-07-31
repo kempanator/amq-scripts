@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Quick Load Lists
 // @namespace    https://github.com/kempanator
-// @version      0.20
+// @version      0.21
 // @description  Adds a window for saving and quick loading anime lists
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -207,13 +207,13 @@ function setup() {
         }
     });
 
-    options.$INCLUDE_WATCHING_CHECKBOX.click(checkSelectedList);
-    options.$INCLUDE_COMPLETED_CHECKBOX.click(checkSelectedList);
-    options.$INCLUDE_ON_HOLD_CHECKBOX.click(checkSelectedList);
-    options.$INCLUDE_DROPPED_CHECKBOX.click(checkSelectedList);
-    options.$INCLUDE_PLANNING_CHECKBOX.click(checkSelectedList);
+    options.$INCLUDE_WATCHING_CHECKBOX.on("click", checkSelectedList);
+    options.$INCLUDE_COMPLETED_CHECKBOX.on("click", checkSelectedList);
+    options.$INCLUDE_ON_HOLD_CHECKBOX.on("click", checkSelectedList);
+    options.$INCLUDE_DROPPED_CHECKBOX.on("click", checkSelectedList);
+    options.$INCLUDE_PLANNING_CHECKBOX.on("click", checkSelectedList);
 
-    $("#optionListSettings").before($("<li>", { class: "clickAble", text: "Load Lists" }).click(() => {
+    $("#optionListSettings").before($("<li>", { class: "clickAble", text: "Load Lists" }).on("click", () => {
         quickLoadListsWindow.open();
     }));
     switchTab("qllUse");
@@ -264,8 +264,9 @@ async function handleImport(fileInput) {
     try {
         const text = await fileInput.files[0].text();
         const json = JSON.parse(text);
-        if (!Array.isArray(json.savedLists) || !json.savedLists.every(x => x.username && x.type)) throw new Error();
-        $(fileInput).val("");
+        if (!Array.isArray(json.savedLists) || !json.savedLists.every(x => x.username && x.type)) {
+            throw new Error("Quick Load Lists: Incorrect json format");
+        }
         const mode = await askImportMode();
         if (!mode) return;
         switch (mode) {
@@ -295,6 +296,9 @@ async function handleImport(fileInput) {
     catch (error) {
         console.error(error);
         messageDisplayer.displayMessage("Upload Error");
+    }
+    finally {
+        fileInput.value = "";
     }
 }
 
