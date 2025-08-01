@@ -1,14 +1,13 @@
 // ==UserScript==
 // @name         AMQ Answer Stats
 // @namespace    https://github.com/kempanator
-// @version      0.43
+// @version      0.44
 // @description  Adds a window to display quiz answer stats
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
 // @grant        none
 // @require      https://github.com/joske2865/AMQ-Scripts/raw/master/common/amqScriptInfo.js
 // @require      https://github.com/joske2865/AMQ-Scripts/raw/master/common/amqWindows.js
-// @require      https://github.com/amq-script-project/AMQ-Scripts/raw/master/gameplay/amqAnswerTimesUtility.user.js
 // @downloadURL  https://github.com/kempanator/amq-scripts/raw/main/amqAnswerStats.user.js
 // @updateURL    https://github.com/kempanator/amq-scripts/raw/main/amqAnswerStats.user.js
 // ==/UserScript==
@@ -43,6 +42,7 @@ let distributionWindow;
 let answers = {}; //{1: {name, id, answer, correct}, ...}
 let songHistory = {}; //{1: {romaji, english, number, artist, song, type, vintage, difficulty, fastestSpeed, fastestPlayers, answers: {1: {id, text, speed, correct, rank, score, invalidAnswer, uniqueAnswer, noAnswer}, ...}, ...}
 let playerInfo = {}; //{1: {name, id, level, score, rank, box, averageSpeed, correctSpeedList}, ...}
+let answerTimes = {}; //{0: 1000}
 let animeListMap = {}; //store lowercase version for faster compare speed
 let averageSpeedSort = { mode: "score", ascending: false };
 let songHistoryFilter = { type: "all" };
@@ -94,6 +94,16 @@ function setup() {
             joinRoomUpdate(data);
         }
     }).bindListener();
+    new Listener("play next song", () => {
+        answerTimes = {};
+    }).bindListener()
+    new Listener("player answered", (data) => {
+        for (const item of data) {
+            for (const id of item.gamePlayerIds) {
+                answerTimes[id] = Math.floor(item.answerTime * 1000);
+            }
+        }
+    }).bindListener();
     new Listener("player answers", (data) => {
         if (Object.keys(animeListMap).length === 0) {
             quiz.answerInput.typingInput.autoCompleteController.updateList();
@@ -131,7 +141,7 @@ function setup() {
             animeTags: info.animeTags,
             animeGenre: info.animeGenre,
             songNumber: songNumber,
-            songArtist: info.artist ?? info.artistInfo.name,
+            songArtist: info.artist ?? info.artistInfo?.name,
             songArranger: info.arrangerInfo?.name,
             songComposer: info.composerInfo?.name,
             songName: info.songName,
@@ -159,7 +169,7 @@ function setup() {
             const quizPlayer = answers[player.gamePlayerId];
             if (!quizPlayer) continue;
             quizPlayer.correct = player.correct;
-            const speed = validateSpeed(amqAnswerTimesUtility.playerTimes[player.gamePlayerId]);
+            const speed = answerTimes[player.gamePlayerId] ?? null;
             if (player.correct && speed) correctPlayers[answers[player.gamePlayerId].id] = speed;
             const item = playerInfo[player.gamePlayerId];
             if (item) {
@@ -998,7 +1008,7 @@ function displaySongHistoryResults(songNumber) {
                 .append($("<td>", { class: "level", text: player.level }))
                 .append($("<td>", { class: "name", text: player.name, style: "cursor: pointer;" })
                     .prepend(`<i class="fa fa-id-card-o clickAble" aria-hidden="true"></i>`))
-                .append($("<td>", { class: "speed" , text: answer.speed || ""}))
+                .append($("<td>", { class: "speed", text: answer.speed || "" }))
                 .append($("<td>", { class: "answer", text: answer.text, style: "cursor: pointer;" })
                     .prepend(`<i class="fa ${answer.correct ? "fa-check" : "fa-times"}" aria-hidden="true"></i>`))
             );
@@ -1299,11 +1309,6 @@ function displayDistributionResults(difficultyList, songTypeList) {
     distributionWindow.panels[0].panel.append(tableHTML);
 }
 
-// set undefined and glitched out speed times to null
-function validateSpeed(speed) {
-    return (speed && speed < 1000000) ? speed : null;
-}
-
 // input full song type text, return shortened version
 function shortenType(type) {
     return type.replace("Opening ", "OP").replace("Ending ", "ED").replace("Insert Song", "IN");
@@ -1427,6 +1432,7 @@ function getScore(player) {
 function resetHistory() {
     songHistory = {};
     playerInfo = {};
+    answerTimes = {};
     answerHistorySettings = { mode: "song", songNumber: null, playerId: null, roomType: "", roomName: "" };
     answerHistoryWindow.window.find("#answerHistoryCurrentSong").text("Song: ");
     answerHistoryWindow.window.find("#answerHistoryCurrentPlayer, .infoButton, .arrowButton, .backButton, .speedButton, .filterButton").hide();
@@ -1463,6 +1469,9 @@ function tableSortChange(obj, mode) {
 function joinRoomUpdate(data) {
     //console.log(data)
     resetHistory();
+    for (const player of data.quizState.players) {
+        answerTimes[player.gamePlayerId] = Math.floor(player.answerTimeing * 1000);
+    }
     answerHistorySettings.roomType = data.settings.gameMode;
     if (answerHistorySettings.roomType === "Ranked") {
         answerHistorySettings.roomName = regionMap[$("#mpRankedTimer h3").text()] + " " + data.settings.roomName;
