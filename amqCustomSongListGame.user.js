@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.83
+// @version      0.84
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -81,6 +81,7 @@ let autocompleteInput;
 let cslMultiplayer = { host: "", songInfo: {}, voteSkip: {} };
 let cslState = 0; //0: none, 1: guessing phase, 2: answer phase
 let songLinkReceived = {};
+let songStartTime;
 let skipping = false;
 let answerChunks = {}; //store player answer chunks, ids are keys
 let resultChunk;
@@ -233,7 +234,7 @@ function setup() {
         }
     }).bindListener();
 
-    quiz.pauseButton.$button.off("click").click(() => {
+    quiz.pauseButton.$button.off("click").on("click", () => {
         if (quiz.cslActive) {
             if (quiz.soloMode) {
                 if (quiz.pauseButton.pauseOn) {
@@ -315,7 +316,8 @@ function setup() {
                 "success": true
             });
             if (quiz.soloMode) {
-                fireListener("player answered", [0]);
+                const time = Number(((Date.now() - songStartTime) / 1000).toFixed(3));
+                fireListener("player answered", [{ answerTime: time, gamePlayerIds: [0] }]);
                 if (options.autoVoteSkipGuess) {
                     this.skipController.voteSkip();
                     fireListener("quiz overlay message", "Skipping to Answers");
@@ -355,7 +357,7 @@ function setup() {
     }
 
     $("#lobbyPage .topMenuBar").append(`<div id="lnCustomSongListButton" class="clickAble topMenuButton topMenuMediumButton"><h3>CSL</h3></div>`);
-    $("#lnCustomSongListButton").click(() => { openSettingsModal() });
+    $("#lnCustomSongListButton").on("click", openSettingsModal);
 
     // build settings modal
     $("#gameContainer").append($(/*html*/`
@@ -642,26 +644,18 @@ function setup() {
         </div>
     `));
 
-    const tabs = [
-        "cslgSongList",
-        "cslgQuizSettings",
-        "cslgAnswer",
-        "cslgMerge",
-        "cslgHotkey",
-        "cslgListImport",
-        "cslgInfo"
-    ];
+    const tabs = ["cslgSongList", "cslgQuizSettings", "cslgAnswer", "cslgMerge", "cslgHotkey", "cslgListImport", "cslgInfo"];
     for (const tab of tabs) {
-        $(`#${tab}Tab`).click(() => {
+        $(`#${tab}Tab`).on("click", () => {
             switchTab(tab);
         });
     }
     switchTab("cslgSongList");
 
-    $("#cslgAnisongdbSearchButtonGo").click(() => {
+    $("#cslgAnisongdbSearchButtonGo").on("click", () => {
         anisongdbDataSearch();
     });
-    $("#cslgAnisongdbQueryInput").keypress((event) => {
+    $("#cslgAnisongdbQueryInput").on("keypress", (event) => {
         if (event.key === "Enter") {
             anisongdbDataSearch();
         }
@@ -687,7 +681,7 @@ function setup() {
             });
         }
     });
-    $("#cslgPreviousGameButtonGo").click(() => {
+    $("#cslgPreviousGameButtonGo").on("click", () => {
         const id = $("#cslgPreviousGameSelect").val();
         const found = Object.values(songHistoryWindow.tabs[2].gameMap).find(game => game.quizId === id);
         if (found) {
@@ -697,15 +691,15 @@ function setup() {
             createAnswerTable();
         }
     });
-    $("#cslgFilterListButtonGo").click(() => {
+    $("#cslgFilterListButtonGo").on("click", () => {
         filterSongList();
     });
-    $("#cslgFilterListInput").keypress((event) => {
+    $("#cslgFilterListInput").on("keypress", (event) => {
         if (event.key === "Enter") {
             filterSongList();
         }
     });
-    $("#cslgMergeAllButton").click(() => {
+    $("#cslgMergeAllButton").on("click", () => {
         const set = new Set(mergedSongList.concat(songList).map(JSON.stringify));
         mergedSongList = Array.from(set, JSON.parse);
         createMergedSongListTable();
@@ -714,7 +708,7 @@ function setup() {
         trigger: "hover",
         placement: "bottom"
     });
-    $("#cslgClearSongListButton").click(() => {
+    $("#cslgClearSongListButton").on("click", () => {
         songList = [];
         createSongListTable(true);
     }).popover({
@@ -722,7 +716,7 @@ function setup() {
         trigger: "hover",
         placement: "bottom"
     });
-    $("#cslgTransferSongListButton").click(() => {
+    $("#cslgTransferSongListButton").on("click", () => {
         songList = Array.from(mergedSongList);
         createSongListTable(true);
     }).popover({
@@ -730,7 +724,7 @@ function setup() {
         trigger: "hover",
         placement: "bottom"
     });
-    $("#cslgTableModeButton").click(() => {
+    $("#cslgTableModeButton").on("click", () => {
         songListTableView = (songListTableView + 1) % 3;
         createSongListTable(true);
     }).popover({
@@ -744,16 +738,16 @@ function setup() {
     $("#cslgHostOverrideSelect").on("change", function () {
         fileHostOverride = parseInt(this.value);
     });
-    $("#cslgMergeButton").click(() => {
+    $("#cslgMergeButton").on("click", () => {
         const set = new Set(mergedSongList.concat(songList).map(JSON.stringify));
         mergedSongList = Array.from(set, JSON.parse);
         createMergedSongListTable();
     });
-    $("#cslgMergeClearButton").click(() => {
+    $("#cslgMergeClearButton").on("click", () => {
         mergedSongList = [];
         createMergedSongListTable();
     });
-    $("#cslgMergeDownloadButton").click(() => {
+    $("#cslgMergeDownloadButton").on("click", () => {
         if (mergedSongList.length) {
             downloadListJson(mergedSongList, "merged.json");
         }
@@ -761,7 +755,7 @@ function setup() {
             messageDisplayer.displayMessage("No songs", "Add some songs to the merged song list");
         }
     });
-    $("#cslgAutocompleteButton").click(() => {
+    $("#cslgAutocompleteButton").on("click", () => {
         if (lobby.soloMode) {
             $("#cslgSettingsModal").modal("hide");
             socket.sendCommand({ type: "lobby", command: "start game" });
@@ -787,22 +781,22 @@ function setup() {
             messageDisplayer.displayMessage("Autocomplete", "For multiplayer, just start the quiz normally and immediately lobby");
         }
     });
-    $("#cslgListImportUsernameInput").keypress((event) => {
+    $("#cslgListImportUsernameInput").on("keypress", (event) => {
         if (event.key === "Enter") {
             startImport();
         }
     });
-    $("#cslgListImportStartButton").click(() => {
+    $("#cslgListImportStartButton").on("click", () => {
         startImport();
     });
-    $("#cslgListImportMoveButton").click(() => {
+    $("#cslgListImportMoveButton").on("click", () => {
         if (!importedSongList.length) return;
         handleData(importedSongList);
         setSongListTableSort();
         createSongListTable(true);
         createAnswerTable();
     });
-    $("#cslgListImportDownloadButton").click(() => {
+    $("#cslgListImportDownloadButton").on("click", () => {
         if (!importedSongList.length) return;
         const listType = $("#cslgListImportSelect").val();
         const username = $("#cslgListImportUsernameInput").val().trim();
@@ -813,7 +807,7 @@ function setup() {
         const fileName = `${username} ${listType} ${year}-${month}-${day} song list.json`;
         downloadListJson(importedSongList, fileName);
     });
-    $("#cslgStartButton").click(() => {
+    $("#cslgStartButton").on("click", () => {
         validateStart();
     });
     $("#cslgSongListTable")
@@ -841,7 +835,7 @@ function setup() {
         .on("mouseleave", "i.fa-plus, i.fa-trash", function () {
             $(this).closest("tr").removeClass("selected");
         });
-    $("#cslgAnswerButtonAdd").click(function () {
+    $("#cslgAnswerButtonAdd").on("click", function () {
         const oldName = $("#cslgOldAnswerInput").val().trim();
         const newName = $("#cslgNewAnswerInput").val().trim();
         if (oldName) {
@@ -927,11 +921,11 @@ function setup() {
     $("#cslgPreviousGameRow").hide();
     $("#cslgFilterListRow").hide();
     $("#cslgCSLButtonCSSInput").val(CSLButtonCSS);
-    $("#cslgResetCSSButton").click(() => {
+    $("#cslgResetCSSButton").on("click", () => {
         CSLButtonCSS = "calc(25% - 250px)";
         $("#cslgCSLButtonCSSInput").val(CSLButtonCSS);
     });
-    $("#cslgApplyCSSButton").click(() => {
+    $("#cslgApplyCSSButton").on("click", () => {
         const val = $("#cslgCSLButtonCSSInput").val();
         if (val) {
             CSLButtonCSS = val;
@@ -942,13 +936,13 @@ function setup() {
             messageDisplayer.displayMessage("Error");
         }
     });
-    $("#cslgShowCSLMessagesCheckbox").prop("checked", showCSLMessages).click(() => {
+    $("#cslgShowCSLMessagesCheckbox").prop("checked", showCSLMessages).on("click", () => {
         showCSLMessages = !showCSLMessages;
     });
-    $("#cslgPromptAllAutocompleteButton").click(() => {
+    $("#cslgPromptAllAutocompleteButton").on("click", () => {
         cslMessage("§CSL21");
     });
-    $("#cslgPromptAllVersionButton").click(() => {
+    $("#cslgPromptAllVersionButton").on("click", () => {
         cslMessage("§CSL22");
     });
     $("#cslgMalClientIdInput").val(malClientId).on("change", function () {
@@ -1274,6 +1268,7 @@ function playSong(songNumber) {
     currentSong = songNumber;
     cslState = 1;
     skipping = false;
+    songStartTime = Date.now();
     fireListener("play next song", {
         "time": guessTime,
         "extraGuessTime": extraGuessTime,
@@ -1633,7 +1628,8 @@ function parseMessage(content, sender) {
     }
     else if (content === "§CSL13") { //player answered
         if (quiz.cslActive && player) {
-            fireListener("player answered", [player.gamePlayerId]);
+            const time = Number(((Date.now() - songStartTime) / 1000).toFixed(3));
+            fireListener("player answered", [{ answerTime: time, gamePlayerIds: [player.gamePlayerId] }]);
         }
     }
     else if (content === "§CSL14") { //vote skip
