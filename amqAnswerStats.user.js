@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Answer Stats
 // @namespace    https://github.com/kempanator
-// @version      0.44
+// @version      0.45
 // @description  Adds a window to display quiz answer stats
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -170,7 +170,9 @@ function setup() {
             if (!quizPlayer) continue;
             quizPlayer.correct = player.correct;
             const speed = answerTimes[player.gamePlayerId] ?? null;
-            if (player.correct && speed) correctPlayers[answers[player.gamePlayerId].id] = speed;
+            if (player.correct) { // players on teams can be correct but have no speed
+                correctPlayers[player.gamePlayerId] = speed;
+            }
             const item = playerInfo[player.gamePlayerId];
             if (item) {
                 item.level = player.level;
@@ -205,7 +207,9 @@ function setup() {
         }
         for (const player of Object.values(answers)) {
             const answerItem = songHistory[songNumber].answers[player.id];
-            if (!answerItem) continue;
+            if (!answerItem) {
+                continue;
+            }
             if (player.answer.trim() === "") {
                 noAnswerIdList.push(player.id);
                 answerItem.noAnswer = true;
@@ -226,9 +230,10 @@ function setup() {
             answerItem.invalidAnswer = true;
         }
         const numCorrect = Object.keys(correctPlayers).length;
-        const averageSpeed = numCorrect ? Math.round(Object.values(correctPlayers).reduce((a, b) => a + b) / numCorrect) : null;
-        const fastestSpeed = numCorrect ? Math.min(...Object.values(correctPlayers)) : null;
-        const fastestPlayers = Object.keys(correctPlayers).filter((id) => correctPlayers[id] === fastestSpeed);
+        const validSpeeds = Object.values(correctPlayers).filter(Boolean);
+        const averageSpeed = validSpeeds.length ? Math.round(validSpeeds.reduce((a, b) => a + b, 0) / validSpeeds.length) : null;
+        const fastestSpeed = validSpeeds.length ? Math.min(...validSpeeds) : null;
+        const fastestPlayers = validSpeeds.length ? Object.keys(correctPlayers).filter((id) => correctPlayers[id] === fastestSpeed) : [];
         songHistory[songNumber].fastestSpeed = fastestSpeed;
         songHistory[songNumber].fastestPlayers = fastestPlayers;
         for (const anime of Object.keys(incorrectAnswerIdMap)) {
