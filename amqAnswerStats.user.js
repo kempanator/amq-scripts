@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Answer Stats
 // @namespace    https://github.com/kempanator
-// @version      0.45
+// @version      0.46
 // @description  Adds a window to display quiz answer stats
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -134,8 +134,8 @@ function setup() {
         songHistory[songNumber] = {
             animeRomajiName: info.animeNames?.romaji,
             animeEnglishName: info.animeNames?.english,
-            altAnimeNames: info.altAnimeNames,
-            altAnimeNamesAnswers: info.altAnimeNamesAnswers,
+            altAnimeNames: info.altAnimeNames ?? [],
+            altAnimeNamesAnswers: info.altAnimeNamesAnswers ?? [],
             animeType: info.animeType,
             animeVintage: info.vintage,
             animeTags: info.animeTags,
@@ -162,7 +162,7 @@ function setup() {
             groupSlotMap: { ...data.groupMap },
             answers: {}
         };
-        for (const anime of info.altAnimeNames.concat(info.altAnimeNamesAnswers)) {
+        for (const anime of [].concat(info.altAnimeNames ?? [], info.altAnimeNamesAnswers ?? [])) {
             correctAnswerIdMap[anime] = [];
         }
         for (const player of data.players) {
@@ -1225,7 +1225,7 @@ function displayDistributionResults(difficultyList, songTypeList) {
     const ranges = [
         { min: 60, max: 100 },
         { min: 45, max: 60 },
-        { min: 30, max: 45 },
+        { min: 35, max: 45 },
         { min: 25, max: 35 },
         { min: 0, max: 25 }
     ];
@@ -1279,7 +1279,7 @@ function displayDistributionResults(difficultyList, songTypeList) {
                     <td>${tableData[1].OP + tableData[1].ED + tableData[1].IN}</td>
                 </tr>
                 <tr>
-                    <td>30-45</td>
+                    <td>35-45</td>
                     <td>${tableData[2].OP}</td>
                     <td>${tableData[2].ED}</td>
                     <td>${tableData[2].IN}</td>
@@ -1377,7 +1377,7 @@ function difficultyInfoText(roomName) {
                         <td>2</td>
                     </tr>
                     <tr>
-                        <td>30-45</td>
+                        <td>35-45</td>
                         <td>6</td>
                         <td>3</td>
                         <td>3</td>
@@ -1475,7 +1475,8 @@ function joinRoomUpdate(data) {
     //console.log(data)
     resetHistory();
     for (const player of data.quizState.players) {
-        answerTimes[player.gamePlayerId] = Math.floor(player.answerTimeing * 1000);
+        const time = player.answerTimeing; //sic
+        if (time) answerTimes[player.gamePlayerId] = Math.floor(time * 1000);
     }
     answerHistorySettings.roomType = data.settings.gameMode;
     if (answerHistorySettings.roomType === "Ranked") {
