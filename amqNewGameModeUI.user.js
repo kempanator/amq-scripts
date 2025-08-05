@@ -1,14 +1,13 @@
 // ==UserScript==
 // @name         AMQ New Game Mode UI
 // @namespace    https://github.com/kempanator
-// @version      0.34
+// @version      0.35
 // @description  Adds a user interface to new game mode to keep track of guesses
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
 // @grant        none
 // @require      https://github.com/joske2865/AMQ-Scripts/raw/master/common/amqScriptInfo.js
 // @require      https://github.com/joske2865/AMQ-Scripts/raw/master/common/amqWindows.js
-// @require      https://github.com/amq-script-project/AMQ-Scripts/raw/master/gameplay/amqAnswerTimesUtility.user.js
 // @downloadURL  https://github.com/kempanator/amq-scripts/raw/main/amqNewGameModeUI.user.js
 // @updateURL    https://github.com/kempanator/amq-scripts/raw/main/amqNewGameModeUI.user.js
 // ==/UserScript==
@@ -24,6 +23,7 @@ const loadInterval = setInterval(() => {
 
 const saveData = validateLocalStorage("newGameModeUI");
 let ngmWindow;
+let answerTimes = {} //{0: 1000, ...}
 let initialGuessCount = []; //list of initial # guesses for your team [5, 5, 5, 5]
 let guessCounter = []; //list of current # guesses for your team [4, 2, 1, 3]
 let countButtons = []; //list of jQuery objects of count buttons
@@ -82,6 +82,7 @@ function setup() {
     new Listener("play next song", (data) => {
         if (quiz.teamMode && !quiz.isSpectator && hostModal.$scoring.slider("getValue") === quiz.SCORE_TYPE_IDS.LIVES) {
             answers = {};
+            answerTimes = {};
             if (autoThrowSelfCount && guessCounter.length) {
                 setTimeout(() => {
                     socket.sendCommand({
@@ -98,9 +99,18 @@ function setup() {
             answers[data.gamePlayerId] = { id: data.gamePlayerId, text: data.answer };
         }
     }).bindListener();
+    new Listener("player answered", (data) => {
+        for (const item of data) {
+            for (const id of item.gamePlayerIds) {
+                answerTimes[id] = Math.floor(item.answerTime * 1000);
+            }
+        }
+    }).bindListener();
     new Listener("player answers", (data) => {
         if (quiz.teamMode && !quiz.isSpectator && hostModal.$scoring.slider("getValue") === quiz.SCORE_TYPE_IDS.LIVES) {
-            Object.keys(answers).forEach(id => answers[id].speed = amqAnswerTimesUtility.playerTimes[id]);
+            for (const id of Object.keys(answers)) {
+                answers[id].speed = answerTimes[id];
+            }
         }
     }).bindListener();
     new Listener("answer results", (data) => {
@@ -305,6 +315,7 @@ function clearWindow() {
     correctGuesses = 0;
     remainingGuesses = 0;
     answers = {};
+    answerTimes = {};
 }
 
 // input array of Player objects
