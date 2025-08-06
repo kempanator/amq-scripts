@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Quick Load Lists
 // @namespace    https://github.com/kempanator
-// @version      0.21
+// @version      0.22
 // @description  Adds a window for saving and quick loading anime lists
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -243,7 +243,7 @@ function switchTab(tab) {
 
 // prompt import method with SweetAlert modal
 function askImportMode() {
-    return swal({
+    return Swal.fire({
         title: "Select Import Method",
         input: "select",
         inputOptions: {
