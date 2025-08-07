@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Quick Load Lists
 // @namespace    https://github.com/kempanator
-// @version      0.22
+// @version      0.23
 // @description  Adds a window for saving and quick loading anime lists
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -139,9 +139,9 @@ function setup() {
                 })
             )
         )
-        .append($("<div>", { id: "qllSettingsContainer", class: "tabSection" })
+        .append($("<div>", { id: "qllSettingsContainer", class: "tabSection", style: "margin: 10px;" })
             .append(`<table id="qllHotkeyTable"><thead><tr><th>Action</th><th>Keybind</th></tr></thead><tbody></tbody></table>`)
-            .append($("<div>")
+            .append($("<div>", { style: "margin-top: 10px;" })
                 .append("<span>Selected Color:</span>")
                 .append($("<input>", { id: "qllSelectedColor", type: "color", val: selectedColor })
                     .on("change", function () {
@@ -151,7 +151,7 @@ function setup() {
                     })
                 )
             )
-            .append($("<div>")
+            .append($("<div>", { style: "margin-top: 10px;" })
                 .append($("<label>", { class: "btn btn-default", text: "Import" })
                     .append($("<input>", { type: "file", accept: ".json", style: "display: none;" })
                         .on("change", function () {
@@ -792,9 +792,6 @@ function applyStyles() {
         }
         #qllEditTable button.status.off {
             opacity: .5;
-        }
-        #qllSettingsContainer > div {
-            margin: 10px 0 0 10px;
         }
         #qllHotkeyTable th {
             font-weight: bold;
