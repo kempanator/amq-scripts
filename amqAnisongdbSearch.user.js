@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Anisongdb Search
 // @namespace    https://github.com/kempanator
-// @version      0.26
+// @version      0.27
 // @description  Adds a window to search anisongdb.com in game
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -257,7 +257,14 @@ function getAnisongdbData(mode, query, partial) {
         ignore_duplicate: false,
         opening_filter: true,
         ending_filter: true,
-        insert_filter: true
+        insert_filter: true,
+        normal_broadcast: true,
+        dub: true,
+        rebroadcast: true,
+        standard: true,
+        character: true,
+        chanting: true,
+        instrumental: true
     };
     if (mode === "anime") {
         url = "https://anisongdb.com/api/search_request";
