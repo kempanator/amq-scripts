@@ -1,6 +1,6 @@
 /* ==UserStyle==
 @name         Elodie's AMQ Style Script
-@version      10.2.20
+@version      10.2.21
 @namespace    userstyles.world/user/melodyelodie
 @description  A custom theme for animemusicquiz.com
 @author       melodyelodie
@@ -165,7 +165,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         --wrongAnswerColorTransparent: color-mix(in srgb, var(--wrongAnswerColor), transparent 80%);
         --songHistoryCorrectColorHover: color-mix(in srgb, var(--songHistoryCorrectColor), white 5%);
         --songHistoryWrongColorHover: color-mix(in srgb, var(--songHistoryWrongColor), white 5%);
-        --elodieStyleScriptVersion: 10.2.20;
+        --elodieStyleScriptVersion: 10.2.21;
     }
     
     
@@ -225,7 +225,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         --wrongAnswerColorTransparent: color-mix(in srgb, var(--wrongAnswerColor), transparent 80%);
         --songHistoryCorrectColorHover: color-mix(in srgb, var(--songHistoryCorrectColor), white 15%);
         --songHistoryWrongColorHover: color-mix(in srgb, var(--songHistoryWrongColor), white 15%);
-        --elodieStyleScriptVersion: 10.2.20;
+        --elodieStyleScriptVersion: 10.2.21;
     }
     */
     
@@ -437,14 +437,6 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     /* Swal2 */
     .swal2-popup {
         background: var(--primaryColor);
-    }
-    .swal2-popup .swal2-title {
-        color: var(--textColor);
-    }
-    .swal2-popup .swal2-content {
-        color: var(--textColor);
-    }
-    .swal2-popup .swal2-footer {
         color: var(--textColor);
     }
     .swal2-popup .swal2-styled.swal2-confirm {
@@ -462,7 +454,14 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         border: 1px solid var(--accentColorTransparent);
         box-shadow: 0 0 3px var(--accentColor);
     }
-    .swal2-input {
+    .swal2-container .swal2-input,
+    .swal2-container .swal2-file,
+    .swal2-container .swal2-textarea,
+    .swal2-container .swal2-select {
+        background: white;
+    }
+    .swal2-container .swal2-input,
+    .swal2-container .swal2-select {
         color: black;
     }
 
@@ -1933,6 +1932,10 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     }
     .qpLife.target > .qpLifeTargetOverlay {
         opacity: 1;
+    }
+    .qpAvatarAnswerTimeContainer::before {
+        background-color: var(--primaryColorTransparent);
+        box-shadow: 0 0 5px 0 var(--boxShadowColor);
     }
 
 
