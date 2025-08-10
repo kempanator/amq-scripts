@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Score Counter
 // @namespace    https://github.com/kempanator
-// @version      0.7
+// @version      0.8
 // @description  Adds a user interface to keep track of custom score game modes
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -136,11 +136,11 @@ function setup() {
     });
 
     $("#qpOptionContainer")
-        .width((i, w) => w + 35)
+        .width((index, width) => width + 35)
         .children("div")
         .append($("<div>", { id: "qpCSC", class: "clickAble qpOption" })
             .append(`<i class="fa fa-plus qpMenuItem" aria-hidden="true"></i>`)
-            .click(() => {
+            .on("click", () => {
                 cscWindow.isVisible() ? cscWindow.close() : cscWindow.open();
             })
             .popover({
@@ -512,7 +512,7 @@ function setupcscWindow() {
                 }))
             .append($("<button>", { id: "cscImportButton", text: "Import", style: "user-select: none;" })
                 .on("click", () => {
-                    swal({
+                    Swal.fire({
                         title: "Select Import Method",
                         input: "select",
                         inputOptions: { 1: "From Chat", 2: "From Lobby Settings", 3: "Text" },
