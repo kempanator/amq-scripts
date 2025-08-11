@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Highlight Friends
 // @namespace    https://github.com/kempanator
-// @version      2.1
+// @version      2.2
 // @description  Apply color to name of yourself and friends. and more
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -472,15 +472,48 @@ function setup() {
             buildCustomColorList();
         }))
         .append($("<button>", { text: "Reset", style: "color: black;" }).on("click", () => {
-            messageDisplayer.displayMessage("not implemented yet");
+            Swal.fire({
+                title: "Reset Script Defaults",
+                text: "Are you sure you want to reset all colors?",
+                showCancelButton: true,
+                confirmButtonText: "Yes",
+                cancelButtonText: "No",
+                reverseButtons: true,
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    smColorSelfColor = "#80c7ff";
+                    smColorSelfShadow = "#228dff";
+                    smColorFriendColor = "#80ff80";
+                    smColorFriendShadow = "#40ff40";
+                    smColorBlockedColor = "#ff8080";
+                    smColorBlockedShadow = "#ff4343";
+                    smColorJoinColor = "#8080ff";
+                    smColorSpecColor = "#ffff80";
+                    smColorLeaveColor = "#ff8080";
+                    customColors = [];
+                    customColorMap = {};
+                    $("#smColorSelfColor").val(smColorSelfColor);
+                    $("#smColorSelfShadow").val(smColorSelfShadow);
+                    $("#smColorFriendColor").val(smColorFriendColor);
+                    $("#smColorFriendShadow").val(smColorFriendShadow);
+                    $("#smColorBlockedColor").val(smColorBlockedColor);
+                    $("#smColorBlockedShadow").val(smColorBlockedShadow);
+                    $("#smColorJoinColor").val(smColorJoinColor);
+                    $("#smColorSpecColor").val(smColorSpecColor);
+                    $("#smColorLeaveColor").val(smColorLeaveColor);
+                    saveSettings();
+                    buildCustomColorList();
+                    applyStyles();
+                }
+            });
         }));
 
     $("#qpOptionContainer")
-        .width((i, w) => w + 35)
+        .width((index, width) => width + 35)
         .children("div")
         .append($("<div>", { id: "qpPlayerSummaryButton", class: "clickAble qpOption" })
             .append(`<i class="fa fa-users qpMenuItem" aria-hidden="true"></i>`)
-            .click(() => {
+            .on("click", () => {
                 playerSummaryWindow.isVisible() ? playerSummaryWindow.close() : playerSummaryWindow.open();
             })
             .popover({
@@ -956,7 +989,7 @@ Leaderboard.prototype.updateList = function (listName, entries) {
             if (customColorMap.hasOwnProperty(entry.name.toLowerCase())) {
                 $entry.addClass("customColor" + customColorMap[entry.name.toLowerCase()]);
             }
-            $entry.click(() => {
+            $entry.on("click", () => {
                 playerProfileController.loadProfile(entry.name, $entry, {}, () => { }, true, false);
             });
         }
