@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Answer Stats
 // @namespace    https://github.com/kempanator
-// @version      0.46
+// @version      0.47
 // @description  Adds a window to display quiz answer stats
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -30,7 +30,6 @@ const loadInterval = setInterval(() => {
     }
 }, 500);
 
-const regionMap = { E: "Eastern", C: "Central", W: "Western" };
 const saveData = validateLocalStorage("answerStats");
 let showPlayerColors = saveData.showPlayerColors ?? true;
 let showCustomColors = saveData.showCustomColors ?? true;
@@ -78,7 +77,7 @@ function setup() {
         resetHistory();
         answerHistorySettings.roomType = data.gameMode;
         if (answerHistorySettings.roomType === "Ranked") {
-            answerHistorySettings.roomName = regionMap[$("#mpRankedTimer h3").text()] + " " + data.quizDescription.roomName;
+            answerHistorySettings.roomName = getRankedRegion() + " " + data.quizDescription.roomName;
         }
         else {
             answerHistorySettings.roomName = data.quizDescription.roomName;
@@ -1314,6 +1313,14 @@ function displayDistributionResults(difficultyList, songTypeList) {
     distributionWindow.panels[0].panel.append(tableHTML);
 }
 
+// get ranked region text
+function getRankedRegion() {
+    if (ranked.currentTimerId === "1") return "Central";
+    if (ranked.currentTimerId === "2") return "Western";
+    if (ranked.currentTimerId === "3") return "Eastern";
+    return "";
+}
+
 // input full song type text, return shortened version
 function shortenType(type) {
     return type.replace("Opening ", "OP").replace("Ending ", "ED").replace("Insert Song", "IN");
@@ -1340,12 +1347,12 @@ function typeText(type, typeNumber) {
 function roomNameText() {
     if (!quiz.inQuiz) return "";
     if (quiz.gameMode === "Ranked") {
-        const region = regionMap[$("#mpRankedTimer h3").text()] || "";
+        const region = getRankedRegion();
         const type = hostModal.$roomName.val();
         return region + " " + type;
     }
     else if (quiz.gameMode === "Themed") {
-        const region = regionMap[$("#mpRankedTimer h3").text()] || "";
+        const region = getRankedRegion();
         return region + " Themed Quiz";
     }
     return quiz.gameMode + " Quiz";
@@ -1480,10 +1487,10 @@ function joinRoomUpdate(data) {
     }
     answerHistorySettings.roomType = data.settings.gameMode;
     if (answerHistorySettings.roomType === "Ranked") {
-        answerHistorySettings.roomName = regionMap[$("#mpRankedTimer h3").text()] + " " + data.settings.roomName;
+        answerHistorySettings.roomName = getRankedRegion() + " " + data.settings.roomName;
     }
     else if (answerHistorySettings.roomType === "Themed") {
-        answerHistorySettings.roomName = regionMap[$("#mpRankedTimer h3").text()] + " Themed Quiz";
+        answerHistorySettings.roomName = getRankedRegion() + " Themed Quiz";
     }
     else {
         answerHistorySettings.roomName = data.settings.roomName;
