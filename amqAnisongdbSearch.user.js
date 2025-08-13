@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Anisongdb Search
 // @namespace    https://github.com/kempanator
-// @version      0.27
+// @version      0.28
 // @description  Adds a window to search anisongdb.com in game
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -303,12 +303,12 @@ function getAnisongdbData(mode, query, partial) {
         url = `https://anisongdb.com/api/filter_season?${new URLSearchParams({ season: query })}`;
     }
     else if (mode === "ann id") {
-        url = "https://anisongdb.com/api/annId_request";
-        json.annId = parseInt(query);
+        url = "https://anisongdb.com/api/annIdList_request";
+        json.annIds = query.trim().split(/[\s,]+/).map(Number);
     }
     else if (mode === "mal id") {
         url = "https://anisongdb.com/api/malIDs_request";
-        json.malIds = query.split(/[, ]+/).map(n => parseInt(n)).filter(n => !isNaN(n));
+        json.malIds = query.trim().split(/[\s,]+/).map(Number);
     }
     if (mode === "season") {
         data = {
