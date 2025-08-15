@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Answer Stats
 // @namespace    https://github.com/kempanator
-// @version      0.47
+// @version      0.48
 // @description  Adds a window to display quiz answer stats
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -1313,12 +1313,27 @@ function displayDistributionResults(difficultyList, songTypeList) {
     distributionWindow.panels[0].panel.append(tableHTML);
 }
 
-// get ranked region text
+// get ranked region text based on the current time
 function getRankedRegion() {
+    const timesUTC = { Western: 2, Eastern: 11, Central: 19 };
+    const currentHour = new Date().getUTCHours();
+    let closestRegion = null;
+    let smallestDiff = 24;
+    for (const [region, targetHour] of Object.entries(timesUTC)) {
+        let diff = Math.abs(currentHour - targetHour);
+        diff = Math.min(diff, 24 - diff);
+        if (diff < smallestDiff) {
+            smallestDiff = diff;
+            closestRegion = region;
+        }
+    }
+    return closestRegion;
+
+    /* doesn't always work
     if (ranked.currentTimerId === "1") return "Central";
     if (ranked.currentTimerId === "2") return "Western";
     if (ranked.currentTimerId === "3") return "Eastern";
-    return "";
+    */
 }
 
 // input full song type text, return shortened version
