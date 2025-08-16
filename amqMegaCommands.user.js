@@ -684,7 +684,7 @@ function setup() {
             quiz.answerInput.setNewAnswer(data.answer);
             quiz.answerInput.typingInput.$input.val(currentText);
         }
-        if (autoVoteSkip === "valid" && !quiz.skipController._toggled && animeListLower.includes(data.answer.toLowerCase())) {
+        if (autoVoteSkip === "valid" && !quiz.skipController._toggled && animeListLower.includes(data.answer.toLowerCase()) && (data.answer.length > 1)) {
             quiz.skipClicked();
         }
     }).bindListener();
