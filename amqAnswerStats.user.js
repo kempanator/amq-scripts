@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Answer Stats
 // @namespace    https://github.com/kempanator
-// @version      0.48
+// @version      0.49
 // @description  Adds a window to display quiz answer stats
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -1315,19 +1315,11 @@ function displayDistributionResults(difficultyList, songTypeList) {
 
 // get ranked region text based on the current time
 function getRankedRegion() {
-    const timesUTC = { Western: 2, Eastern: 11, Central: 19 };
-    const currentHour = new Date().getUTCHours();
-    let closestRegion = null;
-    let smallestDiff = 24;
-    for (const [region, targetHour] of Object.entries(timesUTC)) {
-        let diff = Math.abs(currentHour - targetHour);
-        diff = Math.min(diff, 24 - diff);
-        if (diff < smallestDiff) {
-            smallestDiff = diff;
-            closestRegion = region;
-        }
-    }
-    return closestRegion;
+    const hour = new Date().getUTCHours();
+    if ([7, 8, 9, 10, 11, 12, 13, 14, 15].includes(hour)) return "Eastern";
+    if ([16, 17, 18, 19, 20, 21, 22].includes(hour)) return "Central";
+    if ([23, 0, 1, 2, 3, 4, 5, 6].includes(hour)) return "Western";
+    return "";
 
     /* doesn't always work
     if (ranked.currentTimerId === "1") return "Central";
