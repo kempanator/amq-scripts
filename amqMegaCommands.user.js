@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.144
+// @version      0.145
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -684,7 +684,7 @@ function setup() {
             quiz.answerInput.setNewAnswer(data.answer);
             quiz.answerInput.typingInput.$input.val(currentText);
         }
-        if (autoVoteSkip === "valid" && !quiz.skipController._toggled && animeListLower.includes(data.answer.toLowerCase())) {
+        if (autoVoteSkip === "valid" && !quiz.skipController._toggled && data.answer.length > 1 && animeListLower.includes(data.answer.toLowerCase())) {
             quiz.skipClicked();
         }
     }).bindListener();
@@ -993,7 +993,7 @@ function setup() {
     });
 
     // battle royale popovers
-    $("#brMap").keypress((event) => {
+    $("#brMap").on("keypress", (event) => {
         if (event.code === "Space" && printLoot && battleRoyal.inView) {
             $("#brMapContent .brMapObject").popover($(".popover").length ? "hide" : "show");
         }
@@ -1273,24 +1273,24 @@ function setup() {
     `));
 
     // setup tabs
-    $("#mcDocumentationTab").click(() => { switchTab("mcDocumentation"); });
-    $("#mcActiveTab").click(() => { switchTab("mcActive"); });
-    $("#mcHotkeyTab").click(() => { switchTab("mcHotkey"); });
-    $("#mcAlertsTab").click(() => { switchTab("mcAlerts"); });
-    $("#mcOrderTab").click(() => { switchTab("mcOrder"); });
-    $("#mcStorageTab").click(() => { createLocalStorageList(); switchTab("mcStorage"); });
-    $("#mcInfoTab").click(() => { switchTab("mcInfo"); });
+    $("#mcDocumentationTab").on("click", () => { switchTab("mcDocumentation"); });
+    $("#mcActiveTab").on("click", () => { switchTab("mcActive"); });
+    $("#mcHotkeyTab").on("click", () => { switchTab("mcHotkey"); });
+    $("#mcAlertsTab").on("click", () => { switchTab("mcAlerts"); });
+    $("#mcOrderTab").on("click", () => { switchTab("mcOrder"); });
+    $("#mcStorageTab").on("click", () => { createLocalStorageList(); switchTab("mcStorage"); });
+    $("#mcInfoTab").on("click", () => { switchTab("mcInfo"); });
     switchTab("mcDocumentation");
 
     // setup mcActive tab buttons and inputs
-    $("#mcAutoReadyButton").click(function () {
+    $("#mcAutoReadyButton").on("click", function () {
         autoReady = !autoReady;
         saveSettings();
         sendSystemMessage(`auto ready ${autoReady ? "enabled" : "disabled"}`);
         checkAutoReady();
         toggleCommandButton($(this), autoReady);
     });
-    $("#mcAutoStartButton").click(function () {
+    $("#mcAutoStartButton").on("click", function () {
         if ($(this).text() === "Off") {
             const $delay = $("#mcAutoStartDelayInput");
             const $remaining = $("#mcAutoStartRemainingInput");
@@ -1317,7 +1317,7 @@ function setup() {
             toggleCommandButton($(this), false);
         }
     });
-    $("#mcAutoAcceptInviteButton").click(function () {
+    $("#mcAutoAcceptInviteButton").on("click", function () {
         if ($(this).text() === "Off") {
             const option = $("#mcAutoAcceptInviteSelect").val();
             if (option === "all") {
@@ -1357,7 +1357,7 @@ function setup() {
             $("#mcAutoAcceptInviteInput").hide();
         }
     });
-    $("#mcAutoStatusButton").click(function () {
+    $("#mcAutoStatusButton").on("click", function () {
         if ($(this).text() === "Off") {
             autoStatus = $("#mcAutoStatusSelect").val();
             sendSystemMessage(`auto status set to ${autoStatus}`);
@@ -1369,13 +1369,13 @@ function setup() {
         saveSettings();
         toggleCommandButton($(this), autoStatus);
     });
-    $("#mcAutoKeyButton").click(function () {
+    $("#mcAutoKeyButton").on("click", function () {
         autoKey = !autoKey;
         saveSettings();
         sendSystemMessage(`auto key ${autoKey ? "enabled" : "disabled"}`);
         toggleCommandButton($(this), autoKey);
     });
-    $("#mcAutoThrowButton").click(function () {
+    $("#mcAutoThrowButton").on("click", function () {
         if ($(this).text() === "Off") {
             const option = $("#mcAutoThrowSelect").val();
             const text = $("#mcAutoThrowTextInput").val();
@@ -1421,7 +1421,7 @@ function setup() {
             $("#mcAutoThrowTextInput").attr("placeholder", "option (1-4)");
         }
     });
-    $("#mcAutoCopyButton").click(function () {
+    $("#mcAutoCopyButton").on("click", function () {
         if ($(this).text() === "Off") {
             const text = $("#mcAutoCopyInput").val().toLowerCase();
             if (text) {
@@ -1436,7 +1436,7 @@ function setup() {
             toggleCommandButton($(this), false);
         }
     });
-    $("#mcAutoHostButton").click(function () {
+    $("#mcAutoHostButton").on("click", function () {
         if ($(this).text() === "Off") {
             const text = $("#mcAutoHostInput").val().toLowerCase();
             if (text) {
@@ -1451,7 +1451,7 @@ function setup() {
             toggleCommandButton($(this), false);
         }
     });
-    $("#mcAutoVoteSkipButton").click(function () {
+    $("#mcAutoVoteSkipButton").on("click", function () {
         if ($(this).text() === "Off") {
             const option = $("#mcAutoVoteSkipSelect").val();
             if (option === "time") {
@@ -1507,13 +1507,13 @@ function setup() {
             $("#mcAutoVoteSkipTimeInput").hide();
         }
     });
-    $("#mcAutoVoteLobbyButton").click(function () {
+    $("#mcAutoVoteLobbyButton").on("click", function () {
         autoVoteLobby = !autoVoteLobby;
         saveSettings();
         sendSystemMessage(`auto vote lobby ${autoVoteLobby ? "enabled" : "disabled"}`);
         toggleCommandButton($(this), autoVoteLobby);
     });
-    $("#mcAutoMuteButton").click(function () {
+    $("#mcAutoMuteButton").on("click", function () {
         if ($("#mcAutoMuteButton").text() === "Off") {
             const option = $("#mcAutoMuteSelect").val();
             let time = $("#mcAutoMuteTimeInput").val();
@@ -1571,31 +1571,31 @@ function setup() {
             $("#mcAutoMuteTimeInput").css("width", "50px").attr("placeholder", "time");
         }
     });
-    $("#mcMuteSubmitButton").click(function () {
+    $("#mcMuteSubmitButton").on("click", function () {
         muteSubmit = !muteSubmit;
         saveSettings();
         sendSystemMessage(`mute after answer submit ${muteSubmit ? "enabled" : "disabled"}`);
         toggleCommandButton($(this), muteSubmit);
     });
-    $("#mcMuteReplayButton").click(function () {
+    $("#mcMuteReplayButton").on("click", function () {
         muteReplay = !muteReplay;
         saveSettings();
         sendSystemMessage(`mute during replay phase ${muteReplay ? "enabled" : "disabled"}`);
         toggleCommandButton($(this), muteReplay);
     });
-    $("#mcContinueSampleButton").click(function () {
+    $("#mcContinueSampleButton").on("click", function () {
         continueSample = !continueSample;
         saveSettings();
         sendSystemMessage(`continue sample ${continueSample ? "enabled" : "disabled"}`);
         toggleCommandButton($(this), continueSample);
     });
-    $("#mcLoopVideoButton").click(function () {
+    $("#mcLoopVideoButton").on("click", function () {
         loopVideo = !loopVideo;
         saveSettings();
         sendSystemMessage(`loop video ${loopVideo ? "enabled" : "disabled"}`);
         toggleCommandButton($(this), loopVideo);
     });
-    $("#mcDropDownButton").click(function () {
+    $("#mcDropDownButton").on("click", function () {
         dropdown = !dropdown;
         quiz.answerInput.typingInput.autoCompleteController.newList();
         saveSettings();
@@ -1632,13 +1632,13 @@ function setup() {
 
     ]);
 
-    $("#mcLocalStorageImportButton").click(() => {
+    $("#mcLocalStorageImportButton").on("click", () => {
         importLocalStorage();
     });
-    $("#mcLocalStorageExportButton").click(() => {
+    $("#mcLocalStorageExportButton").on("click", () => {
         exportLocalStorage();
     });
-    $("#mcLocalStorageClearButton").click(() => {
+    $("#mcLocalStorageClearButton").on("click", () => {
         messageDisplayer.displayOption(
             "Confirm",
             "Clear AMQ local storage for all scripts?",
@@ -1662,17 +1662,17 @@ function setup() {
         malClientId = $(this).val().trim();
         saveSettings();
     });
-    $("#mcDropdownInSpecCheckbox").prop("checked", dropdownInSpec).click(() => {
+    $("#mcDropdownInSpecCheckbox").prop("checked", dropdownInSpec).on("click", () => {
         dropdownInSpec = !dropdownInSpec;
         saveSettings();
         sendSystemMessage(`drop down in spec ${dropdownInSpec ? "enabled" : "disabled"}`);
     });
-    $("#mcProfileButtonsCheckbox").prop("checked", enableAllProfileButtons).click(() => {
+    $("#mcProfileButtonsCheckbox").prop("checked", enableAllProfileButtons).on("click", () => {
         enableAllProfileButtons = !enableAllProfileButtons;
         saveSettings();
         sendSystemMessage(`profile buttons ${enableAllProfileButtons ? "are now clickable" : "have default behavior"}`);
     });
-    $("#mcSelfDMCheckbox").prop("checked", selfDM).click(() => {
+    $("#mcSelfDMCheckbox").prop("checked", selfDM).on("click", () => {
         selfDM = !selfDM;
         saveSettings();
         sendSystemMessage(`open self dm on log in: ${selfDM ? "enabled" : "disabled"}`);
@@ -1686,7 +1686,7 @@ function setup() {
     });
 
     updateCommandListWindow();
-    $("#optionListSettings").before($("<li>", { class: "clickAble", text: "Commands" }).click(() => {
+    $("#optionListSettings").before($("<li>", { class: "clickAble", text: "Commands" }).on("click", () => {
         $("#mcSettingsModal").modal("show");
     }));
 
@@ -1711,7 +1711,7 @@ function setup() {
         `
     });
 
-    $("#mcScriptDataHelpButton").click(() => {
+    $("#mcScriptDataHelpButton").on("click", () => {
         switchTab("mcDocumentation");
         $("#installedModal").modal("hide");
         $("#mcSettingsModal").modal("show");
@@ -4620,7 +4620,7 @@ function createAlertTable(data) {
             .append($("<input>", { id: id + "PopoutCheckbox", type: "checkbox" })
                 .attr({ "data-action": action, "data-delivery": "popout" })
                 .prop("checked", alerts[action].popout)
-                .click(() => {
+                .on("click", () => {
                     alerts[action].popout = !alerts[action].popout;
                     saveSettings();
                 }))
@@ -4629,7 +4629,7 @@ function createAlertTable(data) {
             .append($("<input>", { type: "checkbox", id: id + "ChatCheckbox" })
                 .attr({ "data-action": action, "data-delivery": "chat" })
                 .prop("checked", alerts[action].chat)
-                .click(() => {
+                .on("click", () => {
                     alerts[action].chat = !alerts[action].chat;
                     saveSettings();
                 }))
