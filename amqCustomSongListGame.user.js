@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.85
+// @version      0.86
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -45,6 +45,7 @@ const loadInterval = setInterval(() => {
 }, 500);
 
 const saveData = validateLocalStorage("customSongListGame");
+const apiBase = "https://anisongdb.com/api/";
 const hostDict = { 1: "eudist.animemusicquiz.com", 2: "nawdist.animemusicquiz.com", 3: "naedist.animemusicquiz.com" };
 let CSLButtonCSS = saveData.CSLButtonCSS || "calc(25% - 250px)";
 let showCSLMessages = saveData.showCSLMessages ?? true;
@@ -420,19 +421,34 @@ function setup() {
                                         <option>Season</option>
                                         <option>Ann Id</option>
                                         <option>Mal Id</option>
+                                        <option>Ann Song Id</option>
                                     </select>
-                                    <input id="cslgAnisongdbQueryInput" type="text" style="color: black; width: 250px;">
+                                    <input id="cslgAnisongdbQueryInput" type="text" style="color: black; width: 310px;">
                                     <button id="cslgAnisongdbSearchButtonGo" style="color: black">Go</button>
-                                    <label class="clickAble" style="margin-left: 7px">Partial<input id="cslgAnisongdbPartialCheckbox" type="checkbox"></label>
-                                    <label class="clickAble" style="margin-left: 7px">OP<input id="cslgAnisongdbOPCheckbox" type="checkbox"></label>
-                                    <label class="clickAble" style="margin-left: 7px">ED<input id="cslgAnisongdbEDCheckbox" type="checkbox"></label>
-                                    <label class="clickAble" style="margin-left: 7px">IN<input id="cslgAnisongdbINCheckbox" type="checkbox"></label>
+                                    <button id="cslgAnisongdbFilterDropdownButton" style="color: black; margin-left: 7px;">Filters <i class="fa fa-caret-down" aria-hidden="true"></i></button>
                                 </div>
-                                <div>
-                                    <label class="clickAble">Max Other People<input id="cslgAnisongdbMaxOtherPeopleInput" type="text" style="color: black; font-weight: normal; width: 40px; margin-left: 3px;"></label>
-                                    <label class="clickAble" style="margin-left: 10px">Min Group Members<input id="cslgAnisongdbMinGroupMembersInput" type="text" style="color: black; font-weight: normal; width: 40px; margin-left: 3px;"></label>
-                                    <label class="clickAble" style="margin-left: 10px">Ignore Duplicates<input id="cslgAnisongdbIgnoreDuplicatesCheckbox" type="checkbox"></label>
-                                    <label class="clickAble" style="margin-left: 10px">Arrangement<input id="cslgAnisongdbArrangementCheckbox" type="checkbox"></label>
+                                <div id="cslgAnisongdbFilterOptions" style="display: none; margin-top: 7px;">
+                                    <div>
+                                        <label class="clickAble">Partial Match<input id="cslgAnisongdbPartialCheckbox" type="checkbox" checked></label>
+                                        <label class="clickAble" style="margin-left: 20px">OP<input id="cslgAnisongdbOPCheckbox" type="checkbox" checked></label>
+                                        <label class="clickAble" style="margin-left: 7px">ED<input id="cslgAnisongdbEDCheckbox" type="checkbox" checked></label>
+                                        <label class="clickAble" style="margin-left: 7px">IN<input id="cslgAnisongdbINCheckbox" type="checkbox" checked></label>
+                                        <label class="clickAble" style="margin-left: 20px">Ignore Duplicates<input id="cslgAnisongdbIgnoreDuplicatesCheckbox" type="checkbox"></label>
+                                        <label class="clickAble" style="margin-left: 20px">Arrangement<input id="cslgAnisongdbArrangementCheckbox" type="checkbox" checked></label>
+                                    </div>
+                                    <div>
+                                        <label class="clickAble">Normal Broadcasts<input id="cslgAnisongdbNormalCheckbox" type="checkbox" checked></label>
+                                        <label class="clickAble" style="margin-left: 10px">Dubs<input id="cslgAnisongdbDubCheckbox" type="checkbox" checked></label>
+                                        <label class="clickAble" style="margin-left: 10px">Rebroadcasts<input id="cslgAnisongdbRebroadcastCheckbox" type="checkbox" checked></label>
+                                        <label class="clickAble" style="margin-left: 90px">Max Other People<input id="cslgAnisongdbMaxOtherPeopleInput" type="text" style="color: black; font-weight: normal; width: 40px; margin-left: 3px;"></label>
+                                    </div>
+                                    <div>
+                                        <label class="clickAble">Standard<input id="cslgAnisongdbStandardCheckbox" type="checkbox" checked></label>
+                                        <label class="clickAble" style="margin-left: 10px">Character<input id="cslgAnisongdbCharacterCheckbox" type="checkbox" checked></label>
+                                        <label class="clickAble" style="margin-left: 10px">Chanting<input id="cslgAnisongdbChantingCheckbox" type="checkbox" checked></label>
+                                        <label class="clickAble" style="margin-left: 10px">Instrumental<input id="cslgAnisongdbInstrumentalCheckbox" type="checkbox" checked></label>
+                                        <label class="clickAble" style="margin-left: 38px">Min Group Members<input id="cslgAnisongdbMinGroupMembersInput" type="text" style="color: black; font-weight: normal; width: 40px; margin-left: 3px;"></label>
+                                    </div>
                                 </div>
                             </div>
                             <div id="cslgFileUploadRow">
@@ -491,25 +507,25 @@ function setup() {
                             </div>
                             <div style="margin-top: 5px">
                                 <span style="font-size: 18px; font-weight: bold; margin-right: 15px;">Song Types:</span>
-                                <label class="clickAble">OP<input id="cslgSettingsOPCheckbox" type="checkbox"></label>
-                                <label class="clickAble" style="margin-left: 10px">ED<input id="cslgSettingsEDCheckbox" type="checkbox"></label>
-                                <label class="clickAble" style="margin-left: 10px">IN<input id="cslgSettingsINCheckbox" type="checkbox"></label>
+                                <label class="clickAble">OP<input id="cslgSettingsOPCheckbox" type="checkbox" checked></label>
+                                <label class="clickAble" style="margin-left: 10px">ED<input id="cslgSettingsEDCheckbox" type="checkbox" checked></label>
+                                <label class="clickAble" style="margin-left: 10px">IN<input id="cslgSettingsINCheckbox" type="checkbox" checked></label>
                                 <span style="font-size: 18px; font-weight: bold; margin: 0 15px 0 35px;">Guess:</span>
-                                <label class="clickAble">Correct<input id="cslgSettingsCorrectGuessCheckbox" type="checkbox"></label>
-                                <label class="clickAble" style="margin-left: 10px">Wrong<input id="cslgSettingsIncorrectGuessCheckbox" type="checkbox"></label>
+                                <label class="clickAble">Correct<input id="cslgSettingsCorrectGuessCheckbox" type="checkbox" checked></label>
+                                <label class="clickAble" style="margin-left: 10px">Wrong<input id="cslgSettingsIncorrectGuessCheckbox" type="checkbox" checked></label>
                             </div>
                             <div style="margin-top: 5px">
                                 <span style="font-size: 18px; font-weight: bold; margin-right: 15px;">Anime Types:</span>
-                                <label class="clickAble">TV<input id="cslgSettingsTVCheckbox" type="checkbox"></label>
-                                <label class="clickAble" style="margin-left: 10px">Movie<input id="cslgSettingsMovieCheckbox" type="checkbox"></label>
-                                <label class="clickAble" style="margin-left: 10px">OVA<input id="cslgSettingsOVACheckbox" type="checkbox"></label>
-                                <label class="clickAble" style="margin-left: 10px">ONA<input id="cslgSettingsONACheckbox" type="checkbox"></label>
-                                <label class="clickAble" style="margin-left: 10px">Special<input id="cslgSettingsSpecialCheckbox" type="checkbox"></label>
+                                <label class="clickAble">TV<input id="cslgSettingsTVCheckbox" type="checkbox" checked></label>
+                                <label class="clickAble" style="margin-left: 10px">Movie<input id="cslgSettingsMovieCheckbox" type="checkbox" checked></label>
+                                <label class="clickAble" style="margin-left: 10px">OVA<input id="cslgSettingsOVACheckbox" type="checkbox" checked></label>
+                                <label class="clickAble" style="margin-left: 10px">ONA<input id="cslgSettingsONACheckbox" type="checkbox" checked></label>
+                                <label class="clickAble" style="margin-left: 10px">Special<input id="cslgSettingsSpecialCheckbox" type="checkbox" checked></label>
                             </div>
                             <div style="margin-top: 5px">
                                 <span style="font-size: 18px; font-weight: bold; margin-right: 15px;">Modifiers:</span>
-                                <label class="clickAble">Dub<input id="cslgSettingsDubCheckbox" type="checkbox"></label>
-                                <label class="clickAble" style="margin-left: 10px">Rebroadcast<input id="cslgSettingsRebroadcastCheckbox" type="checkbox"></label>
+                                <label class="clickAble">Dub<input id="cslgSettingsDubCheckbox" type="checkbox" checked></label>
+                                <label class="clickAble" style="margin-left: 10px">Rebroadcast<input id="cslgSettingsRebroadcastCheckbox" type="checkbox" checked></label>
                             </div>
                             <div style="margin-top: 5px">
                                 <span style="font-size: 18px; font-weight: bold; margin: 0 10px 0 0;">Sample:</span>
@@ -659,6 +675,10 @@ function setup() {
         if (event.key === "Enter") {
             anisongdbDataSearch();
         }
+    });
+    $("#cslgAnisongdbFilterDropdownButton").on("click", function () {
+        $(this).find("i").toggleClass("fa-caret-down fa-caret-up");
+        $("#cslgAnisongdbFilterOptions").slideToggle(150);
     });
     $("#cslgFileUpload").on("change", function () {
         if (this.files.length) {
@@ -893,30 +913,13 @@ function setup() {
         if (val === "Previous Game") LoadPreviousGameOptions();
     });
     $("#cslgAnisongdbModeSelect").val("Artist");
-    $("#cslgAnisongdbPartialCheckbox").prop("checked", true);
-    $("#cslgAnisongdbOPCheckbox").prop("checked", true);
-    $("#cslgAnisongdbEDCheckbox").prop("checked", true);
-    $("#cslgAnisongdbINCheckbox").prop("checked", true);
     $("#cslgAnisongdbMaxOtherPeopleInput").val("99");
     $("#cslgAnisongdbMinGroupMembersInput").val("0");
     $("#cslgSettingsSongs").val("20");
     $("#cslgSettingsGuessTime").val("20");
     $("#cslgSettingsExtraGuessTime").val("0");
-    $("#cslgSettingsOPCheckbox").prop("checked", true);
-    $("#cslgSettingsEDCheckbox").prop("checked", true);
-    $("#cslgSettingsINCheckbox").prop("checked", true);
-    $("#cslgSettingsCorrectGuessCheckbox").prop("checked", true);
-    $("#cslgSettingsIncorrectGuessCheckbox").prop("checked", true);
-    $("#cslgSettingsTVCheckbox").prop("checked", true);
-    $("#cslgSettingsMovieCheckbox").prop("checked", true);
-    $("#cslgSettingsOVACheckbox").prop("checked", true);
-    $("#cslgSettingsONACheckbox").prop("checked", true);
-    $("#cslgSettingsSpecialCheckbox").prop("checked", true);
-    $("#cslgSettingsDubCheckbox").prop("checked", true);
-    $("#cslgSettingsRebroadcastCheckbox").prop("checked", true);
     $("#cslgSettingsStartPoint").val("0-100");
     $("#cslgSettingsDifficulty").val("0-100");
-    $("#cslgSettingsFastSkip").prop("checked", false);
     $("#cslgFileUploadRow").hide();
     $("#cslgPreviousGameRow").hide();
     $("#cslgFilterListRow").hide();
@@ -2050,94 +2053,106 @@ function LoadPreviousGameOptions() {
 function anisongdbDataSearch() {
     const mode = $("#cslgAnisongdbModeSelect").val().toLowerCase();
     const query = $("#cslgAnisongdbQueryInput").val();
-    const ops = $("#cslgAnisongdbOPCheckbox").prop("checked");
-    const eds = $("#cslgAnisongdbEDCheckbox").prop("checked");
-    const ins = $("#cslgAnisongdbINCheckbox").prop("checked");
-    const partial = $("#cslgAnisongdbPartialCheckbox").prop("checked");
-    const ignoreDuplicates = $("#cslgAnisongdbIgnoreDuplicatesCheckbox").prop("checked");
-    const arrangement = $("#cslgAnisongdbArrangementCheckbox").prop("checked");
-    const maxOtherPeople = parseInt($("#cslgAnisongdbMaxOtherPeopleInput").val());
-    const minGroupMembers = parseInt($("#cslgAnisongdbMinGroupMembersInput").val());
-    if (query && !isNaN(maxOtherPeople) && !isNaN(minGroupMembers)) {
-        getAnisongdbData(mode, query, ops, eds, ins, partial, ignoreDuplicates, arrangement, maxOtherPeople, minGroupMembers);
+    const filters = {
+        ops: $("#cslgAnisongdbOPCheckbox").prop("checked"),
+        eds: $("#cslgAnisongdbEDCheckbox").prop("checked"),
+        ins: $("#cslgAnisongdbINCheckbox").prop("checked"),
+        partial: $("#cslgAnisongdbPartialCheckbox").prop("checked"),
+        ignoreDuplicates: $("#cslgAnisongdbIgnoreDuplicatesCheckbox").prop("checked"),
+        arrangement: $("#cslgAnisongdbArrangementCheckbox").prop("checked"),
+        maxOtherPeople: parseInt($("#cslgAnisongdbMaxOtherPeopleInput").val()),
+        minGroupMembers: parseInt($("#cslgAnisongdbMinGroupMembersInput").val()),
+        normal: $("#cslgAnisongdbNormalCheckbox").prop("checked"),
+        dub: $("#cslgAnisongdbDubCheckbox").prop("checked"),
+        rebroadcast: $("#cslgAnisongdbRebroadcastCheckbox").prop("checked"),
+        standard: $("#cslgAnisongdbStandardCheckbox").prop("checked"),
+        character: $("#cslgAnisongdbCharacterCheckbox").prop("checked"),
+        chanting: $("#cslgAnisongdbChantingCheckbox").prop("checked"),
+        instrumental: $("#cslgAnisongdbInstrumentalCheckbox").prop("checked")
+    };
+    if (query && !isNaN(filters.maxOtherPeople) && !isNaN(filters.minGroupMembers)) {
+        getAnisongdbData(mode, query, filters);
     }
 }
 
 // send anisongdb request
-function getAnisongdbData(mode, query, ops, eds, ins, partial, ignoreDuplicates, arrangement, maxOtherPeople, minGroupMembers) {
+function getAnisongdbData(mode, query, filters) {
     $("#cslgSongListCount").text("Loading...");
     $("#cslgSongListTable tbody").empty();
     let url, data;
     let json = {
         and_logic: false,
-        ignore_duplicate: ignoreDuplicates,
-        opening_filter: ops,
-        ending_filter: eds,
-        insert_filter: ins
+        ignore_duplicate: filters.ignoreDuplicates,
+        opening_filter: filters.ops,
+        ending_filter: filters.eds,
+        insert_filter: filters.ins,
+        normal_broadcast: filters.normal,
+        dub: filters.dub,
+        rebroadcast: filters.rebroadcast,
+        standard: filters.standard,
+        character: filters.character,
+        chanting: filters.chanting,
+        instrumental: filters.instrumental
     };
     if (mode === "anime") {
-        url = "https://anisongdb.com/api/search_request";
+        url = apiBase + "search_request";
         json.anime_search_filter = {
             search: query,
-            partial_match: partial
+            partial_match: filters.partial
         };
     }
     else if (mode === "artist") {
-        url = "https://anisongdb.com/api/search_request";
+        url = apiBase + "search_request";
         json.artist_search_filter = {
             search: query,
-            partial_match: partial,
-            group_granularity: minGroupMembers,
-            max_other_artist: maxOtherPeople
+            partial_match: filters.partial,
+            group_granularity: filters.minGroupMembers,
+            max_other_artist: filters.maxOtherPeople
         };
     }
     else if (mode === "song") {
-        url = "https://anisongdb.com/api/search_request";
+        url = apiBase + "search_request";
         json.song_name_search_filter = {
             search: query,
-            partial_match: partial
+            partial_match: filters.partial
         };
     }
     else if (mode === "composer") {
-        url = "https://anisongdb.com/api/search_request";
+        url = apiBase + "search_request";
         json.composer_search_filter = {
             search: query,
-            partial_match: partial,
-            arrangement: arrangement
+            partial_match: filters.partial,
+            arrangement: filters.arrangement
         };
     }
     else if (mode === "season") {
         query = query.trim();
         query = query.charAt(0).toUpperCase() + query.slice(1).toLowerCase();
-        url = `https://anisongdb.com/api/filter_season?${new URLSearchParams({ season: query })}`;
+        json.season = query;
+        url = apiBase + "filter_season";
     }
     else if (mode === "ann id") {
-        url = "https://anisongdb.com/api/annIdList_request";
+        url = apiBase + "annIdList_request";
         json.annIds = query.trim().split(/[\s,]+/).map(Number);
     }
     else if (mode === "mal id") {
-        url = "https://anisongdb.com/api/malIDs_request";
+        url = apiBase + "malIDs_request";
         json.malIds = query.trim().split(/[\s,]+/).map(Number);
     }
-    if (mode === "season") {
-        data = {
-            method: "GET",
-            headers: { "Accept": "application/json", "Content-Type": "application/json" },
-        };
+    else if (mode === "ann song id") {
+        url = apiBase + "ann_song_ids_request";
+        json.annSongIds = query.trim().split(/[\s,]+/).map(Number);
     }
-    else {
-        data = {
-            method: "POST",
-            headers: { "Accept": "application/json", "Content-Type": "application/json" },
-            body: JSON.stringify(json)
-        };
-    }
+    data = {
+        method: "POST",
+        headers: { "Accept": "application/json", "Content-Type": "application/json" },
+        body: JSON.stringify(json)
+    };
     fetch(url, data)
         .then(res => res.json())
         .then(json => {
             if (debug) console.log(json);
             handleData(json);
-            songList = songList.filter(song => songTypeFilter(song, ops, eds, ins));
             setSongListTableSort();
             if (!Array.isArray(json)) {
                 $("#cslgSongListCount").text("Songs: 0");
