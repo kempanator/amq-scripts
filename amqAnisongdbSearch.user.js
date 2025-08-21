@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Anisongdb Search
 // @namespace    https://github.com/kempanator
-// @version      0.28
+// @version      0.29
 // @description  Adds a window to search anisongdb.com in game
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -28,6 +28,7 @@ const loadInterval = setInterval(() => {
 }, 500);
 
 const saveData = validateLocalStorage("anisongdbSearch");
+const apiBase = "https://anisongdb.com/api/";
 let anisongdbWindow;
 let injectSearchButtons = saveData.injectSearchButtons ?? true;
 let tableSort = { mode: "anime", ascending: true };
@@ -112,6 +113,7 @@ function setup() {
                     .append($("<option>", { text: "Season" }))
                     .append($("<option>", { text: "Ann Id" }))
                     .append($("<option>", { text: "Mal Id" }))
+                    .append($("<option>", { text: "Ann Song Id" }))
                 )
                 .append($("<input>", { id: "adbsQueryInput", type: "text", style: "width: 300px; padding: 0 2px;" })
                     .on("keypress", (event) => {
@@ -267,14 +269,14 @@ function getAnisongdbData(mode, query, partial) {
         instrumental: true
     };
     if (mode === "anime") {
-        url = "https://anisongdb.com/api/search_request";
+        url = apiBase + "search_request";
         json.anime_search_filter = {
             search: query,
             partial_match: partial
         };
     }
     else if (mode === "artist") {
-        url = "https://anisongdb.com/api/search_request";
+        url = apiBase + "search_request";
         json.artist_search_filter = {
             search: query,
             partial_match: partial,
@@ -283,14 +285,14 @@ function getAnisongdbData(mode, query, partial) {
         };
     }
     else if (mode === "song") {
-        url = "https://anisongdb.com/api/search_request";
+        url = apiBase + "search_request";
         json.song_name_search_filter = {
             search: query,
             partial_match: partial
         };
     }
     else if (mode === "composer") {
-        url = "https://anisongdb.com/api/search_request";
+        url = apiBase + "search_request";
         json.composer_search_filter = {
             search: query,
             partial_match: partial,
@@ -300,29 +302,26 @@ function getAnisongdbData(mode, query, partial) {
     else if (mode === "season") {
         query = query.trim();
         query = query.charAt(0).toUpperCase() + query.slice(1).toLowerCase();
-        url = `https://anisongdb.com/api/filter_season?${new URLSearchParams({ season: query })}`;
+        json.season = query;
+        url = apiBase + "filter_season";
     }
     else if (mode === "ann id") {
-        url = "https://anisongdb.com/api/annIdList_request";
+        url = apiBase + "annIdList_request";
         json.annIds = query.trim().split(/[\s,]+/).map(Number);
     }
     else if (mode === "mal id") {
-        url = "https://anisongdb.com/api/malIDs_request";
+        url = apiBase + "malIDs_request";
         json.malIds = query.trim().split(/[\s,]+/).map(Number);
     }
-    if (mode === "season") {
-        data = {
-            method: "GET",
-            headers: { "Accept": "application/json", "Content-Type": "application/json" },
-        };
+    else if (mode === "ann song id") {
+        url = apiBase + "ann_song_ids_request";
+        json.annSongIds = query.trim().split(/[\s,]+/).map(Number);
     }
-    else {
-        data = {
-            method: "POST",
-            headers: { "Accept": "application/json", "Content-Type": "application/json" },
-            body: JSON.stringify(json)
-        };
-    }
+    data = {
+        method: "POST",
+        headers: { "Accept": "application/json", "Content-Type": "application/json" },
+        body: JSON.stringify(json)
+    };
     fetch(url, data)
         .then(res => res.json())
         .then(json => {
