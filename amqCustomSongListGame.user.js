@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.86
+// @version      0.87
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -422,6 +422,7 @@ function setup() {
                                         <option>Ann Id</option>
                                         <option>Mal Id</option>
                                         <option>Ann Song Id</option>
+                                        <option>Amq Song Id</option>
                                     </select>
                                     <input id="cslgAnisongdbQueryInput" type="text" style="color: black; width: 310px;">
                                     <button id="cslgAnisongdbSearchButtonGo" style="color: black">Go</button>
@@ -2142,6 +2143,10 @@ function getAnisongdbData(mode, query, filters) {
     else if (mode === "ann song id") {
         url = apiBase + "ann_song_ids_request";
         json.annSongIds = query.trim().split(/[\s,]+/).map(Number);
+    }
+    else if (mode === "amq song id") {
+        url = apiBase + "amq_song_ids_request";
+        json.amqSongIds = query.trim().split(/[\s,]+/).map(Number);
     }
     data = {
         method: "POST",
