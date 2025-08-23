@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Anisongdb Search
 // @namespace    https://github.com/kempanator
-// @version      0.29
+// @version      0.30
 // @description  Adds a window to search anisongdb.com in game
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -114,6 +114,7 @@ function setup() {
                     .append($("<option>", { text: "Ann Id" }))
                     .append($("<option>", { text: "Mal Id" }))
                     .append($("<option>", { text: "Ann Song Id" }))
+                    .append($("<option>", { text: "Amq Song Id" }))
                 )
                 .append($("<input>", { id: "adbsQueryInput", type: "text", style: "width: 300px; padding: 0 2px;" })
                     .on("keypress", (event) => {
@@ -316,6 +317,10 @@ function getAnisongdbData(mode, query, partial) {
     else if (mode === "ann song id") {
         url = apiBase + "ann_song_ids_request";
         json.annSongIds = query.trim().split(/[\s,]+/).map(Number);
+    }
+    else if (mode === "amq song id") {
+        url = apiBase + "amq_song_ids_request";
+        json.amqSongIds = query.trim().split(/[\s,]+/).map(Number);
     }
     data = {
         method: "POST",
