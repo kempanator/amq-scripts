@@ -1,44 +1,69 @@
 """
-Combine multiple json files into one
-Version 0.2
+Combine multiple JSON files into one per subfolder.
+Version 0.3
 
 Instructions:
-1. open json folder
-2. create new folder with the new list name you want
-3. add json files to that folder
-4. run python file
-5. combined json file gets created in json folder
+1. Place a `json` folder in the working directory (or set a custom path below).
+2. Inside `json`, create subfolders named after your desired output file.
+3. Add JSON files into those subfolders.
+4. Run this script.
+5. Each subfolder will produce a combined JSON file in the `json` folder.
 """
 
 import os
 import json
 
-path = ""  # optional custom path
-json_path = path + "json/"
+# Optional custom path (absolute or relative)
+BASE_PATH = ""
+JSON_PATH = os.path.join(BASE_PATH, "json")
 
 
-# look for folders within json folder, look for json files and combine their contents into a new json file
-def combine():
-    if not os.path.isdir(json_path):
-        os.mkdir(json_path)
-    for folder_name in os.listdir(json_path):
-        if os.path.isdir(json_path + folder_name):
-            combined_data = []
-            for file_name in os.listdir(json_path + folder_name):
-                with open(os.path.join(json_path, folder_name, file_name), "r", encoding="utf-8") as file:
-                    data = json.load(file)
-                if isinstance(data, dict):  # official amq json
-                    if "songs" in data:
-                        for item in data["songs"]:
-                            combined_data.append(item)
-                elif isinstance(data, list):  # anisongdb or joseph json
-                    for item in data:
-                        combined_data.append(item)
-            print(folder_name + ".json")
-            new_json = json_path + folder_name + ".json"
-            if not os.path.isfile(new_json):
-                with open(new_json, "w", encoding="utf-8") as file:
-                    json.dump(combined_data, file, indent=None, separators=(",", ":"))
+def load_json(file_path: str):
+    """Safely load a JSON file."""
+    with open(file_path, "r", encoding="utf-8") as file:
+        return json.load(file)
 
 
-combine()
+def combine_folder(folder_path: str) -> list:
+    """Combine JSON data from all files in a folder into one list."""
+    combined_data = []
+    for file_name in os.listdir(folder_path):
+        file_path = os.path.join(folder_path, file_name)
+        if not os.path.isfile(file_path) or not file_name.endswith(".json"):
+            continue  # skip non-files and non-json
+
+        data = load_json(file_path)
+
+        if isinstance(data, dict) and "songs" in data:  # AMQ JSON format
+            combined_data.extend(data["songs"])
+        elif isinstance(data, list):  # AnisongDB/Joseph format
+            combined_data.extend(data)
+        else:
+            print(f"⚠️ Skipped unrecognized format: {file_name}")
+
+    return combined_data
+
+
+def combine_all():
+    """Look for subfolders inside JSON_PATH and combine their contents."""
+    os.makedirs(JSON_PATH, exist_ok=True)
+
+    for folder_name in os.listdir(JSON_PATH):
+        folder_path = os.path.join(JSON_PATH, folder_name)
+        if not os.path.isdir(folder_path):
+            continue
+
+        combined_data = combine_folder(folder_path)
+        if not combined_data:
+            print(f"⚠️ No valid data found in {folder_name}, skipping.")
+            continue
+
+        output_file = os.path.join(JSON_PATH, f"{folder_name}.json")
+        with open(output_file, "w", encoding="utf-8") as out_file:
+            json.dump(combined_data, out_file, ensure_ascii=False, separators=(",", ":"))
+
+        print(f"✅ Created {output_file}")
+
+
+if __name__ == "__main__":
+    combine_all()
