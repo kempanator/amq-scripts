@@ -38,4 +38,4 @@ click on a script name below to install
 - Mouse over the players bar on a room tile to show full player list https://imgur.com/jivcLDo
 
 ### [AnisongDB Utilities](https://github.com/kempanator/amq-scripts/raw/main/anisongdbUtilities.user.js)
-- Some extra functionality for AnisongDB https://imgur.com/a/zqq65EO
+- Some extra functionality for AnisongDB https://imgur.com/a/IXB6xak
