@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.87
+// @version      0.88
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -2127,26 +2127,24 @@ function getAnisongdbData(mode, query, filters) {
         };
     }
     else if (mode === "season") {
-        query = query.trim();
-        query = query.charAt(0).toUpperCase() + query.slice(1).toLowerCase();
         json.season = query;
-        url = apiBase + "filter_season";
+        url = apiBase + "season_request";
     }
     else if (mode === "ann id") {
-        url = apiBase + "annIdList_request";
-        json.annIds = query.trim().split(/[\s,]+/).map(Number);
+        url = apiBase + "ann_ids_request";
+        json.ann_ids = query.trim().split(/[\s,]+/).map(Number);
     }
     else if (mode === "mal id") {
-        url = apiBase + "malIDs_request";
-        json.malIds = query.trim().split(/[\s,]+/).map(Number);
+        url = apiBase + "mal_ids_request";
+        json.mal_ids = query.trim().split(/[\s,]+/).map(Number);
     }
     else if (mode === "ann song id") {
         url = apiBase + "ann_song_ids_request";
-        json.annSongIds = query.trim().split(/[\s,]+/).map(Number);
+        json.ann_song_ids = query.trim().split(/[\s,]+/).map(Number);
     }
     else if (mode === "amq song id") {
         url = apiBase + "amq_song_ids_request";
-        json.amqSongIds = query.trim().split(/[\s,]+/).map(Number);
+        json.amq_song_ids = query.trim().split(/[\s,]+/).map(Number);
     }
     data = {
         method: "POST",
