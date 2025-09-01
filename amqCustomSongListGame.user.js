@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.88
+// @version      0.89
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -3016,7 +3016,7 @@ async function getSongListFromMalIds(malIds) {
     if (!malIds) malIds = [];
     if (malIds.length === 0) return;
     $("#cslgListImportText").text(`Anime: 0 / ${malIds.length} | Songs: ${importedSongList.length}`);
-    const url = "https://anisongdb.com/api/malIDs_request";
+    const url = apiBase + "mal_ids_request";
     let idsProcessed = 0;
     for (let i = 0; i < malIds.length; i += 500) {
         const segment = malIds.slice(i, i + 500);
@@ -3024,7 +3024,7 @@ async function getSongListFromMalIds(malIds) {
         const data = {
             method: "POST",
             headers: { "Accept": "application/json", "Content-Type": "application/json" },
-            body: JSON.stringify({ "malIds": segment })
+            body: JSON.stringify({ "mal_ids": segment })
         };
         await fetch(url, data)
             .then(res => res.json())
