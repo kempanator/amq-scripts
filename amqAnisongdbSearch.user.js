@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Anisongdb Search
 // @namespace    https://github.com/kempanator
-// @version      0.31
+// @version      0.32
 // @description  Adds a window to search anisongdb.com in game
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -157,7 +157,7 @@ function setup() {
                     })
                 )
             )
-            .append("<p>", { id: "adbsInfoText", style: "margin: 0;" })
+            .append($("<p>", { id: "adbsInfoText", style: "margin: 0;" }))
         )
         .append($("<div>", { id: "adbsSettingsContainer", class: "tabSection", style: "padding: 10px;" })
             .append(`<table id="adbsHotkeyTable"><thead><tr><th>Action</th><th>Keybind</th></tr></thead><tbody></tbody></table>`)
@@ -328,30 +328,18 @@ function getAnisongdbData(mode, query, partial) {
     fetch(url, data)
         .then(res => res.json())
         .then(json => {
-            if (!Array.isArray(json)) {
-                $("#adbsTable tbody").empty();
-                $("#adbsInfoText").text(JSON.stringify(json));
-            }
-            else if (json.length === 0 && isRankedRunning()) {
-                $("#adbsTable tbody").empty();
-                $("#adbsInfoText").text("AnisongDB is not available during ranked");
-            }
-            else {
+            if (Array.isArray(json)) {
                 createTable(json);
             }
+            else {
+                $("#adbsTable tbody").empty();
+                $("#adbsInfoText").text(json?.detail || JSON.stringify(json));
+            }
         })
-        .catch(res => {
+        .catch(err => {
             $("#adbsTable tbody").empty();
-            $("#adbsInfoText").text(res.toString());
+            $("#adbsInfoText").text(err.toString());
         })
-}
-
-// return true if ranked/themed is running
-function isRankedRunning() {
-    if (ranked.currentState === ranked.RANKED_STATE_IDS.RUNNING) return true;
-    if (ranked.currentState === ranked.RANKED_STATE_IDS.CHAMP_RUNNING) return true;
-    if (ranked.currentState === ranked.RANKED_STATE_IDS.THEMED_RUNNING) return true;
-    return false;
 }
 
 // go button press
