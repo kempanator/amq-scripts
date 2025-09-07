@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Answer Stats
 // @namespace    https://github.com/kempanator
-// @version      0.49
+// @version      0.50
 // @description  Adds a window to display quiz answer stats
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -42,7 +42,7 @@ let answers = {}; //{1: {name, id, answer, correct}, ...}
 let songHistory = {}; //{1: {romaji, english, number, artist, song, type, vintage, difficulty, fastestSpeed, fastestPlayers, answers: {1: {id, text, speed, correct, rank, score, invalidAnswer, uniqueAnswer, noAnswer}, ...}, ...}
 let playerInfo = {}; //{1: {name, id, level, score, rank, box, averageSpeed, correctSpeedList}, ...}
 let answerTimes = {}; //{0: 1000}
-let animeListMap = {}; //store lowercase version for faster compare speed
+let animeListMap = new Map(); // store lowercase version for faster compare speed
 let averageSpeedSort = { mode: "score", ascending: false };
 let songHistoryFilter = { type: "all" };
 let songHistorySort = { mode: "position", ascending: true };
@@ -60,17 +60,17 @@ let hotKeys = {
 
 function setup() {
     new Listener("get all song names", (data) => {
-        animeListMap = data.names.reduce((map, anime) => {
-            map[anime.toLowerCase()] = anime;
-            return map;
-        }, {});
+        animeListMap = new Map();
+        for (const anime of data.names) {
+            animeListMap.set(anime.toLowerCase(), anime);
+        }
     }).bindListener();
     new Listener("update all song names", (data) => {
         for (const anime of data.deleted) {
-            delete animeListMap[anime.toLowerCase()];
+            animeListMap.delete(anime.toLowerCase());
         }
         for (const anime of data.new) {
-            animeListMap[anime.toLowerCase()] = anime;
+            animeListMap.set(anime.toLowerCase(), anime);
         }
     }).bindListener();
     new Listener("Game Starting", (data) => {
@@ -104,7 +104,7 @@ function setup() {
         }
     }).bindListener();
     new Listener("player answers", (data) => {
-        if (Object.keys(animeListMap).length === 0) {
+        if (animeListMap.size === 0) {
             quiz.answerInput.typingInput.autoCompleteController.updateList();
         }
         answers = {};
@@ -118,7 +118,7 @@ function setup() {
     }).bindListener();
     new Listener("answer results", (data) => {
         if (Object.keys(answers).length === 0) return;
-        if (Object.keys(animeListMap).length === 0) return;
+        if (animeListMap.size === 0) return;
         const currentPlayer = quizVideoController.getCurrentPlayer();
         const songNumber = parseInt(quiz.infoContainer.$currentSongCount.text());
         const maxSongNumber = Math.max(...Object.keys(songHistory).map(Number));
@@ -220,8 +220,8 @@ function setup() {
                 correctAnswerIdMap[correctKey].push(player.id);
                 continue;
             }
-            if (animeListMap.hasOwnProperty(answerLC)) {
-                const anime = animeListMap[answerLC];
+            if (animeListMap.has(answerLC)) {
+                const anime = animeListMap.get(answerLC);
                 (incorrectAnswerIdMap[anime] ??= []).push(player.id);
                 continue;
             }
@@ -286,13 +286,13 @@ function setup() {
             if (numCorrect && !quiz.soloMode && !quiz.teamMode) {
                 const $speedRow = $("#asAnswerSpeedRow").empty().show();
                 $speedRow.append(`<span><b>Average:</b> ${averageSpeed}ms</span><span style="margin-left: 20px"><b>Fastest:</b> ${fastestSpeed}ms - </span>`);
-                fastestPlayers.forEach((id, i) => {
+                fastestPlayers.forEach((id, index) => {
                     $speedRow.append($("<span>", { text: playerInfo[id].name, style: "cursor: pointer;" })
                         .on("click", () => {
                             displayPlayerHistoryResults(id);
                             answerHistoryWindow.open();
                         }));
-                    if (i < fastestPlayers.length - 1) $speedRow.append(", ");
+                    if (index < fastestPlayers.length - 1) $speedRow.append(", ");
                 });
             }
             else {
@@ -301,13 +301,13 @@ function setup() {
             if (data.players.length > 8 && Object.keys(correctPlayers).length <= 5) {
                 const $correctRow = $("#asCorrectPlayersRow").empty().show();
                 $correctRow.append(`<span><b>Correct Players: </b></span>`);
-                Object.keys(correctPlayers).forEach((id, i) => {
+                Object.keys(correctPlayers).forEach((id, index) => {
                     $correctRow.append($("<span>", { text: playerInfo[id].name, style: "cursor: pointer;" })
                         .on("click", () => {
                             displayPlayerHistoryResults(id);
                             answerHistoryWindow.open();
                         }));
-                    if (i < Object.keys(correctPlayers).length - 1) $correctRow.append(", ");
+                    if (index < Object.keys(correctPlayers).length - 1) $correctRow.append(", ");
                 });
             }
             else {
