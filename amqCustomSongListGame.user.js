@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.90
+// @version      0.91
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -991,10 +991,12 @@ function setup() {
             createMergedSongListTable();
         },
         clearSongList: () => {
+            if (quiz.inQuiz) return;
             songList = [];
             createSongListTable(true);
         },
         transferMerged: () => {
+            if (quiz.inQuiz) return;
             songList = Array.from(mergedSongList);
             createSongListTable(true);
         },
