@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ New Game Mode UI
 // @namespace    https://github.com/kempanator
-// @version      0.35
+// @version      0.36
 // @description  Adds a user interface to new game mode to keep track of guesses
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -37,7 +37,7 @@ let autoTrackCount = false;
 let autoThrowSelfCount = false;
 let autoSendTeamCount = 0; //0: off, 1: team chat, 2: regular chat
 let halfModeList = []; //list of your teammates with half point deductions enabled [true, false, true, false]
-let animeListLower = []; //store lowercase version for faster compare speed
+let animeListLower = new Set(); //store lowercase version for faster compare speed
 let answerValidation = 1; //0: none, 1: normal, 2: strict
 let hotKeys = {
     ngmWindow: loadHotkey("ngmWindow")
@@ -151,7 +151,7 @@ function setup() {
                 else {
                     let validAnswers = [];
                     for (const answer of Object.values(answers)) {
-                        answer.valid = animeListLower.includes(answer.text.toLowerCase());
+                        answer.valid = animeListLower.has(answer.text.toLowerCase());
                     }
                     if (answerValidation === 0) {
                         validAnswers = Object.values(answers).filter(a => a.text.trim());
@@ -201,16 +201,20 @@ function setup() {
         }
     }).bindListener();
     new Listener("get all song names", (data) => {
-        animeListLower = data.names.map(x => x.toLowerCase());
+        animeListLower = new Set(data.names.map(x => x.toLowerCase()));
     }).bindListener();
     new Listener("update all song names", (data) => {
         if (data.deleted.length) {
             const deletedLower = data.deleted.map(x => x.toLowerCase());
-            animeListLower = animeListLower.filter(name => !deletedLower.includes(name));
+            for (const name of deletedLower) {
+                animeListLower.delete(name);
+            }
         }
         if (data.new.length) {
             const newLower = data.new.map(x => x.toLowerCase());
-            animeListLower.push(...newLower);
+            for (const name of newLower) {
+                animeListLower.add(name);
+            }
         }
     }).bindListener();
 
