@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Answer Stats
 // @namespace    https://github.com/kempanator
-// @version      0.50
+// @version      0.51
 // @description  Adds a window to display quiz answer stats
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -1367,6 +1367,7 @@ function roomNameText() {
 
 function difficultyInfoText(roomName) {
     if (roomName.includes("Ranked Novice")) {
+        // 25-35 and 30-45 range is not a mistake (this skews 30-35 on purpose)
         return `
             <table id="asDistributionTable">
                 <thead>
@@ -1391,7 +1392,7 @@ function difficultyInfoText(roomName) {
                         <td>2</td>
                     </tr>
                     <tr>
-                        <td>35-45</td>
+                        <td>30-45</td>
                         <td>6</td>
                         <td>3</td>
                         <td>3</td>
