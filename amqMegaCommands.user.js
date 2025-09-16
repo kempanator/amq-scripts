@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.145
+// @version      0.146
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -297,7 +297,7 @@ const dqMap = {
     "Made in Abyss": { genre: [2, 4, 6, 7, 11, 14], years: [2017, 2017], seasons: [2, 2] },
     "Girls' Last Tour": { genre: [2, 14, 15], years: [2017, 2017], seasons: [3, 3] },
     "Mirai Nikki": { genre: [1, 7, 11, 12, 17, 18], years: [2011, 2011], seasons: [3, 3] },
-    "MF Ghost 2nd Season": { genre: [14, 16], years: [2024, 2024], seasons: [3, 3] }
+    "Kamitsubaki City Under Construction": {genre: [10, 11, 17], years: [2025, 2025], seasons: [2, 2]}
 };
 
 if (document.querySelector("#loginPage")) {
@@ -790,7 +790,7 @@ function setup() {
         else {
             if (data.inLobby) {
                 if (autoReady) sendSystemMessage("Auto Ready: Enabled");
-                if (autoStart.remaining) sendSystemMessage("Auto Start: Enabled");
+                if (autoStart.remaining !== 0) sendSystemMessage("Auto Start: Enabled");
                 if (autoHost) sendSystemMessage("Auto Host: " + autoHost);
                 if (autoInvite) sendSystemMessage("Auto Invite: " + autoInvite);
                 if (autoAcceptInvite) sendSystemMessage("Auto Accept Invite: Enabled");
@@ -811,7 +811,7 @@ function setup() {
         else {
             if (data.inLobby) {
                 if (autoReady) sendSystemMessage("Auto Ready: Enabled");
-                if (autoStart.remaining) sendSystemMessage("Auto Start: Enabled");
+                if (autoStart.remaining !== 0) sendSystemMessage("Auto Start: Enabled");
                 if (autoHost) sendSystemMessage("Auto Host: " + autoHost);
                 if (autoInvite) sendSystemMessage("Auto Invite: " + autoInvite);
                 if (autoAcceptInvite) sendSystemMessage("Auto Accept Invite: Enabled");
@@ -1295,15 +1295,15 @@ function setup() {
             const $delay = $("#mcAutoStartDelayInput");
             const $remaining = $("#mcAutoStartRemainingInput");
             if ($delay.val() === "") $delay.val("0");
-            if ($remaining.val() === "") $remaining.val("Infinity");
+            if (["infinity", "inf", "∞", "null", ""].includes($remaining.val())) $remaining.val("∞");
             const delay = Number($delay.val());
-            const remaining = Math.floor(Number($remaining.val()));
-            if (!isNaN(delay) && delay >= 0 && !isNaN(remaining) && remaining > 0) {
+            const remaining = $remaining.val() === "∞" ? null : Math.floor(Number($remaining.val()));
+            if (!isNaN(delay) && delay >= 0 && (remaining === null || (!isNaN(remaining) && remaining > 0))) {
                 autoStart.delay = Math.floor(delay * 1000);
                 autoStart.remaining = remaining;
                 clearTimeout(autoStart.timer);
                 autoStart.timerRunning = false;
-                sendSystemMessage(`auto start game enabled (delay: ${delay}s, remaining: ${remaining})`);
+                sendSystemMessage(`auto start game enabled (delay: ${delay}s, remaining: ${remaining === null ? "∞" : remaining})`);
                 checkAutoStart();
                 toggleCommandButton($(this), true);
             }
@@ -2595,13 +2595,13 @@ async function parseCommand(messageText, type, target) {
     }
     else if (command === "autostart" || command === "astart" || command === "ast") {
         if (split.length === 1) {
-            if (autoStart.remaining) {
+            if (autoStart.remaining !== 0) {
                 autoStart.remaining = 0;
                 sendMessage("auto start game disabled", type, target, true);
             }
             else {
-                autoStart.remaining = Infinity;
-                sendMessage(`auto start game enabled (delay: 0s, remaining: Infinity)`, type, target, true);
+                autoStart.remaining = null;
+                sendMessage(`auto start game enabled (delay: 0s, remaining: ∞)`, type, target, true);
             }
             autoStart.delay = 0;
             clearTimeout(autoStart.timer);
@@ -2611,14 +2611,14 @@ async function parseCommand(messageText, type, target) {
         }
         else {
             const delay = split[1] === undefined ? 0 : Number(split[1]);
-            const remaining = split[2] === undefined ? Infinity : Math.floor(Number(split[2]));
+            const remaining = ["infinity", "inf", "∞", "null", undefined].includes(split[2]) ? null : Math.floor(Number(split[2]));
             if (isNaN(delay) || delay < 0) return;
             if (isNaN(remaining) || remaining < 0) return;
-            if (remaining) {
-                sendMessage(`auto start game enabled (delay: ${delay}s, remaining: ${remaining})`, type, target, true);
+            if (remaining === 0) {
+                sendMessage("auto start game disabled", type, target, true);
             }
             else {
-                sendMessage("auto start game disabled", type, target, true);
+                sendMessage(`auto start game enabled (delay: ${delay}s, remaining: ${remaining === null ? "∞" : remaining})`, type, target, true);
             }
             autoStart.delay = Math.floor(delay * 1000);
             autoStart.remaining = remaining;
@@ -3929,7 +3929,7 @@ async function parseCommand(messageText, type, target) {
             }
         }
         else if (/^\S+ (k|kutd|keepinguptodate)+$/.test(content)) {
-            const anime = "MF Ghost 2nd Season";
+            const anime = "Kamitsubaki City Under Construction";
             sendMessage(anime, type, target);
             matchSettingsToAnime(anime);
             autoThrow = { time: [3000, 5000], text: anime, multichoice: null };
@@ -4421,7 +4421,7 @@ function updateCommandListWindow(type) {
         toggleCommandButton($("#mcAutoReadyButton"), autoReady);
     }
     if (!type || type === "autoStart") {
-        toggleCommandButton($("#mcAutoStartButton"), autoStart.remaining);
+        toggleCommandButton($("#mcAutoStartButton"), autoStart.remaining !== 0);
         //$("#mcAutoStartDelayInput").val(autoStart.delay);
         //$("#mcAutoStartRemainingInput").val(autoStart.remaining);
     }
@@ -5055,15 +5055,15 @@ function checkAutoReady() {
 // check conditions and start game
 function checkAutoStart() {
     setTimeout(() => {
-        if (autoStart.remaining > 0 && lobby.inLobby && lobby.isHost) {
+        if (autoStart.remaining !== 0 && lobby.inLobby && lobby.isHost) {
             if (autoStart.delay) {
                 if (!autoStart.timerRunning) {
                     sendSystemMessage(`Auto starting in ${autoStart.delay / 1000}s`);
                     autoStart.timerRunning = true;
                     autoStart.timer = setTimeout(() => {
-                        if (autoStart.remaining > 0 && lobby.inLobby && lobby.isHost) {
+                        if (autoStart.remaining !== 0 && lobby.inLobby && lobby.isHost) {
                             socket.sendCommand({ type: "lobby", command: "start game" });
-                            autoStart.remaining -= 1;
+                            if (autoStart.remaining !== null) autoStart.remaining -= 1;
                             autoStart.timerRunning = false;
                         }
                     }, autoStart.delay);
@@ -5071,7 +5071,7 @@ function checkAutoStart() {
             }
             else if (allPlayersReady()) {
                 lobby.fireMainButtonEvent(true);
-                autoStart.remaining -= 1;
+                if (autoStart.remaining !== null) autoStart.remaining -= 1;
             }
         }
     }, 1);
@@ -5283,7 +5283,7 @@ function autoList() {
     else if (autoMute.randomMute) list.push(`Auto Mute Random: ${autoMute.randomMute / 1000}s`);
     else if (autoMute.randomUnmute) list.push(`Auto Unmute Random: ${autoMute.randomUnmute / 1000}s`);
     if (autoReady) list.push("Auto Ready: Enabled");
-    if (autoStart.remaining) list.push("Auto Start: Enabled");
+    if (autoStart.remaining !== 0) list.push("Auto Start: Enabled");
     if (autoHost) list.push("Auto Host: " + autoHost);
     if (autoInvite) list.push("Auto Invite: " + autoInvite);
     if (autoAcceptInvite) list.push("Auto Accept Invite: Enabled");
