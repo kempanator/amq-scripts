@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Show Room Players
 // @namespace    https://github.com/kempanator
-// @version      0.28
+// @version      0.29
 // @description  Adds extra functionality to room tiles
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -178,8 +178,8 @@ RoomTile.prototype.refreshRoomPlayers = function () {
                 $progress.on("mouseleave.srp", closePopover);
                 $pop.on("mouseleave.srp", closePopover);
                 $tile.on("mouseleave.srp", closePopover);
-                $pop.on("click.srp", "li", e => {
-                    playerProfileController.loadProfile(e.target.innerText, $tile, {}, () => { }, false, true);
+                $pop.on("click.srp", "li", (event) => {
+                    playerProfileController.loadProfile(event.target.innerText, $tile, {}, () => { }, false, true);
                 });
             });
     }
