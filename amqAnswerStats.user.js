@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Answer Stats
 // @namespace    https://github.com/kempanator
-// @version      0.51
+// @version      0.52
 // @description  Adds a window to display quiz answer stats
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -209,12 +209,13 @@ function setup() {
             if (!answerItem) {
                 continue;
             }
-            if (player.answer.trim() === "") {
+            const answerTrim = player.answer.trim();
+            if (answerTrim === "") {
                 noAnswerIdList.push(player.id);
                 answerItem.noAnswer = true;
                 continue;
             }
-            const answerLC = player.answer.toLowerCase();
+            const answerLC = answerTrim.toLowerCase();
             const correctKey = Object.keys(correctAnswerIdMap).find(k => k.toLowerCase() === answerLC);
             if (correctKey) {
                 correctAnswerIdMap[correctKey].push(player.id);
