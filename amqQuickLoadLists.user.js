@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Quick Load Lists
 // @namespace    https://github.com/kempanator
-// @version      0.23
+// @version      0.24
 // @description  Adds a window for saving and quick loading anime lists
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -62,7 +62,7 @@ function setup() {
 
     $("#settingsAnimeListContainer > div .row:eq(2)")
         .append($("<div>", { class: "col-xs-6" })
-            .append("<label>", { text: "Quick Load Lists Script" })
+            .append($("<label>", { text: "Quick Load Lists Script" }))
             .append($("<div>")
                 .append($("<button>", { class: "btn btn-primary", text: "Open" })
                     .on("click", () => {
