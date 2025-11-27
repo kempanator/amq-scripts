@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.146
+// @version      0.147
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -9,6 +9,7 @@
 // @grant        GM_xmlhttpRequest
 // @connect      catbox.video
 // @connect      myanimelist.net
+// @connect      animemusicquiz.com
 // @require      https://github.com/joske2865/AMQ-Scripts/raw/master/common/amqScriptInfo.js
 // @downloadURL  https://github.com/kempanator/amq-scripts/raw/main/amqMegaCommands.user.js
 // @updateURL    https://github.com/kempanator/amq-scripts/raw/main/amqMegaCommands.user.js
@@ -76,7 +77,7 @@ IN GAME/LOBBY
 /countdown [seconds]      start game after # of seconds
 /dropdown                 enable/disable anime dropdown
 /dropdownspec             enable dropdown while spectating
-/speed [number]           change client-side song playback speed (0.0625 - 16)
+/video speed [number]     change client-side song playback speed (0.0625 - 16)
 /mutereplay               auto mute during the replay phase
 /mutesubmit               auto mute after answer submit
 /continuesample           continue sample after answer reveal instead of resetting
@@ -5939,7 +5940,7 @@ IN GAME/LOBBY
 /countdown [seconds]      start game after # of seconds
 /dropdown                 enable/disable anime dropdown
 /dropdownspec             enable dropdown while spectating
-/speed [number]           change client-side song playback speed (0.0625 - 16)
+/video speed [number]     change client-side song playback speed (0.0625 - 16)
 /mutereplay               auto mute during the replay phase
 /mutesubmit               auto mute after answer submit
 /continuesample           continue sample after answer reveal instead of resetting
