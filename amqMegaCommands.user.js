@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.147
+// @version      0.148
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -298,7 +298,7 @@ const dqMap = {
     "Made in Abyss": { genre: [2, 4, 6, 7, 11, 14], years: [2017, 2017], seasons: [2, 2] },
     "Girls' Last Tour": { genre: [2, 14, 15], years: [2017, 2017], seasons: [3, 3] },
     "Mirai Nikki": { genre: [1, 7, 11, 12, 17, 18], years: [2011, 2011], seasons: [3, 3] },
-    "Kamitsubaki City Under Construction": {genre: [10, 11, 17], years: [2025, 2025], seasons: [2, 2]}
+    "Kamitsubaki City Under Construction": { genre: [10, 11, 17], years: [2025, 2025], seasons: [2, 2] }
 };
 
 if (document.querySelector("#loginPage")) {
@@ -522,7 +522,11 @@ function setup() {
     new Listener("play next song", (data) => {
         if (playbackSpeed.length) {
             const speed = randomIntInc(...playbackSpeed);
-            quizVideoController.moePlayers.forEach((moePlayer) => { moePlayer.playbackRate = speed });
+            for (const videoPlayer of quizVideoController.moePlayers) {
+                if (!videoPlayer.encrypted) {
+                    videoPlayer.playbackRate = speed;
+                }
+            }
         }
         if (acReverse || acPlaybackRate) {
             if (sourceNode) sourceNode.stop();
@@ -995,7 +999,7 @@ function setup() {
 
     // battle royale popovers
     $("#brMap").on("keypress", (event) => {
-        if (event.code === "Space" && printLoot && battleRoyal.inView) {
+        if (event.key === " " && printLoot && battleRoyal.inView) {
             $("#brMapContent .brMapObject").popover($(".popover").length ? "hide" : "show");
         }
     });
@@ -2252,7 +2256,7 @@ async function parseCommand(messageText, type, target) {
         }
         else if (/^\S+ \w+ [0-9]+[ ,-]+\w+ [0-9]+$/.test(content)) {
             const regex = /^\S+ (\w+) ([0-9]+)[ ,-]+(\w+) ([0-9]+)$/.exec(content);
-            if (seasonMap.hasOwnProperty(regex[1]) && seasonMap.hasOwnProperty(regex[2])) {
+            if (seasonMap.hasOwnProperty(regex[1]) && seasonMap.hasOwnProperty(regex[3])) {
                 const season1 = seasonMap[regex[1]];
                 const year1 = parseInt(regex[2]);
                 const season2 = seasonMap[regex[3]];
@@ -2717,7 +2721,7 @@ async function parseCommand(messageText, type, target) {
             const password = regex[2];
             autoJoinRoom = { id: id, password: password || "" };
             saveSettings();
-            sendMessage(`auto joining room ${id} ${password}`, type, target, true);
+            sendMessage(`auto joining room ${id} ${password || ""}`, type, target, true);
         }
     }
     else if (command === "autoswitch") {
@@ -2888,7 +2892,7 @@ async function parseCommand(messageText, type, target) {
     }
     else if (command === "answer") {
         if (split.length > 1) {
-            quiz.answerInput.setNewAnswer(messageText.slice(messageText.indexOf(" ")));
+            quiz.answerInput.setNewAnswer(messageText.slice(messageText.indexOf(" ") + 1));
         }
     }
     else if (command === "invite" || command === "inv") {
@@ -3121,7 +3125,7 @@ async function parseCommand(messageText, type, target) {
         }
         else {
             const name = getPlayerNameCorrectCase(split[1]);
-            const text = /^\S+ \S+ (.+)$/.exec(messageText)[1];
+            const text = /^\S+\s+\S+\s+(.+)$/.exec(messageText)[1];
             socialTab.startChat(name);
             socket.sendCommand({ type: "social", command: "chat message", data: { target: name, message: text } });
         }
@@ -3146,8 +3150,9 @@ async function parseCommand(messageText, type, target) {
         }
     }
     else if (command === "profile" || command === "prof") {
-        const name = /^\S+ (\w+)$/.exec(content)[1].toLowerCase();
-        playerProfileController.loadProfile(name, $("#gameChatContainer"), {}, () => { }, false, false);
+        if (split[1]) {
+            playerProfileController.loadProfile(split[1], $("#gameChatContainer"), {}, () => { }, false, false);
+        }
     }
     else if (command === "friend") {
         if (split.length === 1) {
@@ -3332,15 +3337,6 @@ async function parseCommand(messageText, type, target) {
         handleAllOnlineMessage.bindListener();
         socket.sendCommand({ type: "social", command: "get online users" });
     }
-    else if (command === "offlinefriends") {
-        const handleAllOnlineMessage = new Listener("all online users", (onlineUsers) => {
-            const friends = getAllFriends();
-            sendMessage(onlineUsers.filter((name) => !friends.includes(name)).join(", "), type, target);
-            handleAllOnlineMessage.unbindListener();
-        });
-        handleAllOnlineMessage.bindListener();
-        socket.sendCommand({ type: "social", command: "get online users" });
-    }
     else if (command === "online") {
         if (split.length === 2) {
             const name = split[1];
@@ -3444,7 +3440,7 @@ async function parseCommand(messageText, type, target) {
             }
         }
         else {
-            sendMessage("Options: friends, blocked, scripts, currency, avatars, emotes", type, target), true;
+            sendMessage("Options: friends, blocked, scripts, currency, avatars, emotes", type, target, true);
         }
     }
     else if (["fil", "fiq", "fig", "fir", "friendsinlobby", "friendsinquiz", "friendsingame", "friendsinroom"].includes(command)) {
@@ -3552,7 +3548,7 @@ async function parseCommand(messageText, type, target) {
         else if (split[1] === "replay" || split[1] === "r") {
             const num = parseInt(split[2]);
             const currentVideoPlayer = quizVideoController.getCurrentPlayer();
-            if (currentVideoPlayer) {
+            if (currentVideoPlayer && !currentVideoPlayer.encrypted) {
                 const startPoint = isNaN(num) ? currentVideoPlayer.startPoint : num;
                 currentVideoPlayer.pauseVideo();
                 currentVideoPlayer.player.currentTime(startPoint);
@@ -3579,7 +3575,11 @@ async function parseCommand(messageText, type, target) {
             }
             else if (split.length === 3) {
                 const option = parseFloat(split[2]);
-                if (Number.isFinite(option)) {
+                if (quizVideoController.getCurrentPlayer()?.encrypted) {
+                    playbackSpeed = [];
+                    sendMessage("disabled for encrypted links", type, target, true);
+                }
+                else if (Number.isFinite(option)) {
                     playbackSpeed = [option];
                     sendMessage(`song playback speed set to ${option}`, type, target, true);
                 }
@@ -3590,7 +3590,11 @@ async function parseCommand(messageText, type, target) {
             else if (split.length === 4) {
                 const low = parseFloat(split[2]);
                 const high = parseFloat(split[3]);
-                if (Number.isFinite(low) && Number.isFinite(high)) {
+                if (quizVideoController.getCurrentPlayer()?.encrypted) {
+                    playbackSpeed = [];
+                    sendMessage("disabled for encrypted links", type, target, true);
+                }
+                else if (Number.isFinite(low) && Number.isFinite(high)) {
                     playbackSpeed = [low, high];
                     sendMessage(`song playback speed set to random # between ${low} - ${high}`, type, target, true);
                 }
@@ -3605,7 +3609,7 @@ async function parseCommand(messageText, type, target) {
                 sendMessage(currentVideoPlayer.startPoint, type, target);
             }
         }
-        else if (split[1] === "length" || split[1] === "duration") {
+        else if (split[1] === "length" || split[1] === "len" || split[1] === "duration") {
             const currentVideoPlayer = quizVideoController.getCurrentPlayer();
             if (currentVideoPlayer) {
                 const minutes = Math.floor(currentVideoPlayer.$player[0].duration / 60);
@@ -3663,7 +3667,7 @@ async function parseCommand(messageText, type, target) {
         applyStyles();
         sendMessage(`all players are now ${hidePlayers ? "hidden" : "shown"}`, type, target, true);
     }
-    else if (command === "ls" || command === "localstorage") {
+    else if (command === "localstorage" || command === "ls") {
         if (split.length === 1) {
             if (gameChat.open) {
                 setTimeout(() => {
@@ -5156,7 +5160,7 @@ function rejoinRoom(time) {
         else if (lobby.inLobby) {
             const id = lobby.gameId;
             const password = hostModal.$passwordInput.val();
-            const spec = gameChat.spectators.includes(selfName);
+            const spec = lobby.isSpectator;
             lobby.leave();
             setTimeout(() => { spec ? roomBrowser.fireSpectateGame(id, password) : roomBrowser.fireJoinLobby(id, password) }, time);
         }
