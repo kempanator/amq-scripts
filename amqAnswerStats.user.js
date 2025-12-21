@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Answer Stats
 // @namespace    https://github.com/kempanator
-// @version      0.52
+// @version      0.53
 // @description  Adds a window to display quiz answer stats
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -136,7 +136,7 @@ function setup() {
             altAnimeNames: info.altAnimeNames ?? [],
             altAnimeNamesAnswers: info.altAnimeNamesAnswers ?? [],
             animeType: info.animeType,
-            animeVintage: info.vintage,
+            animeVintage: convertVintage(info.vintage),
             animeTags: info.animeTags,
             animeGenre: info.animeGenre,
             songNumber: songNumber,
@@ -1327,6 +1327,18 @@ function getRankedRegion() {
     if (ranked.currentTimerId === "2") return "Western";
     if (ranked.currentTimerId === "3") return "Eastern";
     */
+}
+
+// input vintage text or amq object, return text
+function convertVintage(vintage) {
+    if (!vintage) return "";
+    if (typeof vintage === "string") return vintage;
+    if (typeof vintage === "object") {
+        if (vintage.key && vintage.data?.year) {
+            return localizationHandler.translate(vintage.key, vintage.data);
+        }
+    }
+    return "";
 }
 
 // input full song type text, return shortened version
