@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.148
+// @version      0.149
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -3840,22 +3840,22 @@ async function parseCommand(messageText, type, target) {
         });
     }
     else if (command === "list" || command === "animelist") {
-        if (split.length === 1) {
-            if ($("#aniListUserNameInput").val()) {
-                sendMessage("[myanimelist] " + $("#aniListUserNameInput").val(), type, target);
+        if (split.length === 2) {
+            if (["status", "s"].includes(split[1])) {
+                if ($("#aniListUserNameInput").val()) {
+                    sendMessage("[anilist] " + $("#aniListUserNameInput").val(), type, target);
+                }
+                else if ($("#malUserNameInput").val()) {
+                    sendMessage("[myanimelist] " + $("#malUserNameInput").val(), type, target);
+                }
+                else if ($("#kitsuUserNameInput").val()) {
+                    sendMessage("[kitsu] " + $("#kitsuUserNameInput").val(), type, target);
+                }
+                else {
+                    sendMessage("[no list]", type, target);
+                }
             }
-            else if ($("#malUserNameInput").val()) {
-                sendMessage("[anilist] " + $("#malUserNameInput").val(), type, target);
-            }
-            else if ($("#kitsuUserNameInput").val()) {
-                sendMessage("[kitsu] " + $("#kitsuUserNameInput").val(), type, target);
-            }
-            else {
-                sendMessage("[no list]", type, target);
-            }
-        }
-        else if (split.length === 2) {
-            if (["off", "clear", "remove", "delete"].includes(split[1])) {
+            else if (["off", "clear", "remove", "delete"].includes(split[1])) {
                 removeAllLists();
                 sendMessage("all lists cleared", type, target, true);
             }
