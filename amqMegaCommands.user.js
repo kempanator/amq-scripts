@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.149
+// @version      0.150
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -161,7 +161,7 @@ let acReverse = false;
 let sourceNode;
 
 let alerts = {
-    hiddenPlayers: loadAlert("hiddenPlayers", true, true),
+    hiddenPlayers: loadAlert("hiddenPlayers", false, false),
     nameChange: loadAlert("nameChange", true, true),
     onlineFriends: loadAlert("onlineFriends", false, false),
     offlineFriends: loadAlert("offlineFriends", false, false),
@@ -841,10 +841,10 @@ function setup() {
     }).bindListener();
     new Listener("player hidden", (data) => {
         if (alerts.hiddenPlayers.chat) {
-            sendSystemMessage("Player Hidden: " + data.name);
+            //sendSystemMessage("Player Hidden: " + data.name);
         }
         if (alerts.hiddenPlayers.popout) {
-            popoutMessages.displayStandardMessage("Player Hidden", data.name);
+            //popoutMessages.displayStandardMessage("Player Hidden", data.name);
         }
     }).bindListener();
     new Listener("Player Ready Change", (data) => {
@@ -908,7 +908,7 @@ function setup() {
         }
     }).bindListener();
     new Listener("New Rooms", (data) => {
-        for (const room of data) {
+        for (const room of data.standard) {
             if (playerDetection.invisible) {
                 const list = room.players.filter(p => socialTab.offlineFriends.hasOwnProperty(p));
                 if (list.length) {
