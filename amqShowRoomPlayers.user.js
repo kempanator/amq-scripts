@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Show Room Players
 // @namespace    https://github.com/kempanator
-// @version      0.29
+// @version      0.30
 // @description  Adds extra functionality to room tiles
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -35,7 +35,7 @@ let customColorMap = {};
 
 function setup() {
     new Listener("New Rooms", (data) => {
-        data.forEach((item) => {
+        for (let item of data?.standard ?? data) {
             setTimeout(() => {
                 const room = roomBrowser.activeRooms[item.id];
                 if (room) {
@@ -43,7 +43,7 @@ function setup() {
                     room.clickHostName(item.host);
                 }
             }, 1);
-        });
+        }
     }).bindListener();
     new Listener("Room Change", (data) => {
         if (data.changeType === "players" || data.changeType === "spectators") {
