@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.92
+// @version      0.93
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -1459,7 +1459,7 @@ function endGuessPhase(songNumber) {
                         "highRisk": 0,
                         "animeScore": null,
                         "animeType": song.animeType,
-                        "vintage": song.animeVintage,
+                        "vintage": formatAmqVintage(song.animeVintage),
                         "animeDifficulty": song.songDifficulty,
                         "animeTags": song.animeTags,
                         "animeGenre": song.animeGenre,
@@ -2252,6 +2252,9 @@ function handleData(data) {
             correctGuess = song.correct;
             incorrectGuess = !song.correct;
         }
+        if (typeof animeVintage === "object" && animeVintage?.key && animeVintage?.data?.year) { //amq songinfo vintage is an object
+            animeVintage = localizationHandler.translate(animeVintage.key, animeVintage.data);
+        }
         if (typeof songType === "string") { //convert songtype string to amq integers
             if (songType.startsWith("O")) {
                 songTypeNumber = parseInt(songType.split(" ")[1]) || null;
@@ -2675,6 +2678,21 @@ function switchTab(tab) {
     $w.find(".tabSection").hide();
     $w.find(`#${tab}Tab`).addClass("selected");
     $w.find(`#${tab}Container`).show();
+}
+
+// convert vintage string into AMQ songInfo vintage object
+function formatAmqVintage(vintage) {
+    if (!vintage) return null;
+    if (typeof vintage === "object") return vintage;
+    vintage = String(vintage).toLowerCase();
+    const regex = /^(winter|spring|summer|fall) ([0-9]+)$/.exec(vintage);
+    if (!regex) return null;
+    return {
+        key: "song_library.anime_entry.vintage." + regex[1],
+        data: {
+            year: Number(regex[2])
+        }
+    }
 }
 
 // convert full url to target data
