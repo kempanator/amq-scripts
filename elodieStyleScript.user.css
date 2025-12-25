@@ -1,6 +1,6 @@
 /* ==UserStyle==
 @name         Elodie's AMQ Style Script
-@version      10.2.24
+@version      10.2.25
 @namespace    userstyles.world/user/melodyelodie
 @description  A custom theme for animemusicquiz.com
 @author       melodyelodie
@@ -165,7 +165,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         --wrongAnswerColorTransparent: color-mix(in srgb, var(--wrongAnswerColor), transparent 80%);
         --songHistoryCorrectColorHover: color-mix(in srgb, var(--songHistoryCorrectColor), white 5%);
         --songHistoryWrongColorHover: color-mix(in srgb, var(--songHistoryWrongColor), white 5%);
-        --elodieStyleScriptVersion: "10.2.24";
+        --elodieStyleScriptVersion: "10.2.25";
     }
     
     
@@ -225,7 +225,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         --wrongAnswerColorTransparent: color-mix(in srgb, var(--wrongAnswerColor), transparent 80%);
         --songHistoryCorrectColorHover: color-mix(in srgb, var(--songHistoryCorrectColor), white 15%);
         --songHistoryWrongColorHover: color-mix(in srgb, var(--songHistoryWrongColor), white 15%);
-        --elodieStyleScriptVersion: "10.2.24";
+        --elodieStyleScriptVersion: "10.2.25";
     }
     */
     
@@ -303,6 +303,12 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         background-color: var(--primaryColor);
         color: var(--textColor);
         opacity: .5;
+    }
+    .context-menu-list.context-menu-root.nexusMode {
+        background-color: var(--primaryColor);
+    }
+    .context-menu-list.context-menu-root.nexusMode .context-menu-item.context-menu-hover {
+        background-color: var(--accentColor);
     }
 
 
@@ -747,6 +753,9 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     .mpNewsBottomTab > .leftRightButtonTop {
         background-color: transparent;
         box-shadow: none;
+    }
+    #mpNewsFundingInfoContainer {
+        background-color: var(--primaryColor);
     }
     #mpPromoInnerContainer .floatingContainer {
         background-color: var(--containerBackground);
@@ -3346,6 +3355,42 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     .ncdwCoopSaveEntryPlayerNameContainer {
         text-shadow: 0 0 5px var(--textShadowColor), 0 0 5px var(--textShadowColor);
     }
+    .nexusRoomBrowser {
+        color: var(--textColor);
+    }
+    .nrmHeader::before {
+        background-color: var(--primaryColor);
+    }
+    .nexusRoomBrowser.open .nrmHeader::before {
+        box-shadow: 0 0 15px 5px var(--boxShadowColor);
+    }
+    .nrmRoomContainer {
+        background-color: var(--primaryColor);
+    }
+    .nexusRoomBrowser.open .nrmRoomContainer { 
+        box-shadow: 0 0 15px 5px var(--boxShadowColor);
+    }
+    .nrmRoomItem {
+        background-color: var(--primaryColor);
+    }
+    .nrmRoomPlayerCountBarOuter {
+        background-color: var(--primaryColor);
+        box-shadow: 0 0 5px 0px var(--boxShadowColor);
+    }
+    .nrmRoomPlayerCountBarInner {
+        background-color: var(--accentColor);
+        box-shadow: 0 0 5px 1px var(--accentColor);
+    }
+    .nrmRoomPlayerCountText {
+        text-shadow: 0px 0px 5px var(--textShadowColor);
+    }
+    .nrmRoomAvatar {
+        background-color: var(--primaryColor);
+        box-shadow: 0 0 5px 0px var(--boxShadowColor);
+    }
+    .nrmRoomAvatarName {
+        text-shadow: 0px 0px 5px var(--boxShadowColor);
+    }
 
 
     /* Nexus Party Setup */
@@ -3373,6 +3418,10 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     #ncdwPartySetupLoadTeamButton:hover::before {
         background-color: var(--primaryColor);
         box-shadow: 0 0 8px 1px var(--accentColor);
+    }
+    #ncdwPartySetupPublicButton::before {
+        background-color: var(--primaryColor);
+        box-shadow: 0 0px 8px 1px var(--boxShadowColor);
     }
     .nsdwConfigOptionBlock.selected {
         background-color: var(--accentColor);
