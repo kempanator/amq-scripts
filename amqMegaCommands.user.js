@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.150
+// @version      0.151
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -161,7 +161,7 @@ let acReverse = false;
 let sourceNode;
 
 let alerts = {
-    hiddenPlayers: loadAlert("hiddenPlayers", false, false),
+    hiddenPlayers: { chat: false, popout: false },
     nameChange: loadAlert("nameChange", true, true),
     onlineFriends: loadAlert("onlineFriends", false, false),
     offlineFriends: loadAlert("offlineFriends", false, false),
@@ -841,10 +841,10 @@ function setup() {
     }).bindListener();
     new Listener("player hidden", (data) => {
         if (alerts.hiddenPlayers.chat) {
-            //sendSystemMessage("Player Hidden: " + data.name);
+            sendSystemMessage("Player Hidden: " + data.name);
         }
         if (alerts.hiddenPlayers.popout) {
-            //popoutMessages.displayStandardMessage("Player Hidden", data.name);
+            popoutMessages.displayStandardMessage("Player Hidden", data.name);
         }
     }).bindListener();
     new Listener("Player Ready Change", (data) => {
@@ -1629,7 +1629,7 @@ function setup() {
     ]);
 
     createAlertTable([
-        { action: "hiddenPlayers", title: "Hidden Players", id: "mcAlertHiddenPlayers" },
+        //{ action: "hiddenPlayers", title: "Hidden Players", id: "mcAlertHiddenPlayers" },
         { action: "nameChange", title: "Name Change", id: "mcAlertNameChange" },
         { action: "onlineFriends", title: "Online Friends", id: "mcAlertOnlineFriends" },
         { action: "offlineFriends", title: "Offline Friends", id: "mcAlertOfflineFriends" },
@@ -3897,8 +3897,9 @@ async function parseCommand(messageText, type, target) {
     }
     else if (["dq", "daily", "dailies", "dailyquest", "dailyquests"].includes(command)) {
         if (/^\S+ (d|detect|auto)$/.test(content)) {
-            const genreDict = Object.assign({}, ...Object.entries(idTranslator.genreNames).map(([a, b]) => ({ [b]: parseInt(a) })));
-            const list = Object.values(qusetContainer.questMap).filter((x) => x.name.includes(" Fan") && x.state !== x.targetState).map((x) => genreDict[x.name.split(" Fan")[0]]);
+            const genreDict = Object.assign({}, ...Object.entries(idTranslator.genreNames).map(([a, b]) => ({ [b.toLowerCase()]: parseInt(a) })));
+            const formatQuestName = (q) => q.split(".")[2].replace("_fan", "").replaceAll("_", " "); //daily_quests.quests.slice_of_life_fan.title
+            const list = Object.values(qusetContainer.questMap).filter((x) => x.name.includes("_fan") && x.state !== x.targetState).map((x) => genreDict[formatQuestName(x.name)]);
             if (list.length) {
                 sendMessage(`Detected: ${list.map((x) => idTranslator.genreNames[x]).join(", ")}`, type, target, true);
                 const anime = genreLookup(list);
@@ -5560,8 +5561,8 @@ function getAnilistAnimeList(username) {
         body: JSON.stringify({ query: query })
     }).then((res) => res.json()).then((json) => {
         if (json.errors) return [];
-        let list = [];
-        for (let item of json.data.MediaListCollection.lists) {
+        const list = [];
+        for (const item of json.data.MediaListCollection.lists) {
             list.push(...item.entries);
         }
         return list;
