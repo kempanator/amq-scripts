@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Show Room Players
 // @namespace    https://github.com/kempanator
-// @version      0.30
+// @version      0.31
 // @description  Adds extra functionality to room tiles
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -35,7 +35,7 @@ let customColorMap = {};
 
 function setup() {
     new Listener("New Rooms", (data) => {
-        for (let item of data?.standard ?? data) {
+        for (const item of data.standard) {
             setTimeout(() => {
                 const room = roomBrowser.activeRooms[item.id];
                 if (room) {
