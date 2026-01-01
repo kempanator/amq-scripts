@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.93
+// @version      0.94
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -2305,14 +2305,25 @@ function handleData(data) {
             });
         }
     }
-    for (const song of songList) {
-        const otherAnswers = new Set();
-        for (const s of songList) {
-            if (s.songName === song.songName && s.songArtist === song.songArtist) {
-                s.altAnimeNames.forEach(x => otherAnswers.add(x));
-            }
+    //combine anime names from duplicate songs
+    const duplicateAltNameMap = new Map();
+    for (const song of songList) { //precompute to avoid O(n^2) scan
+        const key = `${song.songName}||${song.songArtist}`;
+        let altNames = duplicateAltNameMap.get(key);
+        if (!altNames) {
+            altNames = new Set();
+            duplicateAltNameMap.set(key, altNames);
         }
-        song.altAnimeNamesAnswers = Array.from(otherAnswers).filter(x => !song.altAnimeNames.includes(x));
+        song.altAnimeNames.forEach(x => altNames.add(x));
+    }
+    for (const song of songList) {
+        const key = `${song.songName}||${song.songArtist}`;
+        const mergedAnswers = new Set(song.altAnimeNamesAnswers || []);
+        const altNames = duplicateAltNameMap.get(key);
+        if (altNames) {
+            altNames.forEach(x => mergedAnswers.add(x));
+        }
+        song.altAnimeNamesAnswers = Array.from(mergedAnswers).filter(x => !song.altAnimeNames.includes(x));
     }
 }
 
