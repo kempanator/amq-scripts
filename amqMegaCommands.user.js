@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.151
+// @version      0.152
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -130,6 +130,7 @@ let autoSwitch = saveData.autoSwitch ?? { mode: "", temp: false };
 let autoThrow = saveData.autoThrow ?? { time: [], text: null, multichoice: null };
 let autoVoteLobby = saveData.autoVoteLobby ?? false;
 let autoVoteSkip = saveData.autoVoteSkip ?? [];
+let autoVoteSkipTimer = null;
 let backgroundURL = saveData.backgroundURL ?? "";
 let commandPrefix = saveData.commandPrefix || "/";
 let commands = saveData.commands ?? true;
@@ -564,8 +565,9 @@ function setup() {
                     }, randomIntInc(...autoThrow.time));
                 }
             }
+            clearTimeout(autoVoteSkipTimer);
             if (Array.isArray(autoVoteSkip) && autoVoteSkip.length) {
-                setTimeout(() => {
+                autoVoteSkipTimer = setTimeout(() => {
                     if (!quiz.skipController._toggled) quiz.skipClicked();
                 }, randomIntInc(...autoVoteSkip));
             }
@@ -1457,6 +1459,7 @@ function setup() {
         }
     });
     $("#mcAutoVoteSkipButton").on("click", function () {
+        clearTimeout(autoVoteSkipTimer);
         if ($(this).text() === "Off") {
             const option = $("#mcAutoVoteSkipSelect").val();
             if (option === "time") {
@@ -2363,6 +2366,7 @@ async function parseCommand(messageText, type, target) {
         updateCommandListWindow("muteSubmit");
     }
     else if (["avs", "asv", "autoskip", "autovoteskip"].includes(command)) {
+        clearTimeout(autoVoteSkipTimer);
         if (split.length === 1) {
             autoVoteSkip = autoVoteSkip.length ? [] : [0];
             sendMessage(`auto vote skip ${autoVoteSkip.length ? "enabled" : "disabled"}`, type, target, true);
