@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Notification Sounds
 // @namespace    http://tampermonkey.net/
-// @version      2.7
+// @version      2.8
 // @description  Adds notification sounds
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -85,7 +85,7 @@ function setup() {
         playSound("lobbyVote");
     }).bindListener();
     new Listener("popout message", (data) => {
-        if (data.message.includes("Lobby can be joined")) {
+        if (data.message.key === "quiz_of_the_day.starting_messages.join_lobby_instruction") {
             playSound("rankedCountdown");
         }
     }).bindListener();
