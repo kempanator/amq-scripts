@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.152
+// @version      0.153
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -321,7 +321,7 @@ const loadInterval = setInterval(() => {
 function setup() {
     saveSettings();
     if (lastUsedVersion && GM_info.script.version !== lastUsedVersion) {
-        popoutMessages.displayStandardMessage("Mega Commands", "updated to version " + GM_info.script.version);
+        popoutMessage("Mega Commands", "updated to version " + GM_info.script.version);
     }
 
     // open dm chat box to yourself
@@ -759,7 +759,7 @@ function setup() {
                 (autoDownloadJson.includes("tour") && hostModal.$roomName.val().toLowerCase().includes("tour"))) {
                 $("#shHistoryTab").trigger("click");
                 setTimeout(() => {
-                    popoutMessages.displayStandardMessage("Auto Download JSON", $(".shGameTitleInner").first().text().trim());
+                    popoutMessage("Auto Download JSON", $(".shGameTitleInner").first().text().trim());
                     $(".shGameTitleInner .shGameDownloadIcon").first().trigger("click");
                 }, 100);
             }
@@ -784,7 +784,7 @@ function setup() {
             (autoDownloadJson.includes("tour") && hostModal.$roomName.val().toLowerCase().includes("tour"))) {
             $("#shHistoryTab").trigger("click");
             setTimeout(() => {
-                popoutMessages.displayStandardMessage("Auto Download JSON", $(".shGameTitleInner").first().text().trim());
+                popoutMessage("Auto Download JSON", $(".shGameTitleInner").first().text().trim());
                 $(".shGameTitleInner .shGameDownloadIcon").first().trigger("click");
             }, 100);
         }
@@ -846,7 +846,7 @@ function setup() {
             sendSystemMessage("Player Hidden: " + data.name);
         }
         if (alerts.hiddenPlayers.popout) {
-            popoutMessages.displayStandardMessage("Player Hidden", data.name);
+            popoutMessage("Player Hidden", data.name);
         }
     }).bindListener();
     new Listener("Player Ready Change", (data) => {
@@ -903,10 +903,10 @@ function setup() {
             sendSystemMessage(data.name + " offline");
         }
         if (alerts.onlineFriends.popout && data.online) {
-            popoutMessages.displayStandardMessage(data.name + " online", "");
+            popoutMessage(data.name + " online", "");
         }
         else if (alerts.offlineFriends.popout && !data.online) {
-            popoutMessages.displayStandardMessage(data.name + " offline", "");
+            popoutMessage(data.name + " offline", "");
         }
     }).bindListener();
     new Listener("New Rooms", (data) => {
@@ -914,13 +914,13 @@ function setup() {
             if (playerDetection.invisible) {
                 const list = room.players.filter(p => socialTab.offlineFriends.hasOwnProperty(p));
                 if (list.length) {
-                    popoutMessages.displayStandardMessage(`${list.join(", ")} (invisible)`, `Room ${room.id}: ${room.settings.roomName}`);
+                    popoutMessage(`${list.join(", ")} (invisible)`, `Room ${room.id}: ${room.settings.roomName}`);
                 }
             }
             if (playerDetection.players.length) {
                 for (const player of playerDetection.players) {
                     if (room.players.includes(player)) {
-                        popoutMessages.displayStandardMessage(player, `Room ${room.id}: ${room.settings.roomName}`);
+                        popoutMessage(player, `Room ${room.id}: ${room.settings.roomName}`);
                     }
                 }
             }
@@ -956,7 +956,7 @@ function setup() {
             sendSystemMessage(`friend name change: ${data.oldName} => ${data.newName}`);
         }
         if (alerts.nameChange.popout) {
-            popoutMessages.displayStandardMessage("friend name change", data.oldName + " => " + data.newName);
+            popoutMessage("friend name change", data.oldName + " => " + data.newName);
         }
     }).bindListener();
     new Listener("get all song names", (data) => {
@@ -977,7 +977,7 @@ function setup() {
             sendSystemMessage(`Server Status: ${data.name} ${data.online ? "online" : "offline"}`);
         }
         if (alerts.serverStatus.popout) {
-            popoutMessages.displayStandardMessage("Server Status", `${data.name} ${data.online ? "online" : "offline"}`);
+            popoutMessage("Server Status", `${data.name} ${data.online ? "online" : "offline"}`);
         }
     }).bindListener();
 
@@ -4968,6 +4968,12 @@ function sendDM(target, message) {
             data: { target: target, message: String(message) }
         });
     }, 100);
+}
+
+// show a standard popout message from the side of the screen
+function popoutMessage(head, body) {
+    const htmlBody = format(popoutMessages.STANDARD_TEMPLATE, escapeHtml(head), escapeHtml(body).replace(/\n/g, "<br>"));
+    popoutMessages.displayPopoutMessage(htmlBody);
 }
 
 // change game settings
