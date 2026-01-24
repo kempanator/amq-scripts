@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Quick Load Lists
 // @namespace    https://github.com/kempanator
-// @version      0.24
+// @version      0.25
 // @description  Adds a window for saving and quick loading anime lists
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -30,6 +30,7 @@ const saveData = validateLocalStorage("quickLoadLists");
 let quickLoadListsWindow;
 let savedLists = saveData.savedLists ?? [];
 let selectedColor = saveData.selectedColor ?? "#4497ea";
+let autoUpdateOnLogin = saveData.autoUpdateOnLogin ?? false; //current list in game settings, not this script
 let hotKeys = {
     qllWindow: loadHotkey("qllWindow", "q", false, true, false),
     animeListModal: loadHotkey("animeListModal"),
@@ -142,7 +143,20 @@ function setup() {
         .append($("<div>", { id: "qllSettingsContainer", class: "tabSection", style: "margin: 10px;" })
             .append(`<table id="qllHotkeyTable"><thead><tr><th>Action</th><th>Keybind</th></tr></thead><tbody></tbody></table>`)
             .append($("<div>", { style: "margin-top: 10px;" })
-                .append("<span>Selected Color:</span>")
+                .append($("<span>", { text: "Auto update current list on log in:" }))
+                .append($("<div>", { class: "customCheckbox", style: "margin-left: 10px; vertical-align: middle;" })
+                    .append($("<input>", { id: "qllAutoUpdateOnLogin", type: "checkbox", style: "margin-left: 6px;" })
+                        .prop("checked", autoUpdateOnLogin)
+                        .on("change", function () {
+                            autoUpdateOnLogin = this.checked;
+                            saveSettings();
+                        })
+                    )
+                    .append(`<label for="qllAutoUpdateOnLogin"><i class="fa fa-check" aria-hidden="true"></i></label>`)
+                )
+            )
+            .append($("<div>", { style: "margin-top: 10px;" })
+                .append($("<span>", { text: "Selected Color:" }))
                 .append($("<input>", { id: "qllSelectedColor", type: "color", val: selectedColor })
                     .on("change", function () {
                         selectedColor = this.value;
@@ -213,6 +227,7 @@ function setup() {
     options.$INCLUDE_DROPPED_CHECKBOX.on("click", checkSelectedList);
     options.$INCLUDE_PLANNING_CHECKBOX.on("click", checkSelectedList);
 
+    if (autoUpdateOnLogin) updateCurrentList();
     $("#optionListSettings").before($("<li>", { class: "clickAble", text: "Load Lists" }).on("click", () => {
         quickLoadListsWindow.open();
     }));
@@ -284,6 +299,7 @@ async function handleImport(fileInput) {
                     removeList: loadHotkey("removeList", "", false, false, false, json),
                 }
                 selectedColor = json.selectedColor ?? "#4497ea";
+                autoUpdateOnLogin = json.autoUpdateOnLogin ?? false;
                 updateSettingsUI();
                 applyStyles();
                 break;
@@ -305,7 +321,7 @@ async function handleImport(fileInput) {
 // handle settings file export
 function handleExport() {
     if (savedLists.length) {
-        const settings = { savedLists, hotKeys, selectedColor };
+        const settings = { savedLists, hotKeys, selectedColor, autoUpdateOnLogin };
         const data = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(settings));
         const element = document.createElement("a");
         element.setAttribute("href", data);
@@ -437,6 +453,31 @@ function checkSelectedList() {
             $rows.eq(index).addClass("selected");
         }
     });
+}
+
+// update the current list in your list settings
+function updateCurrentList() {
+    if ($("#aniListUserNameInput").val()) {
+        socket.sendCommand({
+            type: "library",
+            command: "update anime list",
+            data: { newUsername: $("#aniListUserNameInput").val(), listType: "ANILIST" }
+        });
+    }
+    else if ($("#malUserNameInput").val()) {
+        socket.sendCommand({
+            type: "library",
+            command: "update anime list",
+            data: { newUsername: $("#malUserNameInput").val(), listType: "MAL" }
+        });
+    }
+    else if ($("#kitsuUserNameInput").val()) {
+        socket.sendCommand({
+            type: "library",
+            command: "update anime list",
+            data: { newUsername: $("#kitsuUserNameInput").val(), listType: "KITSU" }
+        });
+    }
 }
 
 // set the status of the Anime Lists checkbox and send the command to the server
@@ -647,6 +688,7 @@ function updateSettingsUI() {
         $(`#qllHotkeyTable input[data-action="${action}"]`).val(bindingToText(hotKeys[action]));
     }
     $("#qllSelectedColor").val(selectedColor);
+    $("#qllAutoUpdateOnLogin").prop("checked", autoUpdateOnLogin);
 }
 
 // save edit table
@@ -683,7 +725,8 @@ function saveSettings() {
     localStorage.setItem("quickLoadLists", JSON.stringify({
         savedLists,
         hotKeys,
-        selectedColor
+        selectedColor,
+        autoUpdateOnLogin
     }));
 }
 
