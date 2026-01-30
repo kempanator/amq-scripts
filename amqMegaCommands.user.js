@@ -5920,9 +5920,17 @@ GAME SETTINGS
 /vintage [text]           change vintage
 /genre [text]             change genre
 /tag [text]               change tags
+/loot [size] [time]       change to looting mode with inventory size and looting time
+/boss [lives] [powerups] [maxsongs]  change to boss mode
+/hint                     change to hint mode
+/year [low] [high]        change year filter
+/season [winter|spring|summer|fall]  change season filter
+/songselection [type] [value]  change song selection (watched/unwatched/random)
+/settings [default|anilist id]  reset to default settings or load from anilist ID
+/ds                       reset to default settings
 
 IN GAME/LOBBY
-/autoskip                 automatically vote skip at the beginning of each song
+/autoskip [seconds|valid|correct]  automatically vote skip (options: time, after valid answer, correct only)
 /autokey                  automatically submit answer on each key press
 /autothrow [text]         automatically send answer at the beginning of each song
 /autocopy [name]          automatically copy a team member's answer
@@ -5938,6 +5946,11 @@ IN GAME/LOBBY
 /autoinvite [name]        automatically invite a player to your room when they log in (only friends)
 /autoaccept [option]      automatically accept game invites (options: friends, all)
 /autolobby                automatically vote return to lobby when host starts a vote
+/autojoin [id] [password]  automatically join a room by ID
+/autoswitch [player|spectator]  automatically join the room as a player or spectator
+/autostatus [away|dnd|offline]  automatically set status
+/autodownloadsong [mp3|video]  automatically download songs
+/autodownloadjson [solo|ranked|tour]  automatically download quiz JSON files
 /ready                    ready/unready in lobby
 /invite [name]            invite player to game
 /host [name]              promote player to host
@@ -5950,35 +5963,105 @@ IN GAME/LOBBY
 /spec                     change to spectator
 /join                     change from spectator to player in lobby
 /queue                    join/leave queue
-/volume [0-100]           change volume
-/quality [text]           change video quality to mp3, 480, 720
+/start                    start the game (if host)
+/answer [text]            set answer input text
+/volume [0-100|mute|unmute]  change volume or mute/unmute
+/quality [mp3|480|720]    change video quality
 /countdown [seconds]      start game after # of seconds
 /dropdown                 enable/disable anime dropdown
 /dropdownspec             enable dropdown while spectating
+/video [pause|play|replay|loop|speed|length|host|info]  control video playback
 /video speed [number]     change client-side song playback speed (0.0625 - 16)
 /mutereplay               auto mute during the replay phase
 /mutesubmit               auto mute after answer submit
 /continuesample           continue sample after answer reveal instead of resetting
 /loopvideo                loop the video when it ends
+/cooppaste                enable/disable co-op auto answer copy/paste
 
-OTHER
-/roll                     roll number, player, teammate, playerteam, spectator
-/shuffle [list]           shuffle a list of anything (separate with commas)
+PLAYER LISTS
+/players [l|u]            list all players (l=lowercase, u=uppercase)
+/spectators [l|u]         list all spectators (l=lowercase, u=uppercase)
+/teammates [name|team#] [l|u]  list teammates (for player or team number)
+/teamnumber [name]         get team number for player
+/onlinefriends            list online friends
+/online [name]            check if player is online
+/blocked                  list blocked players
+/count [friends|blocked|scripts|online friends|offline friends]  count various things
+
+SOCIAL
+/dm [name] [text]         direct message a player
+/profile [name]           show profile window of any player
+/friend [name]            send friend request
+/unfriend [name]          remove friend
+/block [name]             block player
+/unblock [name]           unblock player
+/status [online|away|dnd|offline]  change status
+/selfdm                   open direct message with yourself
+
+ROOM INFO
+/roomid                   get current room ID
+/quizid                   get current quiz ID
+/password                 reveal private room password
+/theme                    get quiz of the day theme
+/alien [number]           choose aliens for alien game mode
+
+UTILITIES
+/roll [number|player|teammate|spectator|genre|tag|anilist|mal]  roll various things
+/shuffle [list|players|spectators|teammates]  shuffle a list or teams
 /startvote [list]         start a vote with a list of options (separate with commas)
 /stopvote                 stop the vote and print results
 /calc [expression]        calculate a math expression
-/list [a|m|k] [name]      change anime list
-/rules                    show list of gamemodes and rules
-/info                     show list of external utilities
+/list [a|m|k] [name]      change anime list (anilist/myanimelist/kitsu)
+/rules [gamemode]         show list of gamemodes and rules
+/script [name]            show list of scripts or script info
+/info [utility]           show list of external utilities
 /clear                    clear chat
-/dm [name] [text]         direct message a player
-/profile [name]           show profile window of any player
-/password                 reveal private room password
-/invisible                show invisible friends
 /background [url]         change the background
 /logout                   log out
 /relog                    log out, log in, and auto join the room you were in
 /alerts [type]            toggle alerts
 /version                  check the version of this script
-/commands [on|off]        turn this script on or off
+/commands [on|off|help|link|version|clear|auto|prefix]  manage script settings
+/printloot                print loot information
+/profilebuttons           enable all profile buttons
+/hideplayers              hide/show all players
+/localstorage [import|export|clear]  manage local storage
+/persist [key] [value]    manage command persistence
+/remove pop               remove popovers
+/color [self|friend|blocked]  get color settings
+
+ANIME/VIDEO LOOKUP
+/genreid [genre names]    get genre IDs from names
+/tagid [tag names]        get tag IDs from names
+/artistid [id]            get artist name from ID
+/groupid [id]             get group name from ID
+/anilist [id]             get anime name from anilist ID
+/lookup [pattern]         lookup anime with wildcards (use _ for any character)
+/malclientid [id]         set MAL client ID for API access
+/sourcenode [start|stop]  control audio source node
+/reverse                  reverse audio playback
+/pitch [value]            pitch shift audio (disable with no value)
+
+DAILY QUESTS
+/daily [detect|random #|genres|ops|eds|ins|kutd]  daily quest helpers
+/dq [detect|random #|genres|ops|eds|ins|kutd]     daily quest helpers (short)
+
+NEXUS
+/nexus [auto|day|night]    change nexus day/night cycle
+
+DETECTION
+/detect [disable|invisible|name]  manage player detection system
+/whereis [name]           find player in room browser (DM only)
+/room [id]                get room information (DM only)
+
+FORCE COMMANDS (DM only, friends only)
+/forceready               force ready up
+/forceinvite              force invite sender
+/forcepassword            force send password
+/forcehost [name]         force promote to host
+/forceautolist            force send auto list
+/forceversion [script]    force send script version
+/forcecountscripts        force send script count
+/forcestatus              force send status
+/forcevolume              force send volume
 `;
