@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.155
+// @version      0.156
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -1019,6 +1019,22 @@ function setup() {
             }
             if (autoShareAnswer && !isQuizOfTheDay()) {
                 sendMessage(event.target.value, "chat");
+            }
+        }
+    });
+
+    // monitor the multiple choice container
+    $("#qpMultipleChoiceContainer").on("click", (event) => {
+        if (event.target.classList.contains("qpMultipleChoiceEntryText")) {
+            if (muteSubmit && !volumeController.muted) {
+                volumeController.setMuted(true);
+                volumeController.adjustVolume();
+            }
+            if (coopPaste && !isQuizOfTheDay()) {
+                sendMessage(coopPrefix + event.target.textContent, "chat");
+            }
+            if (autoShareAnswer && !isQuizOfTheDay()) {
+                sendMessage(event.target.textContent, "chat");
             }
         }
     });
