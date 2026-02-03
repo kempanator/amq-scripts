@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.154
+// @version      0.155
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -1004,6 +1004,9 @@ function setup() {
         if (autoKey) {
             socket.sendCommand({ type: "quiz", command: "quiz answer", data: { answer: event.target.value || " " } });
             quiz.answerInput.typingInput.autoSubmitEligible = false;
+            if (autoShareAnswer && !isQuizOfTheDay()) {
+                sendMessage(event.target.value, "chat");
+            }
         }
     }).on("keypress", (event) => {
         if (event.key === "Enter") {
