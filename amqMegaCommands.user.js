@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.153
+// @version      0.154
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -42,9 +42,17 @@ GAME SETTINGS
 /vintage [text]           change vintage
 /genre [text]             change genre
 /tag [text]               change tags
+/loot [size] [time]       change to looting mode with inventory size and looting time
+/boss [lives] [powerups] [maxsongs]  change to boss mode
+/hint                     change to hint mode
+/year [low] [high]        change year filter
+/season [text]            change season filter (winter, spring, summer, fall)
+/ds                       reset to default settings
 
 IN GAME/LOBBY
 /autoskip                 automatically vote skip at the beginning of each song
+/autoskip [seconds]       automatically vote skip after # of seconds
+/autoskip valid           automatically vote skip after first valid team answer
 /autokey                  automatically submit answer on each key press
 /autothrow [text]         automatically send answer at the beginning of each song
 /autocopy [name]          automatically copy a team member's answer
@@ -60,6 +68,9 @@ IN GAME/LOBBY
 /autoinvite [name]        automatically invite a player to your room when they log in (only friends)
 /autoaccept [option]      automatically accept game invites (options: friends, all)
 /autolobby                automatically vote return to lobby when host starts a vote
+/autojoin [id] [password] automatically join a room by ID
+/autodownloadsong [text]  automatically download songs (options: mp3, video)
+/autodownloadjson [text]  automatically download quiz JSON files (options: solo, ranked, tour)
 /ready                    ready/unready in lobby
 /invite [name]            invite player to game
 /host [name]              promote player to host
@@ -82,6 +93,9 @@ IN GAME/LOBBY
 /mutesubmit               auto mute after answer submit
 /continuesample           continue sample after answer reveal instead of resetting
 /loopvideo                loop the video when it ends
+/reverse                  reverse audio playback
+/pitch [multiplier]       pitch shift audio (disable with no value)
+/alien [number]           set # of aliens for alien gamemode
 
 OTHER
 /roll                     roll number, player, teammate, playerteam, spectator
@@ -90,6 +104,7 @@ OTHER
 /stopvote                 stop the vote and print results
 /calc [expression]        calculate a math expression
 /list [a|m|k] [name]      change anime list
+/list off                 clear anime list
 /rules                    show list of gamemodes and rules
 /info                     show list of external utilities
 /clear                    clear chat
@@ -124,6 +139,7 @@ let autoJoinRoom = saveData.autoJoinRoom ?? false;
 let autoKey = saveData.autoKey ?? false;
 let autoMute = saveData.autoMute ?? { mute: [], unmute: [], toggle: [], randomMute: null, randomUnmute: null };
 let autoReady = saveData.autoReady ?? false;
+let autoShareAnswer = saveData.autoShareAnswer ?? false;
 let autoStart = saveData.autoStart ?? { delay: 0, remaining: 0, timer: null, timerRunning: false };
 let autoStatus = saveData.autoStatus ?? "";
 let autoSwitch = saveData.autoSwitch ?? { mode: "", temp: false };
@@ -179,6 +195,7 @@ let commandPersist = {
     autoKey: loadCommandPersist("autoKey", true),
     autoMute: loadCommandPersist("autoMute", false),
     autoReady: loadCommandPersist("autoReady", true),
+    autoShareAnswer: loadCommandPersist("autoShareAnswer", false),
     autoStart: loadCommandPersist("autoStart", false),
     autoStatus: loadCommandPersist("autoStatus", true),
     autoSwitch: loadCommandPersist("autoSwitch", false),
@@ -681,6 +698,7 @@ function setup() {
         if (playbackSpeed.length === 1) sendSystemMessage(`Song Playback Speed: ${playbackSpeed[0]}x`);
         else if (playbackSpeed.length === 2) sendSystemMessage(`Song Playback Speed: random ${playbackSpeed[0]}x - ${playbackSpeed[1]}x`);
         if (autoDownloadSong.length) sendSystemMessage("Auto Download Song: " + autoDownloadSong.join(", "));
+        if (autoShareAnswer) sendSystemMessage("Auto Share Answer: Enabled");
         if (coopPaste) sendSystemMessage("Co-op Auto Paste: Enabled");
         if (hidePlayers) setTimeout(() => { quizHidePlayers() }, 0);
         audioBuffers = {};
@@ -996,6 +1014,9 @@ function setup() {
             if (coopPaste && !isQuizOfTheDay()) {
                 sendMessage(coopPrefix + event.target.value, "chat");
             }
+            if (autoShareAnswer && !isQuizOfTheDay()) {
+                sendMessage(event.target.value, "chat");
+            }
         }
     });
 
@@ -1268,7 +1289,8 @@ function setup() {
                             <h4 style="margin-top: 20px;">Other</h4>
                             <div class="customCheckbox"><input type="checkbox" id="mcDropdownInSpecCheckbox"><label for="mcDropdownInSpecCheckbox"><i class="fa fa-check" aria-hidden="true"></i></label></div><span style="margin: 0 10px 0 3px; vertical-align: 5px;">Dropdown in spectator</span>
                             <div class="customCheckbox"><input type="checkbox" id="mcProfileButtonsCheckbox"><label for="mcProfileButtonsCheckbox"><i class="fa fa-check" aria-hidden="true"></i></label></div><span style="margin: 0 10px 0 3px; vertical-align: 5px;">All profile buttons</span>
-                            <div class="customCheckbox"><input type="checkbox" id="mcSelfDMCheckbox"><label for="mcSelfDMCheckbox"><i class="fa fa-check" aria-hidden="true"></i></label></div><span style="margin: 0 0 0 3px; vertical-align: 5px;">Open self DM</span>
+                            <div class="customCheckbox"><input type="checkbox" id="mcSelfDMCheckbox"><label for="mcSelfDMCheckbox"><i class="fa fa-check" aria-hidden="true"></i></label></div><span style="margin: 0 10px 0 3px; vertical-align: 5px;">Open self DM</span>
+                            <div class="customCheckbox"><input type="checkbox" id="mcPrintLootCheckbox"><label for="mcPrintLootCheckbox"><i class="fa fa-check" aria-hidden="true"></i></label></div><span style="margin: 0 0 0 3px; vertical-align: 5px;">Print loot</span>
                         </div>
                     </div>
                     <div class="modal-footer">
@@ -1632,7 +1654,7 @@ function setup() {
     ]);
 
     createAlertTable([
-        //{ action: "hiddenPlayers", title: "Hidden Players", id: "mcAlertHiddenPlayers" },
+        { action: "hiddenPlayers", title: "Hidden Players", id: "mcAlertHiddenPlayers" },
         { action: "nameChange", title: "Name Change", id: "mcAlertNameChange" },
         { action: "onlineFriends", title: "Online Friends", id: "mcAlertOnlineFriends" },
         { action: "offlineFriends", title: "Offline Friends", id: "mcAlertOfflineFriends" },
@@ -2853,6 +2875,11 @@ async function parseCommand(messageText, type, target) {
             }
         }
     }
+    else if (command === "autoshareanswer" || command === "autoshare" || command === "shareanswer" || command === "asa") {
+        autoShareAnswer = !autoShareAnswer;
+        sendMessage(`auto share answer in chat ${autoShareAnswer ? "enabled" : "disabled"}`, type, target, true);
+        //updateCommandListWindow("autoShareAnswer");
+    }
     else if (command === "countdown" || command === "cd") {
         if (type !== "chat" || !lobby.inLobby) return;
         if (split.length === 1) {
@@ -3086,7 +3113,7 @@ async function parseCommand(messageText, type, target) {
         if (dropdownInSpec) quiz.answerInput.typingInput.$input.removeAttr("disabled");
         saveSettings();
         sendMessage(`dropdown while spectating ${dropdownInSpec ? "enabled" : "disabled"}`, type, target, true);
-        updateCommandListWindow("dropdownInSpec");
+        $("#mcDropdownInSpecCheckbox").prop("checked", dropdownInSpec);
     }
     else if (["password", "pw"].includes(command)) {
         sendMessage(`password: ${hostModal.$passwordInput.val()}`, type, target);
@@ -3522,16 +3549,19 @@ async function parseCommand(messageText, type, target) {
         printLoot = !printLoot;
         saveSettings();
         sendMessage(`print loot ${printLoot ? "enabled" : "disabled"}`, type, target, true);
+        $("#mcPrintLootCheckbox").prop("checked", printLoot);
     }
     else if (command === "selfdm") {
         selfDM = !selfDM;
         saveSettings();
         sendMessage(`open self dm on log in: ${selfDM ? "enabled" : "disabled"}`, type, target, true);
+        $("#mcSelfDMCheckbox").prop("checked", selfDM);
     }
     else if (command === "profilebuttons" || command === "enableallprofilebuttons") {
         enableAllProfileButtons = !enableAllProfileButtons;
         saveSettings();
         sendMessage(`profile buttons ${enableAllProfileButtons ? "are now clickable" : "have default behavior"}`, type, target, true);
+        $("#mcProfileButtonsCheckbox").prop("checked", enableAllProfileButtons);
     }
     else if (command === "continuesample") {
         continueSample = !continueSample;
@@ -5308,6 +5338,7 @@ function autoList() {
     if (autoStatus) list.push("Auto Status: " + autoStatus);
     if (autoJoinRoom) list.push("Auto Join Room: " + autoJoinRoom.id);
     if (autoDownloadSong.length) list.push("Auto Download Song: " + autoDownloadSong.join(", "));
+    if (autoShareAnswer) list.push("Auto Share Answer: Enabled");
     if (coopPaste) list.push("Co-op Auto Paste: Enabled");
     return list;
 }
@@ -5762,6 +5793,7 @@ function saveSettings() {
     if (commandPersist.autoKey) settings.autoKey = autoKey;
     if (commandPersist.autoMute) settings.autoMute = autoMute;
     if (commandPersist.autoReady) settings.autoReady = autoReady;
+    if (commandPersist.autoShareAnswer) settings.autoShareAnswer = autoShareAnswer;
     if (commandPersist.autoStart) settings.autoStart = autoStart;
     if (commandPersist.autoStatus) settings.autoStatus = autoStatus;
     if (commandPersist.autoSwitch) settings.autoSwitch = autoSwitch;
@@ -5920,9 +5952,17 @@ GAME SETTINGS
 /vintage [text]           change vintage
 /genre [text]             change genre
 /tag [text]               change tags
+/loot [size] [time]       change to looting mode with inventory size and looting time
+/boss [lives] [powerups] [maxsongs]  change to boss mode
+/hint                     change to hint mode
+/year [low] [high]        change year filter
+/season [text]            change season filter (winter, spring, summer, fall)
+/ds                       reset to default settings
 
 IN GAME/LOBBY
 /autoskip                 automatically vote skip at the beginning of each song
+/autoskip [seconds]       automatically vote skip after # of seconds
+/autoskip valid           automatically vote skip after first valid team answer
 /autokey                  automatically submit answer on each key press
 /autothrow [text]         automatically send answer at the beginning of each song
 /autocopy [name]          automatically copy a team member's answer
@@ -5938,6 +5978,9 @@ IN GAME/LOBBY
 /autoinvite [name]        automatically invite a player to your room when they log in (only friends)
 /autoaccept [option]      automatically accept game invites (options: friends, all)
 /autolobby                automatically vote return to lobby when host starts a vote
+/autojoin [id] [password] automatically join a room by ID
+/autodownloadsong [text]  automatically download songs (options: mp3, video)
+/autodownloadjson [text]  automatically download quiz JSON files (options: solo, ranked, tour)
 /ready                    ready/unready in lobby
 /invite [name]            invite player to game
 /host [name]              promote player to host
@@ -5960,6 +6003,9 @@ IN GAME/LOBBY
 /mutesubmit               auto mute after answer submit
 /continuesample           continue sample after answer reveal instead of resetting
 /loopvideo                loop the video when it ends
+/reverse                  reverse audio playback
+/pitch [multiplier]       pitch shift audio (disable with no value)
+/alien [number]           set # of aliens for alien gamemode
 
 OTHER
 /roll                     roll number, player, teammate, playerteam, spectator
@@ -5968,6 +6014,7 @@ OTHER
 /stopvote                 stop the vote and print results
 /calc [expression]        calculate a math expression
 /list [a|m|k] [name]      change anime list
+/list off                 clear anime list
 /rules                    show list of gamemodes and rules
 /info                     show list of external utilities
 /clear                    clear chat
