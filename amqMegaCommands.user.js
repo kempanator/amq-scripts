@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.156
+// @version      0.157
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -159,6 +159,7 @@ let dropdown = saveData.dropdown ?? true;
 let dropdownInSpec = saveData.dropdownInSpec ?? false;
 let enableAllProfileButtons = saveData.enableAllProfileButtons ?? false;
 let hidePlayers = saveData.hidePlayers ?? false;
+let languageList = [];
 let lastUsedVersion = saveData.lastUsedVersion ?? null;
 let loopVideo = saveData.loopVideo ?? false;
 let malClientId = saveData.malClientId ?? "";
@@ -328,6 +329,10 @@ if (document.querySelector("#loginPage")) {
 else if (typeof Listener === "undefined") {
     return;
 }
+new Listener("login complete", (data) => {
+    languageList = Object.values(data.communityLanguages).map(x => x.code);
+    languageList.push("en");
+}).bindListener();
 const loadInterval = setInterval(() => {
     if (document.querySelector("#loadingScreen.hidden")) {
         clearInterval(loadInterval);
@@ -4191,6 +4196,20 @@ async function parseCommand(messageText, type, target) {
             volumeController.adjustVolume();
             sendMessage(`pitch shift set to ${option}`, type, target, true);
         }
+    }
+    else if (command === "copysource" || command === "copysources" ||command === "copyjs") {
+        const list = [].concat(
+            $("script[src]").toArray().map(s => s.src).filter(x => x.endsWith(".js")),
+            $("link[href]").toArray().map(x => x.href).filter(x => x.endsWith(".css") || x.endsWith(".json")),
+            "https://animemusicquiz.com",
+            "https://animemusicquiz.com/css/login.css",
+            "https://animemusicquiz.com/scripts/pages/loginPage/loginPage.js",
+            "https://animemusicquiz.com/scripts/pages/loginPage/localizationSelector.js",
+            languageList.map(x => `https://animemusicquiz.com/locales/${x}.json`)
+        );
+        const text = "[" + list.map(s => `"${s}"`).join(", ") + "]";
+        navigator.clipboard.writeText(text);
+        sendMessage(`${list.length} files copied`, type, target, true);
     }
 }
 
