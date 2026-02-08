@@ -1,6 +1,6 @@
 /* ==UserStyle==
 @name         Elodie's AMQ Style Script
-@version      10.2.27
+@version      10.2.28
 @namespace    userstyles.world/user/melodyelodie
 @description  A custom theme for animemusicquiz.com
 @author       melodyelodie
@@ -156,6 +156,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         --primaryColorContrast: color-mix(in srgb, var(--primaryColor), var(--colorModOpposite) 5%);
         --primaryColorContrast2: color-mix(in srgb, var(--primaryColor), var(--colorModOpposite) 12%);
         --primaryColorTransparent: color-mix(in srgb, var(--primaryColor), transparent 20%);
+        --secondaryColorTransparent: color-mix(in srgb, var(--secondaryColor), transparent 20%);
         --secondaryColorDark: color-mix(in srgb, var(--secondaryColor), black 50%);
         --accentColorLight: color-mix(in srgb, var(--accentColor), white 40%);
         --accentColorDark: color-mix(in srgb, var(--accentColor), black 20%);
@@ -165,7 +166,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         --wrongAnswerColorTransparent: color-mix(in srgb, var(--wrongAnswerColor), transparent 80%);
         --songHistoryCorrectColorHover: color-mix(in srgb, var(--songHistoryCorrectColor), white 5%);
         --songHistoryWrongColorHover: color-mix(in srgb, var(--songHistoryWrongColor), white 5%);
-        --elodieStyleScriptVersion: "10.2.27";
+        --elodieStyleScriptVersion: "10.2.28";
     }
     
     
@@ -216,6 +217,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         --primaryColorContrast: color-mix(in srgb, var(--primaryColor), var(--colorModOpposite) 5%);
         --primaryColorContrast2: color-mix(in srgb, var(--primaryColor), var(--colorModOpposite) 12%);
         --primaryColorTransparent: color-mix(in srgb, var(--primaryColor), transparent 20%);
+        --secondaryColorTransparent: color-mix(in srgb, var(--secondaryColor), transparent 20%);
         --secondaryColorDark: color-mix(in srgb, var(--secondaryColor), black 50%);
         --accentColorLight: color-mix(in srgb, var(--accentColor), white 40%);
         --accentColorDark: color-mix(in srgb, var(--accentColor), black 20%);
@@ -225,7 +227,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         --wrongAnswerColorTransparent: color-mix(in srgb, var(--wrongAnswerColor), transparent 80%);
         --songHistoryCorrectColorHover: color-mix(in srgb, var(--songHistoryCorrectColor), white 15%);
         --songHistoryWrongColorHover: color-mix(in srgb, var(--songHistoryWrongColor), white 15%);
-        --elodieStyleScriptVersion: "10.2.27";
+        --elodieStyleScriptVersion: "10.2.28";
     }
     */
     
@@ -1196,6 +1198,9 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     #qpQualityList > li.selected {
         background-color: var(--secondaryColor);
     }
+    #lbStartButton.highlight::before {
+        box-shadow: 0 0 10px #fff, 0 0 20px #fff, 0 0 30px #fff, 0 0 40px var(--accentColor), 0 0 70px var(--accentColor), 0 0 80px var(--accentColor), 0 0 100px var(--accentColor), 0 0 150px var(--accentColor);
+    }
 
 
     /* Game Chat */
@@ -1453,6 +1458,30 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         background-color: var(--primaryColor);
         box-shadow: 0 0 5px 0px var(--boxShadowColor);
     }
+    .smDropdownOuterContainer {
+        color: var(--textColor);
+    }
+    .smDropdownCurrent {
+        background-color: var(--primaryColor);
+        box-shadow: 0 0 5px 0px var(--boxShadowColor);
+    }
+    .smDropdownContainer {
+        background-color: var(--primaryColor);
+        box-shadow: 0 0 5px 0px var(--boxShadowColor);
+    }
+    #smCustomListModeContainer {
+        box-shadow: 0 0 5px 0px var(--boxShadowColor);
+        background-color: var(--primaryColor);
+    }
+    .smCustomListModeOption {
+        border-left: 1px solid var(--secondaryColor);
+    }
+    .smCustomListModeOption:hover {
+        background-color: var(--secondaryColor);
+    }
+    .smCustomListModeOption.selected {
+        background-color: var(--accentColor);
+    }
 
 
     /* In Lobby */
@@ -1492,6 +1521,10 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     }
     #lobbyReadyCountLoad {
         background-color: var(--accentColorLight);
+    }
+    #lobbyCounterPingButton::before {
+        background-color: var(--accentColor);
+        box-shadow: 0 2px 10px 2px var(--boxShadowColor);
     }
     .lobbyAvatarTeamContainer {
         background-color: var(--primaryColor);
@@ -1595,6 +1628,9 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     }
     #qpExtraSongInfo {
         z-index: 1;
+    }
+    #qpAddCustomListButton {
+        border: 1px solid var(--textColor);
     }
     #qpInnerContainer {
         width: 100%;
@@ -2375,6 +2411,9 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     .elAnimeEntryHeader:hover {
         background-color: var(--secondaryColor);
     }
+    .elAnimeEntryAddCustomListButton {
+        border: 1px solid var(--textColor);
+    }
     .elSongEntryHeader:hover {
         background-color: var(--secondaryColor);
     }
@@ -2414,6 +2453,9 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     }
     .elSongEntryAnimeHeaderExtraShadow {
         box-shadow: 0 0 10px 0px var(--boxShadowColor);
+    }
+    .elSongEntryAddCustomListButton {
+        border: 1px solid var(--textColor);
     }
     .aicTrigger {
         color: var(--accentColorContrast);
@@ -3098,6 +3140,9 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     }
     .shSongTable tr.shRow.wrongGuess:hover {
         background-color: var(--songHistoryWrongColorHover);
+    }
+    .shRow .shAddCustomListButton {
+        border: 1px solid var(--textColor);
     }
 
 
@@ -4076,6 +4121,127 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     #qpVideoCustomQuizResultButtonContainer {
         background-color: var(--primaryColor);
         border-top: 1px solid var(--secondaryColor);
+    }
+    #lnSettingSongPoolContainer {
+        background-color: var(--primaryColor);
+        box-shadow: 0px 0px 16px var(--boxShadowColor);
+    }
+    #lnSettingSongPoolTitle {
+        border-bottom: solid 1px var(--secondaryColor);
+    }
+    .lnSettingSongPoolInfoContainer.clickAble:hover {
+        background-color: var(--secondaryColor);
+    }
+    #lnSettingSongPoolClickToChange {
+        background-color: var(--secondaryColorTransparent);
+    }
+    #lnSettingSongPoolOptionContainer {
+        background-color: var(--primaryColor);
+        box-shadow: 0px 0px 16px var(--boxShadowColor);
+        transition: transform 0.1s linear;
+    }
+    .lnSettingSongPoolOption {
+        border-bottom: 1px solid var(--secondaryColor);
+    }
+    .lnSettingSongPoolOption:hover {
+        background-color: var(--secondaryColor);
+    }
+    #elCustomListContainer {
+        box-shadow: 0 0 10px 2px var(--boxShadowColor);
+        color: var(--textColor);
+    }
+    #elCustomListHeaderContainer {
+        background-color: var(--primaryColorTransparent);
+    }
+    #elCustomListMainerContainer {
+        background-color: var(--primaryColorTransparent);
+    }
+    #elCustomListFooterButton > div {
+        background-color: var(--primaryColorTransparent);
+    }
+    #elCustomListFooterButton > div:hover {
+        background-color: var(--secondaryColorTransparent);
+        text-shadow: 0 0 5px var(--textShadowColor);
+    }
+    #elCustomListFooterButton > div.maxDisabled:hover {
+        background-color: transparent;
+    }
+    .elCustomListMainTextContainer {
+        text-shadow: 0 0 5px var(--textShadowColor);
+    }
+    .elCustomListEntry {
+        background-color: var(--primaryColor);
+        box-shadow: 0 0px 3px 0px var(--boxShadowColor);
+    }
+    .elCustomListEntryListName {
+        text-shadow: 0 0 5px var(--textShadowColor);
+    }
+    #elCustomListNameInputLabel::before {
+        background-color: var(--primaryColor);
+        box-shadow: 0 0 10px 0px var(--boxShadowColor);
+    }
+    #elCustomListNameInput {
+        background-color: var(--primaryColor);
+    }
+    .elCustomListModeOption::before {
+        background-color: var(--primaryColor);
+        box-shadow: 0 0 10px 0px  var(--boxShadowColor);
+    }
+    .elCustomListModeOption.selected::before {
+        background-color: var(--secondaryColor);
+    }
+    .elCustomListAnimeName {
+        text-shadow: 0 0 5px var(--textShadowColor);
+    }
+    .elCustomListSongName {
+        text-shadow: 0 0 5px var(--textShadowColor);
+    }
+    .elCustomListEntryOptionContainer {
+        transition: transform 0.1s linear;
+    }
+    #elCustomListQuickAssignContainer {
+        background-color: var(--primaryColorTransparent);
+        box-shadow: 0 0 10px 2px var(--boxShadowColor);
+        color: var(--textColor);
+    }
+    .elClQaHeader {
+        border-bottom: 1px solid var(--secondaryColor);
+    }
+    .elClQaHeader > .close {
+        color: var(--textColor);
+        text-shadow: none;
+        opacity: 1;
+    }
+    .elClQaHeader > .close:hover {
+        opacity: .7;
+    }
+    .elClQaEntry {
+        box-shadow: 0 0px 1px 0px var(--boxShadowColor);
+    }
+    .elClQaContentContainer {
+        border-bottom: 1px solid var(--secondaryColor);
+    }
+    .elClQaEntryNameContainer {
+        text-shadow: 0 0 5px var(--textShadowColor);
+    }
+    .elClQaEntryActionButton {
+        border: 1px solid var(--textColor);
+        color: var(--textColor);
+    }
+    .elClQaFooterTypeContainer {
+        border-bottom: 1px solid var(--secondaryColor);
+    }
+    .elClQaFooterTypeOption {
+        box-shadow: 0 0 10px 2px var(--boxShadowColor);
+    }
+    .elClQaFooterTypeOption:hover {
+        background-color: var(--secondaryColor);
+    }
+    .elClQaFooterTypeOption.selected {
+        background-color: var(--accentColor);
+    }
+    .elClQaFooterCreateButton:hover {
+        background-color: var(--secondaryColor);
     }
 
 
