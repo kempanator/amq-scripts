@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.157
+// @version      0.158
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -124,7 +124,7 @@ OTHER
 if (typeof Listener === "undefined") return;
 const saveData = validateLocalStorage("megaCommands");
 const originalOrder = { qb: [], gm: [] };
-let animeList;
+let animeList = [];
 let animeListLower = []; //store lowercase version for faster compare speed
 let autoAcceptInvite = saveData.autoAcceptInvite ?? "";
 if (autoAcceptInvite === false) autoAcceptInvite = "";
@@ -177,13 +177,25 @@ let audioContext = new window.AudioContext();
 let acPlaybackRate = null;
 let acReverse = false;
 let sourceNode;
+let selfColor;
+let friendColor;
+let blockedColor;
+let customColors;
+let customColorMap;
 
 let alerts = {
-    hiddenPlayers: { chat: false, popout: false },
-    nameChange: loadAlert("nameChange", true, true),
-    onlineFriends: loadAlert("onlineFriends", false, false),
-    offlineFriends: loadAlert("offlineFriends", false, false),
-    serverStatus: loadAlert("serverStatus", false, false)
+    hiddenPlayers: loadAlert("hiddenPlayers", false, false, false),
+    nameChange: loadAlert("nameChange", false, false, false),
+    onlineFriends: loadAlert("onlineFriends", false, false, false),
+    offlineFriends: loadAlert("offlineFriends", false, false, false),
+    serverStatus: loadAlert("serverStatus", false, false, false),
+    donation: loadAlert("donation", false, false, false),
+    rankedStarting: loadAlert("rankedStarting", false, false, false),
+    quizStart: loadAlert("quizStart", false, false, false),
+    quizEnd: loadAlert("quizEnd", false, false, false),
+    chat: loadAlert("chat", false, false, false),
+    dm: loadAlert("dm", false, false, false),
+    newVersion: loadAlert("newVersion", true, false, false),
 };
 let commandPersist = {
     autoAcceptInvite: loadCommandPersist("autoAcceptInvite", true),
@@ -210,7 +222,7 @@ let commandPersist = {
     loopVideo: loadCommandPersist("loopVideo", true),
     muteReplay: loadCommandPersist("muteReplay", true),
     muteSubmit: loadCommandPersist("muteSubmit", true),
-    playbackSpeed: loadCommandPersist("playbackSpeed", false)
+    playbackSpeed: loadCommandPersist("playbackSpeed", false),
 };
 let hotKeys = {
     autoKey: loadHotkey("autoKey"),
@@ -229,7 +241,7 @@ let hotKeys = {
     songHistoryWindow: loadHotkey("songHistoryWindow"),
     settingsWindow: loadHotkey("settingsWindow"),
     focusDropdown: loadHotkey("focusDropdown"),
-    focusChat: loadHotkey("focusChat")
+    focusChat: loadHotkey("focusChat"),
 };
 
 const rules = {
@@ -343,7 +355,12 @@ const loadInterval = setInterval(() => {
 function setup() {
     saveSettings();
     if (lastUsedVersion && GM_info.script.version !== lastUsedVersion) {
-        popoutMessage("Mega Commands", "updated to version " + GM_info.script.version);
+        if (alerts.newVersion.popout) {
+            popoutMessage("Mega Commands", "updated to version " + GM_info.script.version);
+        }
+        if (alerts.newVersion.console) {
+            console.log("Mega Commands updated to version " + GM_info.script.version);
+        }
     }
 
     // open dm chat box to yourself
@@ -502,6 +519,15 @@ function setup() {
     //setup listeners
     new Listener("game chat update", (data) => {
         for (const message of data.messages) {
+            if (alerts.chat.console) {
+                const color = getPlayerColor(message.sender);
+                if (color) {
+                    console.log(`${getTimeStamp()} 💬 %c${message.sender}%c: ${message.message}`, `color: ${color}`, "");
+                }
+                else {
+                    console.log(`${getTimeStamp()} 💬 ${message.sender}: ${message.message}`);
+                }
+            }
             if (message.message.startsWith("/forceall")) {
                 if (!isQuizOfTheDay()) {
                     parseForceAll(message.message, message.teamMessage ? "teamchat" : "chat");
@@ -523,6 +549,9 @@ function setup() {
         }
     }).bindListener();
     new Listener("Game Chat Message", (data) => {
+        if (alerts.chat.console) {
+            console.log(`${getTimeStamp()} 💬 ${data.sender}: ${data.message}`);
+        }
         if (data.message.startsWith("/forceall")) {
             if (!isRankedMode()) {
                 parseForceAll(data.message, data.teamMessage ? "teamchat" : "chat");
@@ -533,11 +562,17 @@ function setup() {
         }
     }).bindListener();
     new Listener("chat message", (data) => {
+        if (alerts.dm.console) {
+            console.log(`${getTimeStamp()} 📩 from ${data.sender}: ${data.message}`);
+        }
         if (data.message.startsWith("/")) {
             parseIncomingDM(data.message, data.sender);
         }
     }).bindListener();
     new Listener("chat message response", (data) => {
+        if (alerts.dm.console) {
+            console.log(`${getTimeStamp()} 📩 to ${data.target}: ${data.msg}`);
+        }
         if (data.msg.startsWith(commandPrefix)) {
             parseCommand(data.msg, "dm", data.target);
         }
@@ -794,6 +829,14 @@ function setup() {
             sendSystemMessage(`Loot: ${battleRoyal.collectionController.entries.length}/${battleRoyal.collectionController.size}`, lootNames.join("<br>"));
         }
     }).bindListener();
+    new Listener("quiz ready", (data) => {
+        if (alerts.quizStart.console) {
+            const mode = lobby.settings.gameMode;
+            const songs = data.numberOfSongs;
+            const players = Object.keys(quiz.players).length;
+            console.log(`${getTimeStamp()} ${mode} Quiz Starting - ${songs} songs, ${players} player${players === 1 ? "" : "s"}`);
+        }
+    }).bindListener();
     new Listener("quiz over", (data) => {
         setTimeout(() => { checkAutoHost() }, 10);
         if (autoSwitch.mode) setTimeout(() => { checkAutoSwitch() }, 100);
@@ -801,6 +844,13 @@ function setup() {
         if (sourceNode) sourceNode.stop();
     }).bindListener();
     new Listener("quiz end result", (data) => {
+        if (alerts.quizEnd.console) {
+            let text = getTimeStamp() + " Quiz End Result:";
+            for (const entry of Object.values(quiz.scoreboard.playerEntries)) {
+                text += `\n${entry.name}: ${entry.currentScore}`;
+            }
+            console.log(text);
+        }
         if (autoDownloadJson.includes("all") ||
             (autoDownloadJson.includes("solo") && quiz.soloMode) ||
             (autoDownloadJson.includes("ranked") && isQuizOfTheDay()) ||
@@ -865,11 +915,14 @@ function setup() {
         if (hidePlayers) setTimeout(() => { quizHidePlayers() }, 0);
     }).bindListener();
     new Listener("player hidden", (data) => {
+        if (alerts.hiddenPlayers.popout) {
+            popoutMessage("Player Hidden", data.name);
+        }
         if (alerts.hiddenPlayers.chat) {
             sendSystemMessage("Player Hidden: " + data.name);
         }
-        if (alerts.hiddenPlayers.popout) {
-            popoutMessage("Player Hidden", data.name);
+        if (alerts.hiddenPlayers.console) {
+            console.log(`${getTimeStamp()} 🚫 player hidden: ${data.name}`);
         }
     }).bindListener();
     new Listener("Player Ready Change", (data) => {
@@ -915,6 +968,12 @@ function setup() {
         }
     }).bindListener();
     new Listener("friend state change", (data) => {
+        if (alerts.onlineFriends.popout && data.online) {
+            popoutMessage(data.name + " online", "");
+        }
+        else if (alerts.offlineFriends.popout && !data.online) {
+            popoutMessage(data.name + " offline", "");
+        }
         if (data.online && autoInvite === data.name.toLowerCase() && inRoom() && !isInYourRoom(autoInvite) && !isSoloMode() && !isQuizOfTheDay()) {
             sendSystemMessage(data.name + " online: auto inviting");
             setTimeout(() => { socket.sendCommand({ type: "social", command: "invite to game", data: { target: data.name } }) }, 1000);
@@ -925,11 +984,11 @@ function setup() {
         else if (alerts.offlineFriends.chat && !data.online) {
             sendSystemMessage(data.name + " offline");
         }
-        if (alerts.onlineFriends.popout && data.online) {
-            popoutMessage(data.name + " online", "");
+        if (alerts.onlineFriends.console && data.online) {
+            console.log(getTimeStamp() + " 🟢 " + data.name + " online");
         }
-        else if (alerts.offlineFriends.popout && !data.online) {
-            popoutMessage(data.name + " offline", "");
+        else if (alerts.offlineFriends.console && !data.online) {
+            console.log(getTimeStamp() + " 🔴 " + data.name + " offline");
         }
     }).bindListener();
     new Listener("New Rooms", (data) => {
@@ -975,11 +1034,33 @@ function setup() {
         setTimeout(() => { checkAutoHost() }, 1);
     }).bindListener();
     new Listener("friend name change", (data) => {
+        if (alerts.nameChange.popout) {
+            popoutMessage("friend name change", data.oldName + " => " + data.newName);
+        }
         if (alerts.nameChange.chat) {
             sendSystemMessage(`friend name change: ${data.oldName} => ${data.newName}`);
         }
-        if (alerts.nameChange.popout) {
-            popoutMessage("friend name change", data.oldName + " => " + data.newName);
+        if (alerts.nameChange.console) {
+            console.log(`${getTimeStamp()} friend name change: ${data.oldName} => ${data.newName}`);
+        }
+    }).bindListener();
+    new Listener("popout message", (data) => {
+        if (data.header?.key?.includes("quiz_of_the_day")) {
+            if (alerts.rankedStarting.console) {
+                let header = localizationHandler.translate(data.header.key, data.header.data, true);
+                let message = localizationHandler.translate(data.message.key, data.message.data, true);
+                console.log(`${getTimeStamp()} 📢 ${header}   ${message}`);
+            }
+        }
+    }).bindListener();
+    new Listener("new donation", (data) => {
+        if (alerts.donation.console) {
+            console.log(`${getTimeStamp()} 📢 ${data.donation.username} donated $${data.donation.amount} for ${data.donation.avatarName}`);
+        }
+    }).bindListener();
+    new Listener("server restart", (data) => {
+        if (alerts.serverStatus.console) {
+            console.log(`${getTimeStamp()} 📢 ${data.msg}`);
         }
     }).bindListener();
     new Listener("get all song names", (data) => {
@@ -1001,6 +1082,9 @@ function setup() {
         }
         if (alerts.serverStatus.popout) {
             popoutMessage("Server Status", `${data.name} ${data.online ? "online" : "offline"}`);
+        }
+        if (alerts.serverStatus.console) {
+            console.log(`${getTimeStamp()} Server Status: ${data.name} ${data.online ? "online" : "offline"}`);
         }
     }).bindListener();
 
@@ -1146,19 +1230,22 @@ function setup() {
                             <pre>${helpText}</pre>
                         </div>
                         <div id="mcActiveContainer" class="tabSection" style="margin: 10px 0;">
-                            <div class="mcCommandRow">
-                                <button id="mcAutoReadyButton" class="btn mcCommandButton"></button>
-                                <span class="mcCommandTitle">Auto Ready</span>
+                            <div class="mcActiveRow">
+                                <button id="mcAutoReadyButton" class="btn mcActiveButton"></button>
+                                <i id="mcAutoReadyInfo" class="fa fa-info-circle mcActiveInfo" aria-hidden="true"></i>
+                                <span class="mcActiveTitle">Auto Ready</span>
                             </div>
-                            <div class="mcCommandRow">
-                                <button id="mcAutoStartButton" class="btn mcCommandButton"></button>
-                                <span class="mcCommandTitle">Auto Start</span>
+                            <div class="mcActiveRow">
+                                <button id="mcAutoStartButton" class="btn mcActiveButton"></button>
+                                <i id="mcAutoStartInfo" class="fa fa-info-circle mcActiveInfo" aria-hidden="true"></i>
+                                <span class="mcActiveTitle">Auto Start</span>
                                 <input id="mcAutoStartDelayInput" type="text" placeholder="time" style="width: 50px;">
                                 <input id="mcAutoStartRemainingInput" type="text" placeholder="remaining" style="width: 80px;">
                             </div>
-                            <div class="mcCommandRow">
-                                <button id="mcAutoAcceptInviteButton" class="btn mcCommandButton"></button>
-                                <span class="mcCommandTitle">Auto Accept Invite</span>
+                            <div class="mcActiveRow">
+                                <button id="mcAutoAcceptInviteButton" class="btn mcActiveButton"></button>
+                                <i id="mcAutoAcceptInviteInfo" class="fa fa-info-circle mcActiveInfo" aria-hidden="true"></i>
+                                <span class="mcActiveTitle">Auto Accept Invite</span>
                                 <select id="mcAutoAcceptInviteSelect" style="padding: 3px 0;">
                                     <option>friends</option>
                                     <option>all</option>
@@ -1166,22 +1253,25 @@ function setup() {
                                 </select>
                                 <input id="mcAutoAcceptInviteInput" type="text" placeholder="players" style="width: 250px;">
                             </div>
-                            <div class="mcCommandRow">
-                                <button id="mcAutoStatusButton" class="btn mcCommandButton"></button>
-                                <span class="mcCommandTitle">Auto Status</span>
+                            <div class="mcActiveRow">
+                                <button id="mcAutoStatusButton" class="btn mcActiveButton"></button>
+                                <i id="mcAutoStatusInfo" class="fa fa-info-circle mcActiveInfo" aria-hidden="true"></i>
+                                <span class="mcActiveTitle">Auto Status</span>
                                 <select id="mcAutoStatusSelect" style="padding: 3px 0;">
                                     <option>do not disturb</option>
                                     <option>away</option>
                                     <option>offline</option>
                                 </select>
                             </div>
-                            <div class="mcCommandRow">
-                                <button id="mcAutoKeyButton" class="btn mcCommandButton"></button>
-                                <span class="mcCommandTitle">Auto Key</span>
+                            <div class="mcActiveRow">
+                                <button id="mcAutoKeyButton" class="btn mcActiveButton"></button>
+                                <i id="mcAutoKeyInfo" class="fa fa-info-circle mcActiveInfo" aria-hidden="true"></i>
+                                <span class="mcActiveTitle">Auto Key</span>
                             </div>
-                            <div class="mcCommandRow">
-                                <button id="mcAutoThrowButton" class="btn mcCommandButton"></button>
-                                <span class="mcCommandTitle">Auto Throw</span>
+                            <div class="mcActiveRow">
+                                <button id="mcAutoThrowButton" class="btn mcActiveButton"></button>
+                                <i id="mcAutoThrowInfo" class="fa fa-info-circle mcActiveInfo" aria-hidden="true"></i>
+                                <span class="mcActiveTitle">Auto Throw</span>
                                 <select id="mcAutoThrowSelect" style="padding: 3px 0;">
                                     <option>text</option>
                                     <option>multichoice</option>
@@ -1189,19 +1279,22 @@ function setup() {
                                 <input id="mcAutoThrowTimeInput" type="text" placeholder="time" style="width: 50px;">
                                 <input id="mcAutoThrowTextInput" type="text" placeholder="text" style="width: 250px;">
                             </div>
-                            <div class="mcCommandRow">
-                                <button id="mcAutoCopyButton" class="btn mcCommandButton"></button>
-                                <span class="mcCommandTitle">Auto Copy</span>
+                            <div class="mcActiveRow">
+                                <button id="mcAutoCopyButton" class="btn mcActiveButton"></button>
+                                <i id="mcAutoCopyInfo" class="fa fa-info-circle mcActiveInfo" aria-hidden="true"></i>
+                                <span class="mcActiveTitle">Auto Copy</span>
                                 <input id="mcAutoCopyInput" type="text" placeholder="player" style="width: 150px;">
                             </div>
-                            <div class="mcCommandRow">
-                                <button id="mcAutoHostButton" class="btn mcCommandButton"></button>
-                                <span class="mcCommandTitle">Auto Host</span>
+                            <div class="mcActiveRow">
+                                <button id="mcAutoHostButton" class="btn mcActiveButton"></button>
+                                <i id="mcAutoHostInfo" class="fa fa-info-circle mcActiveInfo" aria-hidden="true"></i>
+                                <span class="mcActiveTitle">Auto Host</span>
                                 <input id="mcAutoHostInput" type="text" placeholder="player" style="width: 150px;">
                             </div>
-                            <div class="mcCommandRow">
-                                <button id="mcAutoVoteSkipButton" class="btn mcCommandButton"></button>
-                                <span class="mcCommandTitle">Auto Vote Skip</span>
+                            <div class="mcActiveRow">
+                                <button id="mcAutoVoteSkipButton" class="btn mcActiveButton"></button>
+                                <i id="mcAutoVoteSkipInfo" class="fa fa-info-circle mcActiveInfo" aria-hidden="true"></i>
+                                <span class="mcActiveTitle">Auto Vote Skip</span>
                                 <select id="mcAutoVoteSkipSelect" style="padding: 3px 0;">
                                     <option>time</option>
                                     <option>correct</option>
@@ -1209,13 +1302,15 @@ function setup() {
                                 </select>
                                 <input id="mcAutoVoteSkipTimeInput" type="text" placeholder="time" style="width: 50px;">
                             </div>
-                            <div class="mcCommandRow">
-                                <button id="mcAutoVoteLobbyButton" class="btn mcCommandButton"></button>
-                                <span class="mcCommandTitle">Auto Vote Lobby</span>
+                            <div class="mcActiveRow">
+                                <button id="mcAutoVoteLobbyButton" class="btn mcActiveButton"></button>
+                                <i id="mcAutoVoteLobbyInfo" class="fa fa-info-circle mcActiveInfo" aria-hidden="true"></i>
+                                <span class="mcActiveTitle">Auto Vote Lobby</span>
                             </div>
-                            <div class="mcCommandRow">
-                                <button id="mcAutoMuteButton" class="btn mcCommandButton"></button>
-                                <span class="mcCommandTitle">Auto Mute</span>
+                            <div class="mcActiveRow">
+                                <button id="mcAutoMuteButton" class="btn mcActiveButton"></button>
+                                <i id="mcAutoMuteInfo" class="fa fa-info-circle mcActiveInfo" aria-hidden="true"></i>
+                                <span class="mcActiveTitle">Auto Mute</span>
                                 <select id="mcAutoMuteSelect" style="padding: 3px 0;">
                                     <option>mute</option>
                                     <option>unmute</option>
@@ -1225,25 +1320,30 @@ function setup() {
                                 </select>
                                 <input id="mcAutoMuteTimeInput" type="text" placeholder="time" style="width: 50px;">
                             </div>
-                            <div class="mcCommandRow">
-                                <button id="mcMuteSubmitButton" class="btn mcCommandButton"></button>
-                                <span class="mcCommandTitle">Mute Submit</span>
+                            <div class="mcActiveRow">
+                                <button id="mcMuteSubmitButton" class="btn mcActiveButton"></button>
+                                <i id="mcMuteSubmitInfo" class="fa fa-info-circle mcActiveInfo" aria-hidden="true"></i>
+                                <span class="mcActiveTitle">Mute Submit</span>
                             </div>
-                            <div class="mcCommandRow">
-                                <button id="mcMuteReplayButton" class="btn mcCommandButton"></button>
-                                <span class="mcCommandTitle">Mute Replay</span>
+                            <div class="mcActiveRow">
+                                <button id="mcMuteReplayButton" class="btn mcActiveButton"></button>
+                                <i id="mcMuteReplayInfo" class="fa fa-info-circle mcActiveInfo" aria-hidden="true"></i>
+                                <span class="mcActiveTitle">Mute Replay</span>
                             </div>
-                            <div class="mcCommandRow">
-                                <button id="mcContinueSampleButton" class="btn mcCommandButton"></button>
-                                <span class="mcCommandTitle">Continue Sample</span>
+                            <div class="mcActiveRow">
+                                <button id="mcContinueSampleButton" class="btn mcActiveButton"></button>
+                                <i id="mcContinueSampleInfo" class="fa fa-info-circle mcActiveInfo" aria-hidden="true"></i>
+                                <span class="mcActiveTitle">Continue Sample</span>
                             </div>
-                            <div class="mcCommandRow">
-                                <button id="mcLoopVideoButton" class="btn mcCommandButton"></button>
-                                <span class="mcCommandTitle">Loop Video</span>
+                            <div class="mcActiveRow">
+                                <button id="mcLoopVideoButton" class="btn mcActiveButton"></button>
+                                <i id="mcLoopVideoInfo" class="fa fa-info-circle mcActiveInfo" aria-hidden="true"></i>
+                                <span class="mcActiveTitle">Loop Video</span>
                             </div>
-                            <div class="mcCommandRow">
-                                <button id="mcDropDownButton" class="btn mcCommandButton"></button>
-                                <span class="mcCommandTitle">Drop Down</span>
+                            <div class="mcActiveRow">
+                                <button id="mcDropDownButton" class="btn mcActiveButton"></button>
+                                <i id="mcDropDownInfo" class="fa fa-info-circle mcActiveInfo" aria-hidden="true"></i>
+                                <span class="mcActiveTitle">Drop Down</span>
                             </div>
                         </div>
                         <div id="mcHotkeyContainer" class="tabSection" style="margin: 10px 0;">
@@ -1265,6 +1365,7 @@ function setup() {
                                         <th>Alert</th>
                                         <th>Popout</th>
                                         <th>Chat</th>
+                                        <th>Console</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -1334,6 +1435,34 @@ function setup() {
     $("#mcStorageTab").on("click", () => { createLocalStorageList(); switchTab("mcStorage"); });
     $("#mcInfoTab").on("click", () => { switchTab("mcInfo"); });
     switchTab("mcDocumentation");
+
+    // setup mcActive tab popovers
+    const activeSettingDescriptions = {
+        mcAutoReadyInfo: "Automatically ready up when you join a lobby.",
+        mcAutoStartInfo: "Automatically start the game when everyone is ready if you are host.",
+        mcAutoAcceptInviteInfo: "Automatically accept room invites based on friends, everyone, or your custom list.",
+        mcAutoStatusInfo: "Automatically set your profile status to the selected state on log in.",
+        mcAutoKeyInfo: "Automatically send quiz answer on each key press.",
+        mcAutoThrowInfo: "Automatically send a quiz answer at a configured time each song.",
+        mcAutoCopyInfo: "Automatically copy answer from the specified player on your team.",
+        mcAutoHostInfo: "Automatically transfer host to the specified player.",
+        mcAutoVoteSkipInfo: "Automatically vote to skip based on time, correct answer, or team valid answer.",
+        mcAutoVoteLobbyInfo: "Automatically vote to return to lobby when the host starts a vote.",
+        mcAutoMuteInfo: "Automatically mute, unmute, toggle, or randomize mute state on a timer.",
+        mcMuteSubmitInfo: "Mute song when you submit your answer.",
+        mcMuteReplayInfo: "Mute song when the replay starts.",
+        mcContinueSampleInfo: "Continue playing song sample point during replay phase",
+        mcLoopVideoInfo: "Loop the current song indefinitely during quiz.",
+        mcDropDownInfo: "Show/hide anime dropdown during quiz."
+    };
+    for (const [id, description] of Object.entries(activeSettingDescriptions)) {
+        $(`#${id}`).popover({
+            content: description,
+            trigger: "hover",
+            placement: "bottom",
+            container: "body"
+        });
+    }
 
     // setup mcActive tab buttons and inputs
     $("#mcAutoReadyButton").on("click", function () {
@@ -1678,12 +1807,18 @@ function setup() {
     ]);
 
     createAlertTable([
-        { action: "hiddenPlayers", title: "Hidden Players", id: "mcAlertHiddenPlayers" },
-        { action: "nameChange", title: "Name Change", id: "mcAlertNameChange" },
-        { action: "onlineFriends", title: "Online Friends", id: "mcAlertOnlineFriends" },
-        { action: "offlineFriends", title: "Offline Friends", id: "mcAlertOfflineFriends" },
-        { action: "serverStatus", title: "Server Status", id: "mcAlertServerStatus" },
-
+        { action: "hiddenPlayers", title: "Hidden Players", id: "mcAlertHiddenPlayers", popout: true, chat: true, console: true },
+        { action: "nameChange", title: "Name Change", id: "mcAlertNameChange", popout: true, chat: true, console: true },
+        { action: "onlineFriends", title: "Online Friends", id: "mcAlertOnlineFriends", popout: true, chat: true, console: true },
+        { action: "offlineFriends", title: "Offline Friends", id: "mcAlertOfflineFriends", popout: true, chat: true, console: true },
+        { action: "serverStatus", title: "Server Status", id: "mcAlertServerStatus", popout: true, chat: true, console: true },
+        { action: "donation", title: "Donation", id: "mcAlertDonation", popout: false, chat: true, console: true },
+        { action: "rankedStarting", title: "Ranked Starting", id: "mcAlertRankedStarting", popout: false, chat: true, console: true },
+        { action: "quizStart", title: "Quiz Start", id: "mcAlertQuizStart", popout: false, chat: false, console: true },
+        { action: "quizEnd", title: "Quiz End", id: "mcAlertQuizEnd", popout: false, chat: false, console: true },
+        { action: "chat", title: "Chat", id: "mcAlertChat", popout: false, chat: false, console: true },
+        { action: "dm", title: "DM", id: "mcAlertDM", popout: false, chat: false, console: true },
+        { action: "newVersion", title: "New Version", id: "mcAlertNewVersion", popout: true, chat: false, console: true },
     ]);
 
     $("#mcLocalStorageImportButton").on("click", () => {
@@ -3825,7 +3960,7 @@ async function parseCommand(messageText, type, target) {
             }
         }
     }
-    else if (command === "color") {
+    else if (command === "color" || command === "colour") {
         if (split[1] === "self") {
             const data = JSON.parse(localStorage.getItem("highlightFriendsSettings"));
             if (data) sendMessage(data.smColorSelfColor, type, target);
@@ -4197,7 +4332,7 @@ async function parseCommand(messageText, type, target) {
             sendMessage(`pitch shift set to ${option}`, type, target, true);
         }
     }
-    else if (command === "copysource" || command === "copysources" ||command === "copyjs") {
+    else if (command === "copysource" || command === "copysources" || command === "copyjs") {
         const list = [].concat(
             $("script[src]").toArray().map(s => s.src).filter(x => x.endsWith(".js")),
             $("link[href]").toArray().map(x => x.href).filter(x => x.endsWith(".css") || x.endsWith(".json")),
@@ -4416,6 +4551,31 @@ function sendMessage(content, type, target, sys) {
     else if (type === "nexus") {
         if (sys) setTimeout(() => { nexusCoopChat.displayServerMessage({ message: content }) }, 1);
         else socket.sendCommand({ type: "nexus", command: "coop chat message", data: { message: content } });
+    }
+}
+
+// get the color code that the player's name should be in the highlight friends script
+function getPlayerColor(name) {
+    const lower = name.toLowerCase();
+    if (customColorMap.hasOwnProperty(lower)) return customColorMap[lower];
+    if (name === selfName) return selfColor;
+    if (socialTab.isFriend(name)) return friendColor;
+    if (socialTab.isBlocked(name)) return blockedColor;
+    return "";
+}
+
+// load color variables from the highlight friends script
+function refreshColors() {
+    const hfData = validateLocalStorage("highlightFriendsSettings");
+    selfColor = hfData.smColorSelfColor ?? "#80c7ff";
+    friendColor = hfData.smColorFriendColor ?? "#80ff80";
+    blockedColor = hfData.smColorBlockedColor ?? "#ff8080";
+    customColors = hfData.customColors ?? [];
+    customColorMap = {};
+    for (const item of customColors) {
+        for (const player of item.players) {
+            customColorMap[player] = item.color;
+        }
     }
 }
 
@@ -4693,29 +4853,48 @@ function updateHotkeyTable() {
 // create alert element rows in mc settings
 function createAlertTable(data) {
     const $tbody = $("#mcAlertsTable tbody");
-    for (const { action, title, id } of data) {
-        const $popoutCheckbox = $("<div>", { class: "customCheckbox" })
-            .append($("<input>", { id: id + "PopoutCheckbox", type: "checkbox" })
-                .attr({ "data-action": action, "data-delivery": "popout" })
-                .prop("checked", alerts[action].popout)
-                .on("click", () => {
-                    alerts[action].popout = !alerts[action].popout;
-                    saveSettings();
-                }))
-            .append(`<label for="${id}PopoutCheckbox"><i class="fa fa-check" aria-hidden="true"></i></label>`);
-        const $chatCheckbox = $("<div>", { class: "customCheckbox" })
-            .append($("<input>", { type: "checkbox", id: id + "ChatCheckbox" })
-                .attr({ "data-action": action, "data-delivery": "chat" })
-                .prop("checked", alerts[action].chat)
-                .on("click", () => {
-                    alerts[action].chat = !alerts[action].chat;
-                    saveSettings();
-                }))
-            .append(`<label for="${id}ChatCheckbox"><i class="fa fa-check" aria-hidden="true"></i></label>`);
+    for (const { action, title, id, popout, chat, console } of data) {
         const $tr = $("<tr>")
             .append($("<td>", { text: title }))
-            .append($("<td>", { style: "text-align: center;" }).append($popoutCheckbox))
-            .append($("<td>", { style: "text-align: center;" }).append($chatCheckbox));
+            .append($("<td>", { style: "text-align: center;" }))
+            .append($("<td>", { style: "text-align: center;" }))
+            .append($("<td>", { style: "text-align: center;" }));
+        if (popout) {
+            $("<div>", { class: "customCheckbox" })
+                .append($("<input>", { id: id + "PopoutCheckbox", type: "checkbox" })
+                    .attr({ "data-action": action, "data-delivery": "popout" })
+                    .prop("checked", alerts[action].popout)
+                    .on("click", () => {
+                        alerts[action].popout = !alerts[action].popout;
+                        saveSettings();
+                    }))
+                .append(`<label for="${id}PopoutCheckbox"><i class="fa fa-check" aria-hidden="true"></i></label>`)
+                .appendTo($tr.find("td:eq(1)"));
+        }
+        if (chat) {
+            $("<div>", { class: "customCheckbox" })
+                .append($("<input>", { type: "checkbox", id: id + "ChatCheckbox" })
+                    .attr({ "data-action": action, "data-delivery": "chat" })
+                    .prop("checked", alerts[action].chat)
+                    .on("click", () => {
+                        alerts[action].chat = !alerts[action].chat;
+                        saveSettings();
+                    }))
+                .append(`<label for="${id}ChatCheckbox"><i class="fa fa-check" aria-hidden="true"></i></label>`)
+                .appendTo($tr.find("td:eq(2)"));
+        }
+        if (console) {
+            $("<div>", { class: "customCheckbox" })
+                .append($("<input>", { type: "checkbox", id: id + "ConsoleCheckbox" })
+                    .attr({ "data-action": action, "data-delivery": "console" })
+                    .prop("checked", alerts[action].console)
+                    .on("click", () => {
+                        alerts[action].console = !alerts[action].console;
+                        saveSettings();
+                    }))
+                .append(`<label for="${id}ConsoleCheckbox"><i class="fa fa-check" aria-hidden="true"></i></label>`)
+                .appendTo($tr.find("td:eq(3)"));
+        }
         $tbody.append($tr);
     }
 }
@@ -5348,6 +5527,11 @@ function getPlayerNameCorrectCase(name) {
     return name;
 }
 
+// get current time string in HH:MM:SS format
+function getTimeStamp() {
+    return new Date().toLocaleTimeString().split(" ")[0];
+}
+
 // return list of every auto function that is enabled
 function autoList() {
     let list = [];
@@ -5769,12 +5953,16 @@ function exportLocalStorage() {
 }
 
 // load alert from local storage, input optional default values
-function loadAlert(key, chat = false, popout = false) {
+function loadAlert(key, popout = false, chat = false, console = false) {
     const item = saveData.alerts?.[key];
     if (typeof item === "object") {
-        return { chat: item.chat ?? chat, popout: item.popout ?? popout };
+        return {
+            popout: item.popout ?? popout,
+            chat: item.chat ?? chat,
+            console: item.console ?? console,
+        };
     }
-    return { chat, popout };
+    return { popout, chat, console };
 }
 
 // load command persist from local storage, input optional default values
@@ -5852,16 +6040,20 @@ function saveSettings() {
 // apply styles
 function applyStyles() {
     let css = /*css*/ `
-        .mcCommandTitle {
-            margin: 0 5px;
+        .mcActiveTitle {
+            margin: 0 5px 0 0;
             display: inline-block;
         }
-        .mcCommandButton {
+        .mcActiveButton {
             width: 36px;
             padding: 4px 0;
             display: inline-block;
         }
-        .mcCommandRow select, .mcCommandRow input {
+        .mcActiveInfo {
+            margin: 0 3px;
+            cursor: help;
+        }
+        .mcActiveRow select, .mcActiveRow input {
             color: black;
         }
         .mcDocumentationRow {
