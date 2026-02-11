@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.158
+// @version      0.159
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -831,7 +831,7 @@ function setup() {
     }).bindListener();
     new Listener("quiz ready", (data) => {
         if (alerts.quizStart.console) {
-            const mode = lobby.settings.gameMode;
+            const mode = lobby.settings?.gameMode ?? quiz.gameMode;
             const songs = data.numberOfSongs;
             const players = Object.keys(quiz.players).length;
             console.log(`${getTimeStamp()} ${mode} Quiz Starting - ${songs} songs, ${players} player${players === 1 ? "" : "s"}`);
@@ -845,8 +845,9 @@ function setup() {
     }).bindListener();
     new Listener("quiz end result", (data) => {
         if (alerts.quizEnd.console) {
-            let text = getTimeStamp() + " Quiz End Result:";
-            for (const entry of Object.values(quiz.scoreboard.playerEntries)) {
+            let text = `${getTimeStamp()} ${quiz.gameMode} Quiz End Result:`;
+            const sortedEntries = Object.values(quiz.scoreboard.playerEntries).sort((a, b) => b.currentScore - a.currentScore);
+            for (const entry of sortedEntries) {
                 text += `\n${entry.name}: ${entry.currentScore}`;
             }
             console.log(text);
@@ -1047,8 +1048,8 @@ function setup() {
     new Listener("popout message", (data) => {
         if (data.header?.key?.includes("quiz_of_the_day")) {
             if (alerts.rankedStarting.console) {
-                let header = localizationHandler.translate(data.header.key, data.header.data, true);
-                let message = localizationHandler.translate(data.message.key, data.message.data, true);
+                const header = localizationHandler.translate(data.header.key, data.header.data, true);
+                const message = localizationHandler.translate(data.message.key, data.message.data, true);
                 console.log(`${getTimeStamp()} 📢 ${header}   ${message}`);
             }
         }
@@ -4036,13 +4037,13 @@ async function parseCommand(messageText, type, target) {
         if (split.length === 2) {
             if (["status", "s"].includes(split[1])) {
                 if ($("#aniListUserNameInput").val()) {
-                    sendMessage("[anilist] " + $("#aniListUserNameInput").val(), type, target);
+                    sendMessage("[anilist] " + $("#aniListUserNameInput").val() + " " + listCheckboxString(), type, target);
                 }
                 else if ($("#malUserNameInput").val()) {
-                    sendMessage("[myanimelist] " + $("#malUserNameInput").val(), type, target);
+                    sendMessage("[myanimelist] " + $("#malUserNameInput").val() + " " + listCheckboxString(), type, target);
                 }
                 else if ($("#kitsuUserNameInput").val()) {
-                    sendMessage("[kitsu] " + $("#kitsuUserNameInput").val(), type, target);
+                    sendMessage("[kitsu] " + $("#kitsuUserNameInput").val() + " " + listCheckboxString(), type, target);
                 }
                 else {
                     sendMessage("[no list]", type, target);
@@ -5301,6 +5302,52 @@ function getClosestTag(text) {
         }
         return list.length === 1 ? list[0] : { tag: text, id: null };
     }
+}
+
+// input text, return script that matches the closest
+function getClosestScript(text) {
+    text = text.toLowerCase().replace(/\s+/g, "");
+    if (!text) return;
+    const list = [];
+    const $items = $("#installedListContainer h4");
+    for (const item of $items) {
+        const name = $(item).find(".name").text().toLowerCase().replace(/\s+/g, "");
+        if (name.includes(text)) {
+            const version = $(item).find(".version").text();
+            const link = $(item).find(".link").attr("href");
+            list.push({ name, version, link });
+        }
+    }
+    if (list.length === 1) {
+        return list[0];
+    }
+    //return list.length === 1 ? list[0] : text;
+}
+
+// input full song type text, return shortened version
+function shortenType(type) {
+    return type.replace("Opening ", "OP").replace("Ending ", "ED").replace("Insert Song", "IN");
+}
+
+// return string of checkbox statuses for anime lists
+function listCheckboxString() {
+    let text = "";
+    if (options.$INCLUDE_WATCHING_CHECKBOX.prop("checked")) {
+        text += "W";
+    }
+    if (options.$INCLUDE_COMPLETED_CHECKBOX.prop("checked")) {
+        text += "C";
+    }
+    if (options.$INCLUDE_ON_HOLD_CHECKBOX.prop("checked")) {
+        text += "H";
+    }
+    if (options.$INCLUDE_DROPPED_CHECKBOX.prop("checked")) {
+        text += "D";
+    }
+    if (options.$INCLUDE_PLANNING_CHECKBOX.prop("checked")) {
+        text += "P";
+    }
+    return text;
 }
 
 // check if all players are ready in lobby
