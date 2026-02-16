@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.159
+// @version      0.160
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -124,7 +124,7 @@ OTHER
 if (typeof Listener === "undefined") return;
 const saveData = validateLocalStorage("megaCommands");
 const originalOrder = { qb: [], gm: [] };
-let animeList = [];
+let animeList = []; //temporary storage for dropdown
 let animeListLower = []; //store lowercase version for faster compare speed
 let autoAcceptInvite = saveData.autoAcceptInvite ?? "";
 if (autoAcceptInvite === false) autoAcceptInvite = "";
@@ -4210,6 +4210,61 @@ async function parseCommand(messageText, type, target) {
             }
             else {
                 sendMessage("invalid genre", type, target, true);
+            }
+        }
+    }
+    else if (command === "dqg") {
+        if (split.length === 1) {
+            sendMessage("Usage: find anime in dqMap by genre", type, target, true);
+        }
+        else {
+            const list = content.slice(content.indexOf(" ") + 1).split(",").map((x) => x.trim()).filter(Boolean);
+            const genreList = list.map((x) => getClosestGenre(x)).filter((x) => x.id);
+            let foundAnime = [];
+            if (genreList.length) {
+                for (const anime of Object.keys(dqMap)) {
+                    if (genreList.every((x) => dqMap[anime].genre.includes(x.id))) {
+                        foundAnime.push(anime);
+                    }
+                }
+                if (foundAnime.length) {
+                    sendSystemMessage(`Found ${foundAnime.length} anime for ${genreList.map((x) => x.genre).join(", ")}:`, foundAnime.join("<br>"));
+                }
+                else {
+                    sendMessage("no anime found for those genres", type, target, true);
+                }
+            }
+        }
+    }
+    else if (command === "dqa") {
+        if (split.length === 1) {
+            sendMessage("Usage: change settings to an anime in dqMap", type, target, true);
+        }
+        else {
+            const input = content.slice(content.indexOf(" ") + 1).toLowerCase();
+            let foundAnime = [];
+            for (const anime of Object.keys(dqMap)) {
+                const lower = anime.toLowerCase();
+                if (lower === input) {
+                    foundAnime = [anime];
+                    break;
+                }
+                else if (lower.includes(input)) {
+                    foundAnime.push(anime);
+                }
+            }
+            if (foundAnime.length === 1) {
+                const anime = foundAnime[0];
+                matchSettingsToAnime(anime);
+                autoThrow = { time: [3000, 5000], text: anime, multichoice: null };
+                sendMessage(`auto throwing: ${anime} after 3-5 seconds`, type, target, true);
+                updateCommandListWindow("autoThrow");
+            }
+            else if (foundAnime.length > 1) {
+                sendMessage("too many results", type, target, true);
+            }
+            else {
+                sendMessage("no anime found for that name", type, target, true);
             }
         }
     }
