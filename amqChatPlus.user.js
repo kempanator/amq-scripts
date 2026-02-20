@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Chat Plus
 // @namespace    https://github.com/kempanator
-// @version      0.41
+// @version      0.42
 // @description  Add new features to chat and messages
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -48,9 +48,9 @@ const joypixelsUrl = "https://cdn.jsdelivr.net/npm/emoji-toolkit@latest/emoji.js
 const skinModifiers = [0x1F3FB, 0x1F3FC, 0x1F3FD, 0x1F3FE, 0x1F3FF];
 const hairModifiers = [0x1F9B0, 0x1F9B1, 0x1F9B2, 0x1F9B3];
 const genderModifiers = [0x2642, 0x2640];
-const imageUrlRegex = /^https?:\/\/\S+\.(?:png|jpe?g|gif|webp|bmp|tiff)$/i;
-const audioUrlRegex = /^https?:\/\/\S+\.(?:mp3|ogg|m4a|flac|wav)$/i;
-const videoUrlRegex = /^https?:\/\/\S+\.(?:webm|mp4|mkv|avi|mov)$/i;
+const imageUrlRegex = /^https?:\/\/\S+\.(?:png|jpe?g|gif|webp|bmp|tiff)(?:[?#]\S*)?$/i;
+const audioUrlRegex = /^https?:\/\/\S+\.(?:mp3|ogg|m4a|flac|wav)(?:[?#]\S*)?$/i;
+const videoUrlRegex = /^https?:\/\/\S+\.(?:webm|mp4|mkv|avi|mov)(?:[?#]\S*)?$/i;
 let gcTimestamps = saveData.gcTimestamps ?? true;
 let ncTimestamps = saveData.ncTimestamps ?? true;
 let dmTimestamps = saveData.dmTimestamps ?? true;
@@ -272,12 +272,7 @@ function setup() {
     });
     $("#chatPlusReformatBottomBar").prop("checked", reformatBottomBar).on("click", () => {
         reformatBottomBar = !reformatBottomBar;
-        if (reformatBottomBar) {
-            $("#chatPlusReformatBottomBarContainer, #chatPlusLoadBalancerContainer").removeClass("disabled");
-        }
-        else {
-            $("#chatPlusReformatBottomBarContainer, #chatPlusLoadBalancerContainer").addClass("disabled");
-        }
+        $("#chatPlusReformatBottomBarContainer, #chatPlusLoadBalancerContainer").toggleClass("disabled", !reformatBottomBar);
         applyStyles();
         saveSettings();
     });
@@ -504,9 +499,15 @@ function setup() {
                 }
                 if (ncColor) {
                     const name = $node.find(".nexusCoopChatName").text().slice(0, -1);
-                    if (name === selfName) $node.find(".nexusCoopChatName").addClass("self");
-                    else if (socialTab.isFriend(name)) $node.find(".nexusCoopChatName").addClass("friend");
-                    if (customColorMap.hasOwnProperty(name.toLowerCase())) $node.find(".nexusCoopChatName").addClass("customColor" + customColorMap[name.toLowerCase()]);
+                    if (name === selfName) {
+                        $node.find(".nexusCoopChatName").addClass("self");
+                    }
+                    else if (socialTab.isFriend(name)) {
+                        $node.find(".nexusCoopChatName").addClass("friend");
+                    }
+                    if (customColorMap.hasOwnProperty(name.toLowerCase())) {
+                        $node.find(".nexusCoopChatName").addClass("customColor" + customColorMap[name.toLowerCase()]);
+                    }
                 }
                 if (atBottom) {
                     nexusCoopChat.$chatMessageContainer.scrollTop(nexusCoopChat.$chatMessageContainer.prop("scrollHeight"));
@@ -646,7 +647,7 @@ function setup() {
         fetch(joypixelsUrl)
             .then(response => response.json())
             .then(populateEmojiMaps)
-            .catch(err => console.error("AMQ Emoji Convert: failed to load JoyPixels list ", err));
+            .catch(err => console.error("AMQ Chat Plus: failed to load JoyPixels list ", err));
     }
 
     // auto convert shortcodes
@@ -880,7 +881,8 @@ function populateEmojiMaps(catalogue) {
     for (const data of Object.values(catalogue)) {
         const codePoints = data.code_points.fully_qualified.split("-").map(cp => parseInt(cp, 16));
         if (!hasSkinTone(codePoints) && !hasHair(codePoints) && !hasGender(codePoints)) {
-            /*const names = [data.shortname].concat(data.shortname_alternates || []);
+            /* this section adds too many emoji aliases, not needed
+            const names = [data.shortname].concat(data.shortname_alternates || []);
             for (const name of names) {
                 if (!EMOJI_SHORTCODE_MAP.hasOwnProperty(name)) {
                     EMOJI_SHORTCODE_MAP[name] = codePoints;
