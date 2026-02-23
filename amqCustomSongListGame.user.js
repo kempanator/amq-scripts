@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.94
+// @version      0.95
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -189,8 +189,14 @@ function setup() {
             if (message.message.startsWith("§CSL")) {
                 if (!showCSLMessages) {
                     setTimeout(() => {
-                        const $message = gameChat.$chatMessageContainer.find(".gcMessage").last();
-                        if ($message.text().startsWith("§CSL")) $message.parent().remove();
+                        const $entry = $("#gcPlayerMessage-" + message.messageId);
+                        if ($entry.length && $entry.find(".gcMessage").text().startsWith("§CSL")) {
+                            $entry.remove();
+                            if (Number.isInteger(gameChat.currentMessageCount) && gameChat.currentMessageCount > 0) {
+                                gameChat.currentMessageCount--;
+                            }
+                            gameChat.$SCROLLABLE_CONTAINERS.perfectScrollbar("update");
+                        }
                     }, 0);
                 }
                 parseMessage(message.message, message.sender);
