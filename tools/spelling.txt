@@ -1,0 +1,22 @@
+Tracking spelling errors in the AMQ codebase
+
+servises -> services
+succes -> success
+timeing -> timing
+quset -> quest
+mesage -> message
+defualt -> default
+buidler -> builder
+serilizer -> serializer
+difficulity -> difficulty
+submited -> submitted
+fucntion -> function
+seach -> search
+comboes -> combos
+identifer -> identifier
+retriver -> retriever
+detatched -> detached
+overriden -> overridden
+
+lastestMultiSettings
+$MAl_SHARE_CHECKBOX
