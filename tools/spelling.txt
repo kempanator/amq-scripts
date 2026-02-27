@@ -1,5 +1,6 @@
 Tracking spelling errors in the AMQ codebase
 
+listner -> listener
 servises -> services
 succes -> success
 timeing -> timing
