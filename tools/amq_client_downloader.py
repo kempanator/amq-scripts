@@ -119,6 +119,25 @@ def resolve_rel_path(url_path):
     return safe_rel_path(url_path)
 
 
+def should_prettify_json(rel_path):
+    """Return True when rel_path should be pretty-printed."""
+    if not rel_path.lower().endswith(".json"):
+        return False
+    rel_norm = rel_path.replace("\\", "/").lower().strip("/")
+    rel_with_guards = f"/{rel_norm}/"
+    return "/locales/" in rel_with_guards
+
+
+def prettify_json_file(path):
+    """Pretty-print JSON file with stable defaults; return True when updated."""
+    with open(path, "r", encoding="utf-8") as handle:
+        data = json.load(handle)
+    with open(path, "w", encoding="utf-8", newline="\n") as handle:
+        json.dump(data, handle, indent=2, ensure_ascii=False)
+        handle.write("\n")
+    return True
+
+
 def download_url(url, dest_path, overwrite=False):
     """Download URL to dest_path; optionally skip when file exists."""
     if not overwrite and os.path.exists(dest_path):
@@ -203,6 +222,12 @@ def main():
         if status == "downloaded":
             downloaded += 1
             print(f"Downloaded: {url}")
+            if should_prettify_json(rel):
+                try:
+                    prettify_json_file(dest_path)
+                except Exception as exc:
+                    # Keep the raw file when parsing or re-write fails.
+                    print(f"Warn: JSON format skipped for {dest_path} ({exc})")
         else:
             skipped += 1
             print(f"Skipped (exists): {dest_path}")
