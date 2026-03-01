@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         AMQ Highlight Friends
 // @namespace    https://github.com/kempanator
-// @version      2.2
-// @description  Apply color to name of yourself and friends. and more
+// @version      2.3
+// @description  Apply colors to player names and add an answer summary table
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
 // @grant        none
@@ -18,7 +18,7 @@ https://github.com/nyamu-amq/amq_scripts/blob/master/amqHighlightFriends.user.js
 
 New Features:
 - blocked people are red
-- custom colors
+- custom colors for any name
 - change mode and sort columns in summary table
 */
 
@@ -31,7 +31,7 @@ const loadInterval = setInterval(() => {
     }
 }, 500);
 
-const largeRooms = ["Ranked", "Themed", "Event", "Jam"]; // gamemodes for friend view
+const largeRooms = ["Ranked", "Themed", "Jam", "Event", "event"]; // gamemodes for friend view
 const saveData = validateLocalStorage("highlightFriendsSettings");
 const colorClassRegex = /(isSelf|isFriend|isBlocked|customColor\d+)/g;
 let smColorSelfColor = saveData.smColorSelfColor ?? "#80c7ff";
@@ -59,11 +59,19 @@ let smRemoveColor = saveData.smRemoveColor ?? false;
 let smRemoveGlow = saveData.smRemoveGlow ?? false;
 let smOverrideRankedColor = saveData.smOverrideRankedColor ?? false;
 let tableFriendsOnly = false;
-let tableSort = { mode: "position", ascending: true }; //position, name, answer
+let tableSort = { mode: "position", ascending: true }; // position, name, answer, time
 let answerResults = {};
+let answerTimes = {}; // { gamePlayerId: ms }
+let latestPlayerAnswers = {}; // { gamePlayerId: answerText }
 let playerSummaryWindow;
 let $playerSummaryTable;
+let $playerSummarySettings;
 let playerSummaryRows = [];
+let playerSummaryRowCache = new Map();
+let playerSummarySettingsOpen = false;
+let summaryTimeUnit = saveData.summaryTimeUnit ?? "seconds";
+let summaryAnswerAppendTime = saveData.summaryAnswerAppendTime ?? false;
+let summaryColumns = Object.assign({rank: true, score: true, name: true, box: true, answer: true, time: false}, saveData.summaryColumns ?? {});
 let customColors = saveData.customColors ?? [];
 let customColorMap = {};
 let hotKeys = {
@@ -126,6 +134,26 @@ function setup() {
         setTimeout(() => {
             refreshColors();
         }, 0);
+    }).bindListener();
+
+    new Listener("play next song", () => {
+        answerTimes = {};
+        latestPlayerAnswers = {};
+    }).bindListener();
+
+    new Listener("player answered", (data) => {
+        for (const item of data) {
+            for (const id of item.gamePlayerIds) {
+                answerTimes[id] = Math.floor(item.answerTime * 1000);
+            }
+        }
+    }).bindListener();
+
+    new Listener("player answers", (data) => {
+        latestPlayerAnswers = {};
+        for (const item of data.answers) {
+            latestPlayerAnswers[item.gamePlayerId] = item.answer;
+        }
     }).bindListener();
 
     new Listener("answer results", (data) => {
@@ -202,7 +230,8 @@ function setup() {
             .append($("<td>", { class: "fstScore", text: "Score", "data-sort": "position" }))
             .append($("<td>", { class: "fstName", text: "Name", "data-sort": "name" }))
             .append($("<td>", { class: "fstBox", text: "Box", "data-sort": "position" }))
-            .append($("<td>", { class: "fstAnswer", text: "Last Answer", "data-sort": "answer" }))
+            .append($("<td>", { class: "fstAnswer", text: "Answer", "data-sort": "answer" }))
+            .append($("<td>", { class: "fstTime", text: "Time", "data-sort": "time" }))
         ).on("click", "td", (event) => {
             const $cell = $(event.currentTarget);
             const $row = $cell.parent();
@@ -217,12 +246,62 @@ function setup() {
         });
 
     playerSummaryWindow.panels[0].panel.append($playerSummaryTable);
+    $playerSummarySettings = $("<div>", { id: "playerSummaryWindowSettingsContainer", style: "display: none;" })
+        .append($("<div>", { text: "Time Unit", style: "font-weight: bold; margin-bottom: 4px;" }))
+        .append($("<select>", { id: "pssTimeUnitSelector", style: "margin-bottom: 10px; color: black;" })
+            .append($("<option>", { value: "seconds", text: "Seconds" }))
+            .append($("<option>", { value: "milliseconds", text: "Milliseconds" }))
+            .val(summaryTimeUnit)
+            .on("change", function () {
+                summaryTimeUnit = this.value;
+                saveSettings();
+                createSummaryTable();
+            }))
+        .append($("<span>", { text: "Append Time to Answer", style: "margin-left: 10px;" }))
+        .append($("<div>", { class: "customCheckbox", style: "margin-left: 4px;" })
+            .append($("<input>", { id: "pssAnswerAppendTime", type: "checkbox", checked: summaryAnswerAppendTime })
+                .on("click", function () {
+                    summaryAnswerAppendTime = !summaryAnswerAppendTime;
+                    saveSettings();
+                    createSummaryTable();
+                }))
+            .append(`<label for="pssAnswerAppendTime"><i class="fa fa-check" aria-hidden="true"></i></label>`)
+        )
+        .append($("<div>", { text: "Column Visibility", style: "font-weight: bold; margin-bottom: 8px;" }));
+    const summaryColumnLabels = {
+        rank: "Rank",
+        score: "Score",
+        name: "Name",
+        box: "Box",
+        answer: "Answer",
+        time: "Time"
+    };
+    for (const [key, label] of Object.entries(summaryColumnLabels)) {
+        $playerSummarySettings
+            .append($("<span>", { text: label }))
+            .append($("<div>", { class: "customCheckbox", style: "margin: 0 15px 0 4px;" })
+                .append($("<input>", { id: `pssColumn${key}`, type: "checkbox", checked: summaryColumns[key] })
+                    .on("click", function () {
+                        summaryColumns[key] = !summaryColumns[key];
+                        saveSettings();
+                        applyStyles();
+                    }))
+                .append(`<label for="pssColumn${key}"><i class="fa fa-check" aria-hidden="true"></i></label>`)
+            );
+    }
+    playerSummaryWindow.panels[0].panel.append($playerSummarySettings);
     playerSummaryWindow.window.find(".close").remove();
     playerSummaryWindow.window.find(".modal-header")
         .prepend($("<i>", { class: "fa fa-table clickAble", "aria-hidden": "true", style: "font-size: 22px; float: right; margin: 3px 5px 0 0;" })
             .on("click", () => {
                 tableFriendsOnly = !tableFriendsOnly;
                 createSummaryTable();
+            }))
+        .prepend($("<i>", { class: "fa fa-cog clickAble", "aria-hidden": "true", style: "font-size: 22px; float: right; margin: 3px 5px 0 0;" })
+            .on("click", () => {
+                playerSummarySettingsOpen = !playerSummarySettingsOpen;
+                $playerSummaryTable.toggle(!playerSummarySettingsOpen);
+                $playerSummarySettings.toggle(playerSummarySettingsOpen);
             }))
         .prepend($("<i>", { class: "fa fa-times clickAble", "aria-hidden": "true", style: "font-size: 25px; float: right;" })
             .on("click", () => {
@@ -232,7 +311,7 @@ function setup() {
     $("#settingsGraphicContainer").append(`
         <div class="row" style="padding-top: 10px">
             <div id="smColorSettings" class="col-xs-12">
-                <div style="text-align: center"><label>ColorSettings</label></div>
+                <div style="text-align: center"><label>Highlight Friends Script Settings</label></div>
                 <div id="smColorContainer"></div>
             </div>
         </div>
@@ -531,7 +610,7 @@ function setup() {
             for (const item of Object.values(customColors)) {
                 item.enabled = !item.enabled;
             }
-            $(".hfCustomColorRow input[type='checkbox']").prop("checked", x => !x);
+            $(".hfCustomColorRow input[type='checkbox']").prop("checked", (index, checked) => !checked);
             saveSettings();
             applyStyles();
         }
@@ -576,33 +655,84 @@ function setup() {
 
 // create summary table
 function createSummaryTable() {
-    $playerSummaryTable.find("tr:not(.header)").remove();
     playerSummaryWindow.setTitle(tableFriendsOnly ? "Friend Summary" : "Player Summary");
     playerSummaryRows = [];
-    if (!Object.keys(answerResults).length) return;
+    if (!Object.keys(answerResults).length || !Array.isArray(answerResults.players)) {
+        // Hard reset cache when quiz data is unavailable.
+        for (const row of playerSummaryRowCache.values()) {
+            row.$row.remove();
+        }
+        playerSummaryRowCache.clear();
+        return;
+    }
+    const visiblePlayerIds = new Set();
     for (const player of answerResults.players) {
-        const name = player.name ?? quiz.players[player.gamePlayerId]._name ?? "";
-        const answer = player.answer ?? (quiz.players ? quiz.players[player.gamePlayerId].avatarSlot.$answerContainerText.text() : "");
+        const gamePlayerId = player.gamePlayerId;
+        const name = player.name
+            ?? quiz.players[gamePlayerId]._name
+            ?? "";
+        const answer = player.answer
+            ?? latestPlayerAnswers[gamePlayerId]
+            ?? quiz.players?.[gamePlayerId]?.avatarSlot?.$answerContainerText?.text?.()
+            ?? "";
         if (player.name === undefined) player.name = name;
         if (player.answer === undefined) player.answer = answer;
         if (name && (!tableFriendsOnly || name === selfName || socialTab.isFriend(name))) {
-            const row = {
+            // reuse existing row when possible to avoid rebuilding DOM each update
+            let row = playerSummaryRowCache.get(gamePlayerId);
+            if (!row) {
+                const $row = $("<tr>", { id: `friendScore${gamePlayerId}`, class: "friendScore clickAble" })
+                    .append($("<td>", { class: "fstRank" }))
+                    .append($("<td>", { class: "fstScore" }))
+                    .append($("<td>", { class: "fstName" }))
+                    .append($("<td>", { class: "fstBox" }))
+                    .append($("<td>", { class: "fstAnswer" }))
+                    .append($("<td>", { class: "fstTime" }));
+                const $cells = $row.children("td");
+                row = {
+                    gamePlayerId: gamePlayerId,
+                    $row: $row,
+                    $rank: $cells.eq(0),
+                    $score: $cells.eq(1),
+                    $name: $cells.eq(2),
+                    $box: $cells.eq(3),
+                    $answer: $cells.eq(4),
+                    $time: $cells.eq(5)
+                };
+                playerSummaryRowCache.set(gamePlayerId, row);
+            }
+            // keep cached row state and rendered cell text in sync
+            const timeMs = answerTimes[gamePlayerId] ?? null;
+            const timeText = formatAnswerTime(timeMs);
+            const answerText = summaryAnswerAppendTime && timeText ? `${answer} (${timeText})` : answer;
+            Object.assign(row, {
                 name: name,
-                gamePlayerId: player.gamePlayerId,
                 rank: player.position ?? "",
                 score: player.correctGuesses ?? player.score ?? "",
-                box: findBoxById(player.gamePlayerId, answerResults.groupMap ?? answerResults.groupSlotMap),
-                answer: answer,
+                box: findBoxById(gamePlayerId, answerResults.groupMap ?? answerResults.groupSlotMap),
+                answer: answerText,
+                timeMs: timeMs,
+                time: timeText,
                 correct: player.correct
-            };
-            row.$row = $("<tr>", { id: `friendScore${player.gamePlayerId}`, class: "friendScore clickAble" })
+            });
+            row.$row
+                .removeClass("correctGuess incorrectGuess")
                 .addClass(player.correct ? "correctGuess" : (player.correct === undefined ? "" : "incorrectGuess"))
-                .append($("<td>", { class: "fstRank", text: row.rank }))
-                .append($("<td>", { class: "fstScore", text: row.score }))
-                .append($("<td>", { class: "fstName", text: row.name }))
-                .append($("<td>", { class: "fstBox", text: row.box }))
-                .append($("<td>", { class: "fstAnswer", text: row.answer }))
+            row.$rank.text(row.rank);
+            row.$score.text(row.score);
+            row.$name.text(row.name);
+            row.$box.text(row.box);
+            row.$answer.text(row.answer);
+            row.$time.text(row.time);
             playerSummaryRows.push(row);
+            visiblePlayerIds.add(gamePlayerId);
+        }
+    }
+    // remove rows for players no longer visible
+    for (const [gamePlayerId, row] of playerSummaryRowCache.entries()) {
+        if (!visiblePlayerIds.has(gamePlayerId)) {
+            row.$row.remove();
+            playerSummaryRowCache.delete(gamePlayerId);
         }
     }
     sortSummaryTableRows();
@@ -622,8 +752,12 @@ function tableSortChange(mode) {
 // sort summary rows and append to table
 function sortSummaryTableRows() {
     if (tableSort.mode === "position") {
-        const groupMap = Object.values(answerResults.groupMap ?? answerResults.groupSlotMap).flat();
-        playerSummaryRows.sort((a, b) => groupMap.indexOf(a.gamePlayerId) - groupMap.indexOf(b.gamePlayerId));
+        const groupOrder = Object.values(answerResults.groupMap ?? answerResults.groupSlotMap ?? {}).flat();
+        const orderMap = new Map();
+        groupOrder.forEach((gamePlayerId, index) => {
+            orderMap.set(gamePlayerId, index);
+        });
+        playerSummaryRows.sort((a, b) => (orderMap.get(a.gamePlayerId) ?? Number.MAX_SAFE_INTEGER) - (orderMap.get(b.gamePlayerId) ?? Number.MAX_SAFE_INTEGER));
     }
     else if (tableSort.mode === "name") {
         playerSummaryRows.sort((a, b) => a.name.localeCompare(b.name));
@@ -631,17 +765,26 @@ function sortSummaryTableRows() {
     else if (tableSort.mode === "answer") {
         playerSummaryRows.sort((a, b) => a.answer.localeCompare(b.answer));
     }
+    else if (tableSort.mode === "time") {
+        playerSummaryRows.sort((a, b) => (a.timeMs ?? Number.MAX_SAFE_INTEGER) - (b.timeMs ?? Number.MAX_SAFE_INTEGER));
+    }
     if (!tableSort.ascending) playerSummaryRows.reverse();
     $playerSummaryTable.append(playerSummaryRows.map((item) => item.$row));
 }
 
+function formatAnswerTime(ms) {
+    if (ms === null || ms === undefined) return "";
+    if (summaryTimeUnit === "milliseconds") return `${ms}ms`;
+    return `${(ms / 1000).toFixed(2)}s`;
+}
+
+// find the box id for a given player id
 function findBoxById(id, groupMap) {
-    if (!groupMap) {
-        groupMap = quiz.avatarContainer._groupSlotMap;
-    }
+    if (!groupMap) groupMap = quiz.avatarContainer._groupSlotMap;
     return Object.keys(groupMap).find(key => groupMap[key].indexOf(id) !== -1);
 }
 
+// select a given player grouping in the scoreboard
 function selectAvatarGroup(number) {
     quiz.avatarContainer.currentGroup = number;
     quiz.scoreboard.setActiveGroup(number);
@@ -650,6 +793,7 @@ function selectAvatarGroup(number) {
     }
 }
 
+// build custom color rows in settings
 function buildCustomColorList() {
     customColorMap = {};
     const $smCustomColors = $("#smCustomColors").empty();
@@ -668,7 +812,7 @@ function buildCustomColorList() {
                         }))
                     .append(`<label for="smColorCustomCheckbox${index}"><i class="fa fa-check" aria-hidden="true"></i></label>`)
                 )
-                .append("<span>", { text: "Custom", style: "width: 60px; display: inline-block;" })
+                .append($("<span>", { text: "Custom", style: "width: 60px; display: inline-block;" }))
                 .append($("<input>", { id: `smColorCustomColor${index}`, type: "color" })
                     .val(item.color)
                     .on("change", function () {
@@ -701,8 +845,8 @@ function buildCustomColorList() {
                     customColors.splice(index, 1);
                     saveSettings();
                     applyStyles();
-                    refreshColors();
                     buildCustomColorList();
+                    refreshColors();
                 }))
             )
     });
@@ -798,7 +942,8 @@ function colorSpectators() {
 // update chat message
 function updateChatMessage(message) {
     setTimeout(() => {
-        const $gcUserName = $(`#gcPlayerMessage-${message.messageId}`).find(".gcUserName");
+        const $gcUserName = $(`#gcPlayerMessage-${message.messageId} .gcUserName`);
+        const lower = message.sender.toLowerCase();
         if (message.sender === selfName) {
             $gcUserName.addClass("isSelf");
         }
@@ -808,8 +953,8 @@ function updateChatMessage(message) {
         else if (socialTab.isBlocked(message.sender)) {
             $gcUserName.addClass("isBlocked");
         }
-        if (customColorMap.hasOwnProperty(message.sender.toLowerCase())) {
-            $gcUserName.addClass("customColor" + customColorMap[message.sender.toLowerCase()]);
+        if (customColorMap.hasOwnProperty(lower)) {
+            $gcUserName.addClass("customColor" + customColorMap[lower]);
         }
         if (smRemoveColor) {
             $gcUserName.removeClass("gcNameColor");
@@ -817,7 +962,7 @@ function updateChatMessage(message) {
         if (smRemoveGlow) {
             $gcUserName.removeClass("gcNameGlow");
         }
-    }, 1);
+    }, 0);
 }
 
 // check if name is self (handle original name script)
@@ -927,6 +1072,25 @@ function bindingToText(b) {
     return keys.join(" + ");
 }
 
+function matchLocalizedSystemMessage(title, messageKey) {
+    // Build the localized template with a sentinel so player names do not affect matching.
+    const marker = "__HF_NAME__";
+    const template = localizationHandler.translate(messageKey, { name: marker });
+    // Translation missing/unloaded: do not treat as a match.
+    if (!template || template === messageKey) return false;
+    // Some messages may not include a name placeholder; use exact match in that case.
+    if (!template.includes(marker)) return title === template;
+    // Match static fragments in order, allowing any name/string in place of the marker.
+    const parts = template.split(marker).filter(Boolean);
+    let pos = 0;
+    for (const part of parts) {
+        const index = title.indexOf(part, pos);
+        if (index === -1) return false;
+        pos = index + part.length;
+    }
+    return true;
+}
+
 // override system message function to inject color classes
 GameChat.prototype.systemMessage = function (title, msg, teamMessage) {
     if (!msg) msg = "";
@@ -934,13 +1098,18 @@ GameChat.prototype.systemMessage = function (title, msg, teamMessage) {
     if (teamMessage) {
         $msg.find(".gcTeamMessageIcon").removeClass("hide");
     }
-    if (title.includes("started spectating") || title.includes("changed to spectator")) {
+    if (matchLocalizedSystemMessage(title, "game_chat.new_spectator_message") ||
+        matchLocalizedSystemMessage(title, "game_chat.changed_to_spectator_message")) {
         $msg.addClass("csmSpec");
     }
-    else if (title.includes("joined the room") || title.includes("changed to player")) {
+    else if (matchLocalizedSystemMessage(title, "game_chat.joined_room_message") ||
+        matchLocalizedSystemMessage(title, "game_chat.changed_to_player_message")) {
         $msg.addClass("csmJoin");
     }
-    else if (title.includes("stopped spectating") || title.includes("left the room") || title.includes("kicked from the room")) {
+    else if (matchLocalizedSystemMessage(title, "game_chat.stopped_spectating_message") ||
+        matchLocalizedSystemMessage(title, "game_chat.left_room_message") ||
+        matchLocalizedSystemMessage(title, "game_chat.kicked_message") ||
+        matchLocalizedSystemMessage(title, "game_chat.disconnected_message")) {
         $msg.addClass("csmLeave");
     }
     this.insertMsg($msg);
@@ -969,6 +1138,7 @@ SocialTab.prototype.unblockPlayer = function () {
 
 // override updateList function to apply colors
 Leaderboard.prototype.updateList = function (listName, entries) {
+    this.currentEntryMap[listName] = entries;
     const tabEntry = this.tabMap[listName];
     const $container = tabEntry.$container;
     $container.find(".lbmBoardEntry").remove();
@@ -1039,7 +1209,11 @@ function saveSettings() {
         smRemoveColor,
         smRemoveGlow,
         smOverrideRankedColor,
-        customColors
+        customColors,
+        hotKeys,
+        summaryColumns,
+        summaryTimeUnit,
+        summaryAnswerAppendTime
     }));
 }
 
@@ -1079,6 +1253,9 @@ function applyStyles() {
         .fstAnswer {
             min-width: 80px;
         }
+        .fstTime {
+            min-width: 55px;
+        }
         .correctGuess {
             background-color: rgba(0, 200, 0, 0.07);
         }
@@ -1099,7 +1276,16 @@ function applyStyles() {
         #smCustomColors i.fa-trash:hover {
             color: #d9534f;
         }
+        #playerSummaryWindowSettingsContainer .customCheckbox {
+            vertical-align: middle;
+        }
     `;
+    if (!summaryColumns.rank) css += `.fstRank { display: none; }`;
+    if (!summaryColumns.score) css += `.fstScore { display: none; }`;
+    if (!summaryColumns.name) css += `.fstName { display: none; }`;
+    if (!summaryColumns.box) css += `.fstBox { display: none; }`;
+    if (!summaryColumns.answer) css += `.fstAnswer { display: none; }`;
+    if (!summaryColumns.time) css += `.fstTime { display: none; }`;
     if (smColorJoin) css += `
         .csmJoin {
             color: ${smColorJoinColor};
