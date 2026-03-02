@@ -13,11 +13,13 @@ difficulity -> difficulty
 submited -> submitted
 fucntion -> function
 seach -> search
+serie -> series
 comboes -> combos
 identifer -> identifier
 retriver -> retriever
 detatched -> detached
 overriden -> overridden
+annivesary -> anniversary
 
 lastestMultiSettings
 $MAl_SHARE_CHECKBOX
