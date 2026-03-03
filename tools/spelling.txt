@@ -12,6 +12,7 @@ serilizer -> serializer
 difficulity -> difficulty
 submited -> submitted
 fucntion -> function
+skpping -> skipping
 seach -> search
 serie -> series
 comboes -> combos
