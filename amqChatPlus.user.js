@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Chat Plus
 // @namespace    https://github.com/kempanator
-// @version      0.42
+// @version      0.43
 // @description  Add new features to chat and messages
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -421,7 +421,8 @@ function setup() {
     $gcInput
         .on("dragenter", () => {
             if (fileUploadToLitterbox) {
-                $gcInput.popover("show").data("bs.popover").options.content = "Upload to litterbox";
+                $gcInput.data("bs.popover").options.content = "Upload to litterbox";
+                $gcInput.popover("show");
             }
         })
         .on("dragleave", () => {
@@ -430,10 +431,10 @@ function setup() {
             }
         })
         .on("drop", (event) => {
-            gcUploadEvent(event, $gcInput)
+            gcUploadEvent(event, $gcInput);
         })
         .on("paste", (event) => {
-            gcUploadEvent(event, $gcInput)
+            gcUploadEvent(event, $gcInput);
         })
 
     gameChat.MAX_CHAT_MESSAGES = gcMaxMessages;
@@ -447,7 +448,6 @@ function setup() {
     // watch game chat
     new MutationObserver((mutations) => {
         for (const mutation of mutations) {
-            if (!mutation.addedNodes.length) continue;
             for (const node of mutation.addedNodes) {
                 const $node = $(node);
                 const atBottom = gameChat.$chatMessageContainer.scrollTop() + gameChat.$chatMessageContainer.innerHeight() >= gameChat.$chatMessageContainer[0].scrollHeight - 100;
@@ -487,7 +487,6 @@ function setup() {
     // watch nexus chat
     new MutationObserver((mutations) => {
         for (const mutation of mutations) {
-            if (!mutation.addedNodes.length) continue;
             for (const node of mutation.addedNodes) {
                 const $node = $(node);
                 const atBottom = nexusCoopChat.$chatMessageContainer.scrollTop() + nexusCoopChat.$chatMessageContainer.innerHeight() >= nexusCoopChat.$chatMessageContainer[0].scrollHeight - 100;
@@ -519,7 +518,6 @@ function setup() {
     // watch dms
     new MutationObserver((mutations) => {
         for (const mutation of mutations) {
-            if (!mutation.addedNodes.length) continue;
             for (const node of mutation.addedNodes) {
                 const $node = $(node);
                 if ($node.hasClass("chatBox")) {
@@ -561,20 +559,22 @@ function setup() {
                             },
                             callback: () => {
                                 const text = this.$input.val();
-                                const targetIndex = $input[0].selectionStart;
+                                const targetIndex = this.$input[0].selectionStart;
                                 const prevSpaceIndex = text.lastIndexOf(" ", targetIndex - 1);
                                 const prevEmojiIndex = text.lastIndexOf(":", targetIndex - 1);
                                 const prevIndex = prevSpaceIndex > prevEmojiIndex ? prevSpaceIndex + 1 : prevEmojiIndex;
                                 const nextSpaceIndex = text.indexOf(" ", targetIndex);
                                 const begin = prevIndex < 0 ? 0 : prevIndex;
                                 const end = nextSpaceIndex < 0 ? text.length : nextSpaceIndex;
-                                let newText = text.slice(0, begin) + translateShortcodeToUnicode(name).text + text.slice(end);
+                                const insertedEmoji = translateShortcodeToUnicode(name).text;
+                                let newText = text.slice(0, begin) + insertedEmoji + text.slice(end);
                                 const textMaxLength = this.$input.attr("maxlength");
                                 if (textMaxLength && newText.length > parseInt(textMaxLength)) {
                                     newText = newText.slice(0, parseInt(textMaxLength));
                                 }
                                 this.$input.val(newText);
-                                const newCursorPosition = begin + name.length;
+                                const newCursorPosition = Math.min(begin + insertedEmoji.length, newText.length);
+                                this.$input[0].selectionStart = newCursorPosition;
                                 this.$input[0].selectionEnd = newCursorPosition;
                             },
                         };
@@ -701,10 +701,18 @@ function fetchTenorPage(query, pos = 0, clearExisting = false) {
         `&limit=${imagesPerRequest}` +
         `&pos=${pos}`;
 
-    fetch(url).then(res => res.json()).then(data => {
+    fetch(url).then(res => {
+        if (!res.ok) {
+            throw new Error(`Tenor request failed (${res.status})`);
+        }
+        return res.json();
+    }).then(data => {
         for (const gif of data.results) {
             appendThumbnail(gif.media[0].gif.url);
         }
+    }).catch(err => {
+        console.error("AMQ ChatPlus: failed to fetch Tenor gifs", err);
+        //gameChat.systemMessage("ChatPlus Error: failed to fetch gifs");
     });
 }
 
@@ -811,14 +819,19 @@ function gcUploadEvent(event, $node) {
     $node.data("bs.popover").options.content = "Uploading to litterbox...";
     $node.popover("show");
     fetch(litterboxUrl, { method: "POST", body: litterboxFormData(file) })
-        .then(res => res.text())
+        .then(res => {
+            if (!res.ok) {
+                throw new Error(`Litterbox upload failed (${res.status})`);
+            }
+            return res.text();
+        })
         .then(data => {
             $node.popover("hide");
             $node.val((index, value) => value + data);
         })
         .catch(res => {
             $node.popover("hide");
-            gameChat.systemMessage("Error: litterbox upload failed");
+            gameChat.systemMessage("ChatPlus Error: litterbox upload failed");
             console.log(res);
         });
 }
@@ -831,7 +844,12 @@ function dmUploadEvent(event, $node) {
     event.preventDefault();
     event.stopPropagation();
     fetch(litterboxUrl, { method: "POST", body: litterboxFormData(file) })
-        .then(res => res.text())
+        .then(res => {
+            if (!res.ok) {
+                throw new Error(`Litterbox upload failed (${res.status})`);
+            }
+            return res.text();
+        })
         .then(data => {
             $node.find("textarea").val((index, value) => value + data);
         })
