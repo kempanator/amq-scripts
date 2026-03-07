@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Chat Plus
 // @namespace    https://github.com/kempanator
-// @version      0.43
+// @version      0.44
 // @description  Add new features to chat and messages
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -430,12 +430,8 @@ function setup() {
                 $gcInput.popover("hide");
             }
         })
-        .on("drop", (event) => {
-            gcUploadEvent(event, $gcInput);
-        })
-        .on("paste", (event) => {
-            gcUploadEvent(event, $gcInput);
-        })
+        .on("drop", gcUploadEvent)
+        .on("paste", gcUploadEvent);
 
     gameChat.MAX_CHAT_MESSAGES = gcMaxMessages;
     nexusCoopChat.MAX_CHAT_MESSAGES = ncMaxMessages;
@@ -645,9 +641,9 @@ function setup() {
     // add joypixels emojis list to the game
     if (fetchEmojiList) {
         fetch(joypixelsUrl)
-            .then(response => response.json())
-            .then(populateEmojiMaps)
-            .catch(err => console.error("AMQ Chat Plus: failed to load JoyPixels list ", err));
+            .then(res => res.json())
+            .then(data => populateEmojiMaps(data))
+            .catch(err => console.error("AMQ ChatPlus: failed to load JoyPixels list ", err));
     }
 
     // auto convert shortcodes
@@ -809,15 +805,15 @@ function litterboxFormData(file) {
 }
 
 // upload file to litterbox on event in game chat
-function gcUploadEvent(event, $node) {
+function gcUploadEvent(event) {
     if (!fileUploadToLitterbox) return;
-    $node.popover("hide");
+    $gcInput.popover("hide");
     const file = event.originalEvent.clipboardData?.files?.[0] ?? event.originalEvent.dataTransfer?.files?.[0];
     if (!file) return;
     event.preventDefault();
     event.stopPropagation();
-    $node.data("bs.popover").options.content = "Uploading to litterbox...";
-    $node.popover("show");
+    $gcInput.data("bs.popover").options.content = "Uploading to litterbox...";
+    $gcInput.popover("show");
     fetch(litterboxUrl, { method: "POST", body: litterboxFormData(file) })
         .then(res => {
             if (!res.ok) {
@@ -826,11 +822,11 @@ function gcUploadEvent(event, $node) {
             return res.text();
         })
         .then(data => {
-            $node.popover("hide");
-            $node.val((index, value) => value + data);
+            $gcInput.popover("hide");
+            $gcInput.val((index, value) => value + data);
         })
         .catch(res => {
-            $node.popover("hide");
+            $gcInput.popover("hide");
             gameChat.systemMessage("ChatPlus Error: litterbox upload failed");
             console.log(res);
         });
@@ -879,19 +875,19 @@ function convertText(event) {
 }
 
 // used to remove skin tone variants in emojis
-function hasSkinTone(cps) {
-    return cps.some(cp => skinModifiers.includes(cp));
+function hasSkinTone(codePoints) {
+    return codePoints.some(cp => skinModifiers.includes(cp));
 }
 
 // used to remove hair variants in emojis
-function hasHair(cps) {
-    return cps.some(cp => hairModifiers.includes(cp));
+function hasHair(codePoints) {
+    return codePoints.some(cp => hairModifiers.includes(cp));
 }
 
 // used to remove gendered variants in emojis
-function hasGender(cps) {
-    if (!cps.includes(0x200D)) return false; //must have zero width joiner
-    return cps.some(cp => genderModifiers.includes(cp));
+function hasGender(codePoints) {
+    if (!codePoints.includes(0x200D)) return false; //must have zero width joiner
+    return codePoints.some(cp => genderModifiers.includes(cp));
 }
 
 // merge the JoyPixels catalogue into the global shortcode maps
@@ -1005,7 +1001,12 @@ const oldResetDrag = nexusCoopChat.resetDrag;
 nexusCoopChat.resetDrag = function () {
     oldResetDrag.apply(this, arguments);
     if (resizeNexusChat) {
-        $("#nexusCoopMainContainer").removeAttr("style").css({ "resize": "both", "overflow": "hidden", "min-width": "0", "max-width": "none" });
+        $("#nexusCoopMainContainer").removeAttr("style").css({
+            "resize": "both",
+            "overflow": "hidden",
+            "min-width": "0",
+            "max-width": "none"
+        });
     }
 };
 
