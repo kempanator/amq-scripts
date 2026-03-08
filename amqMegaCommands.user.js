@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.160
+// @version      0.161
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -330,6 +330,11 @@ const dqMap = {
     "Girls' Last Tour": { genre: [2, 14, 15], years: [2017, 2017], seasons: [3, 3] },
     "Mirai Nikki": { genre: [1, 7, 11, 12, 17, 18], years: [2011, 2011], seasons: [3, 3] },
     "Kamitsubaki City Under Construction": { genre: [10, 11, 17], years: [2025, 2025], seasons: [2, 2] }
+};
+const dqTypeMap = {
+    "OP": "Detective Conan",
+    "ED": "Detective Conan",
+    "IN": "Initial D",
 };
 
 if (document.querySelector("#loginPage")) {
@@ -4098,7 +4103,7 @@ async function parseCommand(messageText, type, target) {
                 sendMessage(`Detected: ${list.map((x) => idTranslator.genreNames[x]).join(", ")}`, type, target, true);
                 const anime = genreLookup(list);
                 if (anime) {
-                    sendMessage(anime, type, target);
+                    //sendMessage(anime, type, target);
                     matchSettingsToAnime(anime);
                     autoThrow = { time: [3000, 5000], text: anime, multichoice: null };
                     sendMessage(`auto throwing: ${anime} after 3-5 seconds`, type, target, true);
@@ -4109,7 +4114,21 @@ async function parseCommand(messageText, type, target) {
                 }
             }
             else {
-                sendMessage("no incomplete genre quests detected", type, target, true);
+                const typeQuests = Object.values(qusetContainer.questMap).filter((x) => x.name.includes("dont_skip") && x.state !== x.targetState);
+                if (typeQuests.length) {
+                    const animeType = typeQuests[0].name.split(".")[2].split("_")[2].slice(0, 2).toUpperCase();
+                    const anime = dqTypeMap[animeType];
+                    if (anime) {
+                        //sendMessage(anime, type, target);
+                        matchSettingsToType(animeType);
+                        autoThrow = { time: [3000, 5000], text: anime, multichoice: null };
+                        sendMessage(`auto throwing: ${anime} after 3-5 seconds`, type, target, true);
+                        updateCommandListWindow("autoThrow");
+                    }
+                }
+                else {
+                    sendMessage("no incomplete genre or type quests detected", type, target, true);
+                }
             }
         }
         else if (/^\S+ (r|random) [0-9]+$/.test(content)) {
@@ -4137,58 +4156,25 @@ async function parseCommand(messageText, type, target) {
             updateCommandListWindow("autoThrow");
         }
         else if (/^\S+ ops?$/.test(content)) {
-            const anime = "Detective Conan";
-            if (lobby.inLobby && lobby.isHost && dqMap.hasOwnProperty(anime)) {
-                const settings = hostModal.getSettings(true);
-                const data = dqMap[anime];
-                settings.songSelection.standardValue = 1;
-                settings.songSelection.advancedValue = { random: settings.numberOfSongs, unwatched: 0, watched: 0 };
-                settings.songType.standardValue = { openings: true, endings: false, inserts: false };
-                settings.songType.advancedValue = { openings: 0, endings: 0, inserts: 0, random: settings.numberOfSongs };
-                settings.vintage.advancedValueList = [];
-                settings.vintage.standardValue = { seasons: data.seasons, years: data.years };
-                settings.genre = data.genre.map((x) => ({ id: String(x), state: 1 }));
-                settings.tags = data.tags ?? [];
-                changeGameSettings(settings);
-            }
+            const animeType = "OP";
+            const anime = dqTypeMap[animeType];
+            matchSettingsToType(animeType);
             autoThrow = { time: [3000, 5000], text: anime, multichoice: null };
             sendMessage(`auto throwing: ${anime} after 3-5 seconds`, type, target, true);
             updateCommandListWindow("autoThrow");
         }
         else if (/^\S+ eds?$/.test(content)) {
-            const anime = "Detective Conan";
-            if (lobby.inLobby && lobby.isHost && dqMap.hasOwnProperty(anime)) {
-                const settings = hostModal.getSettings(true);
-                const data = dqMap[anime];
-                settings.songSelection.standardValue = 1;
-                settings.songSelection.advancedValue = { random: settings.numberOfSongs, unwatched: 0, watched: 0 };
-                settings.songType.standardValue = { openings: false, endings: true, inserts: false };
-                settings.songType.advancedValue = { openings: 0, endings: 0, inserts: 0, random: settings.numberOfSongs };
-                settings.vintage.advancedValueList = [];
-                settings.vintage.standardValue = { seasons: data.seasons, years: data.years };
-                settings.genre = data.genre.map((x) => ({ id: String(x), state: 1 }));
-                settings.tags = data.tags ?? [];
-                changeGameSettings(settings);
-            }
+            const animeType = "ED";
+            const anime = dqTypeMap[animeType];
+            matchSettingsToType(animeType);
             autoThrow = { time: [3000, 5000], text: anime, multichoice: null };
             sendMessage(`auto throwing: ${anime} after 3-5 seconds`, type, target, true);
             updateCommandListWindow("autoThrow");
         }
         else if (/^\S+ ins?$/.test(content)) {
-            const anime = "Initial D";
-            if (lobby.inLobby && lobby.isHost && dqMap.hasOwnProperty(anime)) {
-                const settings = hostModal.getSettings(true);
-                const data = dqMap[anime];
-                settings.songSelection.standardValue = 1;
-                settings.songSelection.advancedValue = { random: settings.numberOfSongs, unwatched: 0, watched: 0 };
-                settings.songType.standardValue = { openings: false, endings: false, inserts: true };
-                settings.songType.advancedValue = { openings: 0, endings: 0, inserts: 0, random: settings.numberOfSongs };
-                settings.vintage.advancedValueList = [];
-                settings.vintage.standardValue = { seasons: data.seasons, years: data.years };
-                settings.genre = data.genre.map((x) => ({ id: String(x), state: 1 }));
-                settings.tags = data.tags ?? [];
-                changeGameSettings(settings);
-            }
+            const animeType = "IN";
+            const anime = dqTypeMap[animeType];
+            matchSettingsToType(animeType);
             autoThrow = { time: [3000, 5000], text: anime, multichoice: null };
             sendMessage(`auto throwing: ${anime} after 3-5 seconds`, type, target, true);
             updateCommandListWindow("autoThrow");
@@ -5872,6 +5858,25 @@ function matchSettingsToAnime(anime) {
         settings.tags = data.tags ?? [];
         changeGameSettings(settings);
     }
+}
+
+// change quiz settings to only get a specific type of song
+function matchSettingsToType(type) {
+    if (!dqTypeMap.hasOwnProperty(type)) return;
+    const anime = dqTypeMap[type];
+    if (!lobby.inLobby || !lobby.isHost) return;
+    if (!dqMap.hasOwnProperty(anime)) return;
+    const settings = hostModal.getSettings(true);
+    const data = dqMap[anime];
+    settings.songSelection.standardValue = 1;
+    settings.songSelection.advancedValue = { random: settings.numberOfSongs, unwatched: 0, watched: 0 };
+    settings.songType.standardValue = { openings: type === "OP", endings: type === "ED", inserts: type === "IN" };
+    settings.songType.advancedValue = { openings: 0, endings: 0, inserts: 0, random: settings.numberOfSongs };
+    settings.vintage.advancedValueList = [];
+    settings.vintage.standardValue = { seasons: data.seasons, years: data.years };
+    settings.genre = data.genre.map((x) => ({ id: String(x), state: 1 }));
+    settings.tags = data.tags ?? [];
+    changeGameSettings(settings);
 }
 
 // input anilist id, return info json
