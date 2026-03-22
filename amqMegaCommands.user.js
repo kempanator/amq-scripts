@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.161
+// @version      0.162
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -256,7 +256,7 @@ const rules = {
     "raidboss": "https://pastebin.com/NE28GUPq",
     "reversepassword": "https://pastebin.com/S8cQahNA",
     "spy": "https://pastebin.com/Q1Z35czX",
-    "warlords": "https://pastebin.com/zWNRFsC3"
+    "warlords": "https://pastebin.com/zWNRFsC3",
 };
 const scripts = {
     "highlightfriends": "https://github.com/nyamu-amq/amq_scripts/raw/master/amqHighlightFriends.user.js",
@@ -273,12 +273,12 @@ const scripts = {
     "quickloadlists": "https://github.com/kempanator/amq-scripts/raw/main/amqQuickLoadLists.user.js",
     "showroomplayers": "https://github.com/kempanator/amq-scripts/raw/main/amqShowRoomPlayers.user.js",
     "spy": "https://github.com/ayyu/amq-userscripts/raw/master/userscripts/amqHostSpyMode.user.js",
-    "elodiestyle": "https://userstyles.world/style/1435"
+    "elodiestyle": "https://userstyles.world/style/1435",
 };
 const info = {
     "draw": "https://magma.com",
     "piano": "https://musiclab.chromeexperiments.com/Shared-Piano/#amqpiano",
-    "turnofflist": "https://files.catbox.moe/hn1mhw.png"
+    "turnofflist": "https://files.catbox.moe/hn1mhw.png",
 };
 const dqMap = {
     "Naruto": { genre: [1, 2, 3, 4, 6, 17], years: [2002, 2002], seasons: [3, 3] },
@@ -287,7 +287,6 @@ const dqMap = {
     "Detective Conan": { genre: [2, 3, 11, 12], years: [1996, 1996], seasons: [0, 0] },
     "BECK: Mongolian Chop Squad": { genre: [3, 4, 10, 15], years: [2004, 2004], seasons: [3, 3] },
     "Initial D": { genre: [1, 4, 16], years: [1998, 1998], seasons: [1, 1] },
-    "Negima!?": { genre: [2, 3, 5, 6, 13], years: [2006, 2006], seasons: [3, 3] },
     "Urusei Yatsura": { genre: [3, 4, 13, 14, 15], years: [1981, 1981], seasons: [3, 3] },
     "Touch": { genre: [4, 13, 15, 16], years: [1985, 1985], seasons: [0, 0] },
     "Code Geass: Lelouch of the Rebellion Remake Movies": { genre: [1, 4, 9, 14, 18], years: [2017, 2018], seasons: [3, 1] },
@@ -324,12 +323,13 @@ const dqMap = {
     "Monogatari Series Second Season": { genre: [3, 4, 11, 12, 13, 17], years: [2013, 2013], seasons: [2, 2] },
     "Hikaru no Go": { genre: [3, 16, 17], years: [2001, 2001], seasons: [3, 3] },
     "Dorohedoro": { genre: [1, 2, 3, 6, 7, 11], years: [2020, 2020], seasons: [0, 0] },
+    "Negima!?": { genre: [2, 3, 5, 6, 13], years: [2006, 2006], seasons: [3, 3] },
     "Akame ga Kill!": { genre: [1, 2, 4, 6, 7, 12, 18], years: [2014, 2014], seasons: [2, 2] },
     "Magical Girl Site": { genre: [1, 4, 7, 8, 12, 17], years: [2018, 2018], seasons: [1, 1] },
     "Made in Abyss": { genre: [2, 4, 6, 7, 11, 14], years: [2017, 2017], seasons: [2, 2] },
     "Girls' Last Tour": { genre: [2, 14, 15], years: [2017, 2017], seasons: [3, 3] },
     "Mirai Nikki": { genre: [1, 7, 11, 12, 17, 18], years: [2011, 2011], seasons: [3, 3] },
-    "Kamitsubaki City Under Construction": { genre: [10, 11, 17], years: [2025, 2025], seasons: [2, 2] }
+    "Kamitsubaki City Under Construction": { genre: [10, 11, 17], years: [2025, 2025], seasons: [2, 2] },
 };
 const dqTypeMap = {
     "OP": "Detective Conan",
@@ -4098,13 +4098,15 @@ async function parseCommand(messageText, type, target) {
         if (/^\S+ (d|detect|auto)$/.test(content)) {
             const genreDict = Object.assign({}, ...Object.entries(idTranslator.genreNames).map(([a, b]) => ({ [b.toLowerCase()]: parseInt(a) })));
             const formatQuestName = (q) => q.split(".")[2].replace("_fan", "").replaceAll("_", " "); //daily_quests.quests.slice_of_life_fan.title
-            const list = Object.values(qusetContainer.questMap).filter((x) => x.name.includes("_fan") && x.state !== x.targetState).map((x) => genreDict[formatQuestName(x.name)]);
-            if (list.length) {
-                sendMessage(`Detected: ${list.map((x) => idTranslator.genreNames[x]).join(", ")}`, type, target, true);
-                const anime = genreLookup(list);
+            const quests = Object.values(qusetContainer.questMap).filter((x) => x.name.includes("_fan") && x.state !== x.targetState);
+            const idList = quests.map((x) => genreDict[formatQuestName(x.name)]);
+            if (idList.length) {
+                const anime = genreLookupBestMatch(idList);
                 if (anime) {
-                    //sendMessage(anime, type, target);
-                    matchSettingsToAnime(anime);
+                    const matchedGenres = dqMap[anime].genre.filter((x) => idList.includes(x)).map((x) => idTranslator.genreNames[x]);
+                    const numSongs = Math.max(...quests.map((x) => x.targetState - x.state));
+                    sendMessage(`Matched (${matchedGenres.length}/${idList.length}) ${matchedGenres.join(", ")}`, type, target, true);
+                    matchSettingsToAnime(anime, numSongs);
                     autoThrow = { time: [3000, 5000], text: anime, multichoice: null };
                     sendMessage(`auto throwing: ${anime} after 3-5 seconds`, type, target, true);
                     updateCommandListWindow("autoThrow");
@@ -4118,9 +4120,10 @@ async function parseCommand(messageText, type, target) {
                 if (typeQuests.length) {
                     const animeType = typeQuests[0].name.split(".")[2].split("_")[2].slice(0, 2).toUpperCase();
                     const anime = dqTypeMap[animeType];
+                    const count = typeQuests[0].targetState - typeQuests[0].state;
                     if (anime) {
-                        //sendMessage(anime, type, target);
-                        matchSettingsToType(animeType);
+                        sendMessage("Quest type: " + animeType, type, target);
+                        matchSettingsToType(animeType, count);
                         autoThrow = { time: [3000, 5000], text: anime, multichoice: null };
                         sendMessage(`auto throwing: ${anime} after 3-5 seconds`, type, target, true);
                         updateCommandListWindow("autoThrow");
@@ -5843,35 +5846,52 @@ function genreLookup(inputGenres) {
     return null;
 }
 
+// input array of genre ids, return anime with highest overlap
+function genreLookupBestMatch(inputGenres) {
+    if (!inputGenres.length) return null;
+    let best = null;
+    for (const anime of Object.keys(dqMap)) {
+        const matchCount = inputGenres.filter((genre) => dqMap[anime].genre.includes(genre)).length;
+        if (matchCount === 0) continue;
+        // keep first anime in dqMap order when matchCount ties
+        if (!best || matchCount > best.matchCount) {
+            best = { anime, matchCount };
+        }
+    }
+    return best ? best.anime : null;
+}
+
 // change quiz settings to only get a specific anime
-function matchSettingsToAnime(anime) {
+function matchSettingsToAnime(anime, numSongs) {
     if (lobby.inLobby && lobby.isHost && dqMap.hasOwnProperty(anime)) {
         const settings = hostModal.getSettings(true);
         const data = dqMap[anime];
+        if (!numSongs) numSongs = settings.numberOfSongs;
         settings.songSelection.standardValue = 1;
-        settings.songSelection.advancedValue = { random: settings.numberOfSongs, unwatched: 0, watched: 0 };
+        settings.songSelection.advancedValue = { random: numSongs, unwatched: 0, watched: 0 };
         settings.songType.advancedValue = { openings: 0, endings: 0, inserts: 0, random: 20 };
         settings.songType.standardValue = { openings: true, endings: true, inserts: true };
         settings.vintage.advancedValueList = [];
         settings.vintage.standardValue = { seasons: data.seasons, years: data.years };
         settings.genre = data.genre.map((x) => ({ id: String(x), state: 1 }));
-        settings.tags = data.tags ?? [];
+        settings.tags = data.tags ? data.tags.map((x) => ({ id: String(x), state: 1 })) : [];
         changeGameSettings(settings);
     }
 }
 
 // change quiz settings to only get a specific type of song
-function matchSettingsToType(type) {
+function matchSettingsToType(type, numSongs) {
     if (!dqTypeMap.hasOwnProperty(type)) return;
     const anime = dqTypeMap[type];
     if (!lobby.inLobby || !lobby.isHost) return;
     if (!dqMap.hasOwnProperty(anime)) return;
     const settings = hostModal.getSettings(true);
     const data = dqMap[anime];
+    if (!numSongs) numSongs = settings.numberOfSongs;
     settings.songSelection.standardValue = 1;
-    settings.songSelection.advancedValue = { random: settings.numberOfSongs, unwatched: 0, watched: 0 };
+    settings.songSelection.advancedValue = { random: numSongs, unwatched: 0, watched: 0 };
     settings.songType.standardValue = { openings: type === "OP", endings: type === "ED", inserts: type === "IN" };
-    settings.songType.advancedValue = { openings: 0, endings: 0, inserts: 0, random: settings.numberOfSongs };
+    settings.songType.advancedValue = { openings: 0, endings: 0, inserts: 0, random: numSongs };
     settings.vintage.advancedValueList = [];
     settings.vintage.standardValue = { seasons: data.seasons, years: data.years };
     settings.genre = data.genre.map((x) => ({ id: String(x), state: 1 }));
