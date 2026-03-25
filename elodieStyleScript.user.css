@@ -1,6 +1,6 @@
 /* ==UserStyle==
 @name         Elodie's AMQ Style Script
-@version      10.2.28
+@version      10.2.29
 @namespace    userstyles.world/user/melodyelodie
 @description  A custom theme for animemusicquiz.com
 @author       melodyelodie
@@ -166,7 +166,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         --wrongAnswerColorTransparent: color-mix(in srgb, var(--wrongAnswerColor), transparent 80%);
         --songHistoryCorrectColorHover: color-mix(in srgb, var(--songHistoryCorrectColor), white 5%);
         --songHistoryWrongColorHover: color-mix(in srgb, var(--songHistoryWrongColor), white 5%);
-        --elodieStyleScriptVersion: "10.2.28";
+        --elodieStyleScriptVersion: "10.2.29";
     }
     
     
@@ -227,7 +227,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         --wrongAnswerColorTransparent: color-mix(in srgb, var(--wrongAnswerColor), transparent 80%);
         --songHistoryCorrectColorHover: color-mix(in srgb, var(--songHistoryCorrectColor), white 15%);
         --songHistoryWrongColorHover: color-mix(in srgb, var(--songHistoryWrongColor), white 15%);
-        --elodieStyleScriptVersion: "10.2.28";
+        --elodieStyleScriptVersion: "10.2.29";
     }
     */
     
@@ -678,7 +678,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     }
     #mpAMQAwardsDescriptionButton > h1 {
         color: var(--textColor);
-        text-shadow: 0px -1px 0px var(--textShadowColor);
+        text-shadow: 0 -1px 0 var(--textShadowColor);
     }
     #mpRankedButton.off {
         box-shadow: 0 0 10px 2px var(--boxShadowColor);
@@ -1026,7 +1026,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     }
     .ppPlayerLevelContainerInnser {
         background-color: var(--secondaryColor);
-        border-bottom: solid 2px var(--secondaryColor);
+        border-bottom: 2px solid var(--secondaryColor);
     }
     .ppPlayerLevelLowerBoarder > .ppPlayerLevelBoarderLineHider {
         background-color: var(--secondaryColor);
@@ -1331,9 +1331,9 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         background: var(--dmBackground);
         background-size: cover;
         box-shadow: 0 0 10px 2px var(--boxShadowColor);
-        border-left: solid 2px var(--primaryColor);
-        border-right: solid 2px var(--primaryColor);
-        transition: transform 0.1s linear;
+        border-left: 2px solid var(--primaryColor);
+        border-right: 2px solid var(--primaryColor);
+        transition: transform .1s linear;
     }
     .disableChatLayer {
         background-color: var(--primaryColor);
@@ -1452,25 +1452,25 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     }
     #smLanguageCurrenct {
         background-color: var(--primaryColor);
-        box-shadow: 0 0 5px 0px var(--boxShadowColor);
+        box-shadow: 0 0 5px 0 var(--boxShadowColor);
     }
     #smLanguageDropdownContainer {
         background-color: var(--primaryColor);
-        box-shadow: 0 0 5px 0px var(--boxShadowColor);
+        box-shadow: 0 0 5px 0 var(--boxShadowColor);
     }
     .smDropdownOuterContainer {
         color: var(--textColor);
     }
     .smDropdownCurrent {
         background-color: var(--primaryColor);
-        box-shadow: 0 0 5px 0px var(--boxShadowColor);
+        box-shadow: 0 0 5px 0 var(--boxShadowColor);
     }
     .smDropdownContainer {
         background-color: var(--primaryColor);
-        box-shadow: 0 0 5px 0px var(--boxShadowColor);
+        box-shadow: 0 0 5px 0 var(--boxShadowColor);
     }
     #smCustomListModeContainer {
-        box-shadow: 0 0 5px 0px var(--boxShadowColor);
+        box-shadow: 0 0 5px 0 var(--boxShadowColor);
         background-color: var(--primaryColor);
     }
     .smCustomListModeOption {
@@ -1562,7 +1562,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     }
     #lnTeamSetupContainer {
         background-color: var(--primaryColor);
-        box-shadow: 0px 0px 16px var(--boxShadowColor);
+        box-shadow: 0 0 16px var(--boxShadowColor);
     }
     #lnTeamSetupButtonContainer {
         border-top: 1px solid var(--primaryColor);
@@ -1585,7 +1585,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     }
     #qpThemedTeamSetupContainer {
         background-color: var(--primaryColor);
-        box-shadow: 0px 0px 16px var(--boxShadowColor);
+        box-shadow: 0 0 16px var(--boxShadowColor);
     }
 
 
@@ -1605,7 +1605,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     }
     .qpScoreBoardGroupContainer.active {
         box-shadow: 0 0 4px 2px var(--accentColorTransparent);
-        border: solid 2px var(--accentColor);
+        border: 2px solid var(--accentColor);
     }
     .qpSideContainer {
         background-color: var(--containerBackground);
@@ -1722,7 +1722,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     }
     .qpAmqAwardsOverlayCategoryEdge::before {
         background-color: var(--primaryColorTransparent);
-        box-shadow: 0px 0px 6px 0px var(--boxShadowColor);
+        box-shadow: 0 0 6px 0 var(--boxShadowColor);
     }
     #qpQuizDisplayOverlayCategoryContainerInner {
         box-shadow: 0 0 10px 1px var(--boxShadowColor);
@@ -2010,11 +2010,11 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
 
     /* Boss Mode */
     #gcBossModeContainer {
-        border-top: var(--primaryColor) 4px solid;
+        border-top: 4px solid var(--primaryColor);
     }
     #gcBossModeSongCountContainer {
         background-color: var(--primaryColor);
-        box-shadow: 0 0 10px 0px var(--boxShadowColor);
+        box-shadow: 0 0 10px 0 var(--boxShadowColor);
     }
     #gcBossModeAvatarInnerContainer {
         box-shadow: 0 0 10px 2px var(--boxShadowColor);
@@ -2027,11 +2027,11 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     }
     .topTiltLayoutLeft::before, .topTiltLayoutRight::before {
         background-color: var(--primaryColor);
-        box-shadow: 0 0 10px 0px var(--boxShadowColor);
+        box-shadow: 0 0 10px 0 var(--boxShadowColor);
     }
     .leftTiltButton::before, .rightTiltButton::before {
         background-color: var(--primaryColor);
-        box-shadow: 0 0 10px 0px var(--boxShadowColor);
+        box-shadow: 0 0 10px 0 var(--boxShadowColor);
     }
     .leftTiltButton:hover::before, .rightTiltButton:hover::before {
         background-color: var(--secondaryColor);
@@ -2050,7 +2050,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     }
     #gcBossModeQueueContainer::before {
         background-color: var(--primaryColor);
-        box-shadow: 0 0 10px 0px var(--boxShadowColor);
+        box-shadow: 0 0 10px 0 var(--boxShadowColor);
     }
 
 
@@ -2075,7 +2075,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     }
     .qpPlayerHint::before {
         background-color: var(--accentColor);
-        box-shadow: 0 0 5px 0px var(--boxShadowColor);
+        box-shadow: 0 0 5px 0 var(--boxShadowColor);
     }
 
 
@@ -2100,7 +2100,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     }
     .qpJamVoteCategoryVoteInner {
         background-color: var(--primaryColor);
-        box-shadow: 0 0 6px 0px var(--boxShadowColor);
+        box-shadow: 0 0 6px 0 var(--boxShadowColor);
     }
     .qpJamVoteCategoryOption.selected::before {
         background-color: var(--accentColor);
@@ -2118,7 +2118,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         background-color: var(--songHistoryCorrectColor);
     }
     .qpJamVoteCategoryVoteHighlight {
-        box-shadow: 0 0 15px 0px rgba(255, 255, 255, 0.8), 0 0 10px 5px var(--accentColor), 0 0 10px 5px var(--accentColor);
+        box-shadow: 0 0 15px 0 rgba(255, 255, 255, 0.8), 0 0 10px 5px var(--accentColor), 0 0 10px 5px var(--accentColor);
     }
     #qpJamThemeOverlay::before, #qpJamThemeOverlay:hover::before {
         background-color: var(--primaryColorTransparent);
@@ -2177,7 +2177,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     }
     .brMapObject {
         background-color: var(--primaryColor);
-        border: solid 1px var(--textColor);
+        border: 1px solid var(--textColor);
     }
     .brMapObject.active {
         background-color: var(--accentColor);
@@ -2338,7 +2338,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     }
     .elSamplePlayerController {
         background-color: var(--primaryColor);
-        box-shadow: 0 0px 10px 4px var(--boxShadowColor);
+        box-shadow: 0 0 10px 4px var(--boxShadowColor);
     }
     .elSamplePlayerControllerProgressBar {
         background-color: var(--secondaryColor);
@@ -2351,7 +2351,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     }
     .elSamplePlayerControllerVolumeSliderContainer {
         background-color: var(--primaryColorTransparent);
-        box-shadow: 0 0px 6px 2px var(--boxShadowColor);
+        box-shadow: 0 0 6px 2px var(--boxShadowColor);
     }
     .elSamplePlayerControllerVolumeSlider {
         background-color: var(--secondaryColor);
@@ -2372,7 +2372,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     }
     .elFilterOptionButton {
         background-color: var(--primaryColor);
-        box-shadow: 0 0 5px 0px var(--boxShadowColor);
+        box-shadow: 0 0 5px 0 var(--boxShadowColor);
     }
     .elFilterOptionButton:hover {
         background-color: var(--primaryColorContrast);
@@ -2406,7 +2406,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     .elAnimeEntry {
         background-color: var(--primaryColor);
         color: var(--textColor);
-        box-shadow: 0 0px 5px 1px var(--boxShadowColor);
+        box-shadow: 0 0 5px 1px var(--boxShadowColor);
     }
     .elAnimeEntryHeader:hover {
         background-color: var(--secondaryColor);
@@ -2419,7 +2419,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     }
     .elSongEntryTypeContainer::before {
         background-color: var(--primaryColor);
-        box-shadow: 0 0 10px 0px var(--boxShadowColor);
+        box-shadow: 0 0 10px 0 var(--boxShadowColor);
     }
     .elGenreTag {
         background-color: var(--accentColor);
@@ -2452,7 +2452,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         color: var(--textColor);
     }
     .elSongEntryAnimeHeaderExtraShadow {
-        box-shadow: 0 0 10px 0px var(--boxShadowColor);
+        box-shadow: 0 0 10px 0 var(--boxShadowColor);
     }
     .elSongEntryAddCustomListButton {
         border: 1px solid var(--textColor);
@@ -2578,7 +2578,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         box-shadow: 0 0 10px 2px var(--boxShadowColor);
     }
     #pmLinkAccountButton:hover {
-        box-shadow: 0px 0px 10px 2px var(--accentColor);
+        box-shadow: 0 0 10px 2px var(--accentColor);
     }
 
 
@@ -2652,7 +2652,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         background-color: var(--primaryColor);
     }
     .swEmoteGroup {
-        border-top: solid 5px var(--primaryColor);
+        border-top: 5px solid var(--primaryColor);
     }
     .swEmoteGroupContainer > .swAvatarTile {
         margin: 5px;
@@ -3332,7 +3332,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         box-shadow: 0 0 7px 0 var(--boxShadowColor);
     }
     .nexusPopoverHeader {
-        border-bottom: solid 2px var(--secondaryColor);
+        border-bottom: 2px solid var(--secondaryColor);
     }
     .nexusPopoverImageContainer {
         background-color: var(--primaryColor);
@@ -3390,15 +3390,15 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     }
     #ncdwCoopFilterContainer::before {
         background-color: var(--primaryColor);
-        box-shadow: 0 0px 8px 1px var(--boxShadowColor);
+        box-shadow: 0 0 8px 1px var(--boxShadowColor);
     }
     .ncdwCoopSaveEntry {
         background-color: var(--primaryColor);
-        box-shadow: 0 0px 8px 1px var(--boxShadowColor);
+        box-shadow: 0 0 8px 1px var(--boxShadowColor);
     }
     .ncdwCoopSaveEntry.selected {
         background-color: var(--accentColor);
-        box-shadow: 0 0px 8px 1px var(--accentColor);
+        box-shadow: 0 0 8px 1px var(--accentColor);
     }
     .ncdwCoopSaveEntryPlayerImageContainer {
         background-color: transparent;
@@ -3408,7 +3408,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         box-shadow: none;
     }
     .ncdwCoopSaveEntryPlayerAvatarImageContainer {
-        box-shadow: 0 0px 5px 0px #012946, 0 0px 1px 0px var(--boxShadowColor);
+        box-shadow: 0 0 5px 0 #012946, 0 0 1px 0 var(--boxShadowColor);
     }
     .ncdwCoopSaveEntryPlayerNameContainer {
         text-shadow: 0 0 5px var(--textShadowColor), 0 0 5px var(--textShadowColor);
@@ -3433,21 +3433,21 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     }
     .nrmRoomPlayerCountBarOuter {
         background-color: var(--primaryColor);
-        box-shadow: 0 0 5px 0px var(--boxShadowColor);
+        box-shadow: 0 0 5px 0 var(--boxShadowColor);
     }
     .nrmRoomPlayerCountBarInner {
         background-color: var(--accentColor);
         box-shadow: 0 0 5px 1px var(--accentColor);
     }
     .nrmRoomPlayerCountText {
-        text-shadow: 0px 0px 5px var(--textShadowColor);
+        text-shadow: 0 0 5px var(--textShadowColor);
     }
     .nrmRoomAvatar {
         background-color: var(--primaryColor);
-        box-shadow: 0 0 5px 0px var(--boxShadowColor);
+        box-shadow: 0 0 5px 0 var(--boxShadowColor);
     }
     .nrmRoomAvatarName {
-        text-shadow: 0px 0px 5px var(--boxShadowColor);
+        text-shadow: 0 0 5px var(--boxShadowColor);
     }
 
 
@@ -3479,7 +3479,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     }
     #ncdwPartySetupPublicButton::before {
         background-color: var(--primaryColor);
-        box-shadow: 0 0px 8px 1px var(--boxShadowColor);
+        box-shadow: 0 0 8px 1px var(--boxShadowColor);
     }
     .nsdwConfigOptionBlock.selected {
         background-color: var(--accentColor);
@@ -3614,13 +3614,13 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     }
     .naStatusMainBody {
         background-color: var(--secondaryColor);
-        border: solid 1px var(--primaryColor);
+        border: 1px solid var(--primaryColor);
         box-shadow: 0 0 7px 0 var(--boxShadowColor);
     }
     .naArtifactBar {
         background-color: var(--primaryColor);
         box-shadow: 0 0 7px 0 var(--boxShadowColor);
-        border: solid 1px #00000054;
+        border: 1px solid #00000054;
     }
 
     /* Nexus Quiz */
@@ -3850,8 +3850,8 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     }
     .nexusMapNextFloorAvatarHealthBar {
         background-color: var(--secondaryColor);
-        box-shadow: 0 0 7px 0px var(--boxShadowColor);
-        border: solid 1px var(--primaryColor);
+        box-shadow: 0 0 7px 0 var(--boxShadowColor);
+        border: 1px solid var(--primaryColor);
     }
     .nexusMapNextFloorAvatarHealthBarFill {
         background-color: var(--accentColor);
@@ -3870,7 +3870,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     }
     .nexusMapNextFloorAvatarArtifactContainer {
         background-color: var(--primaryColorTransparent);
-        border: solid 2px var(--primaryColor);
+        border: 2px solid var(--primaryColor);
     }
 
 
@@ -3919,14 +3919,14 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     }
     #cqsSideContainer {
         background-color: var(--primaryColor);
-        box-shadow: -1px 0px 10px var(--boxShadowColor);
+        box-shadow: -1px 0 10px var(--boxShadowColor);
     }
     .cqsSideContainerOverlayContainer {
         background-color: var(--primaryColor);
     }
     #cqsCloseButton {
-        border-bottom: solid 2px var(--primaryColor);
-        border-left: solid 2px var(--primaryColor);
+        border-bottom: 2px solid var(--primaryColor);
+        border-left: 2px solid var(--primaryColor);
     }
     #cqsCloseButton:hover {
         background-color: var(--secondaryColor);
@@ -3960,8 +3960,8 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         background-color: var(--accentColor);
     }
     .cqsSideButton {
-        border-left: solid 2px var(--primaryColor);
-        border-bottom: solid 2px var(--primaryColor);
+        border-left: 2px solid var(--primaryColor);
+        border-bottom: 2px solid var(--primaryColor);
     }
     .cqsSideButton:hover {
         background-color: var(--secondaryColor);
@@ -4000,16 +4000,16 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     }
     .cqsOptionButton {
         background-color: var(--accentColor);
-        border-top: solid 1px var(--accentColorDark);
+        border-top: 1px solid var(--accentColorDark);
     }
     .cqsOptionButton:hover {
         background-color: var(--accentColorLight);
     }
     .cqsOptionTwinButtonContainer {
-        border-top: solid 1px var(--accentColorDark);
+        border-top: 1px solid var(--accentColorDark);
     }
     .cqsOptionTwinButtonContainer > * {
-        border-left: solid 1px var(--accentColorDark);
+        border-left: 1px solid var(--accentColorDark);
         border-top: none;
     }
     #hostCustomQuizModal {
@@ -4074,13 +4074,13 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     }
     #cqcQuizCreatorNameContainer {
         background-color: var(--primaryColor);
-        box-shadow: 0 0 5px 0px var(--boxShadowColor);
+        box-shadow: 0 0 5px 0 var(--boxShadowColor);
     }
     #cqcQuizCreatorNameInput {
         background-color: var(--primaryColor);
     }
     .cqcCreationBlock {
-        box-shadow: 0 0 5px 0px var(--boxShadowColor);
+        box-shadow: 0 0 5px 0 var(--boxShadowColor);
     }
     #cqcBuildContainer {
         background-color: var(--primaryColorTransparent);
@@ -4088,11 +4088,11 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     }
     #cqcBuilderPreviewContainer {
         background-color: var(--primaryColor);
-        box-shadow: 0 0px 10px 4px var(--boxShadowColor);
+        box-shadow: 0 0 10px 4px var(--boxShadowColor);
     }
     #cqcBuilderPreviewCloseContainer {
         background-color: var(--primaryColor);
-        box-shadow: 0 0px 10px 4px var(--boxShadowColor);
+        box-shadow: 0 0 10px 4px var(--boxShadowColor);
     }
     #cqcSaveModal .modal-content {
         background-color: var(--windowBackground);
@@ -4124,10 +4124,10 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     }
     #lnSettingSongPoolContainer {
         background-color: var(--primaryColor);
-        box-shadow: 0px 0px 16px var(--boxShadowColor);
+        box-shadow: 0 0 16px var(--boxShadowColor);
     }
     #lnSettingSongPoolTitle {
-        border-bottom: solid 1px var(--secondaryColor);
+        border-bottom: 1px solid var(--secondaryColor);
     }
     .lnSettingSongPoolInfoContainer.clickAble:hover {
         background-color: var(--secondaryColor);
@@ -4135,16 +4135,47 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     #lnSettingSongPoolClickToChange {
         background-color: var(--secondaryColorTransparent);
     }
-    #lnSettingSongPoolOptionContainer {
-        background-color: var(--primaryColor);
-        box-shadow: 0px 0px 16px var(--boxShadowColor);
-        transition: transform 0.1s linear;
-    }
     .lnSettingSongPoolOption {
         border-bottom: 1px solid var(--secondaryColor);
     }
     .lnSettingSongPoolOption:hover {
         background-color: var(--secondaryColor);
+    }
+    #lnSettingSongPoolListTopContainer {
+        border-bottom: 1px solid var(--secondaryColor);
+    }
+    #lnSettingSongPoolListTopAddContainer.active {
+        background-color: var(--secondaryColor);
+    }
+    #lnSettingSongPoolListTopAddContainer:hover, #lnSettingSongPoolListTopSuggestContainer:hover {
+        background-color: var(--secondaryColor);
+    }
+    .lnSettingSongPoolListEntry {
+        border-bottom: 1px solid var(--secondaryColor);
+    }
+    .lnSettingSongPoolListDropdownContainer {
+        background-color: var(--primaryColor);
+        box-shadow: 0 0 16px var(--boxShadowColor);
+        transition: transform .1s linear;
+    }
+    .lnSettingSongPoolListSelectorOption::before {
+        background-color: transparent;
+        box-shadow: 0 0 16px var(--boxShadowColor);
+    }
+    .lnSettingSongPoolListSelectorOption:hover::before {
+        background-color: var(--secondaryColor);
+    }
+    .lnSettingSongPoolListSelectorOption.selected::before {
+        background-color: var(--secondaryColor);
+    }
+    .lnSettingSongPoolListSelectorEntry {
+        border-bottom: 1px solid var(--secondaryColor);
+    }
+    .lnSettingSongPoolListSelectorEntry:hover {
+        background-color: var(--secondaryColor);
+    }
+    #lnSettingSongPoolListSelectorOptionContainer {
+        border-bottom: 1px solid var(--secondaryColor);
     }
     #elCustomListContainer {
         box-shadow: 0 0 10px 2px var(--boxShadowColor);
@@ -4171,21 +4202,21 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     }
     .elCustomListEntry {
         background-color: var(--primaryColor);
-        box-shadow: 0 0px 3px 0px var(--boxShadowColor);
+        box-shadow: 0 0 3px 0 var(--boxShadowColor);
     }
     .elCustomListEntryListName {
         text-shadow: 0 0 5px var(--textShadowColor);
     }
     #elCustomListNameInputLabel::before {
         background-color: var(--primaryColor);
-        box-shadow: 0 0 10px 0px var(--boxShadowColor);
+        box-shadow: 0 0 10px 0 var(--boxShadowColor);
     }
     #elCustomListNameInput {
         background-color: var(--primaryColor);
     }
     .elCustomListModeOption::before {
         background-color: var(--primaryColor);
-        box-shadow: 0 0 10px 0px  var(--boxShadowColor);
+        box-shadow: 0 0 10px 0  var(--boxShadowColor);
     }
     .elCustomListModeOption.selected::before {
         background-color: var(--secondaryColor);
@@ -4197,7 +4228,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         text-shadow: 0 0 5px var(--textShadowColor);
     }
     .elCustomListEntryOptionContainer {
-        transition: transform 0.1s linear;
+        transition: transform .1s linear;
     }
     #elCustomListQuickAssignContainer {
         background-color: var(--primaryColorTransparent);
@@ -4216,7 +4247,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         opacity: .7;
     }
     .elClQaEntry {
-        box-shadow: 0 0px 1px 0px var(--boxShadowColor);
+        box-shadow: 0 0 1px 0 var(--boxShadowColor);
     }
     .elClQaContentContainer {
         border-bottom: 1px solid var(--secondaryColor);
