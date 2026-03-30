@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.162
+// @version      0.163
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -4096,7 +4096,7 @@ async function parseCommand(messageText, type, target) {
     }
     else if (["dq", "daily", "dailies", "dailyquest", "dailyquests"].includes(command)) {
         if (/^\S+ (d|detect|auto)$/.test(content)) {
-            const genreDict = Object.assign({}, ...Object.entries(idTranslator.genreNames).map(([a, b]) => ({ [b.toLowerCase()]: parseInt(a) })));
+            const genreDict = Object.fromEntries(Object.entries(idTranslator.genreNames).map(([a, b]) => [b.toLowerCase(), Number(a)]));
             const formatQuestName = (q) => q.split(".")[2].replace("_fan", "").replaceAll("_", " "); //daily_quests.quests.slice_of_life_fan.title
             const quests = Object.values(qusetContainer.questMap).filter((x) => x.name.includes("_fan") && x.state !== x.targetState);
             const idList = quests.map((x) => genreDict[formatQuestName(x.name)]);
@@ -4118,7 +4118,8 @@ async function parseCommand(messageText, type, target) {
             else {
                 const typeQuests = Object.values(qusetContainer.questMap).filter((x) => x.name.includes("dont_skip") && x.state !== x.targetState);
                 if (typeQuests.length) {
-                    const animeType = typeQuests[0].name.split(".")[2].split("_")[2].slice(0, 2).toUpperCase();
+                    const typeDict = {openings: "OP", endings: "ED", inserts: "IN"};
+                    const animeType = typeDict[typeQuests[0].name.split(".")[2].split("_")[2]];                    
                     const anime = dqTypeMap[animeType];
                     const count = typeQuests[0].targetState - typeQuests[0].state;
                     if (anime) {
@@ -4280,7 +4281,7 @@ async function parseCommand(messageText, type, target) {
             if (isNaN(parseInt(id))) return;
             const data = await getAnimeFromAnilistId(id);
             if (!data) return sendMessage("invalid anilist id", type, target, true);
-            const genreDict = Object.assign({}, ...Object.entries(idTranslator.genreNames).map(([a, b]) => ({ [b]: a })));
+            const genreDict = Object.fromEntries(Object.entries(idTranslator.genreNames).map(([a, b]) => [b, a]));
             const seasonDict = { WINTER: 0, SPRING: 1, SUMMER: 2, FALL: 3 };
             const settings = hostModal.getSettings(true);
             settings.songSelection.standardValue = 1;
@@ -5880,6 +5881,7 @@ function matchSettingsToAnime(anime, numSongs) {
 }
 
 // change quiz settings to only get a specific type of song
+// type options: OP ED IN
 function matchSettingsToType(type, numSongs) {
     if (!dqTypeMap.hasOwnProperty(type)) return;
     const anime = dqTypeMap[type];
@@ -6082,29 +6084,28 @@ function exportLocalStorage() {
 // load alert from local storage, input optional default values
 function loadAlert(key, popout = false, chat = false, console = false) {
     const item = saveData.alerts?.[key];
-    if (typeof item === "object") {
-        return {
-            popout: item.popout ?? popout,
-            chat: item.chat ?? chat,
-            console: item.console ?? console,
-        };
-    }
-    return { popout, chat, console };
+    if (!item || typeof item !== "object") return { popout, chat, console };
+    return {
+        popout: Boolean(item.popout ?? popout),
+        chat: Boolean(item.chat ?? chat),
+        console: Boolean(item.console ?? console),
+    };
 }
 
 // load command persist from local storage, input optional default values
 function loadCommandPersist(key, defaultValue = false) {
-    return saveData.commandPersist?.[key] ?? defaultValue;
+    return Boolean(saveData.commandPersist?.[key] ?? defaultValue);
 }
 
 // load hotkey from local storage, input optional default values
 function loadHotkey(action, key = "", ctrl = false, alt = false, shift = false) {
     const item = saveData.hotKeys?.[action];
+    if (!item || typeof item !== "object") return { key, ctrl, alt, shift };
     return {
-        key: (item?.key ?? key).toUpperCase(),
-        ctrl: item?.ctrl ?? item?.ctrlKey ?? ctrl,
-        alt: item?.alt ?? item?.altKey ?? alt,
-        shift: item?.shift ?? item?.shiftKey ?? shift
+        key: String(item.key ?? key).toUpperCase(),
+        ctrl: Boolean(item.ctrl ?? item.ctrlKey ?? ctrl),
+        alt: Boolean(item.alt ?? item.altKey ?? alt),
+        shift: Boolean(item.shift ?? item.shiftKey ?? shift)
     }
 }
 
