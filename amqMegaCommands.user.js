@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.163
+// @version      0.164
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -4118,8 +4118,8 @@ async function parseCommand(messageText, type, target) {
             else {
                 const typeQuests = Object.values(qusetContainer.questMap).filter((x) => x.name.includes("dont_skip") && x.state !== x.targetState);
                 if (typeQuests.length) {
-                    const typeDict = {openings: "OP", endings: "ED", inserts: "IN"};
-                    const animeType = typeDict[typeQuests[0].name.split(".")[2].split("_")[2]];                    
+                    const typeDict = { openings: "OP", endings: "ED", inserts: "IN" };
+                    const animeType = typeDict[typeQuests[0].name.split(".")[2].split("_")[2]];
                     const anime = dqTypeMap[animeType];
                     const count = typeQuests[0].targetState - typeQuests[0].state;
                     if (anime) {
@@ -5729,6 +5729,8 @@ QuizVideoController.prototype.replayVideo = function () {
     if (!continueSample) {
         this.getCurrentPlayer().replayVideo();
     }
+    this.getCurrentPlayer().removeTinyVideoScale?.();
+    this.getCurrentPlayer().removeBlurVideo?.();
     this.getCurrentPlayer().show();
 };
 
