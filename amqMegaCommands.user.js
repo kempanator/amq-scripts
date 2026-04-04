@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.164
+// @version      0.165
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -3311,6 +3311,14 @@ async function parseCommand(messageText, type, target) {
             }
         }
     }
+    else if (command === "teamcode" || command === "tc") {
+        if (lobby.inLobby) {
+            sendMessage($("#lnTeamCode").text(), type, target);
+        }
+        else if (quiz.inQuiz) {
+            sendMessage($("#qpTeamCode").text(), type, target);
+        }
+    }
     else if (command === "dm" || command === "pm") {
         if (split.length === 1) {
             socialTab.startChat(selfName);
@@ -3596,12 +3604,12 @@ async function parseCommand(messageText, type, target) {
             sendMessage(`${xpBar.currentCreditCount} notes, ${xpBar.currentTicketCount} tickets, ${storeWindow._avatarTokens} tokens, ${storeWindow._rhythm} rhythm`, type, target);
         }
         else if (/^\S+ (avatars?|skins?)$/.test(content)) {
-            sendMessage(Object.values(storeWindow.characterUnlockCount).reduce((acc, val) => acc + val, 0), type, target);
+            sendMessage(Object.values(storeWindow.characterUnlockCount).reduce((sum, val) => sum + val, 0), type, target);
         }
         else if (/^\S+ (all|total) ?(avatars?|skins?)$/.test(content)) {
             const characters = storeWindow.topBar.characters.length;
-            const variations = storeWindow.topBar.characters.reduce((acc, val) => acc + val.avatars.length, 0);
-            const colors = storeWindow.topBar.characters.map((x) => x.avatars).flat().reduce((acc, val) => acc + val.colors.length, 0);
+            const variations = storeWindow.topBar.characters.reduce((sum, val) => sum + val.avatars.length, 0);
+            const colors = storeWindow.topBar.characters.map((x) => x.avatars).flat().reduce((sum, val) => sum + val.colors.length, 0);
             sendMessage(`${characters} characters, ${variations} variations, ${colors} colors`, type, target);
         }
         else if (/^\S+ emotes?$/.test(content)) {
@@ -4320,7 +4328,7 @@ async function parseCommand(messageText, type, target) {
         if (!animeListLower.length) return sendMessage("missing autocomplete", type, target, true);
         const query = content.slice(content.indexOf(" ") + 1);
         if (!query.includes("_")) return;
-        const regexChar = function (char) {
+        const regexChar = (char) => {
             if (char === "_") return "\\S"
             if (".^$*+?()[]|\\".includes(char)) return "\\" + char;
             return char;
@@ -4418,6 +4426,14 @@ function parseIncomingDM(messageText, sender) {
             else if (command === "forcepassword" || command === "fpw" || command === "fp") {
                 if (inRoom()) {
                     sendMessage(`password: ${hostModal.$passwordInput.val()}`, "dm", sender);
+                }
+            }
+            else if (command === "forceteamcode" || command === "ftc") {
+                if (lobby.inLobby && lobby.settings.gameMode === "Themed") {
+                    sendMessage($("#lnTeamCode").text(), "dm", sender);
+                }
+                else if (quiz.inQuiz && quiz.gameMode === "Themed") {
+                    sendMessage($("#qpTeamCode").text(), "dm", sender);
                 }
             }
             else if (command === "forcehost" || command === "fh") {
@@ -5899,7 +5915,7 @@ function matchSettingsToType(type, numSongs) {
     settings.vintage.advancedValueList = [];
     settings.vintage.standardValue = { seasons: data.seasons, years: data.years };
     settings.genre = data.genre.map((x) => ({ id: String(x), state: 1 }));
-    settings.tags = data.tags ?? [];
+    settings.tags = data.tags ? data.tags.map((x) => ({ id: String(x), state: 1 })) : [];
     changeGameSettings(settings);
 }
 
@@ -5955,11 +5971,7 @@ function getAnilistAnimeList(username) {
         body: JSON.stringify({ query: query })
     }).then((res) => res.json()).then((json) => {
         if (json.errors) return [];
-        const list = [];
-        for (const item of json.data.MediaListCollection.lists) {
-            list.push(...item.entries);
-        }
-        return list;
+        return json.data.MediaListCollection.lists.flatMap(item => item.entries);
     });
 }
 
@@ -6007,10 +6019,10 @@ async function urlToArrayBuffer(url) {
 // download audio/video file from url
 async function downloadSong(url) {
     if (!url) return;
-    let arrayBuffer = await urlToArrayBuffer(url);
-    let blob = new Blob([arrayBuffer], { type: "audio/mpeg" });
-    let fileName = url.split("/").slice(-1)[0];
-    let element = document.createElement("a");
+    const arrayBuffer = await urlToArrayBuffer(url);
+    const blob = new Blob([arrayBuffer], { type: "audio/mpeg" });
+    const fileName = url.split("/").slice(-1)[0];
+    const element = document.createElement("a");
     element.setAttribute("href", window.URL.createObjectURL(blob));
     element.setAttribute("download", fileName);
     document.body.appendChild(element);
