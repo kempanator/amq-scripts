@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Answer Stats
 // @namespace    https://github.com/kempanator
-// @version      0.53
+// @version      0.54
 // @description  Adds a window to display quiz answer stats
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -95,7 +95,7 @@ function setup() {
     }).bindListener();
     new Listener("play next song", () => {
         answerTimes = {};
-    }).bindListener()
+    }).bindListener();
     new Listener("player answered", (data) => {
         for (const item of data) {
             for (const id of item.gamePlayerIds) {
@@ -122,7 +122,11 @@ function setup() {
         const currentPlayer = quizVideoController.getCurrentPlayer();
         const songNumber = parseInt(quiz.infoContainer.$currentSongCount.text());
         const maxSongNumber = Math.max(...Object.keys(songHistory).map(Number));
-        if (songNumber < maxSongNumber) songHistory = {}; //handle jam reset
+        if (songNumber < maxSongNumber) { //handle jam reset
+            songHistory = {};
+            playerInfo = {};
+            answerTimes = {};
+        }
         const correctPlayers = {}; //{id: answer speed, ...}
         const correctAnswerIdMap = {}; //{title: [], ...}
         const incorrectAnswerIdMap = {}; //{title: [], ...}
@@ -299,7 +303,8 @@ function setup() {
             else {
                 $("#asAnswerSpeedRow").empty().hide();
             }
-            if (data.players.length > 8 && Object.keys(correctPlayers).length <= 5) {
+            const correctLength = Object.keys(correctPlayers).length;
+            if (data.players.length > 8 && correctLength > 0 && correctLength <= 5) {
                 const $correctRow = $("#asCorrectPlayersRow").empty().show();
                 $correctRow.append(`<span><b>Correct Players: </b></span>`);
                 Object.keys(correctPlayers).forEach((id, index) => {
@@ -308,7 +313,7 @@ function setup() {
                             displayPlayerHistoryResults(id);
                             answerHistoryWindow.open();
                         }));
-                    if (index < Object.keys(correctPlayers).length - 1) $correctRow.append(", ");
+                    if (index < correctLength - 1) $correctRow.append(", ");
                 });
             }
             else {
@@ -901,9 +906,12 @@ function displayAverageSpeedResults() {
     answerSpeedWindow.panels[0].clear();
     let sortedIds = [];
     if (averageSpeedSort.mode === "score") {
-        sortedIds = averageSpeedSort.ascending
-            ? Object.values(Object.values(songHistory).slice(-1)[0].groupSlotMap).flat().reverse()
-            : Object.values(Object.values(songHistory).slice(-1)[0].groupSlotMap).flat();
+        const groupMap = Object.values(songHistory).at(-1)?.groupSlotMap;
+        if (groupMap) {
+            sortedIds = averageSpeedSort.ascending
+                ? Object.values(groupMap).flat().reverse()
+                : Object.values(groupMap).flat();
+        }
     }
     else if (averageSpeedSort.mode === "time") {
         sortedIds = averageSpeedSort.ascending
@@ -1011,7 +1019,7 @@ function displaySongHistoryResults(songNumber) {
                 .append($("<td>", { class: "box", text: findBoxById(player.id, song.groupSlotMap), style: "cursor: pointer;" }))
                 .append($("<td>", { class: "score", text: answer.score }))
                 .append($("<td>", { class: "level", text: player.level }))
-                .append($("<td>", { class: "name", text: player.name, style: "cursor: pointer;" })
+                .append($("<td>", { class: "name", text: player.name, style: "cursor: pointer;", "data-player-id": id })
                     .prepend(`<i class="fa fa-id-card-o clickAble" aria-hidden="true"></i>`))
                 .append($("<td>", { class: "speed", text: answer.speed || "" }))
                 .append($("<td>", { class: "answer", text: answer.text, style: "cursor: pointer;" })
@@ -1026,20 +1034,20 @@ function displaySongHistoryResults(songNumber) {
         displaySongHistoryResults(answerHistorySettings.songNumber);
     });
     $tbody.on("click", "td", (event) => {
-        if (event.target.classList.contains("name")) {
-            const id = Object.values(playerInfo).find(p => p.name === event.target.innerText).id;
-            displayPlayerHistoryResults(id);
+        const td = event.currentTarget;
+        if (td.classList.contains("name")) {
+            displayPlayerHistoryResults(td.getAttribute("data-player-id"));
         }
-        else if (event.target.classList.contains("box")) {
-            selectAvatarGroup(parseInt(event.target.innerText));
+        else if (td.classList.contains("box")) {
+            selectAvatarGroup(parseInt(td.textContent, 10));
         }
-        else if (event.target.classList.contains("answer")) {
-            songHistoryFilter = { type: "answer", answer: event.target.innerText };
+        else if (td.classList.contains("answer")) {
+            songHistoryFilter = { type: "answer", answer: td.textContent };
             displaySongHistoryResults(answerHistorySettings.songNumber);
         }
     });
     $tbody.on("click", "i.fa-id-card-o", (event) => {
-        const name = event.target.parentElement.innerText;
+        const name = event.target.parentElement.textContent;
         playerProfileController.loadProfile(name, $("#answerHistoryWindow"), {}, () => { }, false, true);
     });
     $table.append($thead, $tbody);
@@ -1361,6 +1369,7 @@ function typeText(type, typeNumber) {
     if (type === 1) return "OP" + typeNumber;
     if (type === 2) return "ED" + typeNumber;
     if (type === 3) return "IN";
+    return "";
 };
 
 // get type of room, if ranked specify region
