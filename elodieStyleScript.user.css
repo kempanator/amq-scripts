@@ -1,6 +1,6 @@
 /* ==UserStyle==
 @name         Elodie's AMQ Style Script
-@version      10.2.29
+@version      10.2.30
 @namespace    userstyles.world/user/melodyelodie
 @description  A custom theme for animemusicquiz.com
 @author       melodyelodie
@@ -166,7 +166,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         --wrongAnswerColorTransparent: color-mix(in srgb, var(--wrongAnswerColor), transparent 80%);
         --songHistoryCorrectColorHover: color-mix(in srgb, var(--songHistoryCorrectColor), white 5%);
         --songHistoryWrongColorHover: color-mix(in srgb, var(--songHistoryWrongColor), white 5%);
-        --elodieStyleScriptVersion: "10.2.29";
+        --elodieStyleScriptVersion: "10.2.30";
     }
     
     
@@ -227,7 +227,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         --wrongAnswerColorTransparent: color-mix(in srgb, var(--wrongAnswerColor), transparent 80%);
         --songHistoryCorrectColorHover: color-mix(in srgb, var(--songHistoryCorrectColor), white 15%);
         --songHistoryWrongColorHover: color-mix(in srgb, var(--songHistoryWrongColor), white 15%);
-        --elodieStyleScriptVersion: "10.2.29";
+        --elodieStyleScriptVersion: "10.2.30";
     }
     */
     
@@ -1587,6 +1587,10 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         background-color: var(--primaryColor);
         box-shadow: 0 0 16px var(--boxShadowColor);
     }
+    #qpNameFixed {
+        background-color: var(--containerBackground);
+        box-shadow: 0 0 10px 2px var(--boxShadowColor);
+    }
 
 
     /* Scoreboard */
@@ -2654,12 +2658,6 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     .swEmoteGroup {
         border-top: 5px solid var(--primaryColor);
     }
-    .swEmoteGroupContainer > .swAvatarTile {
-        margin: 5px;
-    }
-    .swEmoteGroupContainer > .swAvatarTile:nth-of-type(4n) {
-        margin-right: 5px;
-    }
     .swTicketOptionButton > div {
         text-shadow: 2px 2px 3px var(--textShadowColor);
     }
@@ -2766,16 +2764,8 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     #swTicketPromoTimerContainer {
         text-shadow: 0 0 6px var(--textShadowColor), 0 0 4px var(--textShadowColor);
     }
-    #swContentAvatarContainer {
-        padding-top: 135px;
-    }
     .swAvatarTile {
         background-color: var(--avatarStoreAvatarBackground);
-        width: 170px;
-        margin: 10px;
-    }
-    .swAvatarTile:nth-of-type(4n) {
-        margin-right: 10px;
     }
     .swAvatarTileType {
         background-color: var(--primaryColor);
