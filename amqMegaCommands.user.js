@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.165
+// @version      0.166
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -165,11 +165,14 @@ let loopVideo = saveData.loopVideo ?? false;
 let malClientId = saveData.malClientId ?? "";
 let muteReplay = saveData.muteReplay ?? false;
 let muteSubmit = saveData.muteSubmit ?? false;
-let playbackSpeed = saveData.playbackSpeed ?? [];
 let playerDetection = saveData.playerDetection ?? { invisible: false, players: [] };
 let printLoot = saveData.printLoot ?? false;
 let reorder = saveData.reorder ?? { quizBar: false, quizBarList: [], gearMenu: false, gearMenuList: [] };
 let selfDM = saveData.selfDM ?? false;
+let videoBlur = saveData.videoBlur ?? null;
+let videoCrop = saveData.videoCrop ?? null;
+let videoScale = saveData.videoScale ?? null;
+let videoSpeed = saveData.videoSpeed ?? [];
 let voteOptions = {};
 let votes = {};
 let audioBuffers = {}; //{songNumber: {startPoint, audioBuffer}, ...}
@@ -222,7 +225,10 @@ let commandPersist = {
     loopVideo: loadCommandPersist("loopVideo", true),
     muteReplay: loadCommandPersist("muteReplay", true),
     muteSubmit: loadCommandPersist("muteSubmit", true),
-    playbackSpeed: loadCommandPersist("playbackSpeed", false),
+    videoBlur: loadCommandPersist("videoBlur", false),
+    videoCrop: loadCommandPersist("videoCrop", false),
+    videoScale: loadCommandPersist("videoScale", false),
+    videoSpeed: loadCommandPersist("videoSpeed", false),
 };
 let hotKeys = {
     autoKey: loadHotkey("autoKey"),
@@ -335,6 +341,12 @@ const dqTypeMap = {
     "OP": "Detective Conan",
     "ED": "Detective Conan",
     "IN": "Initial D",
+};
+const socialStatusMap = {
+    1: "online",
+    2: "do not disturb",
+    3: "away",
+    4: "invisible",
 };
 
 if (document.querySelector("#loginPage")) {
@@ -583,8 +595,8 @@ function setup() {
         }
     }).bindListener();
     new Listener("play next song", (data) => {
-        if (playbackSpeed.length) {
-            const speed = randomIntInc(...playbackSpeed);
+        if (videoSpeed.length) {
+            const speed = randomIntInc(...videoSpeed);
             for (const videoPlayer of quizVideoController.moePlayers) {
                 if (!videoPlayer.encrypted) {
                     videoPlayer.playbackRate = speed;
@@ -740,8 +752,8 @@ function setup() {
         else if (autoMute.randomUnmute) sendSystemMessage(`Auto Unmute Random: ${autoMute.randomUnmute / 1000}s`);
         if (muteReplay) sendSystemMessage("Mute During Replay Phase: Enabled");
         if (muteSubmit) sendSystemMessage("Mute After Submit: Enabled");
-        if (playbackSpeed.length === 1) sendSystemMessage(`Song Playback Speed: ${playbackSpeed[0]}x`);
-        else if (playbackSpeed.length === 2) sendSystemMessage(`Song Playback Speed: random ${playbackSpeed[0]}x - ${playbackSpeed[1]}x`);
+        if (videoSpeed.length === 1) sendSystemMessage(`Song Playback Speed: ${videoSpeed[0]}x`);
+        else if (videoSpeed.length === 2) sendSystemMessage(`Song Playback Speed: random ${videoSpeed[0]}x - ${videoSpeed[1]}x`);
         if (autoDownloadSong.length) sendSystemMessage("Auto Download Song: " + autoDownloadSong.join(", "));
         if (autoShareAnswer) sendSystemMessage("Auto Share Answer: Enabled");
         if (coopPaste) sendSystemMessage("Co-op Auto Paste: Enabled");
@@ -1885,6 +1897,7 @@ function setup() {
         $("#mcSettingsModal").modal("show");
     }));
 
+    refreshColors();
     applyStyles();
     AMQ_addScriptData({
         name: "Mega Commands",
@@ -3777,17 +3790,17 @@ async function parseCommand(messageText, type, target) {
         }
         else if (split[1] === "speed") {
             if (split.length === 2) {
-                playbackSpeed = [];
+                videoSpeed = [];
                 sendMessage("song playback speed set to default", type, target, true);
             }
             else if (split.length === 3) {
                 const option = parseFloat(split[2]);
                 if (quizVideoController.getCurrentPlayer()?.encrypted) {
-                    playbackSpeed = [];
+                    videoSpeed = [];
                     sendMessage("disabled for encrypted links", type, target, true);
                 }
                 else if (Number.isFinite(option)) {
-                    playbackSpeed = [option];
+                    videoSpeed = [option];
                     sendMessage(`song playback speed set to ${option}`, type, target, true);
                 }
                 else {
@@ -3798,16 +3811,64 @@ async function parseCommand(messageText, type, target) {
                 const low = parseFloat(split[2]);
                 const high = parseFloat(split[3]);
                 if (quizVideoController.getCurrentPlayer()?.encrypted) {
-                    playbackSpeed = [];
+                    videoSpeed = [];
                     sendMessage("disabled for encrypted links", type, target, true);
                 }
                 else if (Number.isFinite(low) && Number.isFinite(high)) {
-                    playbackSpeed = [low, high];
+                    videoSpeed = [low, high];
                     sendMessage(`song playback speed set to random # between ${low} - ${high}`, type, target, true);
                 }
                 else {
                     sendMessage("speed values must be between 0.0625 - 16", type, target, true);
                 }
+            }
+        }
+        else if (split[1] === "blur") {
+            if (split.length === 2) {
+                videoBlur = null;
+                sendMessage("Blur mode: blur override disabled", type, target, true);
+                applyStyles();
+            }
+            else if (split.length === 3) {
+                const option = parseInt(split[2]);
+                if (isNaN(option) || option < 0) return;
+                videoBlur = option;
+                sendMessage(`Blur mode: gaussian blur set to ${option}px`, type, target, true);
+                applyStyles();
+            }
+        }
+        else if (split[1] === "crop") {
+            if (split.length === 2) {
+                videoCrop = null;
+                sendMessage("Tiny video mode: hole size reset to default", type, target, true);
+                applyStyles();
+            }
+            else if (split.length === 3) {
+                const option = parseFloat(split[2]);
+                if (isNaN(option) || option <= 0 || option > 100) {
+                    sendMessage("Tiny video mode: hole size must be between 1 and 100", type, target, true);
+                    return;
+                }
+                videoCrop = option;
+                sendMessage(`Tiny video mode: hole size set to ${option}%`, type, target, true);
+                applyStyles();
+            }
+        }
+        else if (split[1] === "scale") {
+            if (split.length === 2) {
+                videoScale = null;
+                sendMessage("Tiny video mode: scale reset to default (2.5x)", type, target, true);
+                applyStyles();
+            }
+            else if (split.length === 3) {
+                const option = parseFloat(split[2]);
+                if (isNaN(option) || option <= 0 || option >= 10) {
+                    sendMessage("Tiny video mode: scale multiplier must be between 0x and 10x", type, target, true);
+                    return;
+                }
+                videoScale = option;
+                sendMessage(`Tiny video mode: scale multiplier set to ${option}x`, type, target, true);
+                applyStyles();
             }
         }
         else if (split[1] === "startpoint" || split[1] === "sp") {
@@ -4046,6 +4107,34 @@ async function parseCommand(messageText, type, target) {
             data: { groupId: id }
         });
     }
+    else if (command === "animeinfo") {
+        const id = parseInt(split[1]);
+        if (isNaN(id)) return;
+        const listener = new Listener("get anime extended info", (data) => {
+            listener.unbindListener();
+            console.log(data);
+        });
+        listener.bindListener();
+        socket.sendCommand({
+            type: "library",
+            command: "get anime extended info",
+            data: { annId: id }
+        });
+    }
+    else if (command === "songinfo" || command === "annsongid") {
+        const id = parseInt(split[1]);
+        if (isNaN(id)) return;
+        const listener = new Listener("get song extended info", (data) => {
+            listener.unbindListener();
+            console.log(data);
+        });
+        listener.bindListener();
+        socket.sendCommand({
+            type: "library",
+            command: "get song extended info",
+            data: { annSongId: id, includeFileNames: true },
+        });
+    }
     else if (command === "list" || command === "animelist") {
         if (split.length === 2) {
             if (["status", "s"].includes(split[1])) {
@@ -4067,9 +4156,18 @@ async function parseCommand(messageText, type, target) {
                 sendMessage("all lists cleared", type, target, true);
             }
         }
-        else if (split.length === 3) {
+        else if (split.length > 2) {
             const option = split[1][0];
             const username = split[2];
+            const states = split[3];
+            if (states) {
+                const watching = states.includes("w");
+                const completed = states.includes("c");
+                const hold = states.includes("h");
+                const dropped = states.includes("d");
+                const planning = states.includes("p");
+                setAllStatusCheckboxes(watching, completed, hold, dropped, planning);
+            }
             const providers = {
                 a: { label: "anilist", selector: "#aniListUserNameInput", listType: "ANILIST" },
                 m: { label: "myanimelist", selector: "#malUserNameInput", listType: "MAL" },
@@ -4099,6 +4197,31 @@ async function parseCommand(messageText, type, target) {
             }
             else {
                 sendMessage("invalid list type", type, target, true);
+            }
+        }
+    }
+    else if (command === "animestatuscheckbox" || command === "animestatus" || command === "asc") {
+        if (split.length === 1) {
+            let text = "";
+            if (options.$INCLUDE_WATCHING_CHECKBOX.prop("checked")) text += "W";
+            if (options.$INCLUDE_COMPLETED_CHECKBOX.prop("checked")) text += "C";
+            if (options.$INCLUDE_ON_HOLD_CHECKBOX.prop("checked")) text += "H";
+            if (options.$INCLUDE_DROPPED_CHECKBOX.prop("checked")) text += "D";
+            if (options.$INCLUDE_PLANNING_CHECKBOX.prop("checked")) text += "P";
+            sendMessage(text || "none", type, target, true);
+        }
+        else {
+            const status = split[1] || "";
+            if (status === "all") {
+                setAllStatusCheckboxes(true, true, true, true, true);
+            }
+            else {
+                const watching = status.includes("w");
+                const completed = status.includes("c");
+                const hold = status.includes("h");
+                const dropped = status.includes("d");
+                const planning = status.includes("p");
+                setAllStatusCheckboxes(watching, completed, hold, dropped, planning);
             }
         }
     }
@@ -4472,7 +4595,7 @@ function parseIncomingDM(messageText, sender) {
             sendMessage($("#installedListContainer h4").length, "dm", sender);
         }
         else if (command === "forcestatus" || command === "fs") {
-            sendMessage(socialTab.socialStatus.getSocialStatusInfo(), "dm", sender);
+            sendMessage(socialStatusMap[socialTab.socialStatus.currentStatus], "dm", sender);
         }
         else if (command === "forcevolume" || command === "forcevol" || command === "fvol") {
             sendMessage(volumeController.muted ? "🔇" : `🔉 ${Math.round(volumeController.volume * 100)}%`, "dm", sender);
@@ -4545,9 +4668,9 @@ function parseForceAll(messageText, type) {
         sendMessage(hidePlayers, type);
     }
     else if (content === "/forceall speed") {
-        if (playbackSpeed.length === 0) sendMessage("speed: default", type);
-        else if (playbackSpeed.length === 1) sendMessage(`speed: ${playbackSpeed[0]}x`, type);
-        else if (playbackSpeed.length === 2) sendMessage(`speed: random ${playbackSpeed[0]}x - ${playbackSpeed[1]}x`, type);
+        if (videoSpeed.length === 0) sendMessage("speed: default", type);
+        else if (videoSpeed.length === 1) sendMessage(`speed: ${videoSpeed[0]}x`, type);
+        else if (videoSpeed.length === 2) sendMessage(`speed: random ${videoSpeed[0]}x - ${videoSpeed[1]}x`, type);
     }
     else if (content === "/forceall pitch") {
         sendMessage(`pitch shift: ${acPlaybackRate ? acPlaybackRate : "disabled"}`, type);
@@ -5855,6 +5978,27 @@ function removeAllLists() {
     removeKitsu();
 }
 
+// set the status of the Anime Lists checkbox and send the command to the server
+function setStatusCheckbox($checkbox, commandName, status) {
+    if ($checkbox.prop("checked") !== status) {
+        $checkbox.prop("checked", status);
+        socket.sendCommand({
+            type: "settings",
+            command: "update use list entry " + commandName,
+            data: { on: status }
+        });
+    }
+}
+
+// set the status of all checkboxes in Anime Lists
+function setAllStatusCheckboxes(watching, completed, hold, dropped, planning) {
+    setStatusCheckbox(options.$INCLUDE_WATCHING_CHECKBOX, "watching", watching);
+    setStatusCheckbox(options.$INCLUDE_COMPLETED_CHECKBOX, "completed", completed);
+    setStatusCheckbox(options.$INCLUDE_ON_HOLD_CHECKBOX, "on hold", hold);
+    setStatusCheckbox(options.$INCLUDE_DROPPED_CHECKBOX, "dropped", dropped);
+    setStatusCheckbox(options.$INCLUDE_PLANNING_CHECKBOX, "planning", planning);
+}
+
 // input array of genre ids, return anime that satisfies all genres
 function genreLookup(inputGenres) {
     for (const anime of Object.keys(dqMap)) {
@@ -6175,7 +6319,10 @@ function saveSettings() {
     if (commandPersist.loopVideo) settings.loopVideo = loopVideo;
     if (commandPersist.muteReplay) settings.muteReplay = muteReplay;
     if (commandPersist.muteSubmit) settings.muteSubmit = muteSubmit;
-    if (commandPersist.playbackSpeed) settings.playbackSpeed = playbackSpeed;
+    if (commandPersist.videoBlur) settings.videoBlur = videoBlur;
+    if (commandPersist.videoCrop) settings.videoCrop = videoCrop;
+    if (commandPersist.videoScale) settings.videoScale = videoScale;
+    if (commandPersist.videoSpeed) settings.videoSpeed = videoSpeed;
     localStorage.setItem("megaCommands", JSON.stringify(settings));
 }
 
@@ -6295,6 +6442,44 @@ function applyStyles() {
             display: none;
         }
     `;
+    if (videoBlur != null) css += `
+        .qpVideoPlayer.blurVideo {
+            filter: blur(${videoBlur}px);
+        }
+    `;
+    if (videoCrop != null && videoScale != null) css += `
+        .qpVideoPlayer.tinyVideo {
+            clip-path: inset(${(100 - videoCrop) / 2}%);
+            transform-origin: center center;
+            transform: scale(${videoScale});
+        }
+    `;
+    else if (videoCrop != null) css += `
+        .qpVideoPlayer.tinyVideo {
+            clip-path: inset(${(100 - videoCrop) / 2}%);
+        }
+    `;
+    else if (videoScale != null) css += `
+        .qpVideoPlayer.tinyVideo {
+            transform-origin: center center;
+            transform: scale(${videoScale});
+        }
+    `;
+    if (videoCrop === 100) css += `
+        #qpVideoHider.tinyMode #qpTinyModeVideoHider {
+            clip-path: none;
+            opacity: 0;
+        }
+    `;
+    else if (videoCrop != null) {
+        const a = (100 - videoCrop) / 2;
+        const b = (100 + videoCrop) / 2;
+        css += `
+            #qpVideoHider.tinyMode #qpTinyModeVideoHider {
+                clip-path: polygon(0% 0%, 0% 110%, ${a}% 110%, ${a}% ${a}%, ${b}% ${a}%, ${b}% ${b}%, ${a}% ${b}%, ${a}% 110%, 110% 110%, 110% 0%);
+            }
+        `;
+    }
     let style = document.getElementById("megaCommandsStyle");
     if (style) {
         style.textContent = css.trim();
