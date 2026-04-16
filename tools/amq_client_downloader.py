@@ -113,9 +113,9 @@ def safe_rel_path(path):
 
 
 def resolve_rel_path(url_path):
-    """Convert URL path to a relative path, defaulting root to index.html."""
+    """Convert URL path to a relative path, defaulting root to login.html."""
     if url_path in {"", "/"}:
-        return "index.html"
+        return "login.html"
     return safe_rel_path(url_path)
 
 
