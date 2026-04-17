@@ -1,11 +1,12 @@
 """
 Download AMQ client files
-Version 0.1
+Version 0.2
 
 File list can be grabbed with /copysource in mega commands when logged in to AMQ.
 Once the list is in your clipboard, run this python script to download the files to the specified directory.
 Only .js, .css, .html, and .json files are downloaded.
-Download directory is cleared on each run.
+Download directory is cleared on each run (README.md and game.html are kept).
+game.html must be manually downloaded while logged in to AMQ.
 """
 
 import argparse
@@ -20,6 +21,8 @@ import urllib.request
 
 DOWNLOAD_DIR = os.path.join(os.environ["USERPROFILE"], "Documents", "GitHub", "amq-client")
 ALLOWED_EXTS = {".js", ".css", ".json", ".html"}
+# Filenames in DOWNLOAD_DIR left intact when clearing (case-insensitive).
+CLEAR_PRESERVE_FILES_LOWER = {"readme.md", "game.html"}
 
 
 def normalize_urls(items):
@@ -152,13 +155,15 @@ def download_url(url, dest_path, overwrite=False):
 
 
 def clear_download_dir():
-    """Remove all contents except .git and .gitignore."""
+    """Remove all contents except .git, .gitignore, README.md, and game.html."""
     if not os.path.isdir(DOWNLOAD_DIR):
         return
     for entry in os.listdir(DOWNLOAD_DIR):
         if entry in {".git", ".gitignore"}:
             continue
         path = os.path.join(DOWNLOAD_DIR, entry)
+        if os.path.isfile(path) and entry.lower() in CLEAR_PRESERVE_FILES_LOWER:
+            continue
         if os.path.isdir(path):
             shutil.rmtree(path)
         else:
