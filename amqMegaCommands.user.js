@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.166
+// @version      0.167
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -6160,18 +6160,40 @@ async function urlToArrayBuffer(url) {
     });
 }
 
+// guess MIME for media downloads (blob type is advisory for save dialog)
+function mimeFromFileName(fileName) {
+    const n = fileName.toLowerCase();
+    if (n.endsWith(".mp3")) return "audio/mpeg";
+    if (n.endsWith(".webm")) return "video/webm";
+    if (n.endsWith(".mp4")) return "video/mp4";
+    if (n.endsWith(".ogg")) return "audio/ogg";
+    if (n.endsWith(".m4a")) return "audio/mp4";
+    return "application/octet-stream";
+}
+
 // download audio/video file from url
 async function downloadSong(url) {
     if (!url) return;
-    const arrayBuffer = await urlToArrayBuffer(url);
-    const blob = new Blob([arrayBuffer], { type: "audio/mpeg" });
-    const fileName = url.split("/").slice(-1)[0];
-    const element = document.createElement("a");
-    element.setAttribute("href", window.URL.createObjectURL(blob));
-    element.setAttribute("download", fileName);
-    document.body.appendChild(element);
-    element.click();
-    element.remove();
+    let objectUrl;
+    try {
+        const arrayBuffer = await urlToArrayBuffer(url);
+        const raw = url.split("/").slice(-1)[0] || "download";
+        const fileName = raw.split("?")[0];
+        const blob = new Blob([arrayBuffer], { type: mimeFromFileName(fileName) });
+        objectUrl = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = objectUrl;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+    }
+    catch (error) {
+        console.error("downloadSong failed", error);
+    }
+    finally {
+        if (objectUrl) setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+    }
 }
 
 // reverse audio buffer in place
@@ -6230,13 +6252,21 @@ function exportLocalStorage() {
         storage[key] = localStorage[key];
     }
     delete storage["__paypal_storage__"];
-    const text = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(storage));
-    const element = document.createElement("a");
-    element.setAttribute("href", text);
-    element.setAttribute("download", `amq local storage export - ${selfName} ${year}-${month}-${day} ${hour}.${minute}.${second}.json`);
-    document.body.appendChild(element);
-    element.click();
-    element.remove();
+    const jsonStr = JSON.stringify(storage);
+    const blob = new Blob([jsonStr], { type: "application/json" });
+    const objectUrl = URL.createObjectURL(blob);
+    const fileName = `amq local storage export - ${selfName} ${year}-${month}-${day} ${hour}.${minute}.${second}.json`;
+    try {
+        const a = document.createElement("a");
+        a.href = objectUrl;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+    }
+    finally {
+        setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+    }
 }
 
 // load alert from local storage, input optional default values
