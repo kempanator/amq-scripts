@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Quick Load Lists
 // @namespace    https://github.com/kempanator
-// @version      0.26
+// @version      0.27
 // @description  Adds a window for saving and quick loading anime lists
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -323,12 +323,12 @@ function handleExport() {
     if (savedLists.length) {
         const settings = { savedLists, hotKeys, selectedColor, autoUpdateOnLogin };
         const data = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(settings));
-        const element = document.createElement("a");
-        element.setAttribute("href", data);
-        element.setAttribute("download", "amq quick load lists backup.json");
-        document.body.appendChild(element);
-        element.click();
-        element.remove();
+        const a = document.createElement("a");
+        a.href = data;
+        a.download = "amq quick load lists backup.json";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
     }
     else {
         messageDisplayer.displayMessage("Nothing to export");
