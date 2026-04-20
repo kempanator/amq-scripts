@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Answer Stats
 // @namespace    https://github.com/kempanator
-// @version      0.54
+// @version      0.55
 // @description  Adds a window to display quiz answer stats
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -1611,12 +1611,12 @@ function saveResults() {
         playerInfo: playerInfo,
         songHistory: songHistory
     }));
-    const element = document.createElement("a");
-    element.setAttribute("href", data);
-    element.setAttribute("download", fileName);
-    document.body.appendChild(element);
-    element.click();
-    element.remove();
+    const a = document.createElement("a");
+    a.href = data;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
 }
 
 function printCorrelations(numberOfResults) {
