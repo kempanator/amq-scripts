@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.95
+// @version      0.96
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -3123,12 +3123,12 @@ async function startImport() {
 // input list and file name, download json file
 function downloadListJson(list, fileName) {
     const data = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(list));
-    const element = document.createElement("a");
-    element.setAttribute("href", data);
-    element.setAttribute("download", fileName);
-    document.body.appendChild(element);
-    element.click();
-    element.remove();
+    const a = document.createElement("a");
+    a.href = data;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
 }
 
 // validate json data in local storage
