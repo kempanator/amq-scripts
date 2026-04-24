@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.167
+// @version      0.168
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -198,7 +198,7 @@ let alerts = {
     quizEnd: loadAlert("quizEnd", false, false, false),
     chat: loadAlert("chat", false, false, false),
     dm: loadAlert("dm", false, false, false),
-    newVersion: loadAlert("newVersion", true, false, false),
+    newVersion: loadAlert("newVersion", false, false, false),
 };
 let commandPersist = {
     autoAcceptInvite: loadCommandPersist("autoAcceptInvite", true),
@@ -380,7 +380,7 @@ function setup() {
         }
     }
 
-    // open dm chat box to yourself
+    // open dm chat box to yourself on login
     if (selfDM) {
         setTimeout(() => {
             socialTab.startChat(selfName);
@@ -389,15 +389,20 @@ function setup() {
         }, 100);
     }
 
-    // set auto status
-    if (autoStatus === "do not disturb") {
-        setTimeout(() => { socialTab.socialStatus.changeSocialStatus(socialTab.socialStatus.STATUS_IDS.DO_NO_DISTURB) }, 1500);
-    }
-    else if (autoStatus === "away") {
-        setTimeout(() => { socialTab.socialStatus.changeSocialStatus(socialTab.socialStatus.STATUS_IDS.AWAY) }, 1500);
-    }
-    else if (autoStatus === "offline" || autoStatus === "invisible") {
-        setTimeout(() => { socialTab.socialStatus.changeSocialStatus(socialTab.socialStatus.STATUS_IDS.INVISIBLE) }, 1500);
+    // automatically change social status on login
+    if (autoStatus) {
+        const statusMap = {
+            "do not disturb": 2,
+            "away": 3,
+            "offline": 4,
+            "invisible": 4,
+        };
+        const id = statusMap[autoStatus];
+        if (id) {
+            setTimeout(() => {
+                socialTab.socialStatus.changeSocialStatus(id);
+            }, 2000);
+        }
     }
 
     // loop video
@@ -842,8 +847,9 @@ function setup() {
     }).bindListener();
     new Listener("battle royal phase over", (data) => {
         if (printLoot && !battleRoyal.isSpectator) {
-            const lootNames = battleRoyal.collectionController.entries.map((entry) => entry.$entry.text().slice(2));
-            sendSystemMessage(`Loot: ${battleRoyal.collectionController.entries.length}/${battleRoyal.collectionController.size}`, lootNames.join("<br>"));
+            const cc = battleRoyal.collectionController;
+            const lootNames = cc.entries.map((entry) => entry.$entry.text().slice(2));
+            sendSystemMessage(`Loot: ${cc.entries.length}/${cc.size}`, lootNames.join("<br>"));
         }
     }).bindListener();
     new Listener("quiz ready", (data) => {
@@ -855,10 +861,12 @@ function setup() {
         }
     }).bindListener();
     new Listener("quiz over", (data) => {
-        setTimeout(() => { checkAutoHost() }, 10);
-        if (autoSwitch.mode) setTimeout(() => { checkAutoSwitch() }, 100);
-        if (hidePlayers) setTimeout(() => { lobbyHidePlayers() }, 0);
         if (sourceNode) sourceNode.stop();
+        setTimeout(() => {
+            checkAutoHost();
+            checkAutoSwitch();
+            if (hidePlayers) lobbyHidePlayers();
+        }, 0);
     }).bindListener();
     new Listener("quiz end result", (data) => {
         if (alerts.quizEnd.console) {
@@ -875,8 +883,9 @@ function setup() {
             (autoDownloadJson.includes("tour") && hostModal.$roomName.val().toLowerCase().includes("tour"))) {
             $("#shHistoryTab").trigger("click");
             setTimeout(() => {
-                popoutMessage("Auto Download JSON", $(".shGameTitleInner").first().text().trim());
-                $(".shGameTitleInner .shGameDownloadIcon").first().trigger("click");
+                const $title = $(".shGameTitleInner").first();
+                popoutMessage("Auto Download JSON", $title.text().trim());
+                $title.find(".shGameDownloadIcon").trigger("click");
             }, 100);
         }
     }).bindListener();
@@ -923,11 +932,11 @@ function setup() {
         audioBuffers = {};
     }).bindListener();
     new Listener("New Player", (data) => {
-        setTimeout(() => { checkAutoHost() }, 1);
+        setTimeout(() => { checkAutoHost() }, 0);
         if (hidePlayers) setTimeout(() => { lobbyHidePlayers() }, 0);
     }).bindListener();
     new Listener("New Spectator", (data) => {
-        setTimeout(() => { checkAutoHost() }, 1);
+        setTimeout(() => { checkAutoHost() }, 0);
     }).bindListener();
     new Listener("player late join", (data) => {
         if (hidePlayers) setTimeout(() => { quizHidePlayers() }, 0);
@@ -947,11 +956,11 @@ function setup() {
         checkAutoStart();
     }).bindListener();
     new Listener("Room Settings Changed", (data) => {
-        setTimeout(() => { checkAutoReady() }, 1);
+        setTimeout(() => { checkAutoReady() }, 0);
     }).bindListener();
     new Listener("Player Changed To Spectator", (data) => {
         if (data.playerDescription.name === selfName) {
-            setTimeout(() => { checkAutoSwitch() }, 1);
+            setTimeout(() => { checkAutoSwitch() }, 0);
         }
     }).bindListener();
     new Listener("Spectator Change To Player", (data) => {
@@ -960,14 +969,16 @@ function setup() {
                 checkAutoReady();
                 checkAutoStart();
                 checkAutoSwitch();
-            }, 1);
+            }, 0);
         }
         if (hidePlayers) setTimeout(() => { lobbyHidePlayers() }, 0);
     }).bindListener();
     new Listener("Host Promotion", (data) => {
-        setTimeout(() => { checkAutoHost() }, 1);
-        setTimeout(() => { checkAutoReady() }, 1);
-        if (hidePlayers) setTimeout(() => { lobbyHidePlayers() }, 0);
+        setTimeout(() => {
+            checkAutoHost();
+            checkAutoReady();
+            if (hidePlayers) lobbyHidePlayers();
+        }, 0);
     }).bindListener();
     new Listener("quiz next video info", async (data) => {
         if (acReverse || acPlaybackRate) {
@@ -1043,13 +1054,13 @@ function setup() {
         }
     }).bindListener();
     new Listener("nexus lobby host change", (data) => {
-        setTimeout(() => { checkAutoHost() }, 1);
+        setTimeout(() => { checkAutoHost() }, 0);
     }).bindListener();
     new Listener("new nexus player", (data) => {
-        setTimeout(() => { checkAutoHost() }, 1);
+        setTimeout(() => { checkAutoHost() }, 0);
     }).bindListener();
     new Listener("nexus player leave", (data) => {
-        setTimeout(() => { checkAutoHost() }, 1);
+        setTimeout(() => { checkAutoHost() }, 0);
     }).bindListener();
     new Listener("friend name change", (data) => {
         if (alerts.nameChange.popout) {
@@ -1109,7 +1120,11 @@ function setup() {
     // monitor the answer input box
     $("#qpAnswerInput").on("input", (event) => {
         if (autoKey) {
-            socket.sendCommand({ type: "quiz", command: "quiz answer", data: { answer: event.target.value || " " } });
+            socket.sendCommand({
+                type: "quiz",
+                command: "quiz answer",
+                data: { answer: event.target.value || " " }
+            });
             quiz.answerInput.typingInput.autoSubmitEligible = false;
             if (autoShareAnswer && !isQuizOfTheDay()) {
                 sendMessage(event.target.value, "chat");
@@ -1156,9 +1171,7 @@ function setup() {
     // check auto join on log in
     if (autoJoinRoom) {
         if (autoJoinRoom.rejoin) {
-            if (document.querySelector(".swal2-container")) {
-                document.querySelector(".swal2-container button.swal2-confirm").click();
-            }
+            $(".swal2-container button.swal2-confirm").click();
         }
         else if (autoJoinRoom.type === "solo") {
             hostModal.changeSettings(autoJoinRoom.settings);
@@ -1715,7 +1728,7 @@ function setup() {
         toggleCommandButton($(this), autoVoteLobby);
     });
     $("#mcAutoMuteButton").on("click", function () {
-        if ($("#mcAutoMuteButton").text() === "Off") {
+        if ($(this).text() === "Off") {
             const option = $("#mcAutoMuteSelect").val();
             let time = $("#mcAutoMuteTimeInput").val();
             if (time) {
@@ -4916,7 +4929,7 @@ function updateCommandListWindow(type) {
         }
     }
     if (!type || type === "autoVoteLobby") {
-        $("#mcAutoVoteLobbyButton").addClass(autoVoteLobby ? "btn-success" : "btn-danger").text(autoVoteLobby ? "On" : "Off");
+        toggleCommandButton($("#mcAutoVoteLobbyButton"), autoVoteLobby);
     }
     if (!type || type === "autoMute") {
         if (autoMute.mute.length) {
@@ -5409,11 +5422,12 @@ function popoutMessage(head, body) {
 }
 
 // change game settings
+// input a partial settings object (like lobby.settings), only keys that actually change are applied
 function changeGameSettings(settings) {
     const settingChanges = {};
-    for (const key of Object.keys(settings)) {
-        if (JSON.stringify(lobby.settings[key]) !== JSON.stringify(settings[key])) {
-            settingChanges[key] = settings[key];
+    for (const [key, value] of Object.entries(settings)) {
+        if (JSON.stringify(lobby.settings[key]) !== JSON.stringify(value)) {
+            settingChanges[key] = value;
         }
     }
     if (Object.keys(settingChanges).length > 0) {
@@ -5800,14 +5814,15 @@ function autoList() {
 function getScriptVersion(input) {
     input = input.toLowerCase();
     if (/^(ess|elodie'?s? style script)$/.test(input)) {
-        const essVersion = getComputedStyle(document.documentElement).getPropertyValue("--elodieStyleScriptVersion");
+        const style = getComputedStyle(document.documentElement);
+        const essVersion = style.getPropertyValue("--elodieStyleScriptVersion");
         if (essVersion) {
             return essVersion;
         }
-        else if (getComputedStyle(document.documentElement).getPropertyValue("--accentColor")) {
+        else if (style.getPropertyValue("--accentColor")) {
             return "10.?";
         }
-        else if (getComputedStyle(document.documentElement).getPropertyValue("--bg")) {
+        else if (style.getPropertyValue("--bg")) {
             return "< 10";
         }
     }
