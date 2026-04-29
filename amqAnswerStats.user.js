@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Answer Stats
 // @namespace    https://github.com/kempanator
-// @version      0.55
+// @version      0.56
 // @description  Adds a window to display quiz answer stats
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -1604,19 +1604,27 @@ function saveResults() {
     const fileName = answerHistorySettings.roomType === "Ranked"
         ? `${dateFormatted} ${answerHistorySettings.roomName} Answer History.json`
         : `${dateFormatted} ${timeFormatted} ${answerHistorySettings.roomType} Answer History.json`;
-    const data = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({
+    const json = JSON.stringify({
         date: dateFormatted,
         roomType: answerHistorySettings.roomType,
         roomName: answerHistorySettings.roomName,
         playerInfo: playerInfo,
         songHistory: songHistory
-    }));
-    const a = document.createElement("a");
-    a.href = data;
-    a.download = fileName;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+    });
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    try {
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = fileName;
+        a.style.display = "none";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+    }
+    finally {
+        setTimeout(() => URL.revokeObjectURL(url), 0);
+    }
 }
 
 function printCorrelations(numberOfResults) {
