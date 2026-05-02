@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.96
+// @version      0.97
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -698,25 +698,24 @@ function setup() {
         $(this).find("i").toggleClass("fa-caret-down fa-caret-up");
         $("#cslgAnisongdbFilterOptions").slideToggle(150);
     });
-    $("#cslgFileUpload").on("change", function () {
-        if (this.files.length) {
-            this.files[0].text().then((data) => {
-                try {
-                    handleData(JSON.parse(data));
-                    if (songList.length === 0) {
-                        messageDisplayer.displayMessage("0 song links found");
-                    }
-                }
-                catch (error) {
-                    songList = [];
-                    $(this).val("");
-                    console.error(error);
-                    messageDisplayer.displayMessage("Upload Error");
-                }
-                setSongListTableSort();
-                createSongListTable(true);
-                createAnswerTable();
-            });
+    $("#cslgFileUpload").on("change", async function () {
+        if (!this.files.length) return;
+        try {
+            handleData(JSON.parse(await this.files[0].text()));
+            if (!songList.length) {
+                messageDisplayer.displayMessage("0 song links found");
+            }
+        }
+        catch (error) {
+            this.value = "";
+            songList = [];
+            console.error(error);
+            messageDisplayer.displayMessage("Upload Error");
+        }
+        finally {
+            setSongListTableSort();
+            createSongListTable(true);
+            createAnswerTable();
         }
     });
     $("#cslgPreviousGameButtonGo").on("click", () => {
@@ -3122,13 +3121,21 @@ async function startImport() {
 
 // input list and file name, download json file
 function downloadListJson(list, fileName) {
-    const data = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(list));
-    const a = document.createElement("a");
-    a.href = data;
-    a.download = fileName;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+    const json = JSON.stringify(list);
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    try {
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = fileName;
+        a.style.display = "none";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+    }
+    finally {
+        setTimeout(() => URL.revokeObjectURL(url), 0);
+    }
 }
 
 // validate json data in local storage
