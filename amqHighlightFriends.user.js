@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Highlight Friends
 // @namespace    https://github.com/kempanator
-// @version      2.3
+// @version      2.4
 // @description  Apply colors to player names and add an answer summary table
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -71,7 +71,7 @@ let playerSummaryRowCache = new Map();
 let playerSummarySettingsOpen = false;
 let summaryTimeUnit = saveData.summaryTimeUnit ?? "seconds";
 let summaryAnswerAppendTime = saveData.summaryAnswerAppendTime ?? false;
-let summaryColumns = Object.assign({rank: true, score: true, name: true, box: true, answer: true, time: false}, saveData.summaryColumns ?? {});
+let summaryColumns = Object.assign({ rank: true, score: true, name: true, box: true, answer: true, time: false }, saveData.summaryColumns ?? {});
 let customColors = saveData.customColors ?? [];
 let customColorMap = {};
 let hotKeys = {
@@ -167,13 +167,17 @@ function setup() {
     }).bindListener();
 
     new Listener("Game Chat Message", (data) => {
-        updateChatMessage(data);
+        colorChatMessage(data);
     }).bindListener();
 
     new Listener("game chat update", (data) => {
         data.messages.forEach(message => {
-            updateChatMessage(message);
+            colorChatMessage(message);
         });
+    }).bindListener();
+
+    new Listener("pin chat message", (data) => {
+        colorPinnedChat(data);
     }).bindListener();
 
     new Listener("new friend", () => {
@@ -939,18 +943,46 @@ function colorSpectators() {
     }, 0);
 }
 
-// update chat message
-function updateChatMessage(message) {
+// update chat message username color
+function colorChatMessage(data) {
     setTimeout(() => {
-        const $gcUserName = $(`#gcPlayerMessage-${message.messageId} .gcUserName`);
-        const lower = message.sender.toLowerCase();
-        if (message.sender === selfName) {
+        const $gcUserName = $(`#gcPlayerMessage-${data.messageId} .gcUserName`);
+        const lower = data.sender.toLowerCase();
+        if (data.sender === selfName) {
             $gcUserName.addClass("isSelf");
         }
-        else if (socialTab.isFriend(message.sender)) {
+        else if (socialTab.isFriend(data.sender)) {
             $gcUserName.addClass("isFriend");
         }
-        else if (socialTab.isBlocked(message.sender)) {
+        else if (socialTab.isBlocked(data.sender)) {
+            $gcUserName.addClass("isBlocked");
+        }
+        if (customColorMap.hasOwnProperty(lower)) {
+            $gcUserName.addClass("customColor" + customColorMap[lower]);
+        }
+        if (smRemoveColor) {
+            $gcUserName.removeClass("gcNameColor");
+        }
+        if (smRemoveGlow) {
+            $gcUserName.removeClass("gcNameGlow");
+        }
+    }, 0);
+}
+
+// update pinned chat message username color
+function colorPinnedChat(data) {
+    setTimeout(() => {
+        const $gcUserName = $("#gcPinnedMessageContainer .gcUserName");
+        const sender = data?.sender ?? $gcUserName.text();
+        const lower = sender.toLowerCase();
+        $gcUserName.removeClass((index, className) => (className.match(colorClassRegex) || []).join(" "));
+        if (sender === selfName) {
+            $gcUserName.addClass("isSelf");
+        }
+        else if (socialTab.isFriend(sender)) {
+            $gcUserName.addClass("isFriend");
+        }
+        else if (socialTab.isBlocked(sender)) {
             $gcUserName.addClass("isBlocked");
         }
         if (customColorMap.hasOwnProperty(lower)) {
@@ -998,6 +1030,7 @@ function refreshColors() {
     colorLobbyPlayers();
     colorQuizPlayers();
     colorSpectators();
+    colorPinnedChat();
 }
 
 // load hotkey from local storage, input optional default values
@@ -1332,7 +1365,8 @@ function applyStyles() {
             }
         `;
         if (smColorChat) css += `
-            #gcMessageContainer .gcUserName.${value.class} {
+            #gcMessageContainer .gcUserName.${value.class},
+            #gcPinnedMessageContainer .gcUserName.${value.class} {
                 color: ${value.color};
             }
         `;
@@ -1375,7 +1409,8 @@ function applyStyles() {
                 }
             `;
             if (smColorChat) css += `
-                #gcMessageContainer .gcUserName.customColor${index} {
+                #gcMessageContainer .gcUserName.customColor${index},
+                #gcPinnedMessageContainer .gcUserName.customColor${index} {
                     color: ${item.color};
                 }
             `;
