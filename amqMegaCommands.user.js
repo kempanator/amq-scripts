@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.168
+// @version      0.169
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -1433,6 +1433,7 @@ function setup() {
                         <div id="mcStorageContainer" class="tabSection" style="margin: 10px 0;">
                             <h4 class="text-center">Local Storage</h4>
                             <div style="margin: 10px 0"><button id="mcLocalStorageImportButton" style="color: black; margin-right: 10px;">Import</button><button id="mcLocalStorageExportButton" style="color: black; margin-right: 10px;">Export</button><button id="mcLocalStorageClearButton" style="color: black;">Clear</button></div>
+                            <input id="mcLocalStorageImportFile" type="file" accept=".json" aria-hidden="true" tabindex="-1" style="display: none;">
                             <ul id="mcStorageList"></ul>
                         </div>
                         <div id="mcInfoContainer" class="tabSection" style="text-align: center; margin: 20px 0;">
@@ -1852,8 +1853,28 @@ function setup() {
         { action: "newVersion", title: "New Version", id: "mcAlertNewVersion", popout: true, chat: false, console: true },
     ]);
 
+    $("#mcLocalStorageImportFile").on("change", async function () {
+        const file = this.files?.[0];
+        this.value = "";
+        if (!file) return;
+        try {
+            const json = JSON.parse(await file.text());
+            if (typeof json !== "object" || !Object.values(json).every((x) => typeof x === "string")) {
+                throw new Error("Invalid Format");
+            }
+            for (const [key, value] of Object.entries(json)) {
+                localStorage.setItem(key, value);
+            }
+            createLocalStorageList();
+            const count = Object.keys(json).length;
+            messageDisplayer.displayMessage(`${count} item${count === 1 ? "" : "s"} loaded into local storage`);
+        }
+        catch {
+            messageDisplayer.displayMessage("Upload Error");
+        }
+    });
     $("#mcLocalStorageImportButton").on("click", () => {
-        importLocalStorage();
+        $("#mcLocalStorageImportFile").click();
     });
     $("#mcLocalStorageExportButton").on("click", () => {
         exportLocalStorage();
@@ -3634,9 +3655,9 @@ async function parseCommand(messageText, type, target) {
         }
         else if (/^\S+ (all|total) ?(avatars?|skins?)$/.test(content)) {
             const characters = storeWindow.topBar.characters.length;
-            const variations = storeWindow.topBar.characters.reduce((sum, val) => sum + val.avatars.length, 0);
+            const outfits = storeWindow.topBar.characters.reduce((sum, val) => sum + val.avatars.length, 0);
             const colors = storeWindow.topBar.characters.map((x) => x.avatars).flat().reduce((sum, val) => sum + val.colors.length, 0);
-            sendMessage(`${characters} characters, ${variations} variations, ${colors} colors`, type, target);
+            sendMessage(`${characters} characters, ${outfits} outfits, ${colors} colors`, type, target);
         }
         else if (/^\S+ emotes?$/.test(content)) {
             sendMessage(storeWindow.unlockedEmoteIds.length, type, target);
@@ -3718,10 +3739,9 @@ async function parseCommand(messageText, type, target) {
     }
     else if (command === "alert" || command === "alerts") {
         if (split.length === 1) {
-            const lines = Object.entries(alerts).map(([action, value]) => {
-                return `${action}: popout=${value.popout ? "T" : "F"} chat=${value.chat ? "T" : "F"}`;
-            });
-            sendSystemMessage("Mega Commands Alerts:", lines.join("<br>"), type, target, true);
+            const rows = Object.entries(alerts).map(([action, value]) => `<tr><td>${action}</td><td class="mcAlertSummaryBool">${value.popout ? "✅" : "-"}</td><td class="mcAlertSummaryBool">${value.chat ? "✅" : "-"}</td><td class="mcAlertSummaryBool">${value.console ? "✅" : "-"}</td></tr>`).join("");
+            const table = `<table class="mcAlertSummaryTable"><thead><tr><th>Action</th><th>Popout</th><th>Chat</th><th>Console</th></tr></thead><tbody>${rows}</tbody></table>`;
+            sendSystemMessage("Mega Commands Alerts:", table, type, target, true);
         }
         else if (split[1] === "on") {
             for (const action of Object.keys(alerts)) {
@@ -3958,7 +3978,7 @@ async function parseCommand(messageText, type, target) {
         }
         else if (split.length === 2) {
             if (["import", "upload", "load"].includes(split[1])) {
-                importLocalStorage();
+                $("#mcLocalStorageImportFile").click();
             }
             else if (["export", "download", "save"].includes(split[1])) {
                 exportLocalStorage();
@@ -6226,33 +6246,6 @@ function reverseAudioBuffer(audioBuffer) {
     return audioBuffer;
 }
 
-// import local storage
-function importLocalStorage() {
-    $("#mcUploadLocalStorageInput").remove();
-    const $input = $("<input>", { id: "mcUploadLocalStorageInput", type: "file", accept: ".json", style: "display: none" });
-    $input.on("change", async function () {
-        try {
-            const json = JSON.parse(await this.files[0].text());
-            if (typeof json !== "object" || !Object.values(json).every((x) => typeof x === "string")) {
-                throw new Error("Invalid Format");
-            }
-            for (const [key, value] of Object.entries(json)) {
-                localStorage.setItem(key, value);
-            }
-            createLocalStorageList();
-            const count = Object.keys(json).length;
-            messageDisplayer.displayMessage(`${count} item${count === 1 ? "" : "s"} loaded into local storage`);
-        }
-        catch {
-            messageDisplayer.displayMessage("Upload Error");
-        }
-        finally {
-            $input.remove();
-        }
-    });
-    $input.appendTo("body").trigger("click");
-}
-
 // export local storage
 function exportLocalStorage() {
     const date = new Date();
@@ -6262,19 +6255,16 @@ function exportLocalStorage() {
     const hour = String(date.getHours()).padStart(2, 0);
     const minute = String(date.getMinutes()).padStart(2, 0);
     const second = String(date.getSeconds()).padStart(2, 0);
-    const storage = {};
-    for (const key of Object.keys(localStorage)) {
-        storage[key] = localStorage[key];
-    }
+    const storage = { ...localStorage };
     delete storage["__paypal_storage__"];
-    const jsonStr = JSON.stringify(storage);
-    const blob = new Blob([jsonStr], { type: "application/json" });
+    const blob = new Blob([JSON.stringify(storage)], { type: "application/json" });
     const objectUrl = URL.createObjectURL(blob);
     const fileName = `amq local storage export - ${selfName} ${year}-${month}-${day} ${hour}.${minute}.${second}.json`;
     try {
         const a = document.createElement("a");
         a.href = objectUrl;
         a.download = fileName;
+        a.style.display = "none";
         document.body.appendChild(a);
         a.click();
         a.remove();
@@ -6436,6 +6426,20 @@ function applyStyles() {
         }
         #mcAlertsTable .customCheckbox {
             vertical-align: middle;
+        }
+        .mcAlertSummaryTable {
+            border-collapse: collapse;
+            text-align: left;
+        }
+        .mcAlertSummaryTable th {
+            padding: 2px 8px;
+            border-bottom: 1px solid #ccc;
+        }
+        .mcAlertSummaryTable td {
+            padding: 2px 8px;
+        }
+        .mcAlertSummaryTable .mcAlertSummaryBool {
+            text-align: center;
         }
         #mcDocumentationContainer pre {
             background-color: inherit;
