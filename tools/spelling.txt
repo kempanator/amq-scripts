@@ -16,6 +16,7 @@ skpping -> skipping
 seach -> search
 serie -> series
 comboes -> combos
+descrition -> description
 identifer -> identifier
 retriver -> retriever
 detatched -> detached
