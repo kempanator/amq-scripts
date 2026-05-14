@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Avatar Store Plus
 // @namespace    https://github.com/kempanator
-// @version      0.1
+// @version      0.2
 // @description  More features for the avatar store
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -39,12 +39,44 @@ let avatarTileGap = saveData.avatarTileGap ?? "";
 let avatarInfoLogging = saveData.avatarInfoLogging ?? false;
 let disableBulkBuy = saveData.disableBulkBuy ?? false;
 let legacyAvatarStoreFilters = saveData.legacyAvatarStoreFilters ?? false;
+const WISHLIST_SORT_MODES = ["catalog", "alpha", "tier"];
 let wishlist = normalizeWishlistFromStorage(saveData.wishlist);
-let hotKeys = saveData.hotKeys ?? {};
+let wishlistSort = normalizeWishlistSort(saveData.wishlistSort);
+let hotKeys = {
+    prevPage: loadHotkey("prevPage"),
+    nextPage: loadHotkey("nextPage"),
+}
+
 let $modernFilters;
 let $legacyFilters;
 let $searchInput;
 let $wishlist;
+let aspStoreColorCatalogRankMap = new Map();
+
+const TIER_ICONS = [
+    { type: "img", src: "/img/ui/currency/Icon_Normal.svg" },
+    { type: "img", src: "https://cdn.animemusicquiz.com/v1/ui/currency/30px/ticket1.webp" },
+    { type: "img", src: "https://cdn.animemusicquiz.com/v1/ui/currency/30px/ticket2.webp" },
+    { type: "img", src: "https://cdn.animemusicquiz.com/v1/ui/currency/30px/ticket3.webp" },
+    { type: "img", src: "https://cdn.animemusicquiz.com/v1/ui/currency/30px/ticket4.webp" },
+    { type: "fa", classes: "fa fa-question-circle-o" },
+];
+const TIER_LABELS = [
+    "Standard",
+    "Common",
+    "Rare",
+    "Epic",
+    "Legendary",
+    "Unique",
+];
+const TIER_TITLES = [
+    "Note-priced skins",
+    "Common ticket tier",
+    "Rare ticket tier",
+    "Epic ticket tier",
+    "Legendary ticket tier",
+    "Unique skin",
+];
 
 // setup
 function setup() {
@@ -52,8 +84,11 @@ function setup() {
     const $top = $("#swRightColumnTop");
     $modernFilters = $(`
         <div id="aspModernStoreTopFilters">
-            <button type="button" id="aspModernFiltersReset" class="asp-stf-reset" title="Reset filters to defaults">Reset</button>
-            <div class="asp-stf-heading">Filters</div>
+            <div class="asp-stf-heading-row">
+                <div class="asp-stf-heading">Filters</div>
+                <span id="aspStfFilterCount" class="asp-stf-heading-count" title=""></span>
+                <button type="button" id="aspModernFiltersReset" class="asp-stf-reset" title="Reset filters to defaults">Reset</button>
+            </div>
             <div class="asp-stf-row" data-asp-stf-axis="ownership">
                 <span class="asp-stf-label" style="margin-left: 30px;">Ownership</span>
                 <div class="asp-stf-segs">
@@ -149,7 +184,7 @@ function setup() {
                 </div>
             </div>
             <div class="btn-group" role="group">
-                <button type="button" id="aspRandomizeButton" class="btn btn-primary" title="Randomize the current avatar/background">Randomize</button>
+                <button type="button" id="aspRandomizeButton" class="btn btn-primary" title="Randomize the current avatar/background (obeys filters)">Randomize</button>
                 <button type="button" id="aspRandomizeOptionsToggle" class="btn btn-primary asp-randomize-options-caret-btn" title="Show or hide randomize options">
                     <i id="aspRandomizeOptionsCaret" class="fa fa-caret-down" aria-hidden="true"></i>
                 </button>
@@ -164,10 +199,7 @@ function setup() {
                     <input type="checkbox" id="aspRandPartBackground" checked> Background
                 </label>
                 <label class="aspRandLabel">
-                    <input type="checkbox" id="aspRandPartAccessory" checked> Accessory
-                </label>
-                <label class="aspRandLabel" title="Only unlocked skins/backgrounds; avoids &quot;Missing Skin Bonus&quot; when mixing outfits.">
-                    <input type="checkbox" id="aspRandUnlockedOnly" checked> Unlocked only
+                    <input type="checkbox" id="aspRandPartAccessory"> Accessory
                 </label>
             </div>
         </div>
@@ -210,7 +242,17 @@ function setup() {
     // Wishlist panel
     const $wishlistContainer = $(`
         <div id="aspWishlistContainer" class="tabSection">
-            <h4>Wishlist</h4>
+            <div class="asp-wishlist-sort-bar">
+                <label class="asp-wishlist-sort-label" for="aspWishlistSortMode">Sort by</label>
+                <select id="aspWishlistSortMode" class="form-control asp-wishlist-sort-select" title="Wishlist sort order">
+                    <option value="catalog">Catalog order</option>
+                    <option value="alpha">Alphabetical</option>
+                    <option value="tier">Tier</option>
+                </select>
+                <button type="button" id="aspWishlistSortDir" class="btn btn-default asp-wishlist-sort-dir" title="Ascending / descending">
+                    <i class="fa fa-sort-amount-asc" aria-hidden="true"></i>
+                </button>
+            </div>
             <div id="aspWishlistList" class="asp-wishlist-list"></div>
         </div>
     `);
@@ -319,6 +361,19 @@ function setup() {
     // Global variables
     $searchInput = $("#aspSearchInput");
     $wishlist = $("#aspWishlistList");
+    syncWishlistSortUi();
+    $("#aspWishlistSortMode").on("change", function () {
+        wishlistSort = { ...wishlistSort, mode: this.value };
+        if (!WISHLIST_SORT_MODES.includes(wishlistSort.mode)) wishlistSort.mode = "catalog";
+        saveSettings();
+        renderWishlist();
+    });
+    $("#aspWishlistSortDir").on("click", () => {
+        wishlistSort = { ...wishlistSort, ascending: !wishlistSort.ascending };
+        saveSettings();
+        syncWishlistSortUi();
+        renderWishlist();
+    });
 
     // Setup modern filters handlers
     $("#aspModernFiltersReset").on("click", function () {
@@ -432,6 +487,7 @@ function setup() {
     updateSearchPanel();
 
     // Setup wishlist
+    buildAspStoreColorCatalogRankMap();
     renderWishlist();
     $("#swContentAvatarContainer").on("click", ".asp-tile-wishlist-btn", function (e) {
         const $tile = $(this).closest(".swAvatarTile");
@@ -444,7 +500,7 @@ function setup() {
             removeWishlistRowInDom(entry.avatarId, entry.colorId);
         } else {
             wishlist.push(entry);
-            insertWishlistRowInDom(entry);
+            insertWishlistRowAtSortedPosition(entry.avatarId, entry.colorId);
         }
         saveSettings();
         refreshWishlistTileButtons();
@@ -455,7 +511,7 @@ function setup() {
         const colorId = Number($row.data("color-id"));
         buyWishlistSkin(avatarId, colorId);
     });
-    $("#aspWishlistList").on("click", ".asp-wishlist-open", function (e) {
+    $("#aspWishlistList").on("click", ".asp-wishlist-row-head", function () {
         const $row = $(this).closest(".asp-wishlist-row");
         const avatarId = Number($row.data("avatar-id"));
         const colorId = Number($row.data("color-id"));
@@ -701,7 +757,7 @@ function updateAspColorNames() {
             if (c?.name) {
                 bgText = capitalizeMajorWords(c.name);
                 // When the background's source outfit differs from the worn avatar, surface it in
-                // parens (e.g. "Red (Winter Hibiki)"). Standard outfits collapse to just the avatar.
+                // parentheses (e.g. "Red (Winter Hibiki)"). Standard outfits collapse to just the avatar.
                 if (av && a && a.avatarId !== b.avatarId) {
                     const source = av.outfitName === "Standard" ? av.avatarName : `${av.outfitName} ${av.avatarName}`;
                     bgText += ` (${source})`;
@@ -714,10 +770,11 @@ function updateAspColorNames() {
     $('#aspColorNames [data-asp-target="background"]').text(bgText);
 }
 
-/** Sets StoreColor/StoreAvatar/StoreCharacter inFilter (drives client storeFade on tiles/top icons). */
+// Sets StoreColor/StoreAvatar/StoreCharacter inFilter (drives client storeFade on tiles/top icons)
 function applyAspStoreTopFilters() {
     if (legacyAvatarStoreFilters) return;
     const state = readAspStoreTopFilterState();
+    let matchCount = 0;
     for (const character of storeWindow.topBar.characters) {
         let anyAvatarIn = false;
         for (const avatar of character.avatars) {
@@ -725,11 +782,14 @@ function applyAspStoreTopFilters() {
             let anyColorIn = false;
             for (const color of avatar.colors) {
                 const next = storeColorMatchesAspTopFilters(color, state);
+                if (next) {
+                    matchCount++;
+                    anyColorIn = true;
+                }
                 if (next !== color.inFilter) {
                     color.inFilter = next;
                     anyColorGateChanged = true;
                 }
-                if (next) anyColorIn = true;
             }
             if (anyColorGateChanged) avatar.sortColors();
             if (anyColorIn !== avatar.inFilter) avatar.inFilter = anyColorIn;
@@ -738,6 +798,7 @@ function applyAspStoreTopFilters() {
         // StoreCharacter.inFilter has no getter
         character.inFilter = anyAvatarIn;
     }
+    $("#aspStfFilterCount").text(matchCount).attr("title", `${matchCount} skins match the current filters`);
 }
 
 // Trims and lowercases user text for search and filter matching
@@ -869,14 +930,14 @@ function navigateOutfitPage(delta) {
     }, 0);
 }
 
-// `StoreColor` (skin color swatch) in model form — not preview/outfit, not background mode.
+// `StoreColor` (skin color swatch) in model form — not preview/outfit, not background mode
 function isAvatarSkinColorRow(model) {
     if (!model || model.colorId == null || !model.avatar) return false;
     if (storeWindow.inBackgroundMode) return false;
     return true;
 }
 
-// Heart control only on `StoreAvatarTile` color swatches (excludes `previewTile`, `emoteLayout`, backgrounds, decorations).
+// Heart control only on `StoreAvatarTile` color swatches (excludes `previewTile`, `emoteLayout`, backgrounds, decorations)
 function isWishlistableAvatarSkinTile($tile) {
     if (!$tile?.length) return false;
     if (storeWindow.inBackgroundMode) return false;
@@ -914,7 +975,7 @@ function refreshWishlistTileButtons() {
     });
 }
 
-// Returns the StoreColor object for an avatar+colorId from the live store catalog, or null if missing.
+// Returns the StoreColor object for an avatar+colorId from the live store catalog, or null if missing
 function findStoreColorInCatalog(avatarId, colorId) {
     avatarId = Number(avatarId);
     colorId = Number(colorId);
@@ -948,12 +1009,12 @@ function syncWishlistBuyButtonsOwnedState() {
     });
 }
 
-// Array index in `wishlist` for a skin, or -1 if not saved.
+// Array index in `wishlist` for a skin, or -1 if not saved
 function wishlistIndexOf(avatarId, colorId) {
     return wishlist.findIndex((e) => e.avatarId === avatarId && e.colorId === colorId);
 }
 
-// Programmatically opens that outfit’s color list in the game store (no tab or scroll change from script).
+// Programmatically opens that outfit’s color list in the game store (no tab or scroll change from script)
 function openWishlistSkinInStore(avatarId, colorId) {
     const storeColor = findStoreColorInCatalog(avatarId, colorId);
     const avatar = storeColor.avatar;
@@ -961,7 +1022,7 @@ function openWishlistSkinInStore(avatarId, colorId) {
     openOutfitInStore(parent, avatar);
 }
 
-/** v1 static head: `…/v1/avatars/{avatar}/{outfit}/{option}/{color}/100px/Head.webp` (matches CDN layout). */
+// v1 static head: `…/v1/avatars/{avatar}/{outfit}/{option}/{color}/100px/Head.webp` (matches CDN layout)
 function avatarHeadUrl(a, colorName) {
     if (!a) return "";
     const segs = [a.avatarName, a.outfitName, a.optionName, colorName ?? a.defaultColorName, "100px", "Head.webp"];
@@ -1045,35 +1106,43 @@ function buyWishlistSkin(avatarId, colorId) {
 const WISHLIST_EMPTY_HTML = '<p class="asp-wishlist-empty">No skins saved yet. Click the heart on an avatar tile to save.</p>';
 
 /**
- * @param {{ avatarId: number, colorId: number }} entry
+ * Given a StoreColor, returns the label strings for the wishlist row: outfit + avatar name, and color name.
+ * @param {StoreColor} c
+ */
+function wishlistSkinStringsFromColor(c) {
+    const avatarName = c?.avatar?.avatarName;
+    const outfitName = c?.avatar?.outfitName;
+    const nameText = outfitName === "Standard" ? avatarName : `${outfitName} ${avatarName}`;
+    const colorText = capitalizeMajorWords(c?.name ?? "");
+    return { nameText, colorText };
+}
+
+/**
+ * Returns the HTML string for a wishlist row
+ * @param {number} avatarId
+ * @param {number} colorId
  * @returns {string}
  */
-function wishlistRowHtmlFromEntry(entry) {
-    const c = findStoreColorInCatalog(entry.avatarId, entry.colorId);
-    const avatarName = c?.avatar?.avatarName ?? `avatar #${entry.avatarId}`;
-    const outfitName = c?.avatar?.outfitName ?? "—";
-    // "Standard" outfits don't add information; the client suppresses it in the right-column h2 too.
-    const nameText = outfitName === "Standard" ? avatarName : `${outfitName} ${avatarName}`;
-    // Color names ship lowercase from the catalog; match the rest of the client's UI by title-casing them.
-    const colorText = c?.name ? capitalizeMajorWords(c.name) : `color #${entry.colorId}`;
-    const k = `${entry.avatarId}:${entry.colorId}`; // unique key for the wishlist row
+function wishlistRowHtmlFromIds(avatarId, colorId) {
+    const c = findStoreColorInCatalog(avatarId, colorId);
+    const { nameText, colorText } = wishlistSkinStringsFromColor(c);
+    const k = `${avatarId}:${colorId}`; // unique key for the wishlist row
     const reason = wishlistBuyBlockReason(c);
     const buyTitle = reason || "Buy this skin";
     const buyDisabled = reason ? " disabled" : "";
     // Head is mounted post-insertion by attachWishlistRowHead() so animated skins can use AvatarHeadDisplayHandler.
     return /*html*/`
-        <div class="asp-wishlist-row" data-wishlist-key="${k}" data-avatar-id="${entry.avatarId}" data-color-id="${entry.colorId}">
+        <div class="asp-wishlist-row" data-wishlist-key="${k}" data-avatar-id="${avatarId}" data-color-id="${colorId}">
             <div class="asp-wishlist-row-head"></div>
             <div class="asp-wishlist-row-text">
                 <span class="asp-wishlist-name" title="Outfit + avatar">${escapeHtml(nameText)}</span>
-                <span class="asp-wishlist-color" title="Color">${escapeHtml(colorText)}</span>
+                <span class="asp-wishlist-color-wrap" title="Color">
+                    ${wishlistTierIconHtml(c)}<span class="asp-wishlist-color">${escapeHtml(colorText)}</span>
+                </span>
             </div>
             <div class="asp-wishlist-row-actions" role="group">
                 <button type="button" class="btn btn-default asp-wishlist-action-btn asp-wishlist-buy"${buyDisabled} title="${buyTitle}">
                     <i class="fa fa-shopping-cart" aria-hidden="true"></i>
-                </button>
-                <button type="button" class="btn btn-default asp-wishlist-action-btn asp-wishlist-open" title="Open this skin in the store">
-                    <i class="fa fa-search" aria-hidden="true"></i>
                 </button>
                 <button type="button" class="btn btn-default asp-wishlist-action-btn asp-wishlist-remove" title="Remove from wishlist">
                     <i class="fa fa-trash" aria-hidden="true"></i>
@@ -1083,9 +1152,78 @@ function wishlistRowHtmlFromEntry(entry) {
     `;
 }
 
-// Locate the row element for a given entry (used by attach/detach helpers).
+// Locate the row element for a given entry (used by attach/detach helpers)
 function findWishlistRow(avatarId, colorId) {
     return $wishlist.find(`.asp-wishlist-row[data-avatar-id="${avatarId}"][data-color-id="${colorId}"]`);
+}
+
+// Full "skin + color" label for wishlist sorting (e.g. "Winter Hibiki Red")
+function getWishlistAlphaSortKey(entry) {
+    const c = findStoreColorInCatalog(entry.avatarId, entry.colorId);
+    const { nameText, colorText } = wishlistSkinStringsFromColor(c);
+    return `${nameText} ${colorText}`.trim();
+}
+
+// Populates aspStoreColorCatalogRankMap with color catalog order for quick lookup
+function buildAspStoreColorCatalogRankMap() {
+    let i = 0;
+    for (const character of storeWindow.topBar.characters) {
+        for (const avatar of character.avatars) {
+            const id = avatar.avatarId;
+            for (const c of avatar.colors) {
+                aspStoreColorCatalogRankMap.set(`${id}:${c.colorId}`, i++);
+            }
+        }
+    }
+}
+
+// In-catalog rows before missing; rank order respects `ascending`
+function wishlistCompareCatalogRank(a, b, ascending) {
+    const keyA = `${a.avatarId}:${a.colorId}`;
+    const keyB = `${b.avatarId}:${b.colorId}`;
+    const aIn = aspStoreColorCatalogRankMap.has(keyA);
+    const bIn = aspStoreColorCatalogRankMap.has(keyB);
+    if (aIn !== bIn) return aIn ? -1 : 1;
+    if (!aIn) return 0;
+    const ra = aspStoreColorCatalogRankMap.get(keyA);
+    const rb = aspStoreColorCatalogRankMap.get(keyB);
+    if (ra !== rb) return ascending ? ra - rb : rb - ra;
+    return 0;
+}
+
+// Compare two wishlist entries for sorting
+function compareWishlistEntries(a, b) {
+    const { mode, ascending } = wishlistSort;
+    const dir = ascending ? 1 : -1;
+    if (mode === "alpha") {
+        const alphaCmp = getWishlistAlphaSortKey(a).localeCompare(getWishlistAlphaSortKey(b), undefined, { sensitivity: "base" });
+        if (alphaCmp !== 0) return alphaCmp * dir;
+        if (a.avatarId !== b.avatarId) return (a.avatarId - b.avatarId) * dir;
+        return (a.colorId - b.colorId) * dir;
+    }
+    if (mode === "tier") {
+        const ca = findStoreColorInCatalog(a.avatarId, a.colorId);
+        const cb = findStoreColorInCatalog(b.avatarId, b.colorId);
+        const ta = storeColorTierBucket(ca);
+        const tb = storeColorTierBucket(cb);
+        if (ta !== tb) return (ta - tb) * dir;
+        return wishlistCompareCatalogRank(a, b, ascending);
+    }
+    const rankCmp = wishlistCompareCatalogRank(a, b, ascending);
+    if (rankCmp !== 0) return rankCmp;
+    const alphaCmp = getWishlistAlphaSortKey(a).localeCompare(getWishlistAlphaSortKey(b), undefined, { sensitivity: "base" });
+    if (alphaCmp !== 0) return alphaCmp;
+    if (a.avatarId !== b.avatarId) return a.avatarId - b.avatarId;
+    return a.colorId - b.colorId;
+}
+
+// Syncs the wishlist sort UI with the current sort settings
+function syncWishlistSortUi() {
+    $("#aspWishlistSortMode").val(wishlistSort.mode);
+    const $btn = $("#aspWishlistSortDir");
+    const asc = wishlistSort.ascending;
+    $btn.attr("title", asc ? "Ascending (click for descending)" : "Descending (click for ascending)");
+    $btn.find("i").toggleClass("fa-sort-amount-asc", asc).toggleClass("fa-sort-amount-desc", !asc);
 }
 
 /**
@@ -1099,9 +1237,10 @@ function findWishlistRow(avatarId, colorId) {
 function attachWishlistRowHead($row, c) {
     const $head = $row.find(".asp-wishlist-row-head");
     if (!c?.avatar) {
-        $head.addClass("asp-wishlist-row-head--empty").attr("aria-hidden", "true").html('<i class="fa fa-user"></i>');
+        $head.addClass("asp-wishlist-row-head--empty").attr("title", "Skin not in catalog").html('<i class="fa fa-user"></i>');
         return;
     }
+    $head.removeClass("asp-wishlist-row-head--empty").attr("title", "Open this skin in the store").addClass("clickAble");
     const a = c.avatar;
     const handler = new AvatarHeadDisplayHandler($head);
     if (c.animated && webGlEnabled()) {
@@ -1138,20 +1277,28 @@ function removeWishlistRowInDom(avatarId, colorId) {
     }
 }
 
-// Appends a new wishlist row, or replaces the empty-state block when the list was empty.
-function insertWishlistRowInDom(entry) {
-    const html = wishlistRowHtmlFromEntry(entry);
+// Inserts one row in DOM order matching the current sort
+function insertWishlistRowAtSortedPosition(avatarId, colorId) {
+    const html = wishlistRowHtmlFromIds(avatarId, colorId);
+    const color = findStoreColorInCatalog(avatarId, colorId);
     if ($wishlist.find(".asp-wishlist-empty").length) {
         $wishlist.html(html);
-    } else {
-        $wishlist.append(html);
+        attachWishlistRowHead(findWishlistRow(avatarId, colorId), color);
+        return;
     }
-    const $row = findWishlistRow(entry.avatarId, entry.colorId);
-    const color = findStoreColorInCatalog(entry.avatarId, entry.colorId);
-    attachWishlistRowHead($row, color);
+    const sorted = wishlist.slice().sort(compareWishlistEntries);
+    const idx = sorted.findIndex((e) => e.avatarId === avatarId && e.colorId === colorId);
+    const next = sorted[idx + 1];
+    const $newRow = $(html);
+    if (!next) {
+        $wishlist.append($newRow);
+    } else {
+        $newRow.insertBefore(findWishlistRow(next.avatarId, next.colorId));
+    }
+    attachWishlistRowHead(findWishlistRow(avatarId, colorId), color);
 }
 
-// Rebuilds the full wishlist panel from `wishlist` (used on load; tile/trash use incremental updates instead).
+// Rebuilds the full wishlist panel from `wishlist` (used on load, sort changes, import; remove uses incremental DOM).
 function renderWishlist() {
     $wishlist.find(".asp-wishlist-row").each(function () {
         detachWishlistRowHead($(this));
@@ -1161,30 +1308,31 @@ function renderWishlist() {
         refreshWishlistTileButtons();
         return;
     }
-    $wishlist.html(wishlist.map((entry) => wishlistRowHtmlFromEntry(entry)).join(""));
-    for (const entry of wishlist) {
+    const sorted = wishlist.slice().sort(compareWishlistEntries);
+    $wishlist.html(sorted.map((entry) => wishlistRowHtmlFromIds(entry.avatarId, entry.colorId)).join(""));
+    for (const entry of sorted) {
         attachWishlistRowHead(findWishlistRow(entry.avatarId, entry.colorId), findStoreColorInCatalog(entry.avatarId, entry.colorId));
     }
     refreshWishlistTileButtons();
 }
 
-const TIER_ICONS = [
-    { type: "img", src: "/img/ui/currency/Icon_Normal.svg" },
-    { type: "img", src: "https://cdn.animemusicquiz.com/v1/ui/currency/30px/ticket1.webp" },
-    { type: "img", src: "https://cdn.animemusicquiz.com/v1/ui/currency/30px/ticket2.webp" },
-    { type: "img", src: "https://cdn.animemusicquiz.com/v1/ui/currency/30px/ticket3.webp" },
-    { type: "img", src: "https://cdn.animemusicquiz.com/v1/ui/currency/30px/ticket4.webp" },
-    { type: "fa", classes: "fa fa-question-circle-o" },
-];
-const TIER_LABELS = ["Standard", "Common", "Rare", "Epic", "Legendary", "Unique"];
-const TIER_TITLES = [
-    "Note-priced skins",
-    "Common ticket tier (rhythm)",
-    "Rare ticket tier (rhythm)",
-    "Epic ticket tier (rhythm)",
-    "Legendary ticket tier (rhythm)",
-    "Unique skin (special unlock)",
-];
+// Cost-tier bucket for a color: 0 = Standard (note-priced), 1-4 = Common/Rare/Epic/Legendary, 5 = Unique.
+function storeColorTierBucket(c) {
+    if (!c) return 0;
+    if (c.unique) return 5;
+    return Number(c.defaultColor ? c.avatar?.ticketTier : c.ticketTier) || 0;
+}
+
+// Small tier glyph for wishlist rows (same assets as context panel)
+function wishlistTierIconHtml(c) {
+    const tier = storeColorTierBucket(c);
+    const icon = TIER_ICONS[tier];
+    const title = escapeHtml(TIER_TITLES[tier] ?? "");
+    if (icon.type === "img") {
+        return `<img class="asp-wishlist-tier-icon" src="${escapeHtml(icon.src)}" alt="" title="${title}" decoding="async">`;
+    }
+    return `<i class="${escapeHtml(icon.classes)} asp-wishlist-tier-icon" aria-hidden="true" title="${title}"></i>`;
+}
 
 // Per-tier breakdown rows for an outfit's colors.
 // Cost-tier bucket for a color: 0 = Standard (note-priced), 1-4 = Common/Rare/Epic/Legendary, 5 = Unique.
@@ -1193,7 +1341,7 @@ function tierBreakdownRows(avatar) {
     const owned = [0, 0, 0, 0, 0, 0];
     const total = [0, 0, 0, 0, 0, 0];
     for (const color of avatar.colors) {
-        const t = color.unique ? 5 : color.defaultColor ? color.avatar?.ticketTier : color.ticketTier;
+        const t = storeColorTierBucket(color);
         total[t]++;
         if (color.unlocked) owned[t]++;
     }
@@ -1233,11 +1381,22 @@ function emoteBreakdownRows(groups) {
     });
 }
 
+// Full-catalog skin counts for #aspContextPanel when not on avatar / emote / background / decoration views
+function catalogAllSkinsContext() {
+    const all = getAllStoreColors();
+    return {
+        name: "All Skins",
+        owned: all.filter((c) => c.unlocked).length,
+        total: all.length,
+        breakdown: null,
+    };
+}
+
 // Builds the right-side context block (name + owned + breakdown) based on current store view.
 function readSearchContext() {
     const first = storeWindow.mainContainer.currentContent[0];
     if (!first || storeWindow.topBar.tickets.displayed || storeWindow.topBar.favorites.open) {
-        return { name: "—", owned: 0, total: 0, breakdown: null };
+        return catalogAllSkinsContext();
     }
     if (storeWindow.topBar.emotes.open) {
         const groups = storeWindow.mainContainer.currentContent;
@@ -1251,28 +1410,42 @@ function readSearchContext() {
     }
     if (storeWindow.topBar.backgrounds.open) {
         const backgrounds = storeWindow.topBar.backgrounds.backgrounds;
-        return { name: "Backgrounds", owned: backgrounds.filter((b) => b.unlocked).length, total: backgrounds.length, breakdown: null };
+        return {
+            name: "Backgrounds",
+            owned: backgrounds.filter((b) => b.unlocked).length,
+            total: backgrounds.length,
+            breakdown: null
+        };
     }
-    // Store Decorations page is missing addContentChangeListener, so this is best-effort
+    // Store Decorations page is missing addContentChangeListener, so .open fails
     if (first.constructor.name === "StoreDecorationTypeSelectionButton") {
         const decorations = storeWindow.topBar.decorations.decorations;
-        return { name: "Decorations", owned: decorations.filter((d) => d.unlocked).length, total: decorations.length, breakdown: null };
+        return {
+            name: "Decorations",
+            owned: decorations.filter((d) => d.unlocked).length,
+            total: decorations.length,
+            breakdown: null
+        };
     }
     if (first.constructor.name === "StoreAvatar") {
-        const parent = first.parentCharacter;
-        const breakdown = outfitBreakdownRows(parent);
-        const owned = breakdown.reduce((s, r) => s + r.owned, 0);
-        const total = breakdown.reduce((s, r) => s + r.total, 0);
-        return { name: first.avatarName || `Character #${parent.characterId}`, owned, total, breakdown };
+        const breakdown = outfitBreakdownRows(first.parentCharacter);
+        return {
+            name: first.avatarName || `Character #${first.parentCharacter.characterId}`,
+            owned: breakdown.reduce((s, r) => s + r.owned, 0),
+            total: breakdown.reduce((s, r) => s + r.total, 0),
+            breakdown: breakdown,
+        };
     }
     if (first.constructor.name === "StoreColor") {
-        const avatar = first.avatar;
-        const breakdown = tierBreakdownRows(avatar);
-        const owned = breakdown.reduce((s, r) => s + r.owned, 0);
-        const total = breakdown.reduce((s, r) => s + r.total, 0);
-        return { name: `${avatar.outfitName} ${avatar.avatarName}`.trim(), owned, total, breakdown };
+        const breakdown = tierBreakdownRows(first.avatar);
+        return {
+            name: `${first.avatar.outfitName} ${first.avatar.avatarName}`.trim(),
+            owned: breakdown.reduce((s, r) => s + r.owned, 0),
+            total: breakdown.reduce((s, r) => s + r.total, 0),
+            breakdown: breakdown,
+        }
     }
-    return { name: "—", owned: 0, total: 0, breakdown: null };
+    return catalogAllSkinsContext();
 }
 
 // Renders breakdown rows into #aspContextBreakdown. Each row: { icon?: {type:"img",src} | {type:"fa",classes}, label, owned, total, title? }
@@ -1302,7 +1475,7 @@ function renderContextBreakdown(breakdown) {
     }
 }
 
-/** Refreshes match counts, page indicator, nav button enabled state, and the context (name + owned + breakdown) panel. */
+// Refreshes match counts, page indicator, nav button enabled state, and the context (name + owned + breakdown) panel
 function updateSearchPanel() {
     const query = normalizeSearchQuery($searchInput.val());
     const pages = getOutfitPages(query);
@@ -1360,23 +1533,6 @@ function getAllStoreColors() {
 }
 
 /**
- * Common tier color swatches (mirrors client “standard” state, excludes rhythm-tier pricing, events, etc.).
- * @see amq-client storeCharacter.js StoreColor.typeKey, notePrice
- */
-function isCommonColor(color) {
-    if (!color?.avatar) return false;
-    if (!color.active || !color.avatar.active) return false;
-    if (color.unlocked) return false;
-    if (color.unique) return false;
-    if (color.limited) return false;
-    if (color.exclusive) return false;
-    if (color.ticketTier) return false;
-    if (color.eventColor) return false;
-    if (color.defaultColor) return true;
-    return color.notePrice > 0;
-}
-
-/**
  * Notes + rhythm for one bulk step (recolor-only when outfit already “bought” in sim).
  */
 function noteAndRhythmCostForSingleUnlock(av, c, outfitUnlocked) {
@@ -1427,7 +1583,46 @@ function minNotesAndRhythmPreferNotesPerUnlock(av, c, outfitUnlocked) {
 }
 
 /**
- * Bulk-unlock every `candidates` row in an order that matches client pricing. `candidates` are StoreColors on one outfit’s grid.
+ * Sends one `unlock avatar` command and resolves after the matching `unlock avatar` socket payload
+ * (so bulk buys don’t stack commands before the server / client finish the previous unlock).
+ */
+function sendUnlockAvatarAndWait(avatarId, colorId, timeoutMs = 45000) {
+    return new Promise((resolve, reject) => {
+        let listener;
+        const timer = setTimeout(() => {
+            if (listener?.bound) listener.unbindListener();
+            reject(new Error("Timed out waiting for unlock confirmation"));
+        }, timeoutMs);
+
+        listener = new Listener("unlock avatar", (payload) => {
+            if (!payload.succ) {
+                clearTimeout(timer);
+                listener.unbindListener();
+                reject(new Error(String(payload.error ?? "Unlock failed")));
+                return;
+            }
+            const unlocked = payload.unlockedAvatars || [];
+            const inPayload = unlocked.some((u) => u.avatarId === avatarId && u.colorId === colorId);
+            const storeColor = findStoreColorInCatalog(avatarId, colorId);
+            if (inPayload || storeColor?.unlocked) {
+                clearTimeout(timer);
+                listener.unbindListener();
+                resolve(payload);
+            }
+        });
+        listener.bindListener();
+
+        socket.sendCommand({
+            type: "avatar",
+            command: "unlock avatar",
+            data: { avatarId, colorId },
+        });
+    });
+}
+
+/**
+ * Bulk-unlock every `candidates` row in an order that matches client pricing.
+ * `candidates` are StoreColors on one outfit’s grid.
  */
 function bulkBuy(candidates) {
     if (!candidates) return;
@@ -1526,7 +1721,7 @@ function bulkBuy(candidates) {
         focusCancel: true,
         confirmButtonText: "Confirm",
         cancelButtonText: "Cancel",
-    }).then((result) => {
+    }).then(async (result) => {
         if (!result.isConfirmed) return;
         if (disableBulkBuy) {
             console.log("[Avatar Store Plus] Bulk buy dry run");
@@ -1545,36 +1740,41 @@ function bulkBuy(candidates) {
         }
 
         for (const color of ordered) {
-            socket.sendCommand({
-                type: "avatar",
-                command: "unlock avatar",
-                data: {
-                    avatarId: color.avatar.avatarId,
-                    colorId: color.colorId,
-                },
-            });
+            const avatarId = color.avatar.avatarId;
+            const colorId = color.colorId;
+            try {
+                await sendUnlockAvatarAndWait(avatarId, colorId);
+            } catch (err) {
+                Swal.fire({
+                    title: "Bulk buy stopped",
+                    text: String(err?.message ?? err),
+                    icon: "error",
+                });
+                return;
+            }
         }
     });
 }
 
-/**
- * Random skin from the full catalog (locked or unlocked).
- * Picks a random StoreAvatar, then a random StoreColor on that outfit (same as clicking random tiles).
- */
-function getRandomAvatar() {
-    const avatars = storeWindow.getAllAvatars();
-    if (!avatars.length) return undefined;
-    const outfit = avatars[Math.floor(Math.random() * avatars.length)];
-    const { colors } = outfit;
-    if (!colors.length) return undefined;
-    return colors[Math.floor(Math.random() * colors.length)];
+// Random `StoreColor` among skins currently allowed by filters
+function getRandomFilteredStoreColor() {
+    const pool = getAllStoreColors().filter((c) => c.inFilter);
+    if (!pool.length) return undefined;
+    return pool[Math.floor(Math.random() * pool.length)];
 }
 
-// Random unlocked StoreColor from the full catalog (for randomize when “Unlocked only” is on).
-function getRandomUnlockedColor() {
-    const unlocked = getAllStoreColors().filter((c) => c.unlocked);
-    if (!unlocked.length) return undefined;
-    return unlocked[Math.floor(Math.random() * unlocked.length)];
+// Filtered outfit default backgrounds + unlocked unique backgrounds, each passing the skin-bonus gate
+function getFilteredBackgroundDescriptionsForAvatar(avatarDesc) {
+    const fromSkins = getAllStoreColors()
+        .filter((c) => c.inFilter)
+        .map((c) => c.backgroundDescription)
+        .filter((bd) => comboPassesSkinBonusGate(avatarDesc, bd));
+    const uniq = storeWindow
+        .getAllUniqueBackgrounds()
+        .filter((b) => b.unlocked)
+        .map((b) => b.backgroundDescription)
+        .filter((bd) => comboPassesSkinBonusGate(avatarDesc, bd));
+    return fromSkins.concat(uniq);
 }
 
 /**
@@ -1593,18 +1793,6 @@ function comboPassesSkinBonusGate(avatarDesc, bgDesc) {
         return true;
     }
     return storeWindow.getAvatarBonusUnlocked(bgDesc.avatarId);
-}
-
-/** Unlocked character backgrounds plus unlocked unique backgrounds (StoreBackground.backgroundDescription). */
-function getUnlockedBackgroundPool() {
-    const fromSkins = getAllStoreColors()
-        .filter((c) => c.unlocked)
-        .map((c) => c.backgroundDescription);
-    const uniq = storeWindow
-        .getAllUniqueBackgrounds()
-        .filter((b) => b.unlocked)
-        .map((b) => b.backgroundDescription);
-    return fromSkins.concat(uniq);
 }
 
 // Sets randomized accessory (option) on/off on a copied avatar description when randomize asks for it.
@@ -1629,14 +1817,12 @@ function applyAccessoryToAvatarDesc(avatarDesc, curA, randAvatar, randAccessory)
  * Applies random picks to the store preview per checkbox: avatar skin, background art, and outfit accessory toggle
  * (option on/off — same control as #swRightColumnAvatarToggleButton; see storeAvatarColumn toggle + optionActive).
  * Preserves front/back decoration tile selections by passing current decoration ids into handleAvatarSelected.
- * When #aspRandUnlockedOnly: only unlocked tiles; enforces skin-bonus rules so the action button is not stuck on "Missing Skin Bonus".
- * Avatar+Background both on: two independent rolls (unlocked skin, then random unlocked BG from the valid pool — not auto-paired).
+ * Skins use `StoreColor.inFilter` (modern ASP top filters or legacy store filters). Skin-bonus rules still apply when mixing BGs.
  */
 function randomizeSelectedParts() {
     const randAvatar = $("#aspRandPartAvatar").prop("checked");
     const randBg = $("#aspRandPartBackground").prop("checked");
     const randAccessory = $("#aspRandPartAccessory").prop("checked");
-    const requireUnlocked = $("#aspRandUnlockedOnly").prop("checked");
     if (!randAvatar && !randBg && !randAccessory) return;
 
     const col = storeWindow.avatarColumn;
@@ -1652,79 +1838,45 @@ function randomizeSelectedParts() {
     let avatarDesc;
     let bgDesc;
 
-    if (requireUnlocked) {
-        if (randAvatar && randBg) {
-            const skinA = getRandomUnlockedColor();
-            if (!skinA) return;
-            avatarDesc = { ...skinA.fullDescription };
-            applyAccessoryToAvatarDesc(avatarDesc, curA, true, randAccessory);
-            // Independent BG roll: any unlocked character/unique BG that passes the skin-bonus gate (not forced paired).
-            const pool = getUnlockedBackgroundPool();
-            if (!pool.length) {
-                bgDesc = skinA.backgroundDescription;
-            }
-            else {
-                const passing = pool.filter((bd) =>
-                    comboPassesSkinBonusGate(avatarDesc, bd)
-                );
-                bgDesc = passing.length
-                    ? passing[Math.floor(Math.random() * passing.length)]
-                    : skinA.backgroundDescription;
-            }
-        }
-        else if (randAvatar && !randBg) {
-            const compatible = getAllStoreColors().filter(
-                (c) => c.unlocked && comboPassesSkinBonusGate(c.fullDescription, curB)
-            );
-            let skin;
-            let usePairedBg = false;
-            if (compatible.length) {
-                skin = compatible[Math.floor(Math.random() * compatible.length)];
-            }
-            else {
-                skin = getRandomUnlockedColor();
-                if (!skin) return;
-                usePairedBg = true;
-            }
-            avatarDesc = { ...skin.fullDescription };
-            applyAccessoryToAvatarDesc(avatarDesc, curA, true, randAccessory);
-            bgDesc = usePairedBg ? skin.backgroundDescription : curB;
-        }
-        else if (!randAvatar && randBg) {
-            avatarDesc = { ...curA };
-            applyAccessoryToAvatarDesc(avatarDesc, curA, false, randAccessory);
-            const pool = getUnlockedBackgroundPool().filter((bd) =>
-                comboPassesSkinBonusGate(avatarDesc, bd)
-            );
-            if (!pool.length) return;
-            bgDesc = pool[Math.floor(Math.random() * pool.length)];
+    if (randAvatar && randBg) {
+        const skinA = getRandomFilteredStoreColor();
+        if (!skinA) return;
+        avatarDesc = { ...skinA.fullDescription };
+        applyAccessoryToAvatarDesc(avatarDesc, curA, true, randAccessory);
+        const pool = getFilteredBackgroundDescriptionsForAvatar(avatarDesc);
+        bgDesc = pool.length
+            ? pool[Math.floor(Math.random() * pool.length)]
+            : skinA.backgroundDescription;
+    }
+    else if (randAvatar && !randBg) {
+        const compatible = getAllStoreColors().filter(
+            (c) => c.inFilter && comboPassesSkinBonusGate(c.fullDescription, curB)
+        );
+        let skin;
+        let usePairedBg = false;
+        if (compatible.length) {
+            skin = compatible[Math.floor(Math.random() * compatible.length)];
         }
         else {
-            avatarDesc = { ...curA };
-            applyAccessoryToAvatarDesc(avatarDesc, curA, false, randAccessory);
-            bgDesc = curB;
+            skin = getRandomFilteredStoreColor();
+            if (!skin) return;
+            usePairedBg = true;
         }
+        avatarDesc = { ...skin.fullDescription };
+        applyAccessoryToAvatarDesc(avatarDesc, curA, true, randAccessory);
+        bgDesc = usePairedBg ? skin.backgroundDescription : curB;
+    }
+    else if (!randAvatar && randBg) {
+        avatarDesc = { ...curA };
+        applyAccessoryToAvatarDesc(avatarDesc, curA, false, randAccessory);
+        const pool = getFilteredBackgroundDescriptionsForAvatar(avatarDesc);
+        if (!pool.length) return;
+        bgDesc = pool[Math.floor(Math.random() * pool.length)];
     }
     else {
-        if (randAvatar) {
-            const skin = getRandomAvatar();
-            if (!skin) return;
-            avatarDesc = { ...skin.fullDescription };
-            applyAccessoryToAvatarDesc(avatarDesc, curA, true, randAccessory);
-        }
-        else {
-            avatarDesc = { ...curA };
-            applyAccessoryToAvatarDesc(avatarDesc, curA, false, randAccessory);
-        }
-
-        if (randBg) {
-            const skin = getRandomAvatar();
-            if (!skin) return;
-            bgDesc = skin.backgroundDescription;
-        }
-        else {
-            bgDesc = curB;
-        }
+        avatarDesc = { ...curA };
+        applyAccessoryToAvatarDesc(avatarDesc, curA, false, randAccessory);
+        bgDesc = curB;
     }
 
     const frontId = col.currentFrontDecoration?.decorationId;
@@ -1743,7 +1895,7 @@ function resolveStoreModelFromAvatarTile($tile) {
     return content[index] ?? null;
 }
 
-/** Short tier label from amq-client `typeKey` (avatar_window.avatar_states.*). */
+// Short tier label from amq-client `typeKey` (avatar_window.avatar_states.*)
 function tierShortLabelFromTypeKey(typeKey) {
     if (!typeKey || typeof typeKey !== "string") return "?";
     if (typeKey.includes("unique")) return "unique";
@@ -1848,7 +2000,7 @@ function bindingToText(b) {
     return keys.join(" + ");
 }
 
-// Parses and deduplicates `wishlist` entries from `localStorage` on startup.
+// Normalize and validate wishlist entries loaded from storage
 function normalizeWishlistFromStorage(raw) {
     if (!Array.isArray(raw)) return [];
     const out = [];
@@ -1861,6 +2013,14 @@ function normalizeWishlistFromStorage(raw) {
         out.push({ avatarId, colorId });
     }
     return out;
+}
+
+// Normalize and validate wishlist sort data loaded from storage
+function normalizeWishlistSort(raw) {
+    if (!raw || typeof raw !== "object") return { mode: "catalog", ascending: true };
+    const mode = WISHLIST_SORT_MODES.includes(raw.mode) ? raw.mode : "catalog";
+    const ascending = raw.ascending !== false;
+    return { mode, ascending };
 }
 
 // validate json data in local storage
@@ -1884,6 +2044,7 @@ function saveSettings() {
         avatarInfoLogging,
         disableBulkBuy,
         legacyAvatarStoreFilters,
+        wishlistSort,
         wishlist,
     }));
 }
@@ -1897,6 +2058,7 @@ function exportAvatarStorePlusData() {
         avatarInfoLogging,
         disableBulkBuy,
         legacyAvatarStoreFilters,
+        wishlistSort,
         wishlist,
     }, null, 2);
     const time = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
@@ -1956,6 +2118,9 @@ function applyAvatarStorePlusImportData(data) {
         }
         wishlist = normalizeWishlistFromStorage(data.wishlist);
     }
+    if (data.wishlistSort != null && typeof data.wishlistSort === "object" && !Array.isArray(data.wishlistSort)) {
+        wishlistSort = normalizeWishlistSort(data.wishlistSort);
+    }
     saveSettings();
     $("#aspAvatarTileWidth").val(avatarTileWidth);
     $("#aspAvatarTileGap").val(avatarTileGap);
@@ -1968,6 +2133,7 @@ function applyAvatarStorePlusImportData(data) {
         $(this).val(bindingToText(hotKeys[action]));
     });
     renderWishlist();
+    syncWishlistSortUi();
     applyStyles();
     return { ok: true };
 }
@@ -2002,26 +2168,44 @@ function applyStyles() {
             transform: translate(-40px);
         }
         #aspModernStoreTopFilters {
-            position: relative;
             font-size: 12px;
+        }
+        .asp-stf-heading-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin: 4px 0 2px 50px;
+            line-height: 1;
+            flex-wrap: wrap;
+        }
+        .asp-stf-heading-left {
+            display: flex;
+            align-items: baseline;
+            gap: 8px;
+            flex-wrap: wrap;
+            min-width: 0;
         }
         .asp-stf-heading {
             font-size: 20px;
             font-weight: bold;
-            margin: 4px 0 2px 50px;
+            margin: 0;
             line-height: 1;
         }
+        .asp-stf-heading-count {
+            font-size: 12px;
+            font-weight: bold;
+            opacity: 0.7;
+        }
         .asp-stf-reset {
-            position: absolute;
-            top: 3px;
-            right: 55px;
-            margin: 0;
+            flex-shrink: 0;
             padding: 0;
             font-size: 11px;
             opacity: 0.7;
             background: transparent;
             border: none;
             cursor: pointer;
+            margin-right: 55px;
         }
         .asp-stf-reset:hover {
             opacity: 1;
@@ -2233,7 +2417,6 @@ function applyStyles() {
             padding: 8px;
             border: 1px solid rgba(255, 255, 255, 0.12);
             border-radius: 4px;
-            background: rgba(0, 0, 0, 0.18);
         }
         .asp-context-name {
             font-size: 18px;
@@ -2394,8 +2577,25 @@ function applyStyles() {
         .swAvatarTile .asp-tile-wishlist-btn.wishlisted {
             color: #d9534f;
         }
+        .asp-wishlist-sort-bar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .asp-wishlist-sort-label {
+            margin: 0;
+        }
+        .asp-wishlist-sort-select {
+            width: 140px;
+            padding: 0 5px;
+        }
+        .asp-wishlist-sort-dir {
+            flex: 0 0 auto;
+            padding: 6px 10px;
+        }
         .asp-wishlist-list {
-            margin-top: 8px;
+            margin-top: 4px;
         }
         .asp-wishlist-empty {
             margin: 0;
@@ -2416,12 +2616,15 @@ function applyStyles() {
             border-radius: 4px;
             overflow: hidden;
             background: rgba(0, 0, 0, 0.08);
+            cursor: pointer;
+            pointer-events: auto;
         }
         .asp-wishlist-row-head--empty {
             display: flex;
             align-items: center;
             justify-content: center;
             font-size: 18px;
+            cursor: default;
         }
         .asp-wishlist-row-head-img {
             width: 100%;
@@ -2440,14 +2643,33 @@ function applyStyles() {
         .asp-wishlist-name {
             font-weight: 600;
         }
+        .asp-wishlist-color-wrap {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
         .asp-wishlist-color {
             opacity: .7;
+        }
+        .asp-wishlist-tier-icon {
+            width: 14px;
+            height: 14px;
+            object-fit: contain;
+            flex-shrink: 0;
+        }
+        i.asp-wishlist-tier-icon {
+            width: 14px;
+            height: 14px;
+            font-size: 14px;
+            line-height: 14px;
+            text-align: center;
         }
         .asp-wishlist-row-actions {
             flex: 0 0 auto;
             display: flex;
             align-items: center;
             gap: 4px;
+            margin-right: 8px;
         }
         .asp-wishlist-row-actions .asp-wishlist-action-btn {
             width: 25px;
