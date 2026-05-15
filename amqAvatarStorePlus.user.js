@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Avatar Store Plus
 // @namespace    https://github.com/kempanator
-// @version      0.2
+// @version      0.3
 // @description  More features for the avatar store
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -39,7 +39,6 @@ let avatarTileGap = saveData.avatarTileGap ?? "";
 let avatarInfoLogging = saveData.avatarInfoLogging ?? false;
 let disableBulkBuy = saveData.disableBulkBuy ?? false;
 let legacyAvatarStoreFilters = saveData.legacyAvatarStoreFilters ?? false;
-const WISHLIST_SORT_MODES = ["catalog", "alpha", "tier"];
 let wishlist = normalizeWishlistFromStorage(saveData.wishlist);
 let wishlistSort = normalizeWishlistSort(saveData.wishlistSort);
 let hotKeys = {
@@ -53,30 +52,45 @@ let $searchInput;
 let $wishlist;
 let aspStoreColorCatalogRankMap = new Map();
 
-const TIER_ICONS = [
-    { type: "img", src: "/img/ui/currency/Icon_Normal.svg" },
-    { type: "img", src: "https://cdn.animemusicquiz.com/v1/ui/currency/30px/ticket1.webp" },
-    { type: "img", src: "https://cdn.animemusicquiz.com/v1/ui/currency/30px/ticket2.webp" },
-    { type: "img", src: "https://cdn.animemusicquiz.com/v1/ui/currency/30px/ticket3.webp" },
-    { type: "img", src: "https://cdn.animemusicquiz.com/v1/ui/currency/30px/ticket4.webp" },
-    { type: "fa", classes: "fa fa-question-circle-o" },
-];
-const TIER_LABELS = [
-    "Standard",
-    "Common",
-    "Rare",
-    "Epic",
-    "Legendary",
-    "Unique",
-];
-const TIER_TITLES = [
-    "Note-priced skins",
-    "Common ticket tier",
-    "Rare ticket tier",
-    "Epic ticket tier",
-    "Legendary ticket tier",
-    "Unique skin",
-];
+CURRENCY_BASE_URL = "https://cdn.animemusicquiz.com/v1/ui/currency/30px/";
+TIER_MAP = {
+    0: {
+        name: "Standard",
+        title: "Note-priced skins",
+        icon: { type: "img", src: `/img/ui/currency/Icon_Normal.svg` },
+        amount: null,
+    },
+    1: {
+        name: "Common",
+        title: "Common ticket tier",
+        icon: { type: "img", src: `${CURRENCY_BASE_URL}ticket1.webp` },
+        amount: 20,
+    },
+    2: {
+        name: "Rare",
+        title: "Rare ticket tier",
+        icon: { type: "img", src: `${CURRENCY_BASE_URL}ticket2.webp` },
+        amount: 60,
+    },
+    3: {
+        name: "Epic",
+        title: "Epic ticket tier",
+        icon: { type: "img", src: `${CURRENCY_BASE_URL}ticket3.webp` },
+        amount: 200,
+    },
+    4: {
+        name: "Legendary",
+        title: "Legendary ticket tier",
+        icon: { type: "img", src: `${CURRENCY_BASE_URL}ticket4.webp` },
+        amount: 700,
+    },
+    5: {
+        name: "Unique",
+        title: "Unique skin",
+        icon: { type: "fa", classes: "fa fa-question-circle-o" },
+        amount: null,
+    },
+}
 
 // setup
 function setup() {
@@ -134,13 +148,13 @@ function setup() {
                 <div class="asp-stf-tiers-cluster">
                     <div class="asp-stf-tiers">
                         <button type="button" class="asp-stf-tier active" data-asp-tier="1">
-                            <img class="asp-stf-tier-img" src="https://cdn.animemusicquiz.com/v1/ui/currency/30px/ticket1.webp" decoding="async"></button>
+                            <img class="asp-stf-tier-img" src="${CURRENCY_BASE_URL}ticket1.webp" decoding="async"></button>
                         <button type="button" class="asp-stf-tier active" data-asp-tier="2">
-                            <img class="asp-stf-tier-img" src="https://cdn.animemusicquiz.com/v1/ui/currency/30px/ticket2.webp" decoding="async"></button>
+                            <img class="asp-stf-tier-img" src="${CURRENCY_BASE_URL}ticket2.webp" decoding="async"></button>
                         <button type="button" class="asp-stf-tier active" data-asp-tier="3">
-                            <img class="asp-stf-tier-img" src="https://cdn.animemusicquiz.com/v1/ui/currency/30px/ticket3.webp" decoding="async"></button>
+                            <img class="asp-stf-tier-img" src="${CURRENCY_BASE_URL}ticket3.webp" decoding="async"></button>
                         <button type="button" class="asp-stf-tier active" data-asp-tier="4">
-                            <img class="asp-stf-tier-img" src="https://cdn.animemusicquiz.com/v1/ui/currency/30px/ticket4.webp" decoding="async"></button>
+                            <img class="asp-stf-tier-img" src="${CURRENCY_BASE_URL}ticket4.webp" decoding="async"></button>
                     </div>
                     <div id="aspStfTicketTierInfo" class="asp-stf-tier-info" title="">
                         <i class="fa fa-info-circle" aria-hidden="true"></i>
@@ -361,19 +375,6 @@ function setup() {
     // Global variables
     $searchInput = $("#aspSearchInput");
     $wishlist = $("#aspWishlistList");
-    syncWishlistSortUi();
-    $("#aspWishlistSortMode").on("change", function () {
-        wishlistSort = { ...wishlistSort, mode: this.value };
-        if (!WISHLIST_SORT_MODES.includes(wishlistSort.mode)) wishlistSort.mode = "catalog";
-        saveSettings();
-        renderWishlist();
-    });
-    $("#aspWishlistSortDir").on("click", () => {
-        wishlistSort = { ...wishlistSort, ascending: !wishlistSort.ascending };
-        saveSettings();
-        syncWishlistSortUi();
-        renderWishlist();
-    });
 
     // Setup modern filters handlers
     $("#aspModernFiltersReset").on("click", function () {
@@ -398,12 +399,7 @@ function setup() {
     });
     $modernFilters.on("click", ".asp-stf-tier", function () {
         const $btn = $(this);
-        const $row = $btn.closest(".asp-stf-row");
         $btn.toggleClass("active");
-        const on = $btn.hasClass("active");
-        if ($row.find(".active").length === 0) {
-            $btn.addClass("active");
-        }
         applyAspStoreTopFilters();
     });
     $("#aspStfTicketTierInfo").popover({
@@ -413,28 +409,25 @@ function setup() {
         container: "#swRightColumn",
         html: true,
         title: "Ticket tier info",
-        content() {
-            const cdnTickets = "https://cdn.animemusicquiz.com/v1/ui/currency/30px/";
-            const cdnRhythm = "https://cdn.animemusicquiz.com/v1/ui/currency/30px/rhythm.webp";
-            const tierNames = { 1: "common", 2: "rare", 3: "epic", 4: "legendary" };
-            const cells = [1, 2, 3, 4]
-                .map((tier) => {
-                    const amt = TICKET_TIER_RHYTHM_PRICES[tier];
-                    const name = tierNames[tier];
-                    return (
-                        `<div class="asp-pop-tier-cell">` +
-                        `<img class="asp-pop-tier-ticket" src="${cdnTickets}ticket${tier}.webp" alt="${name} (${tier})">` +
-                        `<div class="asp-pop-tier-rarity">${name}</div>` +
-                        `<div class="asp-pop-tier-rhythm">` +
-                        `<img class="asp-pop-tier-rhythm-icon" src="${cdnRhythm}" alt="Rhythm">` +
-                        `<span class="asp-pop-tier-rhythm-amt">${amt.toLocaleString()}</span>` +
-                        `</div></div>`
-                    );
-                })
-                .join("");
+        content: () => {
+            const cells = [1, 2, 3, 4].map((tier) => {;
+                return (
+                    `<div class="asp-pop-tier-cell">` +
+                    `<img class="asp-pop-tier-ticket" src="${TIER_MAP[tier].icon.src}">` +
+                    `<div class="asp-pop-tier-rarity">${TIER_MAP[tier].name}</div>` +
+                    `<div class="asp-pop-tier-rhythm">` +
+                    `<img class="asp-pop-tier-rhythm-icon" src="${CURRENCY_BASE_URL}rhythm.webp">` +
+                    `<span class="asp-pop-tier-rhythm-amt">${TIER_MAP[tier].amount}</span>` +
+                    `</div></div>`
+                );
+            }).join("");
             return (
                 `<div class="asp-pop-tier-wrap">${cells}</div>` +
-                `<p class="asp-pop-tier-note">Each ticket tier on an outfit or skin row uses that much <strong>rhythm</strong> for the tier-priced unlock step in the store.</p>`
+                `<p class="asp-pop-tier-note">` +
+                `Ticket tiers are used for skins that cost <strong>rhythm</strong> instead of notes. ` +
+                `An avatar's outfit and skin can be in separate tiers. ` +
+                `The filter keeps the tile visible if at least one of those tiers is still selected. ` +
+                `Skins that are only note-priced (standard type) do not use these tiers.</p>`
             );
         },
     });
@@ -488,7 +481,20 @@ function setup() {
 
     // Setup wishlist
     buildAspStoreColorCatalogRankMap();
+    syncWishlistSortUi();
     renderWishlist();
+    $("#aspWishlistSortMode").on("change", function () {
+        wishlistSort = { ...wishlistSort, mode: this.value };
+        if (!["catalog", "alpha", "tier"].includes(wishlistSort.mode)) wishlistSort.mode = "catalog";
+        saveSettings();
+        renderWishlist();
+    });
+    $("#aspWishlistSortDir").on("click", () => {
+        wishlistSort = { ...wishlistSort, ascending: !wishlistSort.ascending };
+        saveSettings();
+        syncWishlistSortUi();
+        renderWishlist();
+    });
     $("#swContentAvatarContainer").on("click", ".asp-tile-wishlist-btn", function (e) {
         const $tile = $(this).closest(".swAvatarTile");
         if (!isWishlistableAvatarSkinTile($tile)) return;
@@ -505,17 +511,17 @@ function setup() {
         saveSettings();
         refreshWishlistTileButtons();
     });
-    $("#aspWishlistList").on("click", ".asp-wishlist-buy", function (e) {
-        const $row = $(this).closest(".asp-wishlist-row");
-        const avatarId = Number($row.data("avatar-id"));
-        const colorId = Number($row.data("color-id"));
-        buyWishlistSkin(avatarId, colorId);
-    });
     $("#aspWishlistList").on("click", ".asp-wishlist-row-head", function () {
         const $row = $(this).closest(".asp-wishlist-row");
         const avatarId = Number($row.data("avatar-id"));
         const colorId = Number($row.data("color-id"));
         openWishlistSkinInStore(avatarId, colorId);
+    });
+    $("#aspWishlistList").on("click", ".asp-wishlist-buy", function (e) {
+        const $row = $(this).closest(".asp-wishlist-row");
+        const avatarId = Number($row.data("avatar-id"));
+        const colorId = Number($row.data("color-id"));
+        buyWishlistSkin(avatarId, colorId);
     });
     $("#aspWishlistList").on("click", ".asp-wishlist-remove", function (e) {
         const $row = $(this).closest(".asp-wishlist-row");
@@ -697,9 +703,6 @@ function readAspStoreTopFilterState() {
         const t = Number($(this).attr("data-asp-tier"));
         if (t >= 1 && t <= 4) tiers.add(t);
     });
-    if (tiers.size === 0) {
-        [1, 2, 3, 4].forEach((n) => tiers.add(n));
-    }
     return {
         ownership: axisValue("ownership"),
         release: axisValue("release"),
@@ -725,9 +728,12 @@ function storeColorMatchesAspTopFilters(c, s) {
     if (s.rotation === "permanent" && (c.limited || a.limited)) return false;
     if (s.type === "exclusive" && !c.exclusive && !a.exclusive) return false;
     if (s.type === "standard" && (c.exclusive || a.exclusive)) return false;
-    if (s.ticketTiers.size < 4) {
-        const tiers = [Number(c?.ticketTier), Number(a?.ticketTier)].filter(t => t >= 1 && t <= 4);
-        if (tiers.length && !tiers.some(t => s.ticketTiers.has(t))) {
+    const ticketTiersOnSkin = [Number(c?.ticketTier), Number(a?.ticketTier)].filter((t) => t >= 1 && t <= 4);
+    if (s.ticketTiers.size === 0) {
+        if (ticketTiersOnSkin.length) return false;
+    }
+    else if (s.ticketTiers.size < 4) {
+        if (ticketTiersOnSkin.length && !ticketTiersOnSkin.some((t) => s.ticketTiers.has(t))) {
             return false;
         }
     }
@@ -1326,8 +1332,8 @@ function storeColorTierBucket(c) {
 // Small tier glyph for wishlist rows (same assets as context panel)
 function wishlistTierIconHtml(c) {
     const tier = storeColorTierBucket(c);
-    const icon = TIER_ICONS[tier];
-    const title = escapeHtml(TIER_TITLES[tier] ?? "");
+    const icon = TIER_MAP[tier].icon;
+    const title = escapeHtml(TIER_MAP[tier].title ?? "");
     if (icon.type === "img") {
         return `<img class="asp-wishlist-tier-icon" src="${escapeHtml(icon.src)}" alt="" title="${title}" decoding="async">`;
     }
@@ -1345,12 +1351,12 @@ function tierBreakdownRows(avatar) {
         total[t]++;
         if (color.unlocked) owned[t]++;
     }
-    return TIER_LABELS.map((label, t) => ({
-        icon: TIER_ICONS[t],
-        label,
+    return Object.entries(TIER_MAP).map(([t, tier]) => ({
+        icon: tier.icon,
+        label: tier.name,
         owned: owned[t],
         total: total[t],
-        title: TIER_TITLES[t],
+        title: tier.title,
     }));
 }
 
@@ -1586,7 +1592,7 @@ function minNotesAndRhythmPreferNotesPerUnlock(av, c, outfitUnlocked) {
  * Sends one `unlock avatar` command and resolves after the matching `unlock avatar` socket payload
  * (so bulk buys don’t stack commands before the server / client finish the previous unlock).
  */
-function sendUnlockAvatarAndWait(avatarId, colorId, timeoutMs = 45000) {
+function sendUnlockAvatarAndWait(avatarId, colorId, timeoutMs = 10000) {
     return new Promise((resolve, reject) => {
         let listener;
         const timer = setTimeout(() => {
@@ -2018,7 +2024,7 @@ function normalizeWishlistFromStorage(raw) {
 // Normalize and validate wishlist sort data loaded from storage
 function normalizeWishlistSort(raw) {
     if (!raw || typeof raw !== "object") return { mode: "catalog", ascending: true };
-    const mode = WISHLIST_SORT_MODES.includes(raw.mode) ? raw.mode : "catalog";
+    const mode = ["catalog", "alpha", "tier"].includes(raw.mode) ? raw.mode : "catalog";
     const ascending = raw.ascending !== false;
     return { mode, ascending };
 }
