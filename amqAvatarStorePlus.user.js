@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Avatar Store Plus
 // @namespace    https://github.com/kempanator
-// @version      0.3
+// @version      0.4
 // @description  More features for the avatar store
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -156,7 +156,7 @@ function setup() {
                         <button type="button" class="asp-stf-tier active" data-asp-tier="4">
                             <img class="asp-stf-tier-img" src="${CURRENCY_BASE_URL}ticket4.webp" decoding="async"></button>
                     </div>
-                    <div id="aspStfTicketTierInfo" class="asp-stf-tier-info" title="">
+                    <div id="aspStfTicketTierInfo" class="asp-info-icon" title="">
                         <i class="fa fa-info-circle" aria-hidden="true"></i>
                     </div>
                 </div>
@@ -284,7 +284,12 @@ function setup() {
                     <a href="https://github.com/kempanator/amq-scripts/raw/main/amqAvatarStorePlus.user.js" target="_blank" rel="noopener noreferrer">Install</a>
                 </div>
             </div>
-            <h4>CSS</h4>
+            <div class="asp-settings-h4-row">
+                <h4>CSS</h4>
+                <div id="aspCssSettingsInfo" class="asp-info-icon" title="">
+                    <i class="fa fa-info-circle" aria-hidden="true"></i>
+                </div>
+            </div>
             <table class="asp-settings-tile-table">
                 <tbody>
                     <tr>
@@ -402,6 +407,16 @@ function setup() {
         $btn.toggleClass("active");
         applyAspStoreTopFilters();
     });
+    $("#aspCssSettingsInfo").popover({
+        trigger: "hover",
+        delay: { show: 100, hide: 0 },
+        placement: "auto",
+        container: "#swRightColumn",
+        html: true,
+        content:
+            `<p>Use valid CSS <strong>length</strong> values with a unit. For example:</p>` +
+            `<ul><li>Avatar tile width: <code>200px</code></li><li>Avatar tile gap: <code>20px</code></li></ul>`,
+    });
     $("#aspStfTicketTierInfo").popover({
         trigger: "hover",
         delay: { show: 100, hide: 0 },
@@ -410,7 +425,7 @@ function setup() {
         html: true,
         title: "Ticket tier info",
         content: () => {
-            const cells = [1, 2, 3, 4].map((tier) => {;
+            const cells = [1, 2, 3, 4].map((tier) => {
                 return (
                     `<div class="asp-pop-tier-cell">` +
                     `<img class="asp-pop-tier-ticket" src="${TIER_MAP[tier].icon.src}">` +
@@ -2124,7 +2139,7 @@ function applyAvatarStorePlusImportData(data) {
         }
         wishlist = normalizeWishlistFromStorage(data.wishlist);
     }
-    if (data.wishlistSort != null && typeof data.wishlistSort === "object" && !Array.isArray(data.wishlistSort)) {
+    if (data.wishlistSort != null) {
         wishlistSort = normalizeWishlistSort(data.wishlistSort);
     }
     saveSettings();
@@ -2276,7 +2291,7 @@ function applyStyles() {
             gap: 4px;
             flex-wrap: wrap;
         }
-        .asp-stf-tier-info {
+        .asp-info-icon {
             flex: 0 0 auto;
             padding: 0 3px;
             margin: 0;
@@ -2284,10 +2299,10 @@ function applyStyles() {
             line-height: 1;
             opacity: .7;
         }
-        .asp-stf-tier-info:hover {
+        .asp-info-icon:hover {
             opacity: 1;
         }
-        .asp-stf-tier-info .fa {
+        .asp-info-icon .fa {
             font-size: 14px;
             vertical-align: middle;
         }
@@ -2395,6 +2410,15 @@ function applyStyles() {
         }
         #aspSettingsContainer h4 {
             margin: 15px 0 5px 0;
+        }
+        #aspSettingsContainer .asp-settings-h4-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin: 15px 0 5px 0;
+        }
+        #aspSettingsContainer .asp-settings-h4-row h4 {
+            margin: 0;
         }
         #aspSettingsContainer .asp-settings-backup-row {
             display: flex;
