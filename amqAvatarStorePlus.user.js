@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Avatar Store Plus
 // @namespace    https://github.com/kempanator
-// @version      0.4
+// @version      0.5
 // @description  More features for the avatar store
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -16,10 +16,12 @@ IMPORTANT: disable these scripts before installing
 - skin plus by mxyuki
 
 New Features:
-- Search avatar colors, jump to the next match 
+- Improved filtering system
+- Search avatar colors, jump to the next match
+- Display skin ownership counts
 - Bulk buy multiple skins on the current page
 - Wishlist for individual skins (click a heart on a tile)
-- Set a custom size for the store avatar tiles
+- Set a custom size for store avatar tiles
 - Randomize your current avatar and background
 - Unhide and fix filtering for event skins
 */
@@ -50,6 +52,7 @@ let $modernFilters;
 let $legacyFilters;
 let $searchInput;
 let $wishlist;
+let $aspColorNames;
 let aspStoreColorCatalogRankMap = new Map();
 
 CURRENCY_BASE_URL = "https://cdn.animemusicquiz.com/v1/ui/currency/30px/";
@@ -103,8 +106,8 @@ function setup() {
                 <span id="aspStfFilterCount" class="asp-stf-heading-count" title=""></span>
                 <button type="button" id="aspModernFiltersReset" class="asp-stf-reset" title="Reset filters to defaults">Reset</button>
             </div>
-            <div class="asp-stf-row" data-asp-stf-axis="ownership">
-                <span class="asp-stf-label" style="margin-left: 30px;">Ownership</span>
+            <div class="asp-stf-row" data-asp-stf-axis="ownership" style="margin: 5px 0 0 30px;">
+                <span class="asp-stf-label">Ownership</span>
                 <div class="asp-stf-segs">
                     <button type="button" class="asp-stf-seg active" data-asp-stf-value="all">All</button>
                     <span class="asp-stf-sep" aria-hidden="true">|</span>
@@ -113,8 +116,8 @@ function setup() {
                     <button type="button" class="asp-stf-seg" data-asp-stf-value="locked">Locked</button>
                 </div>
             </div>
-            <div class="asp-stf-row" data-asp-stf-axis="release">
-                <span class="asp-stf-label" style="margin-left: 18px;">Release</span>
+            <div class="asp-stf-row" data-asp-stf-axis="release" style="margin: 3px 0 0 18px;">
+                <span class="asp-stf-label">Release</span>
                 <div class="asp-stf-segs">
                     <button type="button" class="asp-stf-seg active" data-asp-stf-value="all">All</button>
                     <span class="asp-stf-sep" aria-hidden="true">|</span>
@@ -123,8 +126,8 @@ function setup() {
                     <button type="button" class="asp-stf-seg" data-asp-stf-value="unavailable">Unavailable</button>
                 </div>
             </div>
-            <div class="asp-stf-row" data-asp-stf-axis="rotation">
-                <span class="asp-stf-label" style="margin-left: 5px;">Rotation</span>
+            <div class="asp-stf-row" data-asp-stf-axis="rotation" style="margin: 3px 0 0 5px;">
+                <span class="asp-stf-label">Rotation</span>
                 <div class="asp-stf-segs">
                     <button type="button" class="asp-stf-seg active" data-asp-stf-value="all">All</button>
                     <span class="asp-stf-sep" aria-hidden="true">|</span>
@@ -133,31 +136,22 @@ function setup() {
                     <button type="button" class="asp-stf-seg" data-asp-stf-value="permanent">Permanent</button>
                 </div>
             </div>
-            <div class="asp-stf-row" data-asp-stf-axis="type">
-                <span class="asp-stf-label" style="margin-left: -8px;">Type</span>
-                <div class="asp-stf-segs">
-                    <button type="button" class="asp-stf-seg active" data-asp-stf-value="all">All</button>
-                    <span class="asp-stf-sep" aria-hidden="true">|</span>
-                    <button type="button" class="asp-stf-seg" data-asp-stf-value="exclusive">Exclusive</button>
-                    <span class="asp-stf-sep" aria-hidden="true">|</span>
-                    <button type="button" class="asp-stf-seg" data-asp-stf-value="standard">Standard</button>
-                </div>
-            </div>
-            <div class="asp-stf-row" data-asp-stf-axis="ticketTier">
-                <span class="asp-stf-label" style="margin-left: -20px;">Ticket tier</span>
+            <div class="asp-stf-row" data-asp-stf-axis="costTier" style="margin: 2px 0 0 -10px;">
+                <span class="asp-stf-label">Cost tier</span>
                 <div class="asp-stf-tiers-cluster">
                     <div class="asp-stf-tiers">
-                        <button type="button" class="asp-stf-tier active" data-asp-tier="1">
-                            <img class="asp-stf-tier-img" src="${CURRENCY_BASE_URL}ticket1.webp" decoding="async"></button>
-                        <button type="button" class="asp-stf-tier active" data-asp-tier="2">
-                            <img class="asp-stf-tier-img" src="${CURRENCY_BASE_URL}ticket2.webp" decoding="async"></button>
-                        <button type="button" class="asp-stf-tier active" data-asp-tier="3">
-                            <img class="asp-stf-tier-img" src="${CURRENCY_BASE_URL}ticket3.webp" decoding="async"></button>
-                        <button type="button" class="asp-stf-tier active" data-asp-tier="4">
-                            <img class="asp-stf-tier-img" src="${CURRENCY_BASE_URL}ticket4.webp" decoding="async"></button>
-                    </div>
-                    <div id="aspStfTicketTierInfo" class="asp-info-icon" title="">
-                        <i class="fa fa-info-circle" aria-hidden="true"></i>
+                        <button type="button" class="asp-stf-tier active" data-asp-tier="0" title="${TIER_MAP[0].title}">
+                            <img class="asp-stf-tier-img" src="${TIER_MAP[0].icon.src}" alt="" decoding="async"></button>
+                        <button type="button" class="asp-stf-tier active" data-asp-tier="1" title="${TIER_MAP[1].title}">
+                            <img class="asp-stf-tier-img" src="${TIER_MAP[1].icon.src}" alt="" decoding="async"></button>
+                        <button type="button" class="asp-stf-tier active" data-asp-tier="2" title="${TIER_MAP[2].title}">
+                            <img class="asp-stf-tier-img" src="${TIER_MAP[2].icon.src}" alt="" decoding="async"></button>
+                        <button type="button" class="asp-stf-tier active" data-asp-tier="3" title="${TIER_MAP[3].title}">
+                            <img class="asp-stf-tier-img" src="${TIER_MAP[3].icon.src}" alt="" decoding="async"></button>
+                        <button type="button" class="asp-stf-tier active" data-asp-tier="4" title="${TIER_MAP[4].title}">
+                            <img class="asp-stf-tier-img" src="${TIER_MAP[4].icon.src}" alt="" decoding="async"></button>
+                        <button type="button" class="asp-stf-tier active" data-asp-tier="5" title="${TIER_MAP[5].title}">
+                            <i class="${TIER_MAP[5].icon.classes} asp-stf-tier-icon" aria-hidden="true"></i></button>
                     </div>
                 </div>
             </div>
@@ -346,7 +340,7 @@ function setup() {
     $bottomInner.prepend($tabContainer, $avatarContainer, $searchContainer, $wishlistContainer, $settingsContainer);
 
     // Slot a color-name strip above the pose row showing the active avatar and background colors.
-    $(/*html*/`
+    $aspColorNames = $(/*html*/`
         <div id="aspColorNames">
             <div class="asp-color-names-row">
                 <span class="asp-color-names-label">Avatar:</span>
@@ -385,7 +379,7 @@ function setup() {
     $("#aspModernFiltersReset").on("click", function () {
         $modernFilters.find(".asp-stf-row").each(function () {
             const $row = $(this);
-            if ($row.attr("data-asp-stf-axis") === "ticketTier") {
+            if ($row.attr("data-asp-stf-axis") === "costTier") {
                 $row.find(".asp-stf-tier").addClass("active");
             }
             else {
@@ -406,45 +400,6 @@ function setup() {
         const $btn = $(this);
         $btn.toggleClass("active");
         applyAspStoreTopFilters();
-    });
-    $("#aspCssSettingsInfo").popover({
-        trigger: "hover",
-        delay: { show: 100, hide: 0 },
-        placement: "auto",
-        container: "#swRightColumn",
-        html: true,
-        content:
-            `<p>Use valid CSS <strong>length</strong> values with a unit. For example:</p>` +
-            `<ul><li>Avatar tile width: <code>200px</code></li><li>Avatar tile gap: <code>20px</code></li></ul>`,
-    });
-    $("#aspStfTicketTierInfo").popover({
-        trigger: "hover",
-        delay: { show: 100, hide: 0 },
-        placement: "auto",
-        container: "#swRightColumn",
-        html: true,
-        title: "Ticket tier info",
-        content: () => {
-            const cells = [1, 2, 3, 4].map((tier) => {
-                return (
-                    `<div class="asp-pop-tier-cell">` +
-                    `<img class="asp-pop-tier-ticket" src="${TIER_MAP[tier].icon.src}">` +
-                    `<div class="asp-pop-tier-rarity">${TIER_MAP[tier].name}</div>` +
-                    `<div class="asp-pop-tier-rhythm">` +
-                    `<img class="asp-pop-tier-rhythm-icon" src="${CURRENCY_BASE_URL}rhythm.webp">` +
-                    `<span class="asp-pop-tier-rhythm-amt">${TIER_MAP[tier].amount}</span>` +
-                    `</div></div>`
-                );
-            }).join("");
-            return (
-                `<div class="asp-pop-tier-wrap">${cells}</div>` +
-                `<p class="asp-pop-tier-note">` +
-                `Ticket tiers are used for skins that cost <strong>rhythm</strong> instead of notes. ` +
-                `An avatar's outfit and skin can be in separate tiers. ` +
-                `The filter keeps the tile visible if at least one of those tiers is still selected. ` +
-                `Skins that are only note-priced (standard type) do not use these tiers.</p>`
-            );
-        },
     });
 
     // Setup utility buttons
@@ -552,6 +507,16 @@ function setup() {
     });
 
     // Setup settings
+    $("#aspCssSettingsInfo").popover({
+        trigger: "hover",
+        delay: { show: 100, hide: 0 },
+        placement: "auto",
+        container: "#swRightColumn",
+        html: true,
+        content:
+            `<p>Use valid CSS <strong>length</strong> values with a unit. For example:</p>` +
+            `<ul><li>Avatar tile width: <code>200px</code></li><li>Avatar tile gap: <code>20px</code></li></ul>`,
+    });
     $("#aspAvatarTileWidth").val(avatarTileWidth ?? "").on("change", function () {
         avatarTileWidth = this.value;
         saveSettings();
@@ -690,7 +655,17 @@ function setup() {
         version: GM_info.script.version,
         link: "https://github.com/kempanator/amq-scripts/raw/main/amqAvatarStorePlus.user.js",
         description: `
-            <p>More features for the avatar store</p>
+            <b>Adds new features to the avatar store:</b>
+            <ul>
+                <li>Improved filtering system</li>
+                <li>Search avatar colors, jump to the next match</li>
+                <li>Display skin ownership counts</li>
+                <li>Bulk buy multiple skins on the current page</li>
+                <li>Wishlist for individual skins (click a heart on a tile)</li>
+                <li>Set a custom size for store avatar tiles</li>
+                <li>Randomize your current avatar and background</li>
+                <li>Unhide and fix filtering for event skins</li>
+            </ul>
         `
     });
 }
@@ -714,16 +689,14 @@ function readAspStoreTopFilterState() {
     const axisValue = (axis) =>
         $modernFilters.find(`.asp-stf-row[data-asp-stf-axis="${axis}"] .asp-stf-seg.active`).attr("data-asp-stf-value") || "all";
     const tiers = new Set();
-    $modernFilters.find('.asp-stf-row[data-asp-stf-axis="ticketTier"] .asp-stf-tier.active').each(function () {
-        const t = Number($(this).attr("data-asp-tier"));
-        if (t >= 1 && t <= 4) tiers.add(t);
+    $modernFilters.find('.asp-stf-row[data-asp-stf-axis="costTier"] .asp-stf-tier.active').each(function () {
+        tiers.add(Number($(this).attr("data-asp-tier")));
     });
     return {
         ownership: axisValue("ownership"),
         release: axisValue("release"),
         rotation: axisValue("rotation"),
-        type: axisValue("type"),
-        ticketTiers: tiers,
+        costTiers: tiers,
     };
 }
 
@@ -741,17 +714,9 @@ function storeColorMatchesAspTopFilters(c, s) {
     if (s.release === "unavailable" && c.active && a.active) return false;
     if (s.rotation === "limited" && !c.limited && !a.limited) return false;
     if (s.rotation === "permanent" && (c.limited || a.limited)) return false;
-    if (s.type === "exclusive" && !c.exclusive && !a.exclusive) return false;
-    if (s.type === "standard" && (c.exclusive || a.exclusive)) return false;
-    const ticketTiersOnSkin = [Number(c?.ticketTier), Number(a?.ticketTier)].filter((t) => t >= 1 && t <= 4);
-    if (s.ticketTiers.size === 0) {
-        if (ticketTiersOnSkin.length) return false;
-    }
-    else if (s.ticketTiers.size < 4) {
-        if (ticketTiersOnSkin.length && !ticketTiersOnSkin.some((t) => s.ticketTiers.has(t))) {
-            return false;
-        }
-    }
+    const bucket = storeColorTierBucket(c);
+    if (s.costTiers.size === 0) return false;
+    if (s.costTiers.size < 6 && !s.costTiers.has(bucket)) return false;
     return true;
 }
 
@@ -762,33 +727,31 @@ function storeColorMatchesAspTopFilters(c, s) {
  * so we resolve through the catalog. Unique backgrounds have their own `name`.
  */
 function updateAspColorNames() {
-    const ac = storeWindow.avatarColumn;
-    const a = ac.currentAvatar;
-    const b = ac.currentBackground;
-
-    const avatarText = a?.colorName ? capitalizeMajorWords(a.colorName) : "—";
-
+    const a = storeWindow.avatarColumn.currentAvatar;
+    const b = storeWindow.avatarColumn.currentBackground;
+    const avatarText = a?.colorName ? capitalizeMajorWords(a.colorName).trim() : "—";
     let bgText = "—";
     if (b) {
         if (b.backgroundUniqueId != null) {
             bgText = b.name ?? b.backgroundName ?? "—";
-        } else if (b.avatarId != null && b.colorId != null) {
+        }
+        else if (b.avatarId != null && b.colorId != null) {
             const av = storeWindow.getAvatarFromAvatarId(b.avatarId);
             const c = av?.colorMap[b.colorId];
             if (c?.name) {
                 bgText = capitalizeMajorWords(c.name);
                 // When the background's source outfit differs from the worn avatar, surface it in
                 // parentheses (e.g. "Red (Winter Hibiki)"). Standard outfits collapse to just the avatar.
-                if (av && a && a.avatarId !== b.avatarId) {
-                    const source = av.outfitName === "Standard" ? av.avatarName : `${av.outfitName} ${av.avatarName}`;
-                    bgText += ` (${source})`;
+                if (a && a.avatarId !== b.avatarId) {
+                    bgText += av.outfitName === "Standard"
+                        ? ` (${av.avatarName})`
+                        : ` (${av.outfitName} ${av.avatarName})`;
                 }
             }
         }
     }
-
-    $('#aspColorNames [data-asp-target="avatar"]').text(avatarText);
-    $('#aspColorNames [data-asp-target="background"]').text(bgText);
+    $aspColorNames.find("[data-asp-target='avatar']").text(avatarText);
+    $aspColorNames.find("[data-asp-target='background']").text(bgText);
 }
 
 // Sets StoreColor/StoreAvatar/StoreCharacter inFilter (drives client storeFade on tiles/top icons)
@@ -2235,7 +2198,6 @@ function applyStyles() {
             display: flex;
             align-items: center;
             gap: 6px;
-            margin-top: 1px;
         }
         .asp-stf-label {
             text-align: right;
@@ -2331,53 +2293,21 @@ function applyStyles() {
         .asp-stf-tier:hover .asp-stf-tier-img {
             filter: drop-shadow(0 0 2px gray);
         }
-        #swRightColumn .popover .asp-pop-tier-wrap {
-            display: flex;
-            justify-content: center;
-            align-items: flex-start;
-            gap: 5px;
-            margin: 0;
-        }
-        #swRightColumn .popover .asp-pop-tier-cell {
-            flex: 0 0 auto;
-            text-align: center;
-            min-width: 56px;
-            max-width: 72px;
-        }
-        #swRightColumn .popover .asp-pop-tier-ticket {
-            width: 28px;
-            height: 28px;
-            object-fit: contain;
-            display: block;
-            margin: 0 auto;
-        }
-        #swRightColumn .popover .asp-pop-tier-rarity {
-            margin-top: 2px;
-            font-size: 13px;
-            line-height: 1.2;
-            opacity: 0.9;
-            word-break: break-word;
-        }
-        #swRightColumn .popover .asp-pop-tier-rhythm {
-            margin-top: 4px;
-            font-size: 13px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 1px;
-        }
-        #swRightColumn .popover .asp-pop-tier-rhythm-icon {
+        .asp-stf-tier-icon {
             width: 20px;
             height: 20px;
+            font-size: 20px;
+            line-height: 20px;
+            text-align: center;
         }
-        #swRightColumn .popover .asp-pop-tier-rhythm-amt {
-            font-variant-numeric: tabular-nums;
+        .asp-stf-tier .asp-stf-tier-icon {
+            opacity: 0.5;
         }
-        #swRightColumn .popover .asp-pop-tier-note {
-            margin: 0.55em 0 0 0;
-            font-size: 11px;
-            line-height: 1.35;
-            opacity: 0.92;
+        .asp-stf-tier.active .asp-stf-tier-icon {
+            opacity: 1;
+        }
+        .asp-stf-tier:hover .asp-stf-tier-icon {
+            filter: drop-shadow(0 0 2px gray);
         }
         #swRightColumnBottomInner input {
             color: black;
