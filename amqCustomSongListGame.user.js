@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.97
+// @version      0.98
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -530,6 +530,7 @@ function setup() {
                                 <label class="clickAble" style="margin-left: 10px">OVA<input id="cslgSettingsOVACheckbox" type="checkbox" checked></label>
                                 <label class="clickAble" style="margin-left: 10px">ONA<input id="cslgSettingsONACheckbox" type="checkbox" checked></label>
                                 <label class="clickAble" style="margin-left: 10px">Special<input id="cslgSettingsSpecialCheckbox" type="checkbox" checked></label>
+                                <label class="clickAble" style="margin-left: 10px">Doujin<input id="cslgSettingsDoujinCheckbox" type="checkbox" checked></label>
                             </div>
                             <div style="margin-top: 5px">
                                 <span style="font-size: 18px; font-weight: bold; margin-right: 15px;">Broadcast Types:</span>
@@ -1136,13 +1137,14 @@ function validateStart() {
     const ova = $("#cslgSettingsOVACheckbox").prop("checked");
     const ona = $("#cslgSettingsONACheckbox").prop("checked");
     const special = $("#cslgSettingsSpecialCheckbox").prop("checked");
+    const doujin = $("#cslgSettingsDoujinCheckbox").prop("checked");
     const dub = $("#cslgSettingsDubCheckbox").prop("checked");
     const rebroadcast = $("#cslgSettingsRebroadcastCheckbox").prop("checked");
     const correctGuesses = $("#cslgSettingsCorrectGuessCheckbox").prop("checked");
     const incorrectGuesses = $("#cslgSettingsIncorrectGuessCheckbox").prop("checked");
     const songKeys = Object.keys(songList)
         .filter((key) => songTypeFilter(songList[key], ops, eds, ins))
-        .filter((key) => animeTypeFilter(songList[key], tv, movie, ova, ona, special))
+        .filter((key) => animeTypeFilter(songList[key], tv, movie, ova, ona, special, doujin))
         .filter((key) => difficultyFilter(songList[key], difficultyRange[0], difficultyRange[1]))
         .filter((key) => guessTypeFilter(songList[key], correctGuesses, incorrectGuesses))
         .filter((key) => broadcastTypeFilter(songList[key], dub, rebroadcast));
@@ -1930,19 +1932,17 @@ function songTypeFilter(song, ops, eds, ins) {
 }
 
 // return true if anime type is allowed
-function animeTypeFilter(song, tv, movie, ova, ona, special) {
-    if (song.animeType) {
-        const type = song.animeType.toLowerCase();
-        if (tv && type === "tv") return true;
-        if (movie && type === "movie") return true;
-        if (ova && type === "ova") return true;
-        if (ona && type === "ona") return true;
-        if (special && type === "special") return true;
-        return false;
-    }
-    else {
-        return tv && movie && ova && ona && special;
-    }
+function animeTypeFilter(song, tv, movie, ova, ona, special, doujin) {
+    if (tv && movie && ova && ona && special && doujin) return true;
+    if (!song.animeType) return false;
+    const type = song.animeType.toLowerCase();
+    if (tv && type === "tv") return true;
+    if (movie && type === "movie") return true;
+    if (ova && type === "ova") return true;
+    if (ona && type === "ona") return true;
+    if (special && type === "special") return true;
+    if (doujin && type === "doujin") return true;
+    return false;
 }
 
 // return true if the song difficulty is in allowed range
@@ -3124,18 +3124,14 @@ function downloadListJson(list, fileName) {
     const json = JSON.stringify(list);
     const blob = new Blob([json], { type: "application/json" });
     const url = URL.createObjectURL(blob);
-    try {
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = fileName;
-        a.style.display = "none";
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-    }
-    finally {
-        setTimeout(() => URL.revokeObjectURL(url), 0);
-    }
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fileName;
+    a.style.display = "none";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
 // validate json data in local storage
