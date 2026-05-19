@@ -8,7 +8,7 @@ click on a script name below to install
 - Tools for analyzing ranked answers in real time https://imgur.com/QIcwtXE
 
 ### [AMQ Avatar Store Plus](https://github.com/kempanator/amq-scripts/raw/main/amqAvatarStorePlus.user.js)
-- More features for the avatar store
+- More features for the avatar store https://imgur.com/a/Z2MFTiv
 
 ### [AMQ Chat Plus](https://github.com/kempanator/amq-scripts/raw/main/amqChatPlus.user.js)
 - Customizable chat/dms https://imgur.com/FAT78Ep
