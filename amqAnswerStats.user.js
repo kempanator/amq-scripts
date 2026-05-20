@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Answer Stats
 // @namespace    https://github.com/kempanator
-// @version      0.56
+// @version      0.57
 // @description  Adds a window to display quiz answer stats
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -55,7 +55,8 @@ let hotKeys = {
     historyWindow: loadHotkey("historyWindow"),
     speedWindow: loadHotkey("speedWindow"),
     compareWindow: loadHotkey("compareWindow"),
-    saveResults: loadHotkey("saveResults")
+    distributionWindow: loadHotkey("distributionWindow"),
+    saveResults: loadHotkey("saveResults"),
 };
 
 function setup() {
@@ -1001,13 +1002,14 @@ function displaySongHistoryResults(songNumber) {
             : Object.keys(song.answers).sort((a, b) => song.answers[b].text.localeCompare(song.answers[a].text));
     }
     const filter = (answer) => {
-        if (songHistoryFilter.type === "all") return true;
-        if (songHistoryFilter.type === "allCorrectAnswers" && answer.correct) return true;
-        if (songHistoryFilter.type === "allWrongAnswers" && !answer.correct) return true;
-        if (songHistoryFilter.type === "answer" && songHistoryFilter.answer.toLowerCase() === answer.text.toLowerCase()) return true;
-        if (songHistoryFilter.type === "noAnswers" && answer.noAnswer) return true;
-        if (songHistoryFilter.type === "uniqueValidWrongAnswers" && answer.uniqueAnswer) return true;
-        if (songHistoryFilter.type === "invalidAnswers" && answer.invalidAnswer) return true;
+        const type = songHistoryFilter.type;
+        if (type === "all") return true;
+        if (type === "allCorrectAnswers" && answer.correct) return true;
+        if (type === "allWrongAnswers" && !answer.correct) return true;
+        if (type === "answer" && songHistoryFilter.answer.toLowerCase() === answer.text.toLowerCase()) return true;
+        if (type === "noAnswers" && answer.noAnswer) return true;
+        if (type === "uniqueValidWrongAnswers" && answer.uniqueAnswer) return true;
+        if (type === "invalidAnswers" && answer.invalidAnswer) return true;
         return false;
     }
     for (const id of sortedIds) {
@@ -1613,18 +1615,14 @@ function saveResults() {
     });
     const blob = new Blob([json], { type: "application/json" });
     const url = URL.createObjectURL(blob);
-    try {
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = fileName;
-        a.style.display = "none";
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-    }
-    finally {
-        setTimeout(() => URL.revokeObjectURL(url), 0);
-    }
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fileName;
+    a.style.display = "none";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
 function printCorrelations(numberOfResults) {
