@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Quick Load Lists
 // @namespace    https://github.com/kempanator
-// @version      0.28
+// @version      0.29
 // @description  Adds a window for saving and quick loading anime lists
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -32,15 +32,36 @@ let savedLists = saveData.savedLists ?? [];
 let selectedColor = saveData.selectedColor ?? "#4497ea";
 let autoUpdateOnLogin = saveData.autoUpdateOnLogin ?? false; //current list in game settings, not this script
 let hotKeys = {
-    qllWindow: loadHotkey("qllWindow", "q", false, true, false),
+    qllWindow: loadHotkey("qllWindow", "Q", false, true, false),
     animeListModal: loadHotkey("animeListModal"),
     removeList: loadHotkey("removeList"),
+};
+let loadListActive = null;
+
+// cached jquery objects
+const $anilistUsername = $("#aniListUserNameInput");
+const $anilistLastUpdate = $("#aniListLastUpdateDate");
+const $malUsername = $("#malUserNameInput");
+const $malLastUpdate = $("#malLastUpdateDate");
+const $kitsuUsername = $("#kitsuUserNameInput");
+const $kitsuLastUpdate = $("#kitsuLastUpdated");
+
+const listTypeMap = {
+    anilist: "ANILIST",
+    myanimelist: "MAL",
+    kitsu: "KITSU"
+};
+const usernameInputMap = {
+    anilist: $anilistUsername,
+    myanimelist: $malUsername,
+    kitsu: $kitsuUsername
 };
 
 // setup
 function setup() {
-    new Listener("anime list update result", () => {
+    new Listener("anime list update result", (data) => {
         setTimeout(checkSelectedList, 1);
+        handleLoadListResult(data);
     }).bindListener();
 
     quickLoadListsWindow = new AMQWindow({
@@ -71,7 +92,6 @@ function setup() {
                     }))
                 .append($("<button>", { class: "btn btn-danger", text: "Clear", style: "margin-left: 8px;" })
                     .on("click", () => {
-                        $("#qllTable .qllRow").removeClass("selected");
                         removeAllLists();
                         messageDisplayer.displayMessage("Current List Cleared");
                     }))
@@ -99,7 +119,6 @@ function setup() {
                 placement: "bottom"
             })
             .on("click", () => {
-                $("#qllTable .qllRow").removeClass("selected");
                 removeAllLists();
                 messageDisplayer.displayMessage("Current List Cleared");
             }))
@@ -197,6 +216,7 @@ function setup() {
         },
         removeList: () => {
             removeAllLists();
+            messageDisplayer.displayMessage("Current List Cleared");
         }
     };
 
@@ -328,18 +348,14 @@ function handleExport() {
     const json = JSON.stringify(settings, null, 2);
     const blob = new Blob([json], { type: "application/json" });
     const url = URL.createObjectURL(blob);
-    try {
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = "amq quick load lists backup.json";
-        a.style.display = "none";
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-    }
-    finally {
-        setTimeout(() => URL.revokeObjectURL(url), 0);
-    }
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "amq quick load lists backup.json";
+    a.style.display = "none";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
 // shorten anime list type in the table
@@ -347,6 +363,7 @@ function shortenListType(type) {
     if (type === "anilist") return "ANI";
     if (type === "myanimelist") return "MAL";
     if (type === "kitsu") return "KIT";
+    return "";
 }
 
 // get the full URL for a given username and list type
@@ -354,38 +371,57 @@ function getListURL(username, type) {
     if (type === "anilist") return "https://anilist.co/user/" + username;
     if (type === "myanimelist") return "https://myanimelist.net/profile/" + username;
     if (type === "kitsu") return "https://kitsu.io/users/" + username;
+    return "";
+}
+
+// clear in-flight list load UI state
+function clearLoadListActive() {
+    if (!loadListActive) return;
+    clearTimeout(loadListActive.timeoutId);
+    loadListActive.$row.find("i.fa-spinner").hide();
+    loadListActive = null;
+}
+
+// handle server response for a quick-load list request
+function handleLoadListResult(data) {
+    if (!loadListActive) return;
+    const { username, type, $row, watching, completed, hold, dropped, planning } = loadListActive;
+    clearTimeout(loadListActive.timeoutId);
+    loadListActive.$row.find("i.fa-spinner").hide();
+    loadListActive = null;
+    $("#qllTable .qllRow").removeClass("selected");
+    if (data.success) {
+        usernameInputMap[type].val(username);
+        setAllStatusCheckboxes(watching, completed, hold, dropped, planning);
+        $row.addClass("selected");
+    }
+    else {
+        messageDisplayer.displayMessage("Update Unsuccessful", data.message);
+        checkSelectedList();
+    }
+    if (type !== "anilist") removeAnilist();
+    if (type !== "myanimelist") removeMyanimelist();
+    if (type !== "kitsu") removeKitsu();
 }
 
 // when you click a username in the table
 function loadList($row, username, type, watching, completed, hold, dropped, planning) {
-    const listTypeMap = {
-        anilist: "ANILIST",
-        myanimelist: "MAL",
-        kitsu: "KITSU"
+    if (loadListActive) return;
+    loadListActive = {
+        username,
+        type,
+        $row,
+        watching,
+        completed,
+        hold,
+        dropped,
+        planning,
+        timeoutId: setTimeout(() => {
+            if (!loadListActive) return;
+            messageDisplayer.displayMessage("List Update Timed Out");
+            clearLoadListActive();
+        }, 30000)
     };
-    const usernameInputMap = {
-        anilist: "#aniListUserNameInput",
-        myanimelist: "#malUserNameInput",
-        kitsu: "#kitsuUserNameInput"
-    };
-    const listener = new Listener("anime list update result", (data) => {
-        listener.unbindListener();
-        $("#qllTable .qllRow").removeClass("selected");
-        if (data.success) {
-            $(usernameInputMap[type]).val(username);
-            setAllStatusCheckboxes(watching, completed, hold, dropped, planning);
-            $row.addClass("selected");
-        }
-        else {
-            messageDisplayer.displayMessage("Update Unsuccessful", data.message);
-            checkSelectedList();
-        }
-        if (type !== "anilist") removeAnilist();
-        if (type !== "myanimelist") removeMyanimelist();
-        if (type !== "kitsu") removeKitsu();
-        $row.find("i.fa-spinner").hide();
-    });
-    listener.bindListener();
     $row.find("i.fa-spinner").show();
     socket.sendCommand({
         type: "library",
@@ -396,8 +432,8 @@ function loadList($row, username, type, watching, completed, hold, dropped, plan
 
 // remove anilist list
 function removeAnilist() {
-    if ($("#aniListLastUpdateDate").text()) {
-        $("#aniListUserNameInput").val("");
+    if ($anilistLastUpdate.text()) {
+        $anilistUsername.val("");
         socket.sendCommand({
             type: "library",
             command: "update anime list",
@@ -408,8 +444,8 @@ function removeAnilist() {
 
 // remove myanimelist list
 function removeMyanimelist() {
-    if ($("#malLastUpdateDate").text()) {
-        $("#malUserNameInput").val("");
+    if ($malLastUpdate.text()) {
+        $malUsername.val("");
         socket.sendCommand({
             type: "library",
             command: "update anime list",
@@ -420,8 +456,8 @@ function removeMyanimelist() {
 
 // remove kitsu list
 function removeKitsu() {
-    if ($("#kitsuLastUpdated").text()) {
-        $("#kitsuUserNameInput").val("");
+    if ($kitsuLastUpdate.text()) {
+        $kitsuUsername.val("");
         socket.sendCommand({
             type: "library",
             command: "update anime list",
@@ -432,6 +468,8 @@ function removeKitsu() {
 
 // remove all lists
 function removeAllLists() {
+    $("#qllTable .qllRow").removeClass("selected");
+    clearLoadListActive();
     removeAnilist();
     removeMyanimelist();
     removeKitsu();
@@ -442,9 +480,9 @@ function checkSelectedList() {
     const $rows = $("#qllTable .qllRow").removeClass("selected");
     if (!$rows.length) return;
     const usernames = {
-        anilist: $("#aniListUserNameInput").val().trim().toLowerCase(),
-        myanimelist: $("#malUserNameInput").val().trim().toLowerCase(),
-        kitsu: $("#kitsuUserNameInput").val().trim().toLowerCase()
+        anilist: $anilistUsername.val().trim().toLowerCase(),
+        myanimelist: $malUsername.val().trim().toLowerCase(),
+        kitsu: $kitsuUsername.val().trim().toLowerCase()
     };
     const flags = {
         watching: options.$INCLUDE_WATCHING_CHECKBOX.prop("checked"),
@@ -464,25 +502,25 @@ function checkSelectedList() {
 
 // update the current list in your list settings
 function updateCurrentList() {
-    if ($("#aniListUserNameInput").val()) {
+    if ($anilistUsername.val()) {
         socket.sendCommand({
             type: "library",
             command: "update anime list",
-            data: { newUsername: $("#aniListUserNameInput").val(), listType: "ANILIST" }
+            data: { newUsername: $anilistUsername.val(), listType: "ANILIST" }
         });
     }
-    else if ($("#malUserNameInput").val()) {
+    else if ($malUsername.val()) {
         socket.sendCommand({
             type: "library",
             command: "update anime list",
-            data: { newUsername: $("#malUserNameInput").val(), listType: "MAL" }
+            data: { newUsername: $malUsername.val(), listType: "MAL" }
         });
     }
-    else if ($("#kitsuUserNameInput").val()) {
+    else if ($kitsuUsername.val()) {
         socket.sendCommand({
             type: "library",
             command: "update anime list",
-            data: { newUsername: $("#kitsuUserNameInput").val(), listType: "KITSU" }
+            data: { newUsername: $kitsuUsername.val(), listType: "KITSU" }
         });
     }
 }
@@ -510,6 +548,7 @@ function setAllStatusCheckboxes(watching, completed, hold, dropped, planning) {
 
 // create the table that shows all saved lists
 function createListTable() {
+    clearLoadListActive();
     const $tbody = $("#qllTable tbody").empty();
     for (const list of savedLists) {
         const { username, type, watching, completed, hold, dropped, planning, comment } = list;
@@ -575,32 +614,47 @@ function createEditRow($table, username, type, watching, completed, hold, droppe
 
     // watching button
     $("<button>", { class: "btn btn-default status watching", text: "W" })
-        .toggleClass("off", !watching)
-        .on("click", function () { $(this).toggleClass("off"); })
+        .attr("data-enabled", watching)
+        .on("click", function () {
+            const $btn = $(this);
+            $btn.attr("data-enabled", $btn.attr("data-enabled") !== "true");
+        })
         .appendTo($row);
 
     // completed button
     $("<button>", { class: "btn btn-default status completed", text: "C" })
-        .toggleClass("off", !completed)
-        .on("click", function () { $(this).toggleClass("off"); })
+        .attr("data-enabled", completed)
+        .on("click", function () {
+            const $btn = $(this);
+            $btn.attr("data-enabled", $btn.attr("data-enabled") !== "true");
+        })
         .appendTo($row);
 
     // hold button
     $("<button>", { class: "btn btn-default status hold", text: "H" })
-        .toggleClass("off", !hold)
-        .on("click", function () { $(this).toggleClass("off"); })
+        .attr("data-enabled", hold)
+        .on("click", function () {
+            const $btn = $(this);
+            $btn.attr("data-enabled", $btn.attr("data-enabled") !== "true");
+        })
         .appendTo($row);
 
     // dropped button
     $("<button>", { class: "btn btn-default status dropped", text: "D" })
-        .toggleClass("off", !dropped)
-        .on("click", function () { $(this).toggleClass("off"); })
+        .attr("data-enabled", dropped)
+        .on("click", function () {
+            const $btn = $(this);
+            $btn.attr("data-enabled", $btn.attr("data-enabled") !== "true");
+        })
         .appendTo($row);
 
     // planning button
     $("<button>", { class: "btn btn-default status planning", text: "P" })
-        .toggleClass("off", !planning)
-        .on("click", function () { $(this).toggleClass("off"); })
+        .attr("data-enabled", planning)
+        .on("click", function () {
+            const $btn = $(this);
+            $btn.attr("data-enabled", $btn.attr("data-enabled") !== "true");
+        })
         .appendTo($row);
 
     // comment input
@@ -705,11 +759,11 @@ function saveEditTable() {
         return {
             username: $row.find(".username").val(),
             type: $row.find(".type").val(),
-            watching: !$row.find(".watching").hasClass("off"),
-            completed: !$row.find(".completed").hasClass("off"),
-            hold: !$row.find(".hold").hasClass("off"),
-            dropped: !$row.find(".dropped").hasClass("off"),
-            planning: !$row.find(".planning").hasClass("off"),
+            watching: $row.find(".watching").attr("data-enabled") === "true",
+            completed: $row.find(".completed").attr("data-enabled") === "true",
+            hold: $row.find(".hold").attr("data-enabled") === "true",
+            dropped: $row.find(".dropped").attr("data-enabled") === "true",
+            planning: $row.find(".planning").attr("data-enabled") === "true",
             comment: $row.find(".comment").val()
         };
     });
@@ -840,7 +894,7 @@ function applyStyles() {
             width: 34px;
             padding: 6px 0;
         }
-        #qllEditTable button.status.off {
+        #qllEditTable button.status[data-enabled="false"] {
             opacity: .5;
         }
         #qllHotkeyTable th {
