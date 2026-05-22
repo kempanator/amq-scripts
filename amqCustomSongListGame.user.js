@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.98
+// @version      0.99
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -1218,19 +1218,7 @@ function startQuiz() {
                 "playbackSpeed": 1,
                 "startPoint": getStartPoint(),
                 "fullSongRange": fullSongRange,
-                "videoInfo": {
-                    "id": null,
-                    "videoMap": {
-                        "catbox": createCatboxLinkObject(song.audio, song.video480, song.video720)
-                    },
-                    "videoVolumeMap": {
-                        "catbox": {
-                            "0": -20,
-                            "480": -20,
-                            "720": -20
-                        }
-                    }
-                }
+                "videoInfo": createCslVideoInfo(song.audio, song.video480, song.video720)
             });
         }
         else {
@@ -1341,19 +1329,7 @@ function playSong(songNumber) {
                     "playLength": guessTime,
                     "playbackSpeed": 1,
                     "startPoint": getStartPoint(),
-                    "videoInfo": {
-                        "id": null,
-                        "videoMap": {
-                            "catbox": createCatboxLinkObject(nextSong.audio, nextSong.video480, nextSong.video720)
-                        },
-                        "videoVolumeMap": {
-                            "catbox": {
-                                "0": -20,
-                                "480": -20,
-                                "720": -20
-                            }
-                        }
-                    }
+                    "videoInfo": createCslVideoInfo(nextSong.audio, nextSong.video480, nextSong.video720)
                 });
             }
             else {
@@ -1437,21 +1413,10 @@ function endGuessPhase(songNumber) {
                             "romaji": song.animeRomajiName
                         },
                         "artist": song.songArtist,
-                        "artistInfo": {
-                            "artistId": null, //song.songArtistIds.artistId,
-                            "groupId": null, //song.songArtistIds.groupId,
-                            "name": song.songArtist
-                        },
-                        "arrangerInfo": {
-                            "artistId": null, //song.songArrangerIds.artistId,
-                            "groupId": null, //song.songArrangerIds.groupId,
-                            "name": song.songArranger
-                        },
-                        "composerInfo": {
-                            "artistId": null, //song.songComposerIds.artistId,
-                            "groupId": null, //song.songComposerIds.groupId,
-                            "name": song.songComposer
-                        },
+                        // artistInfo/arrangerInfo/composerInfo need groupId or artistId for #qpSongArtist hover (library "artist hover information")
+                        "artistInfo": song.artistInfo || { name: song.songArtist },
+                        "arrangerInfo": song.arrangerInfo,
+                        "composerInfo": song.composerInfo,
                         "songName": song.songName,
                         "videoTargetMap": {
                             "catbox": {
@@ -1722,19 +1687,7 @@ function parseMessage(content, sender) {
                             "playLength": guessTime,
                             "playbackSpeed": 1,
                             "startPoint": parseInt(split[1]),
-                            "videoInfo": {
-                                "id": null,
-                                "videoMap": {
-                                    "catbox": createCatboxLinkObject(split[2], split[3], split[4])
-                                },
-                                "videoVolumeMap": {
-                                    "catbox": {
-                                        "0": -20,
-                                        "480": -20,
-                                        "720": -20
-                                    }
-                                }
-                            }
+                            "videoInfo": createCslVideoInfo(split[2], split[3], split[4])
                         });
                         if (Object.keys(songLinkReceived).length === 1) {
                             setTimeout(() => {
@@ -2056,7 +2009,7 @@ function loadPreviousGameOptions() {
     for (const game of Object.values(songHistoryWindow.tabs[2].gameMap)) {
         if (game.songTable.rows.length) {
             games.push({
-                roomName: game.roomName,
+                roomName: localizationHandler.translate(game.roomNameKey),
                 startTime: game.startTime,
                 quizId: game.quizId
             });
@@ -2217,21 +2170,12 @@ function handleData(data) {
         let animeEnglishName = song.animeEnglishName ?? song.animeENName ?? song.songInfo?.animeNames?.english ?? song.anime?.english ?? song.animeEnglish ?? song.animeEng ?? "";
         let altAnimeNames = song.altAnimeNames ?? song.songInfo?.altAnimeNames ?? [].concat(animeRomajiName, animeEnglishName, song.animeAltName || []);
         let altAnimeNamesAnswers = song.altAnimeNamesAnswers ?? song.songInfo?.altAnimeNamesAnswers ?? [];
-        let songArtist = song.songArtist ?? song.artist ?? song.songInfo?.artist ?? song.artistInfo?.name ?? "";
-        /*let songArtistIds = {
-            artistId: song.songArtistIds?.artistId ?? song.artistInfo?.artistId,
-            groupId: song.songArtistIds?.groupId ?? song.artistInfo?.groupId
-        };*/
-        let songArranger = song.songArranger ?? song.arrangerInfo?.name ?? "";
-        /*let songArrangerIds = {
-            artistId: song.songArrangerIds?.artistId ?? song.arrangerInfo?.artistId,
-            groupId: song.songArrangerIds?.groupId ?? song.arrangerInfo?.groupId
-        };*/
-        let songComposer = song.songComposer ?? song.composerInfo?.name ?? "";
-        /*let songComposerIds = {
-            artistId: song.songComposerIds?.artistId ?? song.composerInfo?.artistId,
-            groupId: song.songComposerIds?.groupId ?? song.composerInfo?.groupId
-        };*/
+        let songArtist = song.songArtist ?? song.artist ?? song.songInfo?.artist ?? song.artistInfo?.name ?? song.artists?.[0]?.names?.[0] ?? "";
+        let artistInfo = resolveCreatorInfo(song, "artistInfo", "artists", songArtist);
+        let songArranger = song.songArranger ?? song.arrangerInfo?.name ?? song.songInfo?.arrangerInfo?.name ?? song.arrangers?.[0]?.names?.[0] ?? "";
+        let arrangerInfo = resolveCreatorInfo(song, "arrangerInfo", "arrangers", songArranger);
+        let songComposer = song.songComposer ?? song.composerInfo?.name ?? song.songInfo?.composerInfo?.name ?? song.composers?.[0]?.names?.[0] ?? "";
+        let composerInfo = resolveCreatorInfo(song, "composerInfo", "composers", songComposer);
         let songName = song.songName ?? song.name ?? song.songInfo?.songName ?? "";
         let songType = song.songType ?? song.type ?? song.songInfo?.type ?? null;
         let songTypeNumber = song.songTypeNumber ?? song.songInfo?.typeNumber ?? null;
@@ -2247,7 +2191,7 @@ function handleData(data) {
         let rebroadcast = song.rebroadcast ?? song.isRebroadcast ?? song.songInfo?.rebroadcast ?? null;
         let dub = song.dub ?? song.isDub ?? song.songInfo?.dub ?? null;
         let startPoint = song.startPoint ?? song.startSample ?? null;
-        let annSongId = song.annSongId ?? null;
+        let annSongId = song.annSongId ?? song.songInfo?.annSongId ?? null;
         let audio = song.audio ?? song.videoUrl ?? song.urls?.catbox?.[0] ?? song.songInfo?.videoTargetMap?.catbox?.[0] ?? song.songInfo?.urlMap?.catbox?.[0] ?? song.LinkMp3 ?? "";
         let video480 = song.video480 ?? song.MQ ?? song.videoUrl ?? song.urls?.catbox?.[480] ?? song.songInfo?.videoTargetMap?.catbox?.[480] ?? song.songInfo?.urlMap?.catbox?.[480] ?? "";
         let video720 = song.video720 ?? song.HQ ?? song.videoUrl ?? song.urls?.catbox?.[720] ?? song.songInfo?.videoTargetMap?.catbox?.[720] ?? song.songInfo?.urlMap?.catbox?.[720] ?? song.LinkVideo ?? "";
@@ -2281,11 +2225,11 @@ function handleData(data) {
                 altAnimeNames,
                 altAnimeNamesAnswers,
                 songArtist,
-                //songArtistIds,
+                artistInfo,
                 songArranger,
-                //songArrangerIds,
+                arrangerInfo,
                 songComposer,
-                //songComposerIds,
+                composerInfo,
                 songName,
                 songType,
                 songTypeNumber,
@@ -2696,6 +2640,56 @@ function switchTab(tab) {
     $w.find(`#${tab}Container`).show();
 }
 
+function isArtistHoverInfo(info) {
+    return Boolean(info && (info.artistId || info.groupId || info.memberArtists || info.memberGroups || info.memberInGroups?.length || info.altNames?.length));
+}
+
+function parseAnisongdbArtistEntry(entry) {
+    // anisongdb uses artists/composers/arrangers[] with { id, names, members }; AMQ uses artistId or groupId.
+    if (!entry || entry.id == null) return null;
+    const name = entry.names?.[0] ?? "";
+    const hasMembers = Array.isArray(entry.members) && entry.members.length > 0;
+    const info = {
+        name,
+        memberArtists: [],
+        memberGroups: [],
+        memberInGroups: [],
+        altNames: []
+    };
+    if (hasMembers) {
+        info.groupId = entry.id; // e.g. μ's with member seiyuu list
+    }
+    else {
+        info.artistId = entry.id; // solo composer/arranger/artist
+    }
+    return info;
+}
+
+function resolveCreatorInfo(song, infoKey, anisongdbKey, nameFallback) {
+    // Prefer AMQ songInfo, then anisongdb array, else name-only (no hover)
+    const existing = song[infoKey] ?? song.songInfo?.[infoKey];
+    if (isArtistHoverInfo(existing)) {
+        return existing;
+    }
+    if (existing?.artistId || existing?.groupId) {
+        return {
+            name: existing.name ?? nameFallback,
+            artistId: existing.artistId ?? null,
+            groupId: existing.groupId ?? null,
+            memberArtists: existing.memberArtists ?? [],
+            memberGroups: existing.memberGroups ?? [],
+            memberInGroups: existing.memberInGroups ?? [],
+            altNames: existing.altNames ?? []
+        };
+    }
+    const entry = song[anisongdbKey]?.[0];
+    if (entry) {
+        const parsed = parseAnisongdbArtistEntry(entry);
+        if (parsed) return parsed;
+    }
+    return nameFallback ? { name: nameFallback } : null;
+}
+
 // convert vintage string into AMQ songInfo vintage object
 function formatAmqVintage(vintage) {
     if (!vintage) return null;
@@ -2705,9 +2699,7 @@ function formatAmqVintage(vintage) {
     if (!regex) return null;
     return {
         key: "song_library.anime_entry.vintage." + regex[1],
-        data: {
-            year: Number(regex[2])
-        }
+        data: { year: Number(regex[2]) }
     }
 }
 
@@ -2726,6 +2718,25 @@ function songTypeText(type, typeNumber) {
     if (type === 3) return "IN";
     return "";
 };
+
+// videoInfo payload for quiz next video info (guessMode required by MoeVideoPlayer.updatePlayMode)
+function createCslVideoInfo(audio, video480, video720) {
+    return {
+        id: null,
+        encrypted: false,
+        guessMode: { song: true, tinyVideo: false, blurVideo: false },
+        videoMap: {
+            catbox: createCatboxLinkObject(audio, video480, video720)
+        },
+        videoVolumeMap: {
+            catbox: {
+                "0": -20,
+                "480": -20,
+                "720": -20
+            }
+        }
+    };
+}
 
 // input 3 links, return formatted catbox link object
 function createCatboxLinkObject(audio, video480, video720) {
