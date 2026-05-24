@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.169
+// @version      0.170
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -2808,7 +2808,7 @@ async function parseCommand(messageText, type, target) {
             sendMessage("auto hint disabled", type, target, true);
         }
         else if (split.length === 2) {
-            if (["0", "off", "none"].includes(split[1])) {
+            if (["0", "off", "none", "disable"].includes(split[1])) {
                 autoHint = "";
                 sendMessage("auto hint disabled", type, target, true);
             }
@@ -2824,8 +2824,20 @@ async function parseCommand(messageText, type, target) {
                 autoHint = 3;
                 sendMessage("auto hint set to multiple choice", type, target, true);
             }
+            else if (["4", "t", "tiny", "tinyvideo"].includes(split[1])) {
+                autoHint = 4;
+                sendMessage("auto hint set to tiny video", type, target, true);
+            }
+            else if (["5", "b", "blur", "blurvideo"].includes(split[1])) {
+                autoHint = 5;
+                sendMessage("auto hint set to blur video", type, target, true);
+            }
+            else if (["6", "a", "audio", "sound", "song"].includes(split[1])) {
+                autoHint = 6;
+                sendMessage("auto hint set to audio", type, target, true);
+            }
             else {
-                sendMessage("Options: name, info, multichoice", type, target, true);
+                sendMessage("Options: name, info, multichoice, tiny, blur, audio", type, target, true);
             }
         }
     }
@@ -6515,7 +6527,7 @@ function applyStyles() {
         }
     `;
     if (videoCrop === 100) css += `
-        #qpVideoHider.tinyMode #qpTinyModeVideoHider {
+        .tinyModeVideoHider {
             clip-path: none;
             opacity: 0;
         }
@@ -6524,7 +6536,7 @@ function applyStyles() {
         const a = (100 - videoCrop) / 2;
         const b = (100 + videoCrop) / 2;
         css += `
-            #qpVideoHider.tinyMode #qpTinyModeVideoHider {
+            .tinyModeVideoHider {
                 clip-path: polygon(0% 0%, 0% 110%, ${a}% 110%, ${a}% ${a}%, ${b}% ${a}%, ${b}% ${b}%, ${a}% ${b}%, ${a}% 110%, 110% 110%, 110% 0%);
             }
         `;
