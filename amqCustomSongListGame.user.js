@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.99
+// @version      0.100
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -2196,7 +2196,7 @@ function handleData(data) {
         let video480 = song.video480 ?? song.MQ ?? song.videoUrl ?? song.urls?.catbox?.[480] ?? song.songInfo?.videoTargetMap?.catbox?.[480] ?? song.songInfo?.urlMap?.catbox?.[480] ?? "";
         let video720 = song.video720 ?? song.HQ ?? song.videoUrl ?? song.urls?.catbox?.[720] ?? song.songInfo?.videoTargetMap?.catbox?.[720] ?? song.songInfo?.urlMap?.catbox?.[720] ?? song.LinkVideo ?? "";
         let correctGuess = song.correctGuess ?? null;
-        let incorrectGuess = song.incorrectGuess ?? null;
+        let incorrectGuess = song.incorrectGuess ?? song.wrongGuess ?? null;
         if (correctGuess === null && typeof song.correct === "boolean") { //joseph script check
             correctGuess = song.correct;
             incorrectGuess = !song.correct;
