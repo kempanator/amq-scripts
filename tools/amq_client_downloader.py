@@ -33,15 +33,15 @@ EXTRA_SOURCE_PATHS = (
 )
 
 LOCALE_CODES = (
-    "ca",
-    "zh-Hant",
-    "id",
-    "ja",
-    "ko",
-    "nb",
-    "es-ES",
-    "vi",
-    "en",
+    "en",      # English
+    "ca",      # Catalan
+    "zh-Hant", # Chinese (Traditional)
+    "id",      # Indonesian
+    "ja",      # Japanese
+    "ko",      # Korean
+    "nb",      # Norwegian Bokmål
+    "es-ES",   # Spanish (Spain)
+    "vi",      # Vietnamese
 )
 
 CLEAR_PRESERVE_FILES_LOWER = {"readme.md", "game.html", "maintenance.html"}
