@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Avatar Store Plus
 // @namespace    https://github.com/kempanator
-// @version      0.5
+// @version      0.6
 // @description  More features for the avatar store
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -55,7 +55,7 @@ let $wishlist;
 let $aspColorNames;
 let aspStoreColorCatalogRankMap = new Map();
 
-CURRENCY_BASE_URL = "https://cdn.animemusicquiz.com/v1/ui/currency/30px/";
+CURRENCY_BASE_URL = "https://animemusicquiz.com/cdn/v1/ui/currency/30px/";
 TIER_MAP = {
     0: {
         name: "Standard",
@@ -1006,11 +1006,15 @@ function openWishlistSkinInStore(avatarId, colorId) {
     openOutfitInStore(parent, avatar);
 }
 
-// v1 static head: `…/v1/avatars/{avatar}/{outfit}/{option}/{color}/100px/Head.webp` (matches CDN layout)
 function avatarHeadUrl(a, colorName) {
     if (!a) return "";
-    const segs = [a.avatarName, a.outfitName, a.optionName, colorName ?? a.defaultColorName, "100px", "Head.webp"];
-    return `https://cdn.animemusicquiz.com/v1/avatars/${segs.map(encodeURIComponent).join("/")}`;
+    return cdnFormater.newAvatarHeadSrc(
+        a.avatarName,
+        a.outfitName,
+        a.optionName,
+        a.optionActive !== false,
+        colorName ?? a.defaultColorName
+    );
 }
 
 /**
