@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.171
+// @version      0.172
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -5833,25 +5833,20 @@ function autoList() {
 
 // get the version of any script that uses joseph's script info
 function getScriptVersion(input) {
-    input = input.toLowerCase();
-    if (/^(ess|elodie'?s? style script)$/.test(input)) {
+    input = input.replace(/\s+/g, "").toLowerCase();
+    if (/^(ess|elodie'?s?stylescript)$/.test(input)) {
         const style = getComputedStyle(document.documentElement);
         const essVersion = style.getPropertyValue("--elodieStyleScriptVersion");
-        if (essVersion) {
-            return essVersion;
-        }
-        else if (style.getPropertyValue("--accentColor")) {
-            return "10.?";
-        }
-        else if (style.getPropertyValue("--bg")) {
-            return "< 10";
-        }
+        if (essVersion) return essVersion;
+        if (style.getPropertyValue("--accentColor")) return "10.?";
+        if (style.getPropertyValue("--bg")) return "< 10";
     }
     const $items = $("#installedListContainer h4");
     for (const item of $items) {
-        const scriptName = $(item).find(".name").text().toLowerCase();
+        const $item = $(item);
+        const scriptName = $item.find(".name").text().replace(/\s+/g, "").toLowerCase();
         if (input === scriptName) {
-            const scriptVersion = $(item).find(".version").text();
+            const scriptVersion = $item.find(".version").text();
             return scriptVersion || "installed, unknown version";
         }
     }
