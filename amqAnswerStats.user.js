@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Answer Stats
 // @namespace    https://github.com/kempanator
-// @version      0.57
+// @version      0.58
 // @description  Adds a window to display quiz answer stats
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -41,7 +41,6 @@ let distributionWindow;
 let answers = {}; //{1: {name, id, answer, correct}, ...}
 let songHistory = {}; //{1: {romaji, english, number, artist, song, type, vintage, difficulty, fastestSpeed, fastestPlayers, answers: {1: {id, text, speed, correct, rank, score, invalidAnswer, uniqueAnswer, noAnswer}, ...}, ...}
 let playerInfo = {}; //{1: {name, id, level, score, rank, box, averageSpeed, correctSpeedList}, ...}
-let answerTimes = {}; //{0: 1000}
 let animeListMap = new Map(); // store lowercase version for faster compare speed
 let averageSpeedSort = { mode: "score", ascending: false };
 let songHistoryFilter = { type: "all" };
@@ -94,16 +93,6 @@ function setup() {
             joinRoomUpdate(data);
         }
     }).bindListener();
-    new Listener("play next song", () => {
-        answerTimes = {};
-    }).bindListener();
-    new Listener("player answered", (data) => {
-        for (const item of data) {
-            for (const id of item.gamePlayerIds) {
-                answerTimes[id] = Math.floor(item.answerTime * 1000);
-            }
-        }
-    }).bindListener();
     new Listener("player answers", (data) => {
         if (animeListMap.size === 0) {
             quiz.answerInput.typingInput.autoCompleteController.updateList();
@@ -126,7 +115,6 @@ function setup() {
         if (songNumber < maxSongNumber) { //handle jam reset
             songHistory = {};
             playerInfo = {};
-            answerTimes = {};
         }
         const correctPlayers = {}; //{id: answer speed, ...}
         const correctAnswerIdMap = {}; //{title: [], ...}
@@ -173,7 +161,7 @@ function setup() {
             const quizPlayer = answers[player.gamePlayerId];
             if (!quizPlayer) continue;
             quizPlayer.correct = player.correct;
-            const speed = answerTimes[player.gamePlayerId] ?? null;
+            const speed = player.answerTimeing != null ? Math.floor(player.answerTimeing * 1000) : null;
             if (player.correct) { // players on teams can be correct but have no speed
                 correctPlayers[player.gamePlayerId] = speed;
             }
@@ -1476,7 +1464,6 @@ function getScore(player) {
 function resetHistory() {
     songHistory = {};
     playerInfo = {};
-    answerTimes = {};
     answerHistorySettings = { mode: "song", songNumber: null, playerId: null, roomType: "", roomName: "" };
     answerHistoryWindow.window.find("#answerHistoryCurrentSong").text("Song: ");
     answerHistoryWindow.window.find("#answerHistoryCurrentPlayer, .infoButton, .arrowButton, .backButton, .speedButton, .filterButton").hide();
@@ -1513,10 +1500,6 @@ function tableSortChange(obj, mode) {
 function joinRoomUpdate(data) {
     //console.log(data)
     resetHistory();
-    for (const player of data.quizState.players) {
-        const time = player.answerTimeing; //sic
-        if (time) answerTimes[player.gamePlayerId] = Math.floor(time * 1000);
-    }
     answerHistorySettings.roomType = data.settings.gameMode;
     if (answerHistorySettings.roomType === "Ranked") {
         answerHistorySettings.roomName = getRankedRegion() + " " + data.settings.roomName;
