@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Anisongdb Utilities
 // @namespace    https://github.com/kempanator
-// @version      0.16
+// @version      0.17
 // @description  some extra functions for anisongdb.com
 // @author       kempanator
 // @match        https://anisongdb.com/*
@@ -12,22 +12,22 @@
 
 /*
 Features:
-- loop songs in a radio playlist
-- replace all links with different catbox host
-- hide "This database is built upon the database of AMQ..."
-- switch to advanced filters on page load
-- force your json file name to match your search query
-- press a hotkey to download json file
+- Loop songs in a radio playlist
+- Replace all links with different host
+- Switch to advanced filters on page load
+- Force your json file name to match your search query
+- Press a hotkey to download json file
+- Change accent color
 */
 
 "use strict";
 const saveData = validateLocalStorage("anisongdbUtilities");
 const hostDict = { 1: "eudist", 2: "nawdist", 3: "naedist" };
-let catboxHost = parseInt(saveData.catboxHost);
-if (!hostDict.hasOwnProperty(catboxHost)) catboxHost = 0;
+let fileHost = parseInt(saveData.fileHost);
+if (!hostDict.hasOwnProperty(fileHost)) fileHost = 0;
 let jsonDownloadRename = saveData.jsonDownloadRename ?? true;
-let hideAmqText = saveData.hideAmqText ?? false;
 let defaultAdvanced = saveData.defaultAdvanced ?? false;
+let accentColor = normalizeHexColor(saveData.accentColor);
 let loop = parseInt(saveData.loop) || 0; //0:none, 1:repeat, 2:loop all
 let hotKeys = {
     downloadJson: loadHotkey("downloadJson", "B", true, false, false),
@@ -38,7 +38,6 @@ let hotKeys = {
 let settingsModal;
 let banner;
 let languageButton;
-let composerButton;
 let toggleAdvancedButton;
 let downloadJsonButton;
 
@@ -49,30 +48,21 @@ const loadInterval = setInterval(() => {
     }
 }, 200);
 
-// begin setup after the first table loads in
+// Begin setup after the first table loads in
 function setup() {
     applyStyles();
     const ngId = Object.values(document.querySelector("app-root").attributes).map((x) => x.name).find((x) => x.startsWith("_nghost")).split("-")[2];
     banner = document.querySelector(`div[role="banner"]`);
-    downloadJsonButton = document.querySelector("a.showFilter");
-    toggleAdvancedButton = document.querySelector("span.showFilter");
-    languageButton = document.querySelector(`label[title="Anime title displaying"]`);
-    composerButton = document.querySelector(`label[title="Composer displaying"]`);
+    downloadJsonButton = document.querySelector("#search-download-json");
+    toggleAdvancedButton = document.querySelector("#search-toggle-advanced");
+    languageButton = document.querySelector("#anime-name-lang-toggle-label");
 
-    // alter the page on load
-    if (hideAmqText) {
-        const amqTextElement = document.querySelector("app-search-bar h5");
-        if (amqTextElement && amqTextElement.textContent.startsWith(" This database")) {
-            amqTextElement.style.display = "none";
-        }
-    }
+    // Alter the page on load
     if (defaultAdvanced) {
-        if (toggleAdvancedButton) { //disappears during ranked
-            toggleAdvancedButton.click();
-        }
+        toggleAdvancedButton.click();
     }
 
-    // create settings icon
+    // Create settings icon
     const i = document.createElement("i");
     i.setAttribute(`_ngcontent-ng-${ngId}`, "");
     i.setAttribute("aria-hidden", "true");
@@ -83,7 +73,7 @@ function setup() {
     i.style.margin = "0 18px 0 0";
     languageButton.insertAdjacentElement("afterend", i);
 
-    // define hotkey actions
+    // Define hotkey actions
     const hotkeyActions = {
         downloadJson: () => {
             downloadJsonButton.click();
@@ -96,7 +86,7 @@ function setup() {
         }
     };
 
-    // keyboard and mouse events
+    // Keyboard and mouse events
     document.addEventListener("keydown", (event) => {
         const key = event.key.toUpperCase();
         const ctrl = event.ctrlKey;
@@ -122,32 +112,8 @@ function setup() {
             toggleSettingsModal(false);
         }
         setTimeout(() => {
-            if (catboxHost && document.querySelector("#myModal")) {
-                const link720 = document.querySelector("#modal-720-link");
-                const link480 = document.querySelector("#modal-480-link");
-                const linkMP3 = document.querySelector("#modal-mp3-link");
-                const text = `https://${hostDict[catboxHost]}.animemusicquiz.com`;
-                if (link720) {
-                    const newLink = link720.href.replace(/^https:\/\/\w+\.animemusicquiz\.com/, text);
-                    link720.href = newLink;
-                    link720.parentElement.querySelector("p").onclick = () => {
-                        navigator.clipboard.writeText(newLink);
-                    }
-                }
-                if (link480) {
-                    const newLink = link480.href.replace(/^https:\/\/\w+\.animemusicquiz\.com/, text);
-                    link480.href = newLink;
-                    link480.parentElement.querySelector("p").onclick = () => {
-                        navigator.clipboard.writeText(newLink);
-                    }
-                }
-                if (linkMP3) {
-                    const newLink = linkMP3.href.replace(/^https:\/\/\w+\.animemusicquiz\.com/, text);
-                    linkMP3.href = newLink;
-                    linkMP3.parentElement.querySelector("p").onclick = () => {
-                        navigator.clipboard.writeText(newLink);
-                    }
-                }
+            if (document.querySelector("#myModal")) {
+                applyFileHostLinks();
             }
         }, 1)
         if (event.target.attributes.title?.value === "Listen to mp3") {
@@ -173,17 +139,7 @@ function setup() {
         }
     });
 
-    // step through song list by certain amount
-    function stepSong(amount) {
-        const tdList = document.querySelectorAll("i.fa-music");
-        const len = tdList.length;
-        if (!len) return;
-        const index = Array.from(tdList).findIndex(e => getComputedStyle(e).color === "rgb(226, 148, 4)");
-        const newIndex = index === -1 ? 0 : (((index + amount) % len) + len) % len;
-        tdList[newIndex].click();
-    }
-
-    // create settings modal
+    // Create settings modal
     settingsModal = document.createElement("div");
     settingsModal.id = "auModal";
     settingsModal.style.display = "none";
@@ -191,36 +147,28 @@ function setup() {
         <div class="modal-content">
             <h2 style="text-align: center;">AnisongDB Utilities Script Settings</h2>
             <p style="text-align: center;">By: kempanator<br>Version: ${GM_info.script.version}<br><a href="https://github.com/kempanator/amq-scripts/blob/main/anisongdbUtilities.user.js" target="_blank">Github</a> <a href="https://github.com/kempanator/amq-scripts/raw/main/anisongdbUtilities.user.js" target="_blank">Install</a></p>
-            <p><label><input id="auHideTextCheckbox" type="checkbox">Hide AMQ text</label></p>
-            <p><label><input id="auAdvancedCheckbox" type="checkbox">Advanced view by default</label></p>
-            <p><label><input id="auRenameJsonCheckbox" type="checkbox">Rename JSON to search input</label></p>
-            <p><select id="auRadioSelect" style="margin-right: 5px; padding: 4px 2px;"><option value="0">none</option><option value="1">repeat</option><option value="2">loop all</option></select>Radio loop mode</p>
-            <p><select id="auHostChangeSelect" style="margin-right: 5px; padding: 4px 2px;"><option value="0">default</option><option value="1">eudist</option><option value="2">nawdist</option><option value="3">naedist</option></select>Change host</p>
+            <p><label class="check"><input id="auAdvancedCheckbox" type="checkbox">Advanced view by default</label></p>
+            <p><label class="check"><input id="auRenameJsonCheckbox" type="checkbox">Rename JSON to search input</label></p>
+            <p><select id="auRadioSelect" class="selectFilter"><option value="0">none</option><option value="1">repeat</option><option value="2">loop all</option></select>Radio loop mode</p>
+            <p><select id="auHostChangeSelect" class="selectFilter"><option value="0">default</option><option value="1">eudist</option><option value="2">nawdist</option><option value="3">naedist</option></select>Change host</p>
+            <p><input id="auAccentColorPicker" type="color"${accentColor ? ` value="${accentColor}"` : ""}>Accent Color<i id="auAccentColorClear" class="fa fa-trash" aria-hidden="true" title="Reset accent color"></i></p>
             <table id="auHotkeyTable"><thead><tr><th>Action</th><th>Keybind</th></tr></thead><tbody></tbody></table>
         </div>
     `;
     document.body.append(settingsModal);
+    inheritSearchBarScope(settingsModal);
 
-    const hideTextCheckbox = document.querySelector("#auHideTextCheckbox");
     const advancedCheckbox = document.querySelector("#auAdvancedCheckbox");
     const renameJsonCheckbox = document.querySelector("#auRenameJsonCheckbox");
     const radioSelect = document.querySelector("#auRadioSelect");
     const hostChangeSelect = document.querySelector("#auHostChangeSelect");
-
-    hideTextCheckbox.checked = hideAmqText;
+    const accentColorPicker = document.querySelector("#auAccentColorPicker");
+    const accentColorClear = document.querySelector("#auAccentColorClear");
     advancedCheckbox.checked = defaultAdvanced;
     renameJsonCheckbox.checked = jsonDownloadRename;
     radioSelect.value = loop;
-    hostChangeSelect.value = catboxHost;
-
-    hideTextCheckbox.onclick = () => {
-        hideAmqText = !hideAmqText;
-        const amqText = document.querySelector("app-search-bar h5");
-        if (amqText && amqText.textContent.startsWith(" This database")) {
-            amqText.style.display = hideAmqText ? "none" : "block";
-        }
-        saveSettings();
-    }
+    hostChangeSelect.value = fileHost;
+    if (accentColor) accentColorPicker.value = accentColor;
     advancedCheckbox.onclick = () => {
         defaultAdvanced = !defaultAdvanced;
         saveSettings();
@@ -234,18 +182,41 @@ function setup() {
         saveSettings();
     }
     hostChangeSelect.onchange = (event) => {
-        catboxHost = parseInt(event.target.value);
+        fileHost = parseInt(event.target.value);
+        applyFileHostLinks();
         saveSettings();
     }
-
+    accentColorPicker.oninput = (event) => {
+        accentColor = event.target.value;
+        applyStyles();
+        saveSettings();
+    }
+    accentColorClear.onclick = () => {
+        accentColor = null;
+        accentColorPicker.value = "#000000";
+        applyStyles();
+        saveSettings();
+    }
     createHotkeyTable([
         { action: "downloadJson", title: "Download JSON" },
         { action: "prevSong", title: "Previous Song" },
         { action: "nextSong", title: "Next Song" },
     ]);
+    watchSongTableLinks();
+    applyFileHostLinks();
 }
 
-// toggle settings modal or input boolean to force state
+// Step through song list by certain amount
+function stepSong(amount) {
+    const tdList = document.querySelectorAll("i.fa-music");
+    const len = tdList.length;
+    if (!len) return;
+    const index = Array.from(tdList).findIndex(e => e.classList.contains("active"));
+    const newIndex = index === -1 ? 0 : (((index + amount) % len) + len) % len;
+    tdList[newIndex].click();
+}
+
+// Toggle settings modal or input boolean to force state
 function toggleSettingsModal(option) {
     if (option === undefined) {
         if (settingsModal.style.display === "none") {
@@ -265,7 +236,7 @@ function toggleSettingsModal(option) {
     }
 }
 
-// load hotkey from local storage, input optional default values
+// Load hotkey from local storage, input optional default values
 function loadHotkey(action, key = "", ctrl = false, alt = false, shift = false) {
     const item = saveData.hotKeys?.[action];
     return {
@@ -276,14 +247,14 @@ function loadHotkey(action, key = "", ctrl = false, alt = false, shift = false) 
     }
 }
 
-// create hotkey rows and add to table
+// Create hotkey rows and add to table
 function createHotkeyTable(data) {
     const tbody = document.querySelector("#auHotkeyTable tbody");
     if (!tbody) return;
     data.forEach(({ action, title }) => {
         const input = document.createElement("input");
         input.type = "text";
-        input.className = "hk-input";
+        input.className = "textInputFilter hk-input";
         input.readOnly = true;
         input.dataset.action = action;
         input.value = bindingToText(hotKeys[action]);
@@ -293,12 +264,13 @@ function createHotkeyTable(data) {
         const td2 = document.createElement("td");
         td1.textContent = title;
         td2.append(input);
+        inheritSearchBarScope(input);
         tr.append(td1, td2);
         tbody.append(tr);
     });
 }
 
-// begin hotkey capture on click
+// Begin hotkey capture on click
 function startHotkeyRecord(event) {
     const input = event.currentTarget;
     if (input.classList.contains("recording")) return;
@@ -338,7 +310,7 @@ function startHotkeyRecord(event) {
     input.addEventListener("blur", finish);
 }
 
-// input hotKeys[action] and convert the data to a string for the input field
+// Input hotKeys[action] and convert the data to a string for the input field
 function bindingToText(b) {
     if (!b) return "";
     const keys = [];
@@ -349,7 +321,7 @@ function bindingToText(b) {
     return keys.join(" + ");
 }
 
-// validate json data in local storage
+// Validate json data in local storage
 function validateLocalStorage(item) {
     try {
         const json = JSON.parse(localStorage.getItem(item));
@@ -361,21 +333,81 @@ function validateLocalStorage(item) {
     }
 }
 
-// save settings
+// Save settings
 function saveSettings() {
     localStorage.setItem("anisongdbUtilities", JSON.stringify({
-        catboxHost,
+        fileHost,
         jsonDownloadRename,
-        hideAmqText,
         defaultAdvanced,
         loop,
-        hotKeys
+        hotKeys,
+        accentColor
     }));
 }
 
-// apply styles
+function normalizeHexColor(color) {
+    if (!color) return null;
+    if (/^#[0-9a-f]{6}$/i.test(color)) return color.toLowerCase();
+    const match = String(color).match(/^rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)$/i);
+    if (match) {
+        return "#" + match.slice(1).map(n => parseInt(n, 10).toString(16).padStart(2, "0")).join("");
+    }
+    return null;
+}
+
+function rewriteAnimemusicquizUrl(url) {
+    if (!fileHost) return url;
+    return url.replace(/^https:\/\/\w+\.animemusicquiz\.com/, `https://${hostDict[fileHost]}.animemusicquiz.com`);
+}
+
+function applyFileHostLinks() {
+    if (!fileHost) return;
+    document.querySelectorAll("a.table-song-link").forEach(link => {
+        link.href = rewriteAnimemusicquizUrl(link.href);
+    });
+    for (const id of ["modal-720-link", "modal-480-link", "modal-mp3-link"]) {
+        const link = document.querySelector(`#${id}`);
+        if (!link) continue;
+        const newLink = rewriteAnimemusicquizUrl(link.href);
+        link.href = newLink;
+        const copyLabel = link.parentElement.querySelector("p");
+        if (copyLabel) {
+            copyLabel.onclick = () => navigator.clipboard.writeText(newLink);
+        }
+    }
+}
+
+function watchSongTableLinks() {
+    const table = document.querySelector("#table");
+    if (!table) return;
+    new MutationObserver(() => applyFileHostLinks()).observe(table, { childList: true, subtree: true });
+}
+
+// Copy Angular emulated encapsulation scope so site component styles apply to script UI
+function inheritSearchBarScope(container) {
+    const ref = document.querySelector("app-search-bar select.selectFilter, app-search-bar input.textInputFilter, app-search-bar label.check");
+    if (!ref) return;
+    const attr = [...ref.attributes].find(a => a.name.startsWith("_ngcontent"));
+    if (!attr) return;
+    const apply = (el) => el.setAttribute(attr.name, "");
+    apply(container);
+    container.querySelectorAll("*").forEach(apply);
+}
+
+// Apply styles
 function applyStyles() {
-    let css = /*css*/ `
+    let css = "";
+    if (accentColor) {
+        css += /*css*/ `
+            :root {
+                --accentColor: ${accentColor};
+                --accentColorHover: color-mix(in srgb, var(--accentColor) 85%, white);
+                --accentColorGlow: color-mix(in srgb, var(--accentColor) 35%, transparent);
+                --accentColorTint: color-mix(in srgb, var(--accentColor) 10%, transparent);
+            }
+        `;
+    }
+    css += /*css*/ `
         #auModal {
             background-color: #00000070;
             width: 100%;
@@ -389,7 +421,7 @@ function applyStyles() {
         }
         #auModal .modal-content {
             background-color: var(--background);
-            border: 3px solid #888888;
+            border: 3px solid #7e7e7e;
             width: 800px;
             margin: auto;
             padding: 20px;
@@ -401,11 +433,26 @@ function applyStyles() {
         #auModal a:hover {
             opacity: .7;
         }
-        #auModal input[type="checkbox"] {
-            width: 20px;
-            height: 20px;
-            margin: 0 7px 0 0;
-            vertical-align: -4px;
+        #auModal select.selectFilter {
+            width: 100px;
+            margin-right: 5px;
+        }
+        #auModal input[type="color"] {
+            width: 100px;
+            height: 32px;
+            margin-right: 5px;
+            padding: 0;
+            border: 1px solid #7e7e7e;
+            background-color: var(--songTableImpairColor);
+            cursor: pointer;
+            vertical-align: middle;
+        }
+        #auModal #auAccentColorClear {
+            cursor: pointer;
+            margin-left: 8px;
+        }
+        #auModal #auAccentColorClear:hover {
+            opacity: .7;
         }
         #auHotkeyTable th {
             text-align: left;
@@ -417,13 +464,15 @@ function applyStyles() {
         }
         #auHotkeyTable input.hk-input {
             width: 200px;
-            padding: 4px 2px;
             cursor: pointer;
             user-select: none;
         }
     `;
-    const style = document.createElement("style");
-    style.id = "anisongdbUtilitiesStyle";
+    let style = document.querySelector("#anisongdbUtilitiesStyle");
+    if (!style) {
+        style = document.createElement("style");
+        style.id = "anisongdbUtilitiesStyle";
+        document.head.appendChild(style);
+    }
     style.textContent = css.trim();
-    document.head.appendChild(style);
 }
