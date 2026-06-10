@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.100
+// @version      0.101
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -84,6 +84,7 @@ let cslMultiplayer = { host: "", songInfo: {}, voteSkip: {} };
 let cslState = 0; //0: none, 1: guessing phase, 2: answer phase
 let songLinkReceived = {};
 let songStartTime;
+let answerTimes = {}; //{gamePlayerId: seconds}
 let skipping = false;
 let answerChunks = {}; //store player answer chunks, ids are keys
 let resultChunk;
@@ -328,8 +329,8 @@ function setup() {
                 "success": true
             });
             if (quiz.soloMode) {
-                const time = Number(((Date.now() - songStartTime) / 1000).toFixed(3));
-                fireListener("player answered", [{ answerTime: time, gamePlayerIds: [0] }]);
+                recordCslAnswerTime(quiz.ownGamePlayerId);
+                fireListener("player answered", [{ answerTime: answerTimes[quiz.ownGamePlayerId], gamePlayerIds: [0] }]);
                 if (options.autoVoteSkipGuess) {
                     this.skipController.voteSkip();
                     fireListener("quiz overlay message", "Skipping to Answers");
@@ -1268,9 +1269,21 @@ function readySong(songNumber) {
     }, 100);
 }
 
+// store seconds elapsed since song start when a player submits
+function recordCslAnswerTime(gamePlayerId) {
+    answerTimes[gamePlayerId] = Number(((Date.now() - songStartTime) / 1000).toFixed(3));
+}
+
+// answer time in seconds for answer results (max guess time if never submitted)
+function getCslAnswerTiming(gamePlayerId) {
+    if (answerTimes[gamePlayerId] != null) return answerTimes[gamePlayerId];
+    return guessTime + extraGuessTime;
+}
+
 // play a song
 function playSong(songNumber) {
     if (!quiz.cslActive || !quiz.inQuiz) return reset();
+    answerTimes = {};
     for (const key of Object.keys(quiz.players)) {
         currentAnswers[key] = "";
         cslMultiplayer.voteSkip[key] = false;
@@ -1460,6 +1473,7 @@ function endGuessPhase(songNumber) {
                         "level": quiz.players[player.gamePlayerId].level,
                         "correct": correct[player.gamePlayerId],
                         "score": score[player.gamePlayerId],
+                        "answerTimeing": getCslAnswerTiming(player.gamePlayerId),
                         "listStatus": null,
                         "showScore": null,
                         "position": Math.floor(player.gamePlayerId / 8) + 1,
@@ -1619,8 +1633,8 @@ function parseMessage(content, sender) {
     }
     else if (content === "§CSL13") { //player answered
         if (quiz.cslActive && player) {
-            const time = Number(((Date.now() - songStartTime) / 1000).toFixed(3));
-            fireListener("player answered", [{ answerTime: time, gamePlayerIds: [player.gamePlayerId] }]);
+            recordCslAnswerTime(player.gamePlayerId);
+            fireListener("player answered", [{ answerTime: answerTimes[player.gamePlayerId], gamePlayerIds: [player.gamePlayerId] }]);
         }
     }
     else if (content === "§CSL14") { //vote skip
@@ -1793,6 +1807,7 @@ function parseMessage(content, sender) {
                         "level": quiz.players[p.id].level,
                         "correct": p.correct,
                         "score": p.score,
+                        "answerTimeing": getCslAnswerTiming(p.id),
                         "listStatus": null,
                         "showScore": null,
                         "position": Math.floor(i / 8) + 1,
@@ -1941,6 +1956,7 @@ function reset() {
     cslState = 0;
     currentSong = 0;
     currentAnswers = {};
+    answerTimes = {};
     score = {};
     previousSongFinished = false;
     skipping = false;
@@ -2053,7 +2069,7 @@ function getAnisongdbData(mode, query, filters) {
     $("#cslgSongListCount").text("Loading...");
     $("#cslgSongListTable tbody").empty();
     let url, data;
-    let json = {
+    let body = {
         and_logic: false,
         ignore_duplicate: filters.ignoreDuplicates,
         opening_filter: filters.ops,
@@ -2069,14 +2085,14 @@ function getAnisongdbData(mode, query, filters) {
     };
     if (mode === "anime") {
         url = apiBase + "search_request";
-        json.anime_search_filter = {
+        body.anime_search_filter = {
             search: query,
             partial_match: filters.partial
         };
     }
     else if (mode === "artist") {
         url = apiBase + "search_request";
-        json.artist_search_filter = {
+        body.artist_search_filter = {
             search: query,
             partial_match: filters.partial,
             group_granularity: filters.minGroupMembers,
@@ -2085,43 +2101,43 @@ function getAnisongdbData(mode, query, filters) {
     }
     else if (mode === "song") {
         url = apiBase + "search_request";
-        json.song_name_search_filter = {
+        body.song_name_search_filter = {
             search: query,
             partial_match: filters.partial
         };
     }
     else if (mode === "composer") {
         url = apiBase + "search_request";
-        json.composer_search_filter = {
+        body.composer_search_filter = {
             search: query,
             partial_match: filters.partial,
             arrangement: filters.arrangement
         };
     }
     else if (mode === "season") {
-        json.season = query;
+        body.season = query;
         url = apiBase + "season_request";
     }
     else if (mode === "ann id") {
         url = apiBase + "ann_ids_request";
-        json.ann_ids = query.trim().split(/[\s,]+/).map(Number);
+        body.ann_ids = query.trim().split(/[\s,]+/).map(Number);
     }
     else if (mode === "mal id") {
         url = apiBase + "mal_ids_request";
-        json.mal_ids = query.trim().split(/[\s,]+/).map(Number);
+        body.mal_ids = query.trim().split(/[\s,]+/).map(Number);
     }
     else if (mode === "ann song id") {
         url = apiBase + "ann_song_ids_request";
-        json.ann_song_ids = query.trim().split(/[\s,]+/).map(Number);
+        body.ann_song_ids = query.trim().split(/[\s,]+/).map(Number);
     }
     else if (mode === "amq song id") {
         url = apiBase + "amq_song_ids_request";
-        json.amq_song_ids = query.trim().split(/[\s,]+/).map(Number);
+        body.amq_song_ids = query.trim().split(/[\s,]+/).map(Number);
     }
     data = {
         method: "POST",
-        headers: { "Accept": "application/json", "Content-Type": "application/json" },
-        body: JSON.stringify(json)
+        headers: { "Accept": "application/json", "Content-Type": "application/json", "X-Client-Id": "amqCustomSongListGame" },
+        body: JSON.stringify(body)
     };
     fetch(url, data)
         .then(res => res.json())
@@ -3058,8 +3074,7 @@ function getAnilistData(username, statuses, pageNumber) {
 // convert list of mal ids to anisongdb song list
 async function getSongListFromMalIds(malIds) {
     importedSongList = [];
-    if (!malIds) malIds = [];
-    if (malIds.length === 0) return;
+    if (!malIds?.length) return;
     $("#cslgListImportText").text(`Anime: 0 / ${malIds.length} | Songs: ${importedSongList.length}`);
     const url = apiBase + "mal_ids_request";
     let idsProcessed = 0;
@@ -3068,7 +3083,7 @@ async function getSongListFromMalIds(malIds) {
         idsProcessed += segment.length;
         const data = {
             method: "POST",
-            headers: { "Accept": "application/json", "Content-Type": "application/json" },
+            headers: { "Accept": "application/json", "Content-Type": "application/json", "X-Client-Id": "amqCustomSongListGame" },
             body: JSON.stringify({ "mal_ids": segment })
         };
         await fetch(url, data)
