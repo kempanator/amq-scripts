@@ -40,6 +40,7 @@ LOCALE_CODES = (
     "ja",      # Japanese
     "ko",      # Korean
     "nb",      # Norwegian Bokmål
+    "ru",      # Russian
     "es-ES",   # Spanish (Spain)
     "vi",      # Vietnamese
 )
