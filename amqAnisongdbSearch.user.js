@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Anisongdb Search
 // @namespace    https://github.com/kempanator
-// @version      0.32
+// @version      0.33
 // @description  Adds a window to search anisongdb.com in game
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -162,7 +162,7 @@ function setup() {
         .append($("<div>", { id: "adbsSettingsContainer", class: "tabSection", style: "padding: 10px;" })
             .append(`<table id="adbsHotkeyTable"><thead><tr><th>Action</th><th>Keybind</th></tr></thead><tbody></tbody></table>`)
             .append($("<div>", { style: "margin-top: 10px;" })
-                .append($("<span>", { text: "Song info Box Buttons" }))
+                .append($("<span>", { text: "Song info box buttons" }))
                 .append($("<div>", { class: "customCheckbox", style: "margin: 0 0 0 8px; vertical-align: middle;" })
                     .append($("<input>", { type: "checkbox", id: "adbsButtonsCheckbox", checked: injectSearchButtons })
                         .on("click", () => {
@@ -255,7 +255,7 @@ function setup() {
 function getAnisongdbData(mode, query, partial) {
     $("#adbsInfoText").text("Loading...");
     let url, data;
-    let json = {
+    let body = {
         and_logic: false,
         ignore_duplicate: false,
         opening_filter: true,
@@ -271,14 +271,14 @@ function getAnisongdbData(mode, query, partial) {
     };
     if (mode === "anime") {
         url = apiBase + "search_request";
-        json.anime_search_filter = {
+        body.anime_search_filter = {
             search: query,
             partial_match: partial
         };
     }
     else if (mode === "artist") {
         url = apiBase + "search_request";
-        json.artist_search_filter = {
+        body.artist_search_filter = {
             search: query,
             partial_match: partial,
             group_granularity: 0,
@@ -287,43 +287,43 @@ function getAnisongdbData(mode, query, partial) {
     }
     else if (mode === "song") {
         url = apiBase + "search_request";
-        json.song_name_search_filter = {
+        body.song_name_search_filter = {
             search: query,
             partial_match: partial
         };
     }
     else if (mode === "composer") {
         url = apiBase + "search_request";
-        json.composer_search_filter = {
+        body.composer_search_filter = {
             search: query,
             partial_match: partial,
             arrangement: false
         };
     }
     else if (mode === "season") {
-        json.season = query;
+        body.season = query;
         url = apiBase + "season_request";
     }
     else if (mode === "ann id") {
         url = apiBase + "ann_ids_request";
-        json.ann_ids = query.trim().split(/[\s,]+/).map(Number);
+        body.ann_ids = query.trim().split(/[\s,]+/).map(Number);
     }
     else if (mode === "mal id") {
         url = apiBase + "mal_ids_request";
-        json.mal_ids = query.trim().split(/[\s,]+/).map(Number);
+        body.mal_ids = query.trim().split(/[\s,]+/).map(Number);
     }
     else if (mode === "ann song id") {
         url = apiBase + "ann_song_ids_request";
-        json.ann_song_ids = query.trim().split(/[\s,]+/).map(Number);
+        body.ann_song_ids = query.trim().split(/[\s,]+/).map(Number);
     }
     else if (mode === "amq song id") {
         url = apiBase + "amq_song_ids_request";
-        json.amq_song_ids = query.trim().split(/[\s,]+/).map(Number);
+        body.amq_song_ids = query.trim().split(/[\s,]+/).map(Number);
     }
     data = {
         method: "POST",
-        headers: { "Accept": "application/json", "Content-Type": "application/json" },
-        body: JSON.stringify(json)
+        headers: { "Accept": "application/json", "Content-Type": "application/json", "X-Client-Id": "amqAnisongdbSearch" },
+        body: JSON.stringify(body)
     };
     fetch(url, data)
         .then(res => res.json())
