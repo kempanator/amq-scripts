@@ -22,6 +22,7 @@ retriver -> retriever
 detatched -> detached
 overriden -> overridden
 annivesary -> anniversary
+patroen -> patreon
 
 lastestMultiSettings
 $MAl_SHARE_CHECKBOX
