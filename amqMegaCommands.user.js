@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.172
+// @version      0.173
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -335,7 +335,7 @@ const dqMap = {
     "Made in Abyss": { genre: [2, 4, 6, 7, 11, 14], years: [2017, 2017], seasons: [2, 2] },
     "Girls' Last Tour": { genre: [2, 14, 15], years: [2017, 2017], seasons: [3, 3] },
     "Mirai Nikki": { genre: [1, 7, 11, 12, 17, 18], years: [2011, 2011], seasons: [3, 3] },
-    "Kamitsubaki City Under Construction": { genre: [10, 11, 17], years: [2025, 2025], seasons: [2, 2] },
+    "MF Ghost 3rd Season": { genre: [16], tags: [10], years: [2026, 2026], seasons: [0, 0] },
 };
 const dqTypeMap = {
     "OP": "Detective Conan",
@@ -4331,7 +4331,7 @@ async function parseCommand(messageText, type, target) {
             }
         }
         else if (/^\S+ (k|kutd|keepinguptodate)+$/.test(content)) {
-            const anime = "Kamitsubaki City Under Construction";
+            const anime = "MF Ghost 3rd Season";
             sendMessage(anime, type, target);
             matchSettingsToAnime(anime);
             autoThrow = { time: [3000, 5000], text: anime, multichoice: null };
