@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Anisongdb Utilities
 // @namespace    https://github.com/kempanator
-// @version      0.17
+// @version      0.18
 // @description  some extra functions for anisongdb.com
 // @author       kempanator
 // @match        https://anisongdb.com/*
@@ -22,9 +22,9 @@ Features:
 
 "use strict";
 const saveData = validateLocalStorage("anisongdbUtilities");
-const hostDict = { 1: "eudist", 2: "nawdist", 3: "naedist" };
-let fileHost = parseInt(saveData.fileHost);
-if (!hostDict.hasOwnProperty(fileHost)) fileHost = 0;
+const DIST_SERVERS = ["naedist", "nawdist", "eudist"];
+const savedDistServer = localStorage.getItem("distServer");
+let distServer = savedDistServer && DIST_SERVERS.includes(savedDistServer) ? savedDistServer : "naedist";
 let jsonDownloadRename = saveData.jsonDownloadRename ?? true;
 let defaultAdvanced = saveData.defaultAdvanced ?? false;
 let accentColor = normalizeHexColor(saveData.accentColor);
@@ -37,8 +37,6 @@ let hotKeys = {
 
 let settingsModal;
 let banner;
-let languageButton;
-let toggleAdvancedButton;
 let downloadJsonButton;
 
 const loadInterval = setInterval(() => {
@@ -54,12 +52,10 @@ function setup() {
     const ngId = Object.values(document.querySelector("app-root").attributes).map((x) => x.name).find((x) => x.startsWith("_nghost")).split("-")[2];
     banner = document.querySelector(`div[role="banner"]`);
     downloadJsonButton = document.querySelector("#search-download-json");
-    toggleAdvancedButton = document.querySelector("#search-toggle-advanced");
-    languageButton = document.querySelector("#anime-name-lang-toggle-label");
 
     // Alter the page on load
     if (defaultAdvanced) {
-        toggleAdvancedButton.click();
+        document.querySelector("#search-toggle-advanced")?.click();
     }
 
     // Create settings icon
@@ -71,7 +67,7 @@ function setup() {
     i.style.cursor = "pointer";
     i.style.fontSize = "28px";
     i.style.margin = "0 18px 0 0";
-    languageButton.insertAdjacentElement("afterend", i);
+    document.querySelector("#anime-name-lang-toggle-label")?.after(i);
 
     // Define hotkey actions
     const hotkeyActions = {
@@ -111,11 +107,6 @@ function setup() {
         if (event.target === settingsModal || event.target === banner) {
             toggleSettingsModal(false);
         }
-        setTimeout(() => {
-            if (document.querySelector("#myModal")) {
-                applyFileHostLinks();
-            }
-        }, 1)
         if (event.target.attributes.title?.value === "Listen to mp3") {
             setTimeout(() => {
                 const audio = document.querySelector("audio");
@@ -132,7 +123,7 @@ function setup() {
     });
     downloadJsonButton.addEventListener("click", () => {
         if (jsonDownloadRename) {
-            const inputs = document.querySelectorAll('input.textInputFilter[placeholder*="Search"]');
+            const inputs = document.querySelectorAll('input[type="search"]');
             const found = Array.from(inputs).find(e => e.value !== "");
             const name = found?.value || "anisongdb";
             downloadJsonButton.setAttribute("download", name + ".json");
@@ -150,7 +141,7 @@ function setup() {
             <p><label class="check"><input id="auAdvancedCheckbox" type="checkbox">Advanced view by default</label></p>
             <p><label class="check"><input id="auRenameJsonCheckbox" type="checkbox">Rename JSON to search input</label></p>
             <p><select id="auRadioSelect" class="selectFilter"><option value="0">none</option><option value="1">repeat</option><option value="2">loop all</option></select>Radio loop mode</p>
-            <p><select id="auHostChangeSelect" class="selectFilter"><option value="0">default</option><option value="1">eudist</option><option value="2">nawdist</option><option value="3">naedist</option></select>Change host</p>
+            <p><select id="auDistServerSelect" class="selectFilter"><option value="naedist">naedist</option><option value="nawdist">nawdist</option><option value="eudist">eudist</option></select>Dist server</p>
             <p><input id="auAccentColorPicker" type="color"${accentColor ? ` value="${accentColor}"` : ""}>Accent Color<i id="auAccentColorClear" class="fa fa-trash" aria-hidden="true" title="Reset accent color"></i></p>
             <table id="auHotkeyTable"><thead><tr><th>Action</th><th>Keybind</th></tr></thead><tbody></tbody></table>
         </div>
@@ -161,13 +152,13 @@ function setup() {
     const advancedCheckbox = document.querySelector("#auAdvancedCheckbox");
     const renameJsonCheckbox = document.querySelector("#auRenameJsonCheckbox");
     const radioSelect = document.querySelector("#auRadioSelect");
-    const hostChangeSelect = document.querySelector("#auHostChangeSelect");
+    const distServerSelect = document.querySelector("#auDistServerSelect");
     const accentColorPicker = document.querySelector("#auAccentColorPicker");
     const accentColorClear = document.querySelector("#auAccentColorClear");
     advancedCheckbox.checked = defaultAdvanced;
     renameJsonCheckbox.checked = jsonDownloadRename;
     radioSelect.value = loop;
-    hostChangeSelect.value = fileHost;
+    distServerSelect.value = distServer;
     if (accentColor) accentColorPicker.value = accentColor;
     advancedCheckbox.onclick = () => {
         defaultAdvanced = !defaultAdvanced;
@@ -181,10 +172,12 @@ function setup() {
         loop = parseInt(event.target.value);
         saveSettings();
     }
-    hostChangeSelect.onchange = (event) => {
-        fileHost = parseInt(event.target.value);
-        applyFileHostLinks();
-        saveSettings();
+    distServerSelect.onchange = (event) => {
+        const server = event.target.value;
+        if (server === distServer) return;
+        localStorage.setItem("distServer", server);
+        distServer = server;
+        location.reload();
     }
     accentColorPicker.oninput = (event) => {
         accentColor = event.target.value;
@@ -202,8 +195,6 @@ function setup() {
         { action: "prevSong", title: "Previous Song" },
         { action: "nextSong", title: "Next Song" },
     ]);
-    watchSongTableLinks();
-    applyFileHostLinks();
 }
 
 // Step through song list by certain amount
@@ -336,7 +327,6 @@ function validateLocalStorage(item) {
 // Save settings
 function saveSettings() {
     localStorage.setItem("anisongdbUtilities", JSON.stringify({
-        fileHost,
         jsonDownloadRename,
         defaultAdvanced,
         loop,
@@ -353,34 +343,6 @@ function normalizeHexColor(color) {
         return "#" + match.slice(1).map(n => parseInt(n, 10).toString(16).padStart(2, "0")).join("");
     }
     return null;
-}
-
-function rewriteAnimemusicquizUrl(url) {
-    if (!fileHost) return url;
-    return url.replace(/^https:\/\/\w+\.animemusicquiz\.com/, `https://${hostDict[fileHost]}.animemusicquiz.com`);
-}
-
-function applyFileHostLinks() {
-    if (!fileHost) return;
-    document.querySelectorAll("a.table-song-link").forEach(link => {
-        link.href = rewriteAnimemusicquizUrl(link.href);
-    });
-    for (const id of ["modal-720-link", "modal-480-link", "modal-mp3-link"]) {
-        const link = document.querySelector(`#${id}`);
-        if (!link) continue;
-        const newLink = rewriteAnimemusicquizUrl(link.href);
-        link.href = newLink;
-        const copyLabel = link.parentElement.querySelector("p");
-        if (copyLabel) {
-            copyLabel.onclick = () => navigator.clipboard.writeText(newLink);
-        }
-    }
-}
-
-function watchSongTableLinks() {
-    const table = document.querySelector("#table");
-    if (!table) return;
-    new MutationObserver(() => applyFileHostLinks()).observe(table, { childList: true, subtree: true });
 }
 
 // Copy Angular emulated encapsulation scope so site component styles apply to script UI
