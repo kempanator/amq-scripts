@@ -1,6 +1,6 @@
 /* ==UserStyle==
 @name         Elodie's AMQ Style Script
-@version      10.2.33
+@version      10.2.34
 @namespace    userstyles.world/user/melodyelodie
 @description  A custom theme for animemusicquiz.com
 @author       melodyelodie
@@ -166,7 +166,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         --wrongAnswerColorTransparent: color-mix(in srgb, var(--wrongAnswerColor), transparent 80%);
         --songHistoryCorrectColorHover: color-mix(in srgb, var(--songHistoryCorrectColor), white 5%);
         --songHistoryWrongColorHover: color-mix(in srgb, var(--songHistoryWrongColor), white 5%);
-        --elodieStyleScriptVersion: "10.2.33";
+        --elodieStyleScriptVersion: "10.2.34";
     }
     
     
@@ -227,7 +227,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         --wrongAnswerColorTransparent: color-mix(in srgb, var(--wrongAnswerColor), transparent 80%);
         --songHistoryCorrectColorHover: color-mix(in srgb, var(--songHistoryCorrectColor), white 15%);
         --songHistoryWrongColorHover: color-mix(in srgb, var(--songHistoryWrongColor), white 15%);
-        --elodieStyleScriptVersion: "10.2.33";
+        --elodieStyleScriptVersion: "10.2.34";
     }
     */
     
@@ -1094,6 +1094,10 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     .ppNameOptionsCategoryItemInner::before,
     .ppNameOptionsCategoryItemInner::after {
         background-color: var(--accentColorContrast);
+    }
+    #ncReserveNameButton.locked:hover {
+        background-color: var(--accentColor);
+        border-color: var(--accentColorDark);
     }
 
 
@@ -4328,6 +4332,23 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     }
     .customWindow .close:hover {
         opacity: .7;
+    }
+    #cqcQuizCreatorMessageAvatarSelectorWindow {
+        background-color: var(--primaryColorTransparent);
+        box-shadow: 0 5px 15px var(--boxShadowColor);
+    }
+    #cqcQuizCreatorMessageAvatarSelectorHeader {
+        background-color: var(--primaryColor);
+    }
+    .cqcAvatarSelectorTile {
+        background-color: var(--primaryColor);
+    }
+    .cqcAvatarSelectorTile.selected {
+        box-shadow: 0 0 10px 2px var(--accentColor);
+    }
+    #cqcQuizCreatorMessageAvatarSelectorFooter {
+        background-color: var(--primaryColor);
+        border-top: 1px solid var(--secondaryColor);
     }
 
 
