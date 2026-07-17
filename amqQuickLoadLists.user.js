@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Quick Load Lists
 // @namespace    https://github.com/kempanator
-// @version      0.29
+// @version      0.30
 // @description  Adds a window for saving and quick loading anime lists
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -45,16 +45,20 @@ const $malUsername = $("#malUserNameInput");
 const $malLastUpdate = $("#malLastUpdateDate");
 const $kitsuUsername = $("#kitsuUserNameInput");
 const $kitsuLastUpdate = $("#kitsuLastUpdated");
+const $animeoshiUsername = $("#animeOshiUserNameInput");
+const $animeoshiLastUpdate = $("#animeOshiLastUpdateDate");
 
 const listTypeMap = {
     anilist: "ANILIST",
     myanimelist: "MAL",
-    kitsu: "KITSU"
+    kitsu: "KITSU",
+    animeoshi: "ANIME_OSHI"
 };
 const usernameInputMap = {
     anilist: $anilistUsername,
     myanimelist: $malUsername,
-    kitsu: $kitsuUsername
+    kitsu: $kitsuUsername,
+    animeoshi: $animeoshiUsername
 };
 
 // setup
@@ -363,6 +367,7 @@ function shortenListType(type) {
     if (type === "anilist") return "ANI";
     if (type === "myanimelist") return "MAL";
     if (type === "kitsu") return "KIT";
+    if (type === "animeoshi") return "OSH";
     return "";
 }
 
@@ -371,6 +376,7 @@ function getListURL(username, type) {
     if (type === "anilist") return "https://anilist.co/user/" + username;
     if (type === "myanimelist") return "https://myanimelist.net/profile/" + username;
     if (type === "kitsu") return "https://kitsu.io/users/" + username;
+    if (type === "animeoshi") return "https://animeoshi.com/profile/" + username;
     return "";
 }
 
@@ -402,6 +408,7 @@ function handleLoadListResult(data) {
     if (type !== "anilist") removeAnilist();
     if (type !== "myanimelist") removeMyanimelist();
     if (type !== "kitsu") removeKitsu();
+    if (type !== "animeoshi") removeAnimeoshi();
 }
 
 // when you click a username in the table
@@ -466,6 +473,18 @@ function removeKitsu() {
     }
 }
 
+// remove animeoshi list
+function removeAnimeoshi() {
+    if ($animeoshiLastUpdate.text()) {
+        $animeoshiUsername.val("");
+        socket.sendCommand({
+            type: "library",
+            command: "update anime list",
+            data: { newUsername: "", listType: "ANIME_OSHI" }
+        });
+    }
+}
+
 // remove all lists
 function removeAllLists() {
     $("#qllTable .qllRow").removeClass("selected");
@@ -473,6 +492,7 @@ function removeAllLists() {
     removeAnilist();
     removeMyanimelist();
     removeKitsu();
+    removeAnimeoshi();
 }
 
 // check if your current list settings match any saved lists and mark the found list as selected
@@ -482,7 +502,8 @@ function checkSelectedList() {
     const usernames = {
         anilist: $anilistUsername.val().trim().toLowerCase(),
         myanimelist: $malUsername.val().trim().toLowerCase(),
-        kitsu: $kitsuUsername.val().trim().toLowerCase()
+        kitsu: $kitsuUsername.val().trim().toLowerCase(),
+        animeoshi: $animeoshiUsername.val().trim().toLowerCase()
     };
     const flags = {
         watching: options.$INCLUDE_WATCHING_CHECKBOX.prop("checked"),
@@ -521,6 +542,13 @@ function updateCurrentList() {
             type: "library",
             command: "update anime list",
             data: { newUsername: $kitsuUsername.val(), listType: "KITSU" }
+        });
+    }
+    else if ($animeoshiUsername.val()) {
+        socket.sendCommand({
+            type: "library",
+            command: "update anime list",
+            data: { newUsername: $animeoshiUsername.val(), listType: "ANIME_OSHI" }
         });
     }
 }
@@ -609,6 +637,7 @@ function createEditRow($table, username, type, watching, completed, hold, droppe
         .append("<option>anilist</option>")
         .append("<option>myanimelist</option>")
         .append("<option>kitsu</option>")
+        .append("<option>animeoshi</option>")
         .val(type)
         .appendTo($row);
 
