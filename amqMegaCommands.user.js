@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.173
+// @version      0.174
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -4186,14 +4186,21 @@ async function parseCommand(messageText, type, target) {
     else if (command === "list" || command === "animelist") {
         if (split.length === 2) {
             if (["status", "s"].includes(split[1])) {
-                if ($("#aniListUserNameInput").val()) {
-                    sendMessage("[anilist] " + $("#aniListUserNameInput").val() + " " + listCheckboxString(), type, target);
+                const anilist = $("#aniListUserNameInput").val();
+                const myanimelist = $("#malUserNameInput").val();
+                const kitsu = $("#kitsuUserNameInput").val();
+                const animeoshi = $("#animeoshiUserNameInput").val();
+                if (anilist) {
+                    sendMessage(`[anilist] ${anilist} ${listCheckboxString()}`, type, target);
                 }
-                else if ($("#malUserNameInput").val()) {
-                    sendMessage("[myanimelist] " + $("#malUserNameInput").val() + " " + listCheckboxString(), type, target);
+                else if (myanimelist) {
+                    sendMessage(`[myanimelist] ${myanimelist} ${listCheckboxString()}`, type, target);
                 }
-                else if ($("#kitsuUserNameInput").val()) {
-                    sendMessage("[kitsu] " + $("#kitsuUserNameInput").val() + " " + listCheckboxString(), type, target);
+                else if (kitsu) {
+                    sendMessage(`[kitsu] ${kitsu} ${listCheckboxString()}`, type, target);
+                }
+                else if (animeoshi) {
+                    sendMessage(`[animeoshi] ${animeoshi} ${listCheckboxString()}`, type, target);
                 }
                 else {
                     sendMessage("[no list]", type, target);
@@ -4219,7 +4226,8 @@ async function parseCommand(messageText, type, target) {
             const providers = {
                 a: { label: "anilist", selector: "#aniListUserNameInput", listType: "ANILIST" },
                 m: { label: "myanimelist", selector: "#malUserNameInput", listType: "MAL" },
-                k: { label: "kitsu", selector: "#kitsuUserNameInput", listType: "KITSU" }
+                k: { label: "kitsu", selector: "#kitsuUserNameInput", listType: "KITSU" },
+                o: { label: "animeoshi", selector: "#animeoshiUserNameInput", listType: "ANIME_OSHI" },
             }
             const prov = providers[option];
             if (prov) {
@@ -4235,6 +4243,7 @@ async function parseCommand(messageText, type, target) {
                     if (option !== "a") removeAnilist();
                     if (option !== "m") removeMyanimelist();
                     if (option !== "k") removeKitsu();
+                    if (option !== "o") removeAnimeoshi();
                 });
                 listener.bindListener();
                 socket.sendCommand({
@@ -6002,11 +6011,20 @@ function removeKitsu() {
     }
 }
 
+// remove animeoshi
+function removeAnimeoshi() {
+    if ($("#animeOshiLastUpdateDate").text()) {
+        $("#animeoshiUserNameInput").val("");
+        socket.sendCommand({ type: "library", command: "update anime list", data: { newUsername: "", listType: "ANIME_OSHI" } });
+    }
+}
+
 // remove all lists
 function removeAllLists() {
     removeAnilist();
     removeMyanimelist();
     removeKitsu();
+    removeAnimeoshi();
 }
 
 // set the status of the Anime Lists checkbox and send the command to the server
