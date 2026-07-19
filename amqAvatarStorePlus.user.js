@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Avatar Store Plus
 // @namespace    https://github.com/kempanator
-// @version      0.6
+// @version      0.7
 // @description  More features for the avatar store
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -17,6 +17,7 @@ IMPORTANT: disable these scripts before installing
 
 New Features:
 - Improved filtering system
+- Option to hide filtered-out avatars instead of dimming them
 - Search avatar colors, jump to the next match
 - Display skin ownership counts
 - Bulk buy multiple skins on the current page
@@ -41,6 +42,7 @@ let avatarTileGap = saveData.avatarTileGap ?? "";
 let avatarInfoLogging = saveData.avatarInfoLogging ?? false;
 let disableBulkBuy = saveData.disableBulkBuy ?? false;
 let legacyAvatarStoreFilters = saveData.legacyAvatarStoreFilters ?? false;
+let hideFilteredAvatars = saveData.hideFilteredAvatars ?? false;
 let wishlist = normalizeWishlistFromStorage(saveData.wishlist);
 let wishlistSort = normalizeWishlistSort(saveData.wishlistSort);
 let hotKeys = {
@@ -55,8 +57,9 @@ let $wishlist;
 let $aspColorNames;
 let aspStoreColorCatalogRankMap = new Map();
 
-CURRENCY_BASE_URL = "https://animemusicquiz.com/cdn/v1/ui/currency/30px/";
-TIER_MAP = {
+const BULK_BUY_DELAY_MS = 100;
+const CURRENCY_BASE_URL = "https://animemusicquiz.com/cdn/v1/ui/currency/30px/";
+const TIER_MAP = {
     0: {
         name: "Standard",
         title: "Note-priced skins",
@@ -321,6 +324,12 @@ function setup() {
                 </label>
             </div>
             <div class="asp-settings-checkbox-row">
+                <label for="aspHideFilteredAvatars">
+                    <input type="checkbox" id="aspHideFilteredAvatars" title="Hide outfit and color tiles that do not match the current filters instead of dimming them">
+                    Hide filtered-out avatars
+                </label>
+            </div>
+            <div class="asp-settings-checkbox-row">
                 <label for="aspAvatarInfoLogging">
                     <input type="checkbox" id="aspAvatarInfoLogging" title="Log store tile info on click">
                     Log store tile info on click
@@ -549,6 +558,13 @@ function setup() {
             saveSettings();
             applyAspStoreTopPanelsMode();
         });
+    $("#aspHideFilteredAvatars")
+        .prop("checked", hideFilteredAvatars)
+        .on("change", function () {
+            hideFilteredAvatars = this.checked;
+            saveSettings();
+            refreshAspStoreGridForFilterHide();
+        });
     $("#aspSettingsExport").on("click", () => {
         exportAvatarStorePlusData();
     });
@@ -602,7 +618,8 @@ function setup() {
     new Listener("decoration unlocked", () => updateSearchPanel()).bindListener();
     new Listener("decoration locked", () => updateSearchPanel()).bindListener();
 
-    // Show event-locked colors in the color grid (client filters them out of displayContent)
+    // Show event-locked colors in the color grid (client filters them out of displayContent).
+    // When hideFilteredAvatars is on, StoreMainContainer.displayContent drops non-matching tiles.
     StoreAvatar.prototype.displayColors = function () {
         this.mainContainer.displayContent(this.colors);
         if (!this.colorsLoaded) {
@@ -611,6 +628,26 @@ function setup() {
         }
         this.iconSelected = true;
         this.parentCharacter.active = false;
+    };
+
+    const origDisplayContent = StoreMainContainer.prototype.displayContent;
+    StoreMainContainer.prototype.displayContent = function (contentList) {
+        if (hideFilteredAvatars && contentList?.length) {
+            const sample = contentList[0];
+            if (sample instanceof StoreColor) {
+                contentList = contentList.filter((c) => c.inFilter);
+            }
+            else if (sample instanceof StoreAvatar) {
+                contentList = contentList.filter((a) => a.inFilter);
+            }
+        }
+        return origDisplayContent.call(this, contentList);
+    };
+
+    const origFilterChangeEvent = storeWindow.filterChangeEvent.bind(storeWindow);
+    storeWindow.filterChangeEvent = function () {
+        origFilterChangeEvent();
+        if (hideFilteredAvatars) refreshAspStoreGridForFilterHide();
     };
 
     createHotkeyTable([
@@ -658,6 +695,7 @@ function setup() {
             <b>Adds new features to the avatar store:</b>
             <ul>
                 <li>Improved filtering system</li>
+                <li>Option to hide filtered-out avatars instead of dimming them</li>
                 <li>Search avatar colors, jump to the next match</li>
                 <li>Display skin ownership counts</li>
                 <li>Bulk buy multiple skins on the current page</li>
@@ -783,6 +821,44 @@ function applyAspStoreTopFilters() {
         character.inFilter = anyAvatarIn;
     }
     $("#aspStfFilterCount").text(matchCount).attr("title", `${matchCount} skins match the current filters`);
+    if (hideFilteredAvatars) refreshAspStoreGridForFilterHide();
+}
+
+/**
+ * Re-renders the open outfit/color grid so hide-vs-dim matches current inFilter flags.
+ * No-op when the main pane is not showing StoreAvatar or StoreColor tiles.
+ * If the grid was emptied by a filter with no matches, recovers from the current selection.
+ */
+function refreshAspStoreGridForFilterHide() {
+    const content = storeWindow.mainContainer.currentContent;
+    if (content.length) {
+        const sample = content[0];
+        if (sample instanceof StoreColor) {
+            sample.avatar.displayColors();
+            kickStoreLazyLoadsAfterLayout();
+            return;
+        }
+        if (sample instanceof StoreAvatar) {
+            storeWindow.mainContainer.displayContent(sample.parentCharacter.avatars);
+            kickStoreLazyLoadsAfterLayout();
+            return;
+        }
+        return;
+    }
+    for (const character of storeWindow.topBar.characters) {
+        const selectedAvatar = character.avatars.find((a) => a.iconSelected);
+        if (selectedAvatar) {
+            selectedAvatar.displayColors();
+            kickStoreLazyLoadsAfterLayout();
+            return;
+        }
+    }
+    const selectedIcon = storeWindow.topBar.selectedCategory;
+    if (!selectedIcon) return;
+    const character = storeWindow.topBar.characters.find((c) => c.topIcon === selectedIcon);
+    if (!character) return;
+    storeWindow.mainContainer.displayContent(character.avatars);
+    kickStoreLazyLoadsAfterLayout();
 }
 
 // Trims and lowercases user text for search and filter matching
@@ -1727,11 +1803,15 @@ function bulkBuy(candidates) {
             return;
         }
 
-        for (const color of ordered) {
+        for (let i = 0; i < ordered.length; i++) {
+            const color = ordered[i];
             const avatarId = color.avatar.avatarId;
             const colorId = color.colorId;
             try {
                 await sendUnlockAvatarAndWait(avatarId, colorId);
+                if (i < ordered.length - 1) {
+                    await new Promise((resolve) => setTimeout(resolve, BULK_BUY_DELAY_MS));
+                }
             } catch (err) {
                 Swal.fire({
                     title: "Bulk buy stopped",
@@ -2032,6 +2112,7 @@ function saveSettings() {
         avatarInfoLogging,
         disableBulkBuy,
         legacyAvatarStoreFilters,
+        hideFilteredAvatars,
         wishlistSort,
         wishlist,
     }));
@@ -2046,6 +2127,7 @@ function exportAvatarStorePlusData() {
         avatarInfoLogging,
         disableBulkBuy,
         legacyAvatarStoreFilters,
+        hideFilteredAvatars,
         wishlistSort,
         wishlist,
     }, null, 2);
@@ -2100,6 +2182,9 @@ function applyAvatarStorePlusImportData(data) {
     if (data.legacyAvatarStoreFilters != null) {
         legacyAvatarStoreFilters = Boolean(data.legacyAvatarStoreFilters);
     }
+    if (data.hideFilteredAvatars != null) {
+        hideFilteredAvatars = Boolean(data.hideFilteredAvatars);
+    }
     if (data.wishlist != null) {
         if (!Array.isArray(data.wishlist)) {
             return { ok: false, message: "wishlist must be an array." };
@@ -2115,7 +2200,9 @@ function applyAvatarStorePlusImportData(data) {
     $("#aspAvatarInfoLogging").prop("checked", avatarInfoLogging);
     $("#aspDisableBulkBuy").prop("checked", disableBulkBuy);
     $("#aspLegacyFiltersToggle").prop("checked", legacyAvatarStoreFilters);
+    $("#aspHideFilteredAvatars").prop("checked", hideFilteredAvatars);
     applyAspStoreTopPanelsMode();
+    refreshAspStoreGridForFilterHide();
     $(`#aspHotkeyTable input.hk-input[data-action]`).each(function () {
         const action = $(this).data("action");
         $(this).val(bindingToText(hotKeys[action]));
