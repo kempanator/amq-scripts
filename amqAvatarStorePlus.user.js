@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Avatar Store Plus
 // @namespace    https://github.com/kempanator
-// @version      0.7
+// @version      0.8
 // @description  More features for the avatar store
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -57,7 +57,7 @@ let $wishlist;
 let $aspColorNames;
 let aspStoreColorCatalogRankMap = new Map();
 
-const BULK_BUY_DELAY_MS = 100;
+const BULK_BUY_DELAY_MS = 200;
 const CURRENCY_BASE_URL = "https://animemusicquiz.com/cdn/v1/ui/currency/30px/";
 const TIER_MAP = {
     0: {
@@ -1712,10 +1712,10 @@ function bulkBuy(candidates) {
     else { // ensures the default color is bought first
         const defaultColor = candidates.find((c) => c.colorId === avatar.defaultColorId);
         if (!defaultColor) {
-            console.error("[Avatar Store Plus] bulkBuy: default color not in candidates", {
-                avatarId: avatar.avatarId,
-                defaultColorId: avatar.defaultColorId,
-                colorIds: candidates.map((c) => c.colorId),
+            Swal.fire({
+                title: "Cannot bulk buy",
+                text: "This outfit's default color is unowned and filtered out. Please include it and try again.",
+                icon: "info",
             });
             return;
         }
@@ -1756,7 +1756,7 @@ function bulkBuy(candidates) {
         }
         Swal.fire({
             title: "Not enough notes or rhythm",
-            html: `<p>Unlocks: <b>${candidates.length} skins</b></p>` + need.join(""),
+            html: `<p>Buy: <b>${candidates.length} skins</b></p>` + need.join(""),
             icon: "error",
         });
         return;
@@ -1808,10 +1808,8 @@ function bulkBuy(candidates) {
             const avatarId = color.avatar.avatarId;
             const colorId = color.colorId;
             try {
+                await new Promise((resolve) => setTimeout(resolve, BULK_BUY_DELAY_MS));
                 await sendUnlockAvatarAndWait(avatarId, colorId);
-                if (i < ordered.length - 1) {
-                    await new Promise((resolve) => setTimeout(resolve, BULK_BUY_DELAY_MS));
-                }
             } catch (err) {
                 Swal.fire({
                     title: "Bulk buy stopped",
