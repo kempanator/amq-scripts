@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Avatar Store Plus
 // @namespace    https://github.com/kempanator
-// @version      0.8
+// @version      0.9
 // @description  More features for the avatar store
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -648,6 +648,7 @@ function setup() {
     storeWindow.filterChangeEvent = function () {
         origFilterChangeEvent();
         if (hideFilteredAvatars) refreshAspStoreGridForFilterHide();
+        applyAvatarSearchFilter();
     };
 
     createHotkeyTable([
@@ -822,6 +823,7 @@ function applyAspStoreTopFilters() {
     }
     $("#aspStfFilterCount").text(matchCount).attr("title", `${matchCount} skins match the current filters`);
     if (hideFilteredAvatars) refreshAspStoreGridForFilterHide();
+    applyAvatarSearchFilter();
 }
 
 /**
@@ -894,17 +896,14 @@ function storeColorSearchHaystack(c) {
         .replace(/\s+/g, " ");
 }
 
-// Counts StoreColor entries in the full catalog whose haystack contains the query
+// Counts StoreColor entries in the catalog that pass current filters and whose haystack contains the query
 function countAllStoreSearchMatches(query) {
     let count = 0;
     for (const character of storeWindow.topBar.characters) {
         for (const avatar of character.avatars) {
-            if (!query) {
-                count += avatar.colors.length;
-                continue;
-            }
             for (const color of avatar.colors) {
-                if (storeColorSearchHaystack(color).includes(query)) {
+                if (!color.inFilter) continue;
+                if (!query || storeColorSearchHaystack(color).includes(query)) {
                     count++;
                 }
             }
@@ -914,21 +913,22 @@ function countAllStoreSearchMatches(query) {
 }
 
 /**
- * Ordered list of { character, avatar } outfit pages.
- * With a query, only outfits whose colors match are included; without a query, every outfit is a page.
- * Prev/next steps between outfits (sub-pages), not only between characters.
+ * Ordered list of { character, avatar } outfit pages that pass current filters.
+ * With a query, only outfits with a matching in-filter color are included; without a query, every
+ * in-filter outfit is a page. Prev/next steps between outfits (sub-pages), not only between characters.
  */
 function getOutfitPages(query) {
     query = normalizeSearchQuery(query);
     const pages = [];
     for (const character of storeWindow.topBar.characters) {
         for (const avatar of character.avatars) {
+            if (!avatar.inFilter) continue;
             if (!query) {
                 pages.push({ character, avatar });
                 continue;
             }
             for (const color of avatar.colors) {
-                if (storeColorSearchHaystack(color).includes(query)) {
+                if (color.inFilter && storeColorSearchHaystack(color).includes(query)) {
                     pages.push({ character, avatar });
                     break;
                 }
@@ -1545,14 +1545,14 @@ function updateSearchPanel() {
     const pages = getOutfitPages(query);
     const $tiles = $("#swContentAvatarContainer .swAvatarTile");
 
-    // Matches / skins line
+    // Matches / skins line (catalog totals respect current top filters via inFilter)
     if (query) {
         const visibleMatches = $tiles.not(".asp-search-hidden").length;
         const storeMatches = countAllStoreSearchMatches(query);
         $("#aspSearchMatches").html(`Matches: <b>${visibleMatches}</b> here · <b>${storeMatches}</b> in store`);
     }
     else {
-        const catalogTotal = getAllStoreColors().length;
+        const catalogTotal = countAllStoreSearchMatches("");
         $("#aspSearchMatches").html(`Skins: <b>${$tiles.length}</b> here · <b>${catalogTotal}</b> in store`);
     }
 
@@ -1574,7 +1574,7 @@ function updateSearchPanel() {
     renderContextBreakdown(ctx.breakdown);
 }
 
-// Substring match on tile footer text + class names (avatar / outfit / color from store tiles)
+// Substring match on tile footer text + class names; also requires the tile's model to pass top filters
 function applyAvatarSearchFilter() {
     const query = normalizeSearchQuery($searchInput.val());
     const $tiles = $("#swContentAvatarContainer .swAvatarTile");
@@ -1585,8 +1585,11 @@ function applyAvatarSearchFilter() {
     }
     $tiles.each(function () {
         const $tile = $(this);
+        const model = resolveStoreModelFromAvatarTile($tile);
+        // StoreColor / StoreAvatar use inFilter; other tile types (emotes, etc.) stay text-only
+        const passesFilter = model?.inFilter !== false;
         const hay = tileSearchHaystack($tile);
-        $tile.toggleClass("asp-search-hidden", !hay.includes(query));
+        $tile.toggleClass("asp-search-hidden", !passesFilter || !hay.includes(query));
     });
     updateSearchPanel();
 }
