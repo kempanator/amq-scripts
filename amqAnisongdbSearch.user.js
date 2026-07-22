@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Anisongdb Search
 // @namespace    https://github.com/kempanator
-// @version      0.33
+// @version      0.34
 // @description  Adds a window to search anisongdb.com in game
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -127,8 +127,8 @@ function setup() {
                         doSearch();
                     }))
                 .append($("<label>", { class: "clickable", style: "padding: 0 4px 0 0; margin: 0 0 0 10px; vertical-align: middle;" })
-                    .append("Partial")
                     .append($("<input>", { id: "adbsPartialCheckbox", type: "checkbox", checked: true }))
+                    .append("Partial")
                 )
             )
             .append($("<table>", { id: "adbsTable", class: "styledTable" })
@@ -581,10 +581,10 @@ function applyStyles() {
             opacity: .8;
         }
         #anisongdbWindow input[type="checkbox"] {
-            width: 17px;
-            height: 17px;
-            margin: 0 0 0 3px;
-            vertical-align: -4px;
+            width: 15px;
+            height: 15px;
+            margin: 0 3px 0 0;
+            vertical-align: -2px;
         }
         #anisongdbWindow button {
             color: black;
