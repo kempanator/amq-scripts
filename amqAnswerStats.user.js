@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Answer Stats
 // @namespace    https://github.com/kempanator
-// @version      0.58
+// @version      0.59
 // @description  Adds a window to display quiz answer stats
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -745,16 +745,18 @@ function setup() {
                 .on("click", () => {
                     displayAnswerCompareResults($("#answerCompareSearchInput").val());
                 }))
-            .append($("<label>", { class: "clickAble", style: "margin-left: 10px;", text: "Correct" })
+            .append($("<label>", { class: "clickAble", style: "margin-left: 10px;" })
                 .append($("<input>", { id: "answerCompareHighlightCorrectCheckbox", type: "checkbox" })
                     .on("click", () => {
                         setTimeout(() => { displayAnswerCompareResults($("#answerCompareSearchInput").val()) }, 1);
-                    })))
-            .append($("<label>", { class: "clickAble", style: "margin-left: 10px;", text: "Wrong" })
+                    }))
+                .append("Correct"))
+            .append($("<label>", { class: "clickAble", style: "margin-left: 10px;" })
                 .append($("<input>", { id: "answerCompareHighlightWrongCheckbox", type: "checkbox" })
                     .on("click", () => {
                         setTimeout(() => { displayAnswerCompareResults($("#answerCompareSearchInput").val()) }, 1);
-                    })))
+                    }))
+                .append("Wrong"))
         );
     $answerCompareSearchInput = answerCompareWindow.window.find("#answerCompareSearchInput");
 
@@ -1960,10 +1962,10 @@ function applyStyles() {
             padding: 0 5px;
         }
         #answerCompareWindow .modal-header input[type="checkbox"] {
-            width: 20px;
-            height: 20px;
-            margin-left: 3px;
-            vertical-align: -5px;
+            width: 15px;
+            height: 15px;
+            margin: 0 3px 0 0;
+            vertical-align: -2px;
             cursor: pointer;
         }
         #answerCompareWindow .modal-header i.fa-times:hover {
