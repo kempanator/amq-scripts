@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.101
+// @version      0.102
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -442,24 +442,24 @@ function setup() {
                                 </div>
                                 <div id="cslgAnisongdbFilterOptions" style="display: none; margin-top: 7px;">
                                     <div>
-                                        <label class="clickAble">Partial Match<input id="cslgAnisongdbPartialCheckbox" type="checkbox" checked></label>
-                                        <label class="clickAble" style="margin-left: 20px">OP<input id="cslgAnisongdbOPCheckbox" type="checkbox" checked></label>
-                                        <label class="clickAble" style="margin-left: 7px">ED<input id="cslgAnisongdbEDCheckbox" type="checkbox" checked></label>
-                                        <label class="clickAble" style="margin-left: 7px">IN<input id="cslgAnisongdbINCheckbox" type="checkbox" checked></label>
-                                        <label class="clickAble" style="margin-left: 20px">Ignore Duplicates<input id="cslgAnisongdbIgnoreDuplicatesCheckbox" type="checkbox"></label>
-                                        <label class="clickAble" style="margin-left: 20px">Arrangement<input id="cslgAnisongdbArrangementCheckbox" type="checkbox" checked></label>
+                                        <label class="clickAble"><input id="cslgAnisongdbPartialCheckbox" type="checkbox" checked>Partial Match</label>
+                                        <label class="clickAble" style="margin-left: 20px"><input id="cslgAnisongdbOPCheckbox" type="checkbox" checked>OP</label>
+                                        <label class="clickAble" style="margin-left: 7px"><input id="cslgAnisongdbEDCheckbox" type="checkbox" checked>ED</label>
+                                        <label class="clickAble" style="margin-left: 7px"><input id="cslgAnisongdbINCheckbox" type="checkbox" checked>IN</label>
+                                        <label class="clickAble" style="margin-left: 20px"><input id="cslgAnisongdbIgnoreDuplicatesCheckbox" type="checkbox">Ignore Duplicates</label>
+                                        <label class="clickAble" style="margin-left: 20px"><input id="cslgAnisongdbArrangementCheckbox" type="checkbox" checked>Arrangement</label>
                                     </div>
                                     <div>
-                                        <label class="clickAble">Normal Broadcasts<input id="cslgAnisongdbNormalCheckbox" type="checkbox" checked></label>
-                                        <label class="clickAble" style="margin-left: 10px">Dubs<input id="cslgAnisongdbDubCheckbox" type="checkbox" checked></label>
-                                        <label class="clickAble" style="margin-left: 10px">Rebroadcasts<input id="cslgAnisongdbRebroadcastCheckbox" type="checkbox" checked></label>
+                                        <label class="clickAble"><input id="cslgAnisongdbNormalCheckbox" type="checkbox" checked>Normal Broadcasts</label>
+                                        <label class="clickAble" style="margin-left: 10px"><input id="cslgAnisongdbDubCheckbox" type="checkbox" checked>Dubs</label>
+                                        <label class="clickAble" style="margin-left: 10px"><input id="cslgAnisongdbRebroadcastCheckbox" type="checkbox" checked>Rebroadcasts</label>
                                         <label class="clickAble" style="margin-left: 90px">Max Other People<input id="cslgAnisongdbMaxOtherPeopleInput" type="text" style="color: black; font-weight: normal; width: 40px; margin-left: 3px;"></label>
                                     </div>
                                     <div>
-                                        <label class="clickAble">Standard<input id="cslgAnisongdbStandardCheckbox" type="checkbox" checked></label>
-                                        <label class="clickAble" style="margin-left: 10px">Character<input id="cslgAnisongdbCharacterCheckbox" type="checkbox" checked></label>
-                                        <label class="clickAble" style="margin-left: 10px">Chanting<input id="cslgAnisongdbChantingCheckbox" type="checkbox" checked></label>
-                                        <label class="clickAble" style="margin-left: 10px">Instrumental<input id="cslgAnisongdbInstrumentalCheckbox" type="checkbox" checked></label>
+                                        <label class="clickAble"><input id="cslgAnisongdbStandardCheckbox" type="checkbox" checked>Standard</label>
+                                        <label class="clickAble" style="margin-left: 10px"><input id="cslgAnisongdbCharacterCheckbox" type="checkbox" checked>Character</label>
+                                        <label class="clickAble" style="margin-left: 10px"><input id="cslgAnisongdbChantingCheckbox" type="checkbox" checked>Chanting</label>
+                                        <label class="clickAble" style="margin-left: 10px"><input id="cslgAnisongdbInstrumentalCheckbox" type="checkbox" checked>Instrumental</label>
                                         <label class="clickAble" style="margin-left: 38px">Min Group Members<input id="cslgAnisongdbMinGroupMembersInput" type="text" style="color: black; font-weight: normal; width: 40px; margin-left: 3px;"></label>
                                     </div>
                                 </div>
@@ -520,33 +520,33 @@ function setup() {
                             </div>
                             <div style="margin-top: 5px">
                                 <span style="font-size: 18px; font-weight: bold; margin-right: 15px;">Song Types:</span>
-                                <label class="clickAble">OP<input id="cslgSettingsOPCheckbox" type="checkbox" checked></label>
-                                <label class="clickAble" style="margin-left: 10px">ED<input id="cslgSettingsEDCheckbox" type="checkbox" checked></label>
-                                <label class="clickAble" style="margin-left: 10px">IN<input id="cslgSettingsINCheckbox" type="checkbox" checked></label>
+                                <label class="clickAble"><input id="cslgSettingsOPCheckbox" type="checkbox" checked>OP</label>
+                                <label class="clickAble" style="margin-left: 10px"><input id="cslgSettingsEDCheckbox" type="checkbox" checked>ED</label>
+                                <label class="clickAble" style="margin-left: 10px"><input id="cslgSettingsINCheckbox" type="checkbox" checked>IN</label>
                             </div>
                             <div style="margin-top: 5px">
                                 <span style="font-size: 18px; font-weight: bold; margin-right: 15px;">Anime Types:</span>
-                                <label class="clickAble">TV<input id="cslgSettingsTVCheckbox" type="checkbox" checked></label>
-                                <label class="clickAble" style="margin-left: 10px">Movie<input id="cslgSettingsMovieCheckbox" type="checkbox" checked></label>
-                                <label class="clickAble" style="margin-left: 10px">OVA<input id="cslgSettingsOVACheckbox" type="checkbox" checked></label>
-                                <label class="clickAble" style="margin-left: 10px">ONA<input id="cslgSettingsONACheckbox" type="checkbox" checked></label>
-                                <label class="clickAble" style="margin-left: 10px">Special<input id="cslgSettingsSpecialCheckbox" type="checkbox" checked></label>
-                                <label class="clickAble" style="margin-left: 10px">Doujin<input id="cslgSettingsDoujinCheckbox" type="checkbox" checked></label>
+                                <label class="clickAble"><input id="cslgSettingsTVCheckbox" type="checkbox" checked>TV</label>
+                                <label class="clickAble" style="margin-left: 10px"><input id="cslgSettingsMovieCheckbox" type="checkbox" checked>Movie</label>
+                                <label class="clickAble" style="margin-left: 10px"><input id="cslgSettingsOVACheckbox" type="checkbox" checked>OVA</label>
+                                <label class="clickAble" style="margin-left: 10px"><input id="cslgSettingsONACheckbox" type="checkbox" checked>ONA</label>
+                                <label class="clickAble" style="margin-left: 10px"><input id="cslgSettingsSpecialCheckbox" type="checkbox" checked>Special</label>
+                                <label class="clickAble" style="margin-left: 10px"><input id="cslgSettingsDoujinCheckbox" type="checkbox" checked>Doujin</label>
                             </div>
                             <div style="margin-top: 5px">
                                 <span style="font-size: 18px; font-weight: bold; margin-right: 15px;">Broadcast Types:</span>
-                                <label class="clickAble">Dub<input id="cslgSettingsDubCheckbox" type="checkbox" checked></label>
-                                <label class="clickAble" style="margin-left: 10px">Rebroadcast<input id="cslgSettingsRebroadcastCheckbox" type="checkbox" checked></label>
+                                <label class="clickAble"><input id="cslgSettingsDubCheckbox" type="checkbox" checked>Dub</label>
+                                <label class="clickAble" style="margin-left: 10px"><input id="cslgSettingsRebroadcastCheckbox" type="checkbox" checked>Rebroadcast</label>
                             </div>
                             <div style="margin-top: 5px">
                                 <span style="font-size: 18px; font-weight: bold; margin-right: 15px;">Guess:</span>
-                                <label class="clickAble">Correct<input id="cslgSettingsCorrectGuessCheckbox" type="checkbox" checked></label>
-                                <label class="clickAble" style="margin-left: 10px">Wrong<input id="cslgSettingsIncorrectGuessCheckbox" type="checkbox" checked></label>
+                                <label class="clickAble"><input id="cslgSettingsCorrectGuessCheckbox" type="checkbox" checked>Correct</label>
+                                <label class="clickAble" style="margin-left: 10px"><input id="cslgSettingsIncorrectGuessCheckbox" type="checkbox" checked>Wrong</label>
                             </div>
                             <div style="margin-top: 5px">
                                 <span style="font-size: 18px; font-weight: bold; margin-right: 15px;">Gameplay Options:</span>
-                                <label class="clickAble">Full Song Range<input id="cslgSettingsFullSongRangeCheckbox" type="checkbox"></label>
-                                <label class="clickAble" style="margin-left: 20px">Fast Skip<input id="cslgSettingsFastSkipCheckbox" type="checkbox"></label>
+                                <label class="clickAble"><input id="cslgSettingsFullSongRangeCheckbox" type="checkbox">Full Song Range</label>
+                                <label class="clickAble" style="margin-left: 20px"><input id="cslgSettingsFastSkipCheckbox" type="checkbox">Fast Skip</label>
                             </div>
                             <div style="margin-top: 5px">
                                 <span style="font-size: 18px; font-weight: bold; margin: 0 10px 0 0;">Sample:</span>
@@ -644,11 +644,11 @@ function setup() {
                                 <button id="cslgListImportStartButton" style="color: black;">Go</button>
                             </div>
                             <div style="margin-top: 5px">
-                                <label class="clickAble">Watching<input id="cslgListImportWatchingCheckbox" type="checkbox" checked></label>
-                                <label class="clickAble" style="margin-left: 10px">Completed<input id="cslgListImportCompletedCheckbox" type="checkbox" checked></label>
-                                <label class="clickAble" style="margin-left: 10px">On Hold<input id="cslgListImportHoldCheckbox" type="checkbox" checked></label>
-                                <label class="clickAble" style="margin-left: 10px">Dropped<input id="cslgListImportDroppedCheckbox" type="checkbox" checked></label>
-                                <label class="clickAble" style="margin-left: 10px">Planning<input id="cslgListImportPlanningCheckbox" type="checkbox" checked></label>
+                                <label class="clickAble"><input id="cslgListImportWatchingCheckbox" type="checkbox" checked>Watching</label>
+                                <label class="clickAble" style="margin-left: 10px"><input id="cslgListImportCompletedCheckbox" type="checkbox" checked>Completed</label>
+                                <label class="clickAble" style="margin-left: 10px"><input id="cslgListImportHoldCheckbox" type="checkbox" checked>On Hold</label>
+                                <label class="clickAble" style="margin-left: 10px"><input id="cslgListImportDroppedCheckbox" type="checkbox" checked>Dropped</label>
+                                <label class="clickAble" style="margin-left: 10px"><input id="cslgListImportPlanningCheckbox" type="checkbox" checked>Planning</label>
                             </div>
                             <h4 id="cslgListImportText" style="margin-top: 10px;"></h4>
                             <div id="cslgListImportActionContainer" style="display: none;">
@@ -3187,30 +3187,16 @@ function saveSettings() {
 function applyStyles() {
     const tableHighlightColor = getComputedStyle(document.documentElement).getPropertyValue("--accentColorContrast") || "#4497ea";
     let css = /*css*/ `
+        #cslgSettingsModal input[type="checkbox"] {
+            width: 15px;
+            height: 15px;
+            margin: 0 3px 0 0;
+            vertical-align: -2px;
+            cursor: pointer;
+        }
         #lnCustomSongListButton {
             right: ${CSLButtonCSS};
             width: 80px;
-        }
-        #cslgSongListContainer input[type="radio"] {
-            width: 20px;
-            height: 20px;
-            margin-left: 3px;
-            vertical-align: -5px;
-            cursor: pointer;
-        }
-        #cslgAnisongdbSearchRow input[type="checkbox"] {
-            width: 20px;
-            height: 20px;
-            margin-left: 3px;
-            vertical-align: -5px;
-            cursor: pointer;
-        }
-        #cslgFilterListRow input[type="checkbox"] {
-            width: 20px;
-            height: 20px;
-            margin-left: 3px;
-            vertical-align: -5px;
-            cursor: pointer;
         }
         #cslgSongListTopRow i.fa:hover {
             opacity: .7;
@@ -3288,20 +3274,6 @@ function applyStyles() {
             font-weight: normal;
             margin-left: 3px;
         }
-        #cslgQuizSettingsContainer input[type="checkbox"] {
-            width: 20px;
-            height: 20px;
-            margin-left: 3px;
-            vertical-align: -5px;
-            cursor: pointer;
-        }
-        #cslgQuizSettingsContainer input[type="radio"] {
-            width: 20px;
-            height: 20px;
-            margin-left: 3px;
-            vertical-align: -5px;
-            cursor: pointer;
-        }
         #cslgAnswerTable {
             width: 100%;
             table-layout: fixed;
@@ -3339,13 +3311,6 @@ function applyStyles() {
         }
         table.styledTable tbody tr:nth-child(even) {
             background-color: #353535;
-        }
-        #cslgListImportContainer input[type="checkbox"] {
-            width: 20px;
-            height: 20px;
-            margin-left: 3px;
-            vertical-align: -5px;
-            cursor: pointer;
         }
     `;
     let style = document.getElementById("customSongListGameStyle");
