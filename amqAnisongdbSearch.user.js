@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Anisongdb Search
 // @namespace    https://github.com/kempanator
-// @version      0.34
+// @version      0.35
 // @description  Adds a window to search anisongdb.com in game
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -36,7 +36,7 @@ let hotKeys = {
     adbsWindow: loadHotkey("adbsWindow"),
     doAnimeSearch: loadHotkey("doAnimeSearch"),
     doArtistSearch: loadHotkey("doArtistSearch"),
-    doComposerSearch: loadHotkey("doComposerSearch")
+    doComposerSearch: loadHotkey("doComposerSearch"),
 }
 
 function setup() {
@@ -257,17 +257,7 @@ function getAnisongdbData(mode, query, partial) {
     let url, data;
     let body = {
         and_logic: false,
-        ignore_duplicate: false,
-        opening_filter: true,
-        ending_filter: true,
-        insert_filter: true,
-        normal_broadcast: true,
-        dub: true,
-        rebroadcast: true,
-        standard: true,
-        character: true,
-        chanting: true,
-        instrumental: true
+        ignore_duplicate: false
     };
     if (mode === "anime") {
         url = apiBase + "search_request";
@@ -280,9 +270,7 @@ function getAnisongdbData(mode, query, partial) {
         url = apiBase + "search_request";
         body.artist_search_filter = {
             search: query,
-            partial_match: partial,
-            group_granularity: 0,
-            max_other_artist: 99
+            partial_match: partial
         };
     }
     else if (mode === "song") {
@@ -296,8 +284,7 @@ function getAnisongdbData(mode, query, partial) {
         url = apiBase + "search_request";
         body.composer_search_filter = {
             search: query,
-            partial_match: partial,
-            arrangement: false
+            partial_match: partial
         };
     }
     else if (mode === "season") {
