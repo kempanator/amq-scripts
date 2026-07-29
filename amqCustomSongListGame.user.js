@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.102
+// @version      0.103
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -2186,11 +2186,11 @@ function handleData(data) {
         let animeEnglishName = song.animeEnglishName ?? song.animeENName ?? song.songInfo?.animeNames?.english ?? song.anime?.english ?? song.animeEnglish ?? song.animeEng ?? "";
         let altAnimeNames = song.altAnimeNames ?? song.songInfo?.altAnimeNames ?? [].concat(animeRomajiName, animeEnglishName, song.animeAltName || []);
         let altAnimeNamesAnswers = song.altAnimeNamesAnswers ?? song.songInfo?.altAnimeNamesAnswers ?? [];
-        let songArtist = song.songArtist ?? song.artist ?? song.songInfo?.artist ?? song.artistInfo?.name ?? song.artists?.[0]?.names?.[0] ?? "";
+        let songArtist = song.songArtist ?? song.artist ?? song.songInfo?.artist ?? song.artistInfo?.name ?? formatAnisongdbCreatorNames(song.artists) ?? "";
         let artistInfo = resolveCreatorInfo(song, "artistInfo", "artists", songArtist);
-        let songArranger = song.songArranger ?? song.arrangerInfo?.name ?? song.songInfo?.arrangerInfo?.name ?? song.arrangers?.[0]?.names?.[0] ?? "";
+        let songArranger = song.songArranger ?? song.arrangerInfo?.name ?? song.songInfo?.arrangerInfo?.name ?? formatAnisongdbCreatorNames(song.arrangers) ?? "";
         let arrangerInfo = resolveCreatorInfo(song, "arrangerInfo", "arrangers", songArranger);
-        let songComposer = song.songComposer ?? song.composerInfo?.name ?? song.songInfo?.composerInfo?.name ?? song.composers?.[0]?.names?.[0] ?? "";
+        let songComposer = song.songComposer ?? song.composerInfo?.name ?? song.songInfo?.composerInfo?.name ?? formatAnisongdbCreatorNames(song.composers) ?? "";
         let composerInfo = resolveCreatorInfo(song, "composerInfo", "composers", songComposer);
         let songName = song.songName ?? song.name ?? song.songInfo?.songName ?? "";
         let songType = song.songType ?? song.type ?? song.songInfo?.type ?? null;
@@ -2660,8 +2660,16 @@ function isArtistHoverInfo(info) {
     return Boolean(info && (info.artistId || info.groupId || info.memberArtists || info.memberGroups || info.memberInGroups?.length || info.altNames?.length));
 }
 
+// Join anisongdb artists/composers/arrangers[] names when songArtist/etc string fields are missing
+function formatAnisongdbCreatorNames(entries) {
+    if (!Array.isArray(entries) || !entries.length) return null;
+    const names = entries.map((entry) => entry?.names?.[0]).filter(Boolean);
+    return names.length ? names.join(" & ") : null;
+}
+
 function parseAnisongdbArtistEntry(entry) {
     // anisongdb uses artists/composers/arrangers[] with { id, names, members }; AMQ uses artistId or groupId.
+    // Hover only supports one id; multi-artist songs use the first entry for hover and the full credit string for name.
     if (!entry || entry.id == null) return null;
     const name = entry.names?.[0] ?? "";
     const hasMembers = Array.isArray(entry.members) && entry.members.length > 0;
@@ -2682,14 +2690,13 @@ function parseAnisongdbArtistEntry(entry) {
 }
 
 function resolveCreatorInfo(song, infoKey, anisongdbKey, nameFallback) {
-    // Prefer AMQ songInfo, then anisongdb array, else name-only (no hover)
+    // Prefer AMQ songInfo, then anisongdb array, else name-only (no hover).
+    // Always prefer nameFallback for display: quiz UI shows artistInfo.name, and multi-artist
+    // anisongdb songs have a full songArtist string ("A & B") while artists[] are individuals.
     const existing = song[infoKey] ?? song.songInfo?.[infoKey];
-    if (isArtistHoverInfo(existing)) {
-        return existing;
-    }
-    if (existing?.artistId || existing?.groupId) {
+    if (isArtistHoverInfo(existing) || existing?.artistId || existing?.groupId) {
         return {
-            name: existing.name ?? nameFallback,
+            name: nameFallback || existing.name || "",
             artistId: existing.artistId ?? null,
             groupId: existing.groupId ?? null,
             memberArtists: existing.memberArtists ?? [],
@@ -2698,10 +2705,14 @@ function resolveCreatorInfo(song, infoKey, anisongdbKey, nameFallback) {
             altNames: existing.altNames ?? []
         };
     }
-    const entry = song[anisongdbKey]?.[0];
+    const entries = song[anisongdbKey];
+    const entry = Array.isArray(entries) ? entries[0] : entries;
     if (entry) {
         const parsed = parseAnisongdbArtistEntry(entry);
-        if (parsed) return parsed;
+        if (parsed) {
+            parsed.name = nameFallback || parsed.name;
+            return parsed;
+        }
     }
     return nameFallback ? { name: nameFallback } : null;
 }
