@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Anisongdb Search
 // @namespace    https://github.com/kempanator
-// @version      0.35
+// @version      0.36
 // @description  Adds a window to search anisongdb.com in game
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -256,11 +256,11 @@ function getAnisongdbData(mode, query, partial) {
     $("#adbsInfoText").text("Loading...");
     let url, data;
     let body = {
-        and_logic: false,
         ignore_duplicate: false
     };
     if (mode === "anime") {
         url = apiBase + "search_request";
+        body.and_logic = false;
         body.anime_search_filter = {
             search: query,
             partial_match: partial
@@ -268,6 +268,7 @@ function getAnisongdbData(mode, query, partial) {
     }
     else if (mode === "artist") {
         url = apiBase + "search_request";
+        body.and_logic = false;
         body.artist_search_filter = {
             search: query,
             partial_match: partial
@@ -275,6 +276,7 @@ function getAnisongdbData(mode, query, partial) {
     }
     else if (mode === "song") {
         url = apiBase + "search_request";
+        body.and_logic = false;
         body.song_name_search_filter = {
             search: query,
             partial_match: partial
@@ -282,6 +284,7 @@ function getAnisongdbData(mode, query, partial) {
     }
     else if (mode === "composer") {
         url = apiBase + "search_request";
+        body.and_logic = false;
         body.composer_search_filter = {
             search: query,
             partial_match: partial
