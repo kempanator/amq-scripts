@@ -1,6 +1,6 @@
 /* ==UserStyle==
 @name         Elodie's AMQ Style Script
-@version      10.2.34
+@version      10.2.35
 @namespace    userstyles.world/user/melodyelodie
 @description  A custom theme for animemusicquiz.com
 @author       melodyelodie
@@ -166,7 +166,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         --wrongAnswerColorTransparent: color-mix(in srgb, var(--wrongAnswerColor), transparent 80%);
         --songHistoryCorrectColorHover: color-mix(in srgb, var(--songHistoryCorrectColor), white 5%);
         --songHistoryWrongColorHover: color-mix(in srgb, var(--songHistoryWrongColor), white 5%);
-        --elodieStyleScriptVersion: "10.2.34";
+        --elodieStyleScriptVersion: "10.2.35";
     }
     
     
@@ -227,7 +227,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
         --wrongAnswerColorTransparent: color-mix(in srgb, var(--wrongAnswerColor), transparent 80%);
         --songHistoryCorrectColorHover: color-mix(in srgb, var(--songHistoryCorrectColor), white 15%);
         --songHistoryWrongColorHover: color-mix(in srgb, var(--songHistoryWrongColor), white 15%);
-        --elodieStyleScriptVersion: "10.2.34";
+        --elodieStyleScriptVersion: "10.2.35";
     }
     */
     
@@ -248,6 +248,9 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     }
     textarea {
         background-color: var(--primaryColor);
+    }
+    input[type="checkbox"] {
+        accent-color: var(--accentColor);
     }
     .button:hover {
         box-shadow: 0 0 10px 2px var(--accentColor);
@@ -321,6 +324,7 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     }
     .popover {
         background-color: var(--primaryColor);
+        color: var(--textColor);
     }
     .popover-title {
         border-bottom: none;
@@ -3982,11 +3986,32 @@ https://github.com/kempanator/amq-scripts/raw/main/elodieStyleScript.user.css
     .cqsQuizEntryBadgeContainerInner {
         background-color: var(--secondaryColor);
     }
+    .cqsQuizEntryInfoContainer:before {
+        background-color: var(--secondaryColor);
+    }
+    .cqsQuizEntryTitleContainer {
+        background-color: var(--secondaryColor);
+    }
     .cqsQuizEntryAuthorContainer {
         background-color: var(--primaryColor);
     }
+    .cqsQuizEntryAuthor {
+        filter: none;
+    }
+    .cqsQuizEntryStatsContainer {
+        background-color: var(--secondaryColor);
+    }
+    .cqsQuizEntryTagContainer {
+        background-color: var(--secondaryColor);
+    }
     .cqsQuizEntryTag {
         background-color: var(--accentColor);
+    }
+    .cqsSideVersionItem {
+        text-shadow: 0 0 5px var(--accentColor);
+    }
+    .cqsSideVersionItem.selected {
+        color: var(--textColor);
     }
     .cqsSideButton {
         border-left: 2px solid var(--primaryColor);
