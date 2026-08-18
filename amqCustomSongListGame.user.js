@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.103
+// @version      0.104
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -2042,15 +2042,15 @@ function loadPreviousGameOptions() {
 function anisongdbDataSearch() {
     const mode = $("#cslgAnisongdbModeSelect").val().toLowerCase();
     const query = $("#cslgAnisongdbQueryInput").val();
-    const filters = {
+    const options = {
+        partial: $("#cslgAnisongdbPartialCheckbox").prop("checked"),
+        ignoreDuplicates: $("#cslgAnisongdbIgnoreDuplicatesCheckbox").prop("checked"),
+        maxOtherPeople: parseInt($("#cslgAnisongdbMaxOtherPeopleInput").val()),
+        minGroupMembers: parseInt($("#cslgAnisongdbMinGroupMembersInput").val()),
+        arrangement: $("#cslgAnisongdbArrangementCheckbox").prop("checked"),
         ops: $("#cslgAnisongdbOPCheckbox").prop("checked"),
         eds: $("#cslgAnisongdbEDCheckbox").prop("checked"),
         ins: $("#cslgAnisongdbINCheckbox").prop("checked"),
-        partial: $("#cslgAnisongdbPartialCheckbox").prop("checked"),
-        ignoreDuplicates: $("#cslgAnisongdbIgnoreDuplicatesCheckbox").prop("checked"),
-        arrangement: $("#cslgAnisongdbArrangementCheckbox").prop("checked"),
-        maxOtherPeople: parseInt($("#cslgAnisongdbMaxOtherPeopleInput").val()),
-        minGroupMembers: parseInt($("#cslgAnisongdbMinGroupMembersInput").val()),
         normal: $("#cslgAnisongdbNormalCheckbox").prop("checked"),
         dub: $("#cslgAnisongdbDubCheckbox").prop("checked"),
         rebroadcast: $("#cslgAnisongdbRebroadcastCheckbox").prop("checked"),
@@ -2059,59 +2059,70 @@ function anisongdbDataSearch() {
         chanting: $("#cslgAnisongdbChantingCheckbox").prop("checked"),
         instrumental: $("#cslgAnisongdbInstrumentalCheckbox").prop("checked")
     };
-    if (query && !isNaN(filters.maxOtherPeople) && !isNaN(filters.minGroupMembers)) {
-        getAnisongdbData(mode, query, filters);
+    if (query && !isNaN(options.maxOtherPeople) && !isNaN(options.minGroupMembers)) {
+        getAnisongdbData(mode, query, options);
     }
 }
 
 // send anisongdb request
-function getAnisongdbData(mode, query, filters) {
+function getAnisongdbData(mode, query, options) {
     $("#cslgSongListCount").text("Loading...");
     $("#cslgSongListTable tbody").empty();
     let url, data;
+    let songTypes = [], broadcasts = [], songCategories = [];
+    if (options.ops) songTypes.push("opening");
+    if (options.eds) songTypes.push("ending");
+    if (options.ins) songTypes.push("insert");
+    if (options.normal) broadcasts.push("normal");
+    if (options.dub) broadcasts.push("dub");
+    if (options.rebroadcast) broadcasts.push("rebroadcast");
+    if (options.standard) songCategories.push("standard", "no_category"); // matches anisongdb frontend
+    if (options.character) songCategories.push("character");
+    if (options.chanting) songCategories.push("chanting");
+    if (options.instrumental) songCategories.push("instrumental");
     let body = {
-        and_logic: false,
-        ignore_duplicate: filters.ignoreDuplicates,
-        opening_filter: filters.ops,
-        ending_filter: filters.eds,
-        insert_filter: filters.ins,
-        normal_broadcast: filters.normal,
-        dub: filters.dub,
-        rebroadcast: filters.rebroadcast,
-        standard: filters.standard,
-        character: filters.character,
-        chanting: filters.chanting,
-        instrumental: filters.instrumental
+        ignore_duplicate: options.ignoreDuplicates,
+        filters: {
+            song_types: songTypes,
+            broadcasts: broadcasts,
+            song_categories: songCategories
+        }
     };
     if (mode === "anime") {
         url = apiBase + "search_request";
+        body.and_logic = false;
         body.anime_search_filter = {
             search: query,
-            partial_match: filters.partial
+            partial_match: options.partial
         };
     }
     else if (mode === "artist") {
         url = apiBase + "search_request";
+        body.and_logic = false;
         body.artist_search_filter = {
             search: query,
-            partial_match: filters.partial,
-            group_granularity: filters.minGroupMembers,
-            max_other_artist: filters.maxOtherPeople
+            partial_match: options.partial,
+            group_granularity: options.minGroupMembers,
+            max_other_artist: options.maxOtherPeople
         };
     }
     else if (mode === "song") {
         url = apiBase + "search_request";
+        body.and_logic = false;
         body.song_name_search_filter = {
             search: query,
-            partial_match: filters.partial
+            partial_match: options.partial
         };
     }
     else if (mode === "composer") {
         url = apiBase + "search_request";
+        body.and_logic = false;
         body.composer_search_filter = {
             search: query,
-            partial_match: filters.partial,
-            arrangement: filters.arrangement
+            partial_match: options.partial,
+            arrangement: options.arrangement,
+            group_granularity: options.minGroupMembers,
+            max_other_artist: options.maxOtherPeople
         };
     }
     else if (mode === "season") {
@@ -2733,7 +2744,7 @@ function formatAmqVintage(vintage) {
 // convert full url to target data
 function formatTargetUrl(url) {
     if (url && url.startsWith("http")) {
-        return url.split("/").slice(-1)[0];
+        return url.split("/").at(-1);
     }
     return url;
 }
@@ -2768,16 +2779,11 @@ function createCslVideoInfo(audio, video480, video720) {
 // input 3 links, return formatted catbox link object
 function createCatboxLinkObject(audio, video480, video720) {
     const links = {};
-    if (fileHostOverride) {
-        if (audio) links["0"] = "https://" + hostDict[fileHostOverride] + "/" + audio.split("/").slice(-1)[0];
-        if (video480) links["480"] = "https://" + hostDict[fileHostOverride] + "/" + video480.split("/").slice(-1)[0];
-        if (video720) links["720"] = "https://" + hostDict[fileHostOverride] + "/" + video720.split("/").slice(-1)[0];
-    }
-    else {
-        if (audio) links["0"] = audio;
-        if (video480) links["480"] = video480;
-        if (video720) links["720"] = video720;
-    }
+    const host = hostDict[fileHostOverride];
+    const toLink = (url) => host ? `https://${host}/${formatTargetUrl(url)}` : url;
+    if (audio) links["0"] = toLink(audio);
+    if (video480) links["480"] = toLink(video480);
+    if (video720) links["720"] = toLink(video720);
     return links;
 }
 
