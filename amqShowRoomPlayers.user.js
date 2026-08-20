@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Show Room Players
 // @namespace    https://github.com/kempanator
-// @version      0.31
+// @version      0.32
 // @description  Adds extra functionality to room tiles
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -82,7 +82,7 @@ function setup() {
 // override updateFriends function to also show invisible friends
 RoomTile.prototype.updateFriends = function () {
     this._friendsInGameMap = {};
-    for (const player of this._players) {
+    for (const player of [...this._players, ...this._friendNames]) {
         if (socialTab.isFriend(player)) {
             this._friendsInGameMap[player] = true;
         }
@@ -110,7 +110,7 @@ RoomTile.prototype.clickHostName = function (host) {
 // create or update room players popover
 RoomTile.prototype.refreshRoomPlayers = function () {
     const $progress = this.$tile.find(".rbrProgressContainer");
-    const players = [...this._players].sort((a, b) => a.localeCompare(b));
+    const players = [...this._players, ...this._friendNames].sort((a, b) => a.localeCompare(b));
     const $list = $("<ul>");
     for (const player of players) {
         const $li = $("<li>", { class: "srpPlayer", text: player });
