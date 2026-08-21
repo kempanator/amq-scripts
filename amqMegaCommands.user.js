@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.174
+// @version      0.175
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -998,39 +998,40 @@ function setup() {
     }).bindListener();
     new Listener("friend state change", (data) => {
         if (alerts.onlineFriends.popout && data.online) {
-            popoutMessage(data.name + " online", "");
+            popoutMessage(`${data.name} online`, "");
         }
         else if (alerts.offlineFriends.popout && !data.online) {
-            popoutMessage(data.name + " offline", "");
+            popoutMessage(`${data.name} offline`, "");
         }
         if (data.online && autoInvite === data.name.toLowerCase() && inRoom() && !isInYourRoom(autoInvite) && !isSoloMode() && !isQuizOfTheDay()) {
-            sendSystemMessage(data.name + " online: auto inviting");
+            sendSystemMessage(`${data.name} online: auto inviting`);
             setTimeout(() => { socket.sendCommand({ type: "social", command: "invite to game", data: { target: data.name } }) }, 1000);
         }
         else if (alerts.onlineFriends.chat && data.online) {
-            sendSystemMessage(data.name + " online");
+            sendSystemMessage(`${data.name} online`);
         }
         else if (alerts.offlineFriends.chat && !data.online) {
-            sendSystemMessage(data.name + " offline");
+            sendSystemMessage(`${data.name} offline`);
         }
         if (alerts.onlineFriends.console && data.online) {
-            console.log(getTimeStamp() + " 🟢 " + data.name + " online");
+            console.log(`${getTimeStamp()} 🟢 ${data.name} online`);
         }
         else if (alerts.offlineFriends.console && !data.online) {
-            console.log(getTimeStamp() + " 🔴 " + data.name + " offline");
+            console.log(`${getTimeStamp()} 🔴 ${data.name} offline`);
         }
     }).bindListener();
     new Listener("New Rooms", (data) => {
         for (const room of data.standard) {
+            const players = room.players || room.friendNames || [];
             if (playerDetection.invisible) {
-                const list = room.players.filter(p => socialTab.offlineFriends.hasOwnProperty(p));
+                const list = players.filter(p => socialTab.offlineFriends.hasOwnProperty(p));
                 if (list.length) {
                     popoutMessage(`${list.join(", ")} (invisible)`, `Room ${room.id}: ${room.settings.roomName}`);
                 }
             }
             if (playerDetection.players.length) {
                 for (const player of playerDetection.players) {
-                    if (room.players.includes(player)) {
+                    if (players.includes(player)) {
                         popoutMessage(player, `Room ${room.id}: ${room.settings.roomName}`);
                     }
                 }
@@ -1064,7 +1065,7 @@ function setup() {
     }).bindListener();
     new Listener("friend name change", (data) => {
         if (alerts.nameChange.popout) {
-            popoutMessage("friend name change", data.oldName + " => " + data.newName);
+            popoutMessage("friend name change", `${data.oldName} => ${data.newName}`);
         }
         if (alerts.nameChange.chat) {
             sendSystemMessage(`friend name change: ${data.oldName} => ${data.newName}`);
