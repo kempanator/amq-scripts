@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.104
+// @version      0.105
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -2076,7 +2076,7 @@ function getAnisongdbData(mode, query, options) {
     if (options.normal) broadcasts.push("normal");
     if (options.dub) broadcasts.push("dub");
     if (options.rebroadcast) broadcasts.push("rebroadcast");
-    if (options.standard) songCategories.push("standard", "no_category"); // matches anisongdb frontend
+    if (options.standard) songCategories.push("standard", "other"); // matches anisongdb frontend
     if (options.character) songCategories.push("character");
     if (options.chanting) songCategories.push("chanting");
     if (options.instrumental) songCategories.push("instrumental");
@@ -2163,7 +2163,7 @@ function getAnisongdbData(mode, query, options) {
                 $("#cslgSongListCount").text("Songs: 0");
                 $("#cslgMergeCurrentCount").text("Current song list: 0 songs");
                 $("#cslgSongListTable tbody").empty();
-                $("#cslgSongListWarning").text(json?.detail || JSON.stringify(json));
+                $("#cslgSongListWarning").text(json?.detail?.[0]?.msg || json?.detail || JSON.stringify(json));
             }
             createAnswerTable();
         })
