@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Anisongdb Search
 // @namespace    https://github.com/kempanator
-// @version      0.36
+// @version      0.37
 // @description  Adds a window to search anisongdb.com in game
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -323,7 +323,7 @@ function getAnisongdbData(mode, query, partial) {
             }
             else {
                 $("#adbsTable tbody").empty();
-                $("#adbsInfoText").text(json?.detail || JSON.stringify(json));
+                $("#adbsInfoText").text(json?.detail?.[0]?.msg || json?.detail || JSON.stringify(json));
             }
         })
         .catch(err => {
