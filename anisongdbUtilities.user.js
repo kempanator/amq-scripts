@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Anisongdb Utilities
 // @namespace    https://github.com/kempanator
-// @version      0.19
+// @version      0.20
 // @description  some extra functions for anisongdb.com
 // @author       kempanator
 // @match        https://anisongdb.com/*
@@ -33,6 +33,18 @@ const TEST_SEARCHES = {
             filters: {
                 media_links: {
                     exclude: ["audio", "mq", "hq"]
+                }
+            }
+        }
+    },
+    "video-no-audio": {
+        kind: "random",
+        body: {
+            n: 500,
+            filters: {
+                media_links: {
+                    require_any: ["mq", "hq"],
+                    exclude: ["audio"]
                 }
             }
         }
@@ -75,10 +87,12 @@ const TEST_SEARCHES = {
 };
 
 const ARTIST_COUNT_COLUMN_STORAGE_KEY = "utilitiesArtistCountColumn";
+const COPY_SONG_ARTIST_COLUMN_STORAGE_KEY = "utilitiesCopySongArtistColumn";
 
 let downloadJsonButton;
 let api;
 let artistCountColumnCleanup = null;
+let copySongArtistColumnCleanup = null;
 
 applyStyles();
 
@@ -99,7 +113,8 @@ function setup() {
         label: "Utilities",
         render: renderSettingsTab
     });
-    syncArtistCountColumn(isArtistCountColumnEnabled());
+    syncArtistCountColumn(isUtilityColumnEnabled(ARTIST_COUNT_COLUMN_STORAGE_KEY));
+    syncCopySongArtistColumn(isUtilityColumnEnabled(COPY_SONG_ARTIST_COLUMN_STORAGE_KEY));
 
     // Define hotkey actions
     const hotkeyActions = {
@@ -156,6 +171,7 @@ function renderSettingsTab(panel) {
             <div class="au-test-search-row">
                 <select id="auTestSearchSelect" class="app-select" aria-label="Test search">
                     <option value="no-links">Songs with no links</option>
+                    <option value="video-no-audio">Songs with video but no audio</option>
                     <option value="no-difficulty">Songs with no difficulty</option>
                     <option value="no-performance">Songs with no performance</option>
                     <option value="no-anime-type">Songs with no anime type</option>
@@ -166,6 +182,7 @@ function renderSettingsTab(panel) {
         </section>
         <section class="au-section">
             <h3>Columns</h3>
+            <label class="app-checkbox"><input id="auCopySongArtistColumn" type="checkbox">Copy "Song" by Artist</label>
             <label class="app-checkbox"><input id="auArtistCountColumn" type="checkbox">Artist Count</label>
         </section>
         <section class="au-section">
@@ -188,12 +205,18 @@ function renderSettingsTab(panel) {
     const testSearchSelect = root.querySelector("#auTestSearchSelect");
     const testSearchButton = root.querySelector("#auTestSearchButton");
     const artistCountColumnCheckbox = root.querySelector("#auArtistCountColumn");
+    const copySongArtistColumnCheckbox = root.querySelector("#auCopySongArtistColumn");
     const accentColorPicker = root.querySelector("#auAccentColorPicker");
     const accentColorClear = root.querySelector("#auAccentColorClear");
-    artistCountColumnCheckbox.checked = isArtistCountColumnEnabled();
+    artistCountColumnCheckbox.checked = isUtilityColumnEnabled(ARTIST_COUNT_COLUMN_STORAGE_KEY);
+    copySongArtistColumnCheckbox.checked = isUtilityColumnEnabled(COPY_SONG_ARTIST_COLUMN_STORAGE_KEY);
     artistCountColumnCheckbox.onchange = () => {
         api.services.storage.update({ [ARTIST_COUNT_COLUMN_STORAGE_KEY]: artistCountColumnCheckbox.checked });
         syncArtistCountColumn(artistCountColumnCheckbox.checked);
+    };
+    copySongArtistColumnCheckbox.onchange = () => {
+        api.services.storage.update({ [COPY_SONG_ARTIST_COLUMN_STORAGE_KEY]: copySongArtistColumnCheckbox.checked });
+        syncCopySongArtistColumn(copySongArtistColumnCheckbox.checked);
     };
     testSearchButton.onclick = () => {
         const command = TEST_SEARCHES[testSearchSelect.value];
@@ -224,8 +247,8 @@ function renderSettingsTab(panel) {
     };
 }
 
-function isArtistCountColumnEnabled() {
-    return api.services.storage.get(ARTIST_COUNT_COLUMN_STORAGE_KEY) !== false;
+function isUtilityColumnEnabled(storageKey) {
+    return api.services.storage.get(storageKey) !== false;
 }
 
 function syncArtistCountColumn(enabled) {
@@ -234,7 +257,7 @@ function syncArtistCountColumn(enabled) {
         artistCountColumnCleanup = api.services.table.registerColumn({
             id: "artist-count",
             header: "Artist Count",
-            defaultVisible: true,
+            defaultVisible: false,
             centered: true,
             display: (song) => song.artists?.length ?? 0,
             copy: (song) => String(song.artists?.length ?? 0),
@@ -244,6 +267,41 @@ function syncArtistCountColumn(enabled) {
     }
     artistCountColumnCleanup?.();
     artistCountColumnCleanup = null;
+}
+
+function syncCopySongArtistColumn(enabled) {
+    if (enabled) {
+        if (copySongArtistColumnCleanup) return;
+        copySongArtistColumnCleanup = api.services.table.registerColumn({
+            id: "copy-song-artist",
+            header: "Copy",
+            visibilityLabel: "Copy \"Song\" by Artist",
+            defaultVisible: false,
+            centered: true,
+            renderCell: renderCopySongArtistCell
+        }, { after: "info" });
+        return;
+    }
+    copySongArtistColumnCleanup?.();
+    copySongArtistColumnCleanup = null;
+}
+
+function renderCopySongArtistCell(container, { song }) {
+    const text = `"${song.songName || ""}" by ${song.songArtist || ""}`;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "app-icon-button";
+    button.title = text;
+    button.setAttribute("aria-label", `Copy ${text}`);
+    button.innerHTML = "<i class=\"fa fa-clone\" aria-hidden=\"true\"></i>";
+    const onClick = (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        void navigator.clipboard.writeText(text);
+    };
+    button.addEventListener("click", onClick);
+    container.replaceChildren(button);
+    return () => button.removeEventListener("click", onClick);
 }
 
 // Load hotkey from local storage, input optional default values
