@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Show Room Players
 // @namespace    https://github.com/kempanator
-// @version      0.32
+// @version      0.33
 // @description  Adds extra functionality to room tiles
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -13,11 +13,10 @@
 
 /*
 New room tile features:
-1. Mouse over players bar to show full player list (friends & blocked have color)
-2. Click name in player list to open profile
-3. Click host name to open profile
-4. Invisible friends are no longer hidden
-5. Bug fix for friends list and host avatar not getting updated
+1. Friend, blocked, self, and custom colors on the player list
+2. Click host name to open profile
+3. Invisible friends are no longer hidden
+4. Bug fix for friends list and host avatar not getting updated
 */
 
 "use strict";
@@ -39,23 +38,18 @@ function setup() {
             setTimeout(() => {
                 const room = roomBrowser.activeRooms[item.id];
                 if (room) {
-                    room.refreshRoomPlayers();
                     room.clickHostName(item.host);
                 }
             }, 1);
         }
     }).bindListener();
     new Listener("Room Change", (data) => {
-        if (data.changeType === "players" || data.changeType === "spectators") {
+        if (data.newHost) {
             setTimeout(() => {
                 const room = roomBrowser.activeRooms[data.roomId];
                 if (room) {
-                    room.updateFriends();
-                    room.refreshRoomPlayers();
-                    if (data.newHost) {
-                        room.updateAvatar(data.newHost.avatar);
-                        room.clickHostName(data.newHost.name);
-                    }
+                    room.updateAvatar(data.newHost.avatar);
+                    room.clickHostName(data.newHost.name);
                 }
             }, 1);
         }
@@ -69,11 +63,10 @@ function setup() {
         link: "https://github.com/kempanator/amq-scripts/raw/main/amqShowRoomPlayers.user.js",
         description: `
             <ul><b>New room tile features:</b>
-                <li>1. Mouse over players bar to show full player list (friends & blocked have color)</li>
-                <li>2. Click name in player list to open profile</li>
-                <li>3. Click host name to open profile</li>
-                <li>4. Invisible friends are no longer hidden</li>
-                <li>5. Bug fix for friends list and host avatar not getting updated</li>
+                <li>1. Friend, blocked, self, and custom colors on the player list</li>
+                <li>2. Click host name to open profile</li>
+                <li>3. Invisible friends are no longer hidden</li>
+                <li>4. Bug fix for friends list and host avatar not getting updated</li>
             </ul>
         `
     });
@@ -82,124 +75,44 @@ function setup() {
 // override updateFriends function to also show invisible friends
 RoomTile.prototype.updateFriends = function () {
     this._friendsInGameMap = {};
-    for (const player of [...this._players, ...this._friendNames]) {
-        if (socialTab.isFriend(player)) {
-            this._friendsInGameMap[player] = true;
-        }
+    for (const player of this._friendNames) {
+        this._friendsInGameMap[player] = true;
     }
     this.updateFriendInfo();
 };
 
-// override removeRoomTile function to also remove room players popover
-const oldRemoveRoomTile = RoomBrowser.prototype.removeRoomTile;
-RoomBrowser.prototype.removeRoomTile = function (tileId) {
-    $(`#rbRoom-${tileId} .rbrProgressContainer`).popover("destroy");
-    oldRemoveRoomTile.apply(this, arguments);
+// add self and custom colors on the game's player list
+const oldBuildPlayerList = RoomTile.prototype.buildPlayerList;
+RoomTile.prototype.buildPlayerList = function (list, $container) {
+    oldBuildPlayerList.call(this, list, $container);
+    $container.children(".rbrPlayerListEntry").each((_, el) => {
+        const $entry = $(el);
+        const player = $entry.find(".rbrPlayerListEntryName").text().trim();
+        if (player === selfName) {
+            $entry.addClass("self");
+        }
+        if (customColorMap.hasOwnProperty(player.toLowerCase())) {
+            $entry.addClass("customColor" + customColorMap[player.toLowerCase()]);
+        }
+    });
 };
 
 // add click event to host name to open player profile
 RoomTile.prototype.clickHostName = function (host) {
     this.$tile.find(".rbrHost")
         .css("cursor", "pointer")
-        .off("click")
-        .on("click", () => {
+        .off("click.srp")
+        .on("click.srp", () => {
             playerProfileController.loadProfile(host, $(`#rbRoom-${this.id}`), {}, () => { }, false, true);
         });
-};
-
-// create or update room players popover
-RoomTile.prototype.refreshRoomPlayers = function () {
-    const $progress = this.$tile.find(".rbrProgressContainer");
-    const players = [...this._players, ...this._friendNames].sort((a, b) => a.localeCompare(b));
-    const $list = $("<ul>");
-    for (const player of players) {
-        const $li = $("<li>", { class: "srpPlayer", text: player });
-        if (player === selfName) {
-            $li.addClass("self");
-        }
-        else if (socialTab.isFriend(player)) {
-            $li.addClass("friend");
-        }
-        else if (socialTab.isBlocked(player)) {
-            $li.addClass("blocked");
-        }
-        if (customColorMap.hasOwnProperty(player.toLowerCase())) {
-            $li.addClass("customColor" + customColorMap[player.toLowerCase()]);
-        }
-        $list.append($li);
-    }
-
-    const title = `${players.length} Player${players.length === 1 ? "" : "s"}`;
-    const pop = $progress.data("bs.popover");
-
-    if (pop) { //update existing pop-over
-        pop.options.title = title;
-        pop.options.content = $list.prop("outerHTML");
-        const popId = $progress.attr("aria-describedby");
-        if (popId) {
-            const $popDom = $("#" + popId);
-            $popDom.find(".popover-title, .popover-header").html(title);
-            $popDom.find(".popover-content, .popover-body").html(pop.options.content);
-        }
-    }
-    else { //create new pop-over (first time)
-        $progress
-            .tooltip("destroy")
-            .removeAttr("data-toggle data-placement data-original-title")
-            .popover({
-                container: "#roomBrowserPage",
-                placement: "bottom",
-                trigger: "manual",
-                html: true,
-                title,
-                content: $list.prop("outerHTML")
-            })
-            .off("mouseenter.srp")
-            .on("mouseenter.srp", () => {
-                if ($progress.attr("aria-describedby")) return;
-                $progress.popover("show");
-                const popId = $progress.attr("aria-describedby");
-                if (!popId) return;
-                const $pop = $("#" + popId);
-                const $tile = this.$tile;
-
-                const detach = () => {
-                    $progress.off("mouseleave.srp");
-                    $pop.off(".srp");
-                    $tile.off(".srp");
-                };
-                const closePopover = () => {
-                    if (!$pop.is(":hover") && !$tile.is(":hover") && !$progress.is(":hover")) {
-                        detach();
-                        $progress.popover("hide");
-                    }
-                };
-
-                $progress.on("mouseleave.srp", closePopover);
-                $pop.on("mouseleave.srp", closePopover);
-                $tile.on("mouseleave.srp", closePopover);
-                $pop.on("click.srp", "li", (event) => {
-                    playerProfileController.loadProfile(event.target.innerText, $tile, {}, () => { }, false, true);
-                });
-            });
-    }
 };
 
 // update the room tile avatar when a new host is promoted
 RoomTile.prototype.updateAvatar = function (avatarInfo) {
     if (!avatarInfo?.avatar) return;
-    this.avatarDisplayHandler?.cancel();
-    if (this.avatarPreloadImage) {
-        this.avatarPreloadImage.cancel();
-        this.avatarPreloadImage = null;
-    }
+    this.avatarDisplayHandler.cancel();
 
     const sizeMod = avatarInfo.avatar.sizeModifier;
-    this.$tile.find(".rbrRoomImage")
-        .removeClass((i, c) => (c.match(/sizeMod\d+/g) || []).join(" ")) //remove old sizeMod
-        .addClass(`sizeMod${sizeMod}`)
-        .removeAttr("src srcset sizes");
-
     this.avatarDisplayHandler.setSizeMod(sizeMod);
     const bgUrl = cdnFormater.newAvatarBackgroundSrc(avatarInfo.background.backgroundHori, cdnFormater.BACKGROUND_ROOM_BROWSER_SIZE);
     const onLoadCb = () => {
@@ -208,7 +121,7 @@ RoomTile.prototype.updateAvatar = function (avatarInfo) {
             .css("background-image", `url("${bgUrl}")`);
     };
 
-    if (avatarInfo.avatar.animated) { // animated sprite
+    if (avatarInfo.avatar.animated) {
         this.avatarDisplayHandler.displayAvatarAnimated(
             cdnFormater.newAnimatedAvatarJsonSrc(avatarInfo.avatar.avatarName, avatarInfo.avatar.outfitName),
             cdnFormater.newAnimatedAvatarAtlasSrc(avatarInfo.avatar.avatarName, avatarInfo.avatar.outfitName),
@@ -218,7 +131,7 @@ RoomTile.prototype.updateAvatar = function (avatarInfo) {
             avatarInfo.avatar.optionActive
         );
     }
-    else { // static base-pose image
+    else {
         this.avatarDisplayHandler.displayAvatarImage(
             cdnFormater.newAvatarSrc(
                 avatarInfo.avatar.avatarName,
@@ -245,6 +158,7 @@ RoomTile.prototype.updateAvatar = function (avatarInfo) {
             }
         );
     }
+    this.avatarDisplayHandler.lazyLoadEvent();
 };
 
 // validate json data in local storage
@@ -272,29 +186,27 @@ function applyStyles() {
             customColorMap[player.toLowerCase()] = index;
         }
     });
-    let css = /*css*/ `
-        li.srpPlayer {
-            cursor: pointer;
-        }
-        li.srpPlayer:hover {
-            text-shadow: 0 0 6px white;
+    let css = `
+        .rbrPlayerListContainer {
+            max-height: 200px;
+            transition: opacity .2s linear;
         }
     `;
     if (showPlayerColors) css += `
-        li.srpPlayer.self {
+        .rbrPlayerListEntry.self .rbrPlayerListEntryName {
             color: ${selfColor};
         }
-        li.srpPlayer.friend {
+        .rbrPlayerListEntry.friend .rbrPlayerListEntryName {
             color: ${friendColor};
         }
-        li.srpPlayer.blocked {
+        .rbrPlayerListEntry.blocked .rbrPlayerListEntryName {
             color: ${blockedColor};
         }
     `;
     if (showCustomColors) {
         customColors.forEach((item, index) => {
             css += `
-                li.srpPlayer.customColor${index} {
+                .rbrPlayerListEntry.customColor${index} .rbrPlayerListEntryName {
                     color: ${item.color};
                 }
             `;
