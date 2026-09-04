@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Show Room Players
 // @namespace    https://github.com/kempanator
-// @version      0.33
+// @version      0.34
 // @description  Adds extra functionality to room tiles
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -14,9 +14,10 @@
 /*
 New room tile features:
 1. Friend, blocked, self, and custom colors on the player list
-2. Click host name to open profile
-3. Invisible friends are no longer hidden
-4. Bug fix for friends list and host avatar not getting updated
+2. Player/spectator counts in list headers
+3. Click host name to open profile
+4. Invisible friends are no longer hidden
+5. Bug fix for friends list and host avatar not getting updated
 */
 
 "use strict";
@@ -28,8 +29,10 @@ const loadInterval = setInterval(() => {
     }
 }, 500);
 
-let showPlayerColors = true;
-let showCustomColors = true;
+const saveData = validateLocalStorage("showRoomPlayers");
+let showPlayerColors = saveData.showPlayerColors ?? true;
+let showCustomColors = saveData.showCustomColors ?? true;
+let showPlayerLevels = saveData.showPlayerLevels ?? true;
 let customColorMap = {};
 
 function setup() {
@@ -64,40 +67,84 @@ function setup() {
         description: `
             <ul><b>New room tile features:</b>
                 <li>1. Friend, blocked, self, and custom colors on the player list</li>
-                <li>2. Click host name to open profile</li>
-                <li>3. Invisible friends are no longer hidden</li>
-                <li>4. Bug fix for friends list and host avatar not getting updated</li>
+                <li>2. Player/spectator counts in list headers (hidden when empty)</li>
+                <li>3. Alphabetical player list sort</li>
+                <li>4. Optional player levels (showPlayerLevels)</li>
+                <li>5. Click host name to open profile</li>
+                <li>6. Invisible friends are no longer hidden</li>
+                <li>7. Bug fix for friends list and host avatar not getting updated</li>
             </ul>
         `
     });
 }
 
-// override updateFriends function to also show invisible friends
+// Override updateFriends function to also show invisible friends
 RoomTile.prototype.updateFriends = function () {
     this._friendsInGameMap = {};
     for (const player of this._friendNames) {
-        this._friendsInGameMap[player] = true;
+        if (socialTab.isFriend(player)) {
+            this._friendsInGameMap[player] = true;
+        }
     }
     this.updateFriendInfo();
 };
 
-// add self and custom colors on the game's player list
-const oldBuildPlayerList = RoomTile.prototype.buildPlayerList;
+// Override player list build for count headers, localeCompare sort, colors, optional levels
 RoomTile.prototype.buildPlayerList = function (list, $container) {
-    oldBuildPlayerList.call(this, list, $container);
-    $container.children(".rbrPlayerListEntry").each((_, el) => {
-        const $entry = $(el);
-        const player = $entry.find(".rbrPlayerListEntryName").text().trim();
-        if (player === selfName) {
+    const $header = $container.prev(".rbrPlayerListHeader");
+    const isSpectators = $container.is(this.$spectatorList);
+    if (list.length === 0) {
+        $header.addClass("hidden").css("margin-top", "");
+    }
+    else {
+        const labelKey = isSpectators
+            ? "room_browser.room_tile.player_list.spectators"
+            : "room_browser.room_tile.player_list.players";
+        let label = localizationHandler.translate(labelKey);
+        if (list.length === 1) {
+            label = label.replace(/s$/, "");
+        }
+        $header
+            .removeClass("hidden")
+            .removeAttr("data-i18n")
+            .css("margin-top", isSpectators && this.allPlayers.players.length > 0 ? "5px" : "")
+            .text(`${list.length} ${label}`);
+    }
+
+    list.sort((a, b) => a.name.localeCompare(b.name)).forEach(({ name, level }) => {
+        const $entry = $(format(this.PLAYER_ROW_TEMPLATE, name, level));
+        if (name === selfName) {
             $entry.addClass("self");
         }
-        if (customColorMap.hasOwnProperty(player.toLowerCase())) {
-            $entry.addClass("customColor" + customColorMap[player.toLowerCase()]);
+        else if (socialTab.isFriend(name)) {
+            $entry.addClass("friend");
         }
+        else if (socialTab.isBlocked(name)) {
+            $entry.addClass("blocked");
+        }
+        if (customColorMap.hasOwnProperty(name.toLowerCase())) {
+            $entry.addClass("customColor" + customColorMap[name.toLowerCase()]);
+        }
+
+        $entry.click(() => {
+            this.$playerListContainer.addClass("open");
+            playerProfileController.loadProfile(
+                name,
+                $entry,
+                {},
+                () => {
+                    this.$playerListContainer.removeClass("open");
+                },
+                false,
+                true,
+            );
+        });
+
+        $container.append($entry);
     });
 };
 
-// add click event to host name to open player profile
+// Add click event to host name to open player profile
 RoomTile.prototype.clickHostName = function (host) {
     this.$tile.find(".rbrHost")
         .css("cursor", "pointer")
@@ -107,7 +154,7 @@ RoomTile.prototype.clickHostName = function (host) {
         });
 };
 
-// update the room tile avatar when a new host is promoted
+// Update the room tile avatar when a new host is promoted
 RoomTile.prototype.updateAvatar = function (avatarInfo) {
     if (!avatarInfo?.avatar) return;
     this.avatarDisplayHandler.cancel();
@@ -161,7 +208,7 @@ RoomTile.prototype.updateAvatar = function (avatarInfo) {
     this.avatarDisplayHandler.lazyLoadEvent();
 };
 
-// validate json data in local storage
+// Validate json data in local storage
 function validateLocalStorage(item) {
     try {
         const json = JSON.parse(localStorage.getItem(item));
@@ -173,7 +220,16 @@ function validateLocalStorage(item) {
     }
 }
 
-// apply styles
+// Save settings
+function saveSettings() {
+    localStorage.setItem("showRoomPlayers", JSON.stringify({
+        showPlayerColors,
+        showCustomColors,
+        showPlayerLevels
+    }));
+}
+
+// Apply styles
 function applyStyles() {
     const saveDataHF = validateLocalStorage("highlightFriendsSettings");
     const selfColor = saveDataHF.smColorSelfColor ?? "#80c7ff";
@@ -188,8 +244,17 @@ function applyStyles() {
     });
     let css = `
         .rbrPlayerListContainer {
-            max-height: 200px;
+            max-height: 205px;
+            padding: 10px;
             transition: opacity .2s linear;
+        }
+    `;
+    if (!showPlayerLevels) css += `
+        .rbrPlayerListEntry {
+            justify-content: center;
+        }
+        .rbrPlayerListEntryLevel {
+            display: none;
         }
     `;
     if (showPlayerColors) css += `
@@ -223,3 +288,9 @@ function applyStyles() {
         document.head.appendChild(style);
     }
 }
+
+window.setShowPlayerLevels = function (value) {
+    showPlayerLevels = Boolean(value);
+    saveSettings();
+    applyStyles();
+};
