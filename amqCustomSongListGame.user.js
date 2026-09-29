@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.105
+// @version      0.106
 // @description  Play a solo game with a custom song list
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -1979,7 +1979,8 @@ function quizOver() {
         "gameId": lobby.gameId,
         "players": [],
         "numberOfTeams": 0,
-        "teamFullMap": {}
+        "teamFullMap": {},
+        "songPool": {}
     };
     for (const player of Object.values(quiz.players)) {
         if (gameChat.spectators.some((spectator) => spectator.name === player._name)) {
