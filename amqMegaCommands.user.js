@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.175
+// @version      0.176
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -4648,7 +4648,7 @@ function parseIncomingDM(messageText, sender) {
             if (split.length === 2) {
                 if (Object.keys(roomBrowser.activeRooms).length === 0) return;
                 const name = split[1];
-                const room = Object.values(roomBrowser.activeRooms).find(r => r._players.some(p => p.toLowerCase() === name));
+                const room = Object.values(roomBrowser.activeRooms).find(r => r.getPlayersInGame().some(p => p.toLowerCase() === name));
                 if (Number.isInteger(room?.id)) {
                     setTimeout(() => sendMessage(`${room._private ? "private" : "public"} room ${room.id}: ${room.settings.roomName}`, "dm", sender), 100);
                     setTimeout(() => sendMessage(`host: ${room.host}, players: ${room._numberOfPlayers}, spectators: ${room._numberOfSpectators}`, "dm", sender), 300);
