@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.176
+// @version      0.177
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -64,6 +64,7 @@ IN GAME/LOBBY
 /autohint [1|2|3]         automatically ask for hint in hint mode
 /autoready                automatically ready up in lobby
 /autostart                automatically start the game when everyone is ready if you are host
+/autopause                automatically pause the quiz when a player leaves or disconnects if you are host
 /autohost [name]          automatically promote player to host if you are the current host
 /autoinvite [name]        automatically invite a player to your room when they log in (only friends)
 /autoaccept [option]      automatically accept game invites (options: friends, all)
@@ -138,6 +139,7 @@ let autoInvite = saveData.autoInvite ?? "";
 let autoJoinRoom = saveData.autoJoinRoom ?? false;
 let autoKey = saveData.autoKey ?? false;
 let autoMute = saveData.autoMute ?? { mute: [], unmute: [], toggle: [], randomMute: null, randomUnmute: null };
+let autoPause = saveData.autoPause ?? false;
 let autoReady = saveData.autoReady ?? false;
 let autoShareAnswer = saveData.autoShareAnswer ?? false;
 let autoStart = saveData.autoStart ?? { delay: 0, remaining: 0, timer: null, timerRunning: false };
@@ -210,6 +212,7 @@ let commandPersist = {
     autoInvite: loadCommandPersist("autoInvite", false),
     autoKey: loadCommandPersist("autoKey", true),
     autoMute: loadCommandPersist("autoMute", false),
+    autoPause: loadCommandPersist("autoPause", true),
     autoReady: loadCommandPersist("autoReady", true),
     autoShareAnswer: loadCommandPersist("autoShareAnswer", false),
     autoStart: loadCommandPersist("autoStart", false),
@@ -898,6 +901,7 @@ function setup() {
             if (data.inLobby) {
                 if (autoReady) sendSystemMessage("Auto Ready: Enabled");
                 if (autoStart.remaining !== 0) sendSystemMessage("Auto Start: Enabled");
+                if (autoPause) sendSystemMessage("Auto Pause: Enabled");
                 if (autoHost) sendSystemMessage("Auto Host: " + autoHost);
                 if (autoInvite) sendSystemMessage("Auto Invite: " + autoInvite);
                 if (autoAcceptInvite) sendSystemMessage("Auto Accept Invite: Enabled");
@@ -919,6 +923,7 @@ function setup() {
             if (data.inLobby) {
                 if (autoReady) sendSystemMessage("Auto Ready: Enabled");
                 if (autoStart.remaining !== 0) sendSystemMessage("Auto Start: Enabled");
+                if (autoPause) sendSystemMessage("Auto Pause: Enabled");
                 if (autoHost) sendSystemMessage("Auto Host: " + autoHost);
                 if (autoInvite) sendSystemMessage("Auto Invite: " + autoInvite);
                 if (autoAcceptInvite) sendSystemMessage("Auto Accept Invite: Enabled");
@@ -937,6 +942,9 @@ function setup() {
     }).bindListener();
     new Listener("New Spectator", (data) => {
         setTimeout(() => { checkAutoHost() }, 0);
+    }).bindListener();
+    new Listener("Player Left", (change) => {
+        checkAutoPause(change);
     }).bindListener();
     new Listener("player late join", (data) => {
         if (hidePlayers) setTimeout(() => { quizHidePlayers() }, 0);
@@ -1275,6 +1283,11 @@ function setup() {
                                 <input id="mcAutoStartRemainingInput" type="text" placeholder="remaining" style="width: 80px;">
                             </div>
                             <div class="mcActiveRow">
+                                <button id="mcAutoPauseButton" class="btn mcActiveButton"></button>
+                                <i id="mcAutoPauseInfo" class="fa fa-info-circle mcActiveInfo" aria-hidden="true"></i>
+                                <span class="mcActiveTitle">Auto Pause</span>
+                            </div>
+                            <div class="mcActiveRow">
                                 <button id="mcAutoAcceptInviteButton" class="btn mcActiveButton"></button>
                                 <i id="mcAutoAcceptInviteInfo" class="fa fa-info-circle mcActiveInfo" aria-hidden="true"></i>
                                 <span class="mcActiveTitle">Auto Accept Invite</span>
@@ -1473,6 +1486,7 @@ function setup() {
     const activeSettingDescriptions = {
         mcAutoReadyInfo: "Automatically ready up when you join a lobby.",
         mcAutoStartInfo: "Automatically start the game when everyone is ready if you are host.",
+        mcAutoPauseInfo: "Automatically pause the quiz when a player leaves or disconnects if you are host.",
         mcAutoAcceptInviteInfo: "Automatically accept room invites based on friends, everyone, or your custom list.",
         mcAutoStatusInfo: "Automatically set your profile status to the selected state on log in.",
         mcAutoKeyInfo: "Automatically send quiz answer on each key press.",
@@ -1531,6 +1545,12 @@ function setup() {
             sendSystemMessage("auto start game disabled");
             toggleCommandButton($(this), false);
         }
+    });
+    $("#mcAutoPauseButton").on("click", function () {
+        autoPause = !autoPause;
+        saveSettings();
+        sendSystemMessage(`auto pause ${autoPause ? "enabled" : "disabled"}`);
+        toggleCommandButton($(this), autoPause);
     });
     $("#mcAutoAcceptInviteButton").on("click", function () {
         if ($(this).text() === "Off") {
@@ -2883,6 +2903,12 @@ async function parseCommand(messageText, type, target) {
             checkAutoStart();
             updateCommandListWindow("autoStart");
         }
+    }
+    else if (command === "autopause" || command === "apause") {
+        autoPause = !autoPause;
+        saveSettings();
+        sendMessage(`auto pause ${autoPause ? "enabled" : "disabled"}`, type, target, true);
+        updateCommandListWindow("autoPause");
     }
     else if (command === "autohost" || command === "ah") {
         if (split.length === 1) {
@@ -4892,6 +4918,9 @@ function updateCommandListWindow(type) {
         //$("#mcAutoStartDelayInput").val(autoStart.delay);
         //$("#mcAutoStartRemainingInput").val(autoStart.remaining);
     }
+    if (!type || type === "autoPause") {
+        toggleCommandButton($("#mcAutoPauseButton"), autoPause);
+    }
     if (!type || type === "autoAcceptInvite") {
         toggleCommandButton($("#mcAutoAcceptInviteButton"), autoAcceptInvite);
         if (autoAcceptInvite === "all") {
@@ -5591,6 +5620,18 @@ function checkAutoReady() {
     }
 }
 
+// pause the quiz when a player leaves or disconnects
+function checkAutoPause(change) {
+    if (!autoPause || !quiz.inQuiz || quiz.pauseButton.pauseOn || change.kicked) return;
+    const name = change.player.name;
+    if (name === selfName) return;
+    if (!quiz.isHost && change.newHost !== selfName) return;
+    const mode = quiz.gameMode;
+    if (mode === "Ranked" || mode === "Themed" || mode === "Jam" || mode === "event" || mode === "event-hosted") return;
+    socket.sendCommand({ type: "quiz", command: "quiz pause" });
+    sendSystemMessage(`paused: ${name} ${change.disconnect ? "disconnected" : "left"}`);
+}
+
 // check conditions and start game
 function checkAutoStart() {
     setTimeout(() => {
@@ -5828,6 +5869,7 @@ function autoList() {
     else if (autoMute.randomUnmute) list.push(`Auto Unmute Random: ${autoMute.randomUnmute / 1000}s`);
     if (autoReady) list.push("Auto Ready: Enabled");
     if (autoStart.remaining !== 0) list.push("Auto Start: Enabled");
+    if (autoPause) list.push("Auto Pause: Enabled");
     if (autoHost) list.push("Auto Host: " + autoHost);
     if (autoInvite) list.push("Auto Invite: " + autoInvite);
     if (autoAcceptInvite) list.push("Auto Accept Invite: Enabled");
@@ -6354,6 +6396,7 @@ function saveSettings() {
     if (commandPersist.autoInvite) settings.autoInvite = autoInvite;
     if (commandPersist.autoKey) settings.autoKey = autoKey;
     if (commandPersist.autoMute) settings.autoMute = autoMute;
+    if (commandPersist.autoPause) settings.autoPause = autoPause;
     if (commandPersist.autoReady) settings.autoReady = autoReady;
     if (commandPersist.autoShareAnswer) settings.autoShareAnswer = autoShareAnswer;
     if (commandPersist.autoStart) settings.autoStart = autoStart;
@@ -6595,6 +6638,7 @@ IN GAME/LOBBY
 /autohint [1|2|3]         automatically ask for hint in hint mode
 /autoready                automatically ready up in lobby
 /autostart                automatically start the game when everyone is ready if you are host
+/autopause                automatically pause the quiz when a player leaves or disconnects if you are host
 /autohost [name]          automatically promote player to host if you are the current host
 /autoinvite [name]        automatically invite a player to your room when they log in (only friends)
 /autoaccept [option]      automatically accept game invites (options: friends, all)
