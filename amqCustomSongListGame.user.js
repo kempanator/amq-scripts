@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.107
+// @version      0.108
 // @description  Play a simulated AMQ solo or multiplayer quiz with a custom song list
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -993,11 +993,57 @@ function cslMedia(value) {
     }
 }
 
-// Identify recordings conservatively, avoiding title-and-artist alias collisions.
+// Identify repeated playlist appearances by unique ANN ID or normalized media.
 function cslRecordingKey(song) {
     if (song.annSongId) return `ann:${song.annSongId}`;
-    const media = song.audio || song.video720 || song.video480;
-    return `media:${media.startsWith("https://") ? new URL(media).pathname : media}`;
+    return `media:${cslPlaylistMediaKey(song.audio || song.video720 || song.video480)}`;
+}
+
+// Match AMQ mirrors and bare filenames while preserving other hosts' full URLs.
+function cslPlaylistMediaKey(media) {
+    if (!media.startsWith("https://")) return `amq:/${media}`;
+    const url = new URL(media);
+    return url.hostname === "animemusicquiz.com" || url.hostname.endsWith(".animemusicquiz.com") ? `amq:${url.pathname}` : media;
+}
+
+// Share anime answers across overlapping AMQ ID and song/artist matches.
+function mergeCslAnimeAnswers(songs) {
+    const parents = songs.map((song, index) => index);
+    // Resolve a group's representative without retaining long chains.
+    const root = index => {
+        while (parents[index] !== index) {
+            parents[index] = parents[parents[index]];
+            index = parents[index];
+        }
+        return index;
+    };
+    // Connect songs sharing any key during one matching pass.
+    const connect = keys => {
+        const seen = new Map();
+        songs.forEach((song, index) => {
+            for (const key of keys(song)) {
+                const previous = seen.get(key);
+                if (previous === undefined) seen.set(key, index);
+                else parents[root(index)] = root(previous);
+            }
+        });
+    };
+    // Group by optional AMQ song ID first, independently of unique ANN song IDs.
+    connect(song => song.amqSongId ? [song.amqSongId] : []);
+    // Fall back to a complete song/artist pair without altering punctuation.
+    connect(song => song.songName && song.songArtist ? [JSON.stringify([song.songName.toLowerCase(), song.songArtist.toLowerCase()])] : []);
+    const answers = new Map();
+    songs.forEach((song, index) => {
+        const key = root(index);
+        if (!answers.has(key)) answers.set(key, new Set());
+        for (const title of [song.animeRomajiName, song.animeEnglishName, ...song.altAnimeNames, ...song.altAnimeNamesAnswers]) {
+            if (title) answers.get(key).add(title);
+        }
+    });
+    songs.forEach((song, index) => {
+        song.altAnimeNamesAnswers = [...answers.get(root(index))].filter(title => !song.altAnimeNames.includes(title));
+    });
+    return songs;
 }
 
 // Merge repeated anime appearances while retaining separate playlist occurrences.
@@ -1008,11 +1054,12 @@ function mergeCslSongs(first, second) {
         const existing = map.get(key);
         if (!existing) map.set(key, JSON.parse(JSON.stringify(song)));
         else {
+            existing.amqSongId ??= song.amqSongId;
             existing.altAnimeNames = [...new Set([...existing.altAnimeNames, ...song.altAnimeNames])];
             existing.altAnimeNamesAnswers = [...new Set([...existing.altAnimeNamesAnswers, ...song.altAnimeNamesAnswers])];
         }
     }
-    return [...map.values()];
+    return mergeCslAnimeAnswers([...map.values()]);
 }
 
 // Detect creator records that AMQ can resolve into hover information.
@@ -1125,6 +1172,7 @@ function normalizeCslSongs(data) {
         let dub = song.dub ?? song.isDub ?? song.songInfo?.dub ?? null;
         let startPoint = song.startPoint ?? song.startSample ?? null;
         let annSongId = song.annSongId ?? song.songInfo?.annSongId ?? null;
+        let amqSongId = song.amqSongId ?? song.songInfo?.amqSongId ?? null;
         let audio = song.audio ?? song.videoUrl ?? song.urls?.catbox?.[0] ?? song.songInfo?.videoTargetMap?.catbox?.[0] ?? song.songInfo?.urlMap?.catbox?.[0] ?? song.LinkMp3 ?? "";
         let video480 = song.video480 ?? song.MQ ?? song.videoUrl ?? song.urls?.catbox?.[480] ?? song.songInfo?.videoTargetMap?.catbox?.[480] ?? song.songInfo?.urlMap?.catbox?.[480] ?? "";
         let video720 = song.video720 ?? song.HQ ?? song.videoUrl ?? song.urls?.catbox?.[720] ?? song.songInfo?.videoTargetMap?.catbox?.[720] ?? song.songInfo?.urlMap?.catbox?.[720] ?? song.LinkVideo ?? "";
@@ -1198,6 +1246,7 @@ function normalizeCslSongs(data) {
                 dub: dub === true,
                 startPoint,
                 annSongId: cslId(annSongId),
+                amqSongId: cslId(amqSongId),
                 audio,
                 video480,
                 video720,
@@ -1207,26 +1256,7 @@ function normalizeCslSongs(data) {
         }
         else skipped++;
     }
-    // Combine anime names from duplicate songs
-    const duplicateAltNameMap = new Map();
-    for (const song of songs) { // Precompute to avoid O(n^2) scan
-        const key = cslRecordingKey(song);
-        let altNames = duplicateAltNameMap.get(key);
-        if (!altNames) {
-            altNames = new Set();
-            duplicateAltNameMap.set(key, altNames);
-        }
-        song.altAnimeNames.forEach(x => altNames.add(x));
-    }
-    for (const song of songs) {
-        const key = cslRecordingKey(song);
-        const mergedAnswers = new Set(song.altAnimeNamesAnswers || []);
-        const altNames = duplicateAltNameMap.get(key);
-        if (altNames) {
-            altNames.forEach(x => mergedAnswers.add(x));
-        }
-        song.altAnimeNamesAnswers = Array.from(mergedAnswers).filter(x => !song.altAnimeNames.includes(x));
-    }
+    mergeCslAnimeAnswers(songs);
     return { songs, warnings: skipped ? [`Skipped ${skipped} records with missing or invalid titles, types, or media`] : [] };
 }
 
