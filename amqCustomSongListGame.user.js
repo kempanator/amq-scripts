@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.108
+// @version      0.109
 // @description  Play a simulated AMQ solo or multiplayer quiz with a custom song list
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -1598,12 +1598,14 @@ class CslController {
         });
         this.listen("get all song names", data => {
             animeListLower = new Set(data.names.map(name => name.toLowerCase()));
-            autocompleteInput = new AmqAwesomeplete(document.querySelector("#cslgNewAnswerInput"), { list: data.names }, true);
+            rebuildCslAutocomplete(data.names);
         });
         this.listen("update all song names", data => {
             for (const name of data.deleted) animeListLower.delete(name.toLowerCase());
             for (const name of data.new) animeListLower.add(name.toLowerCase());
-            if (autocompleteInput) autocompleteInput.list = autocompleteInput.list.filter(name => !data.deleted.includes(name)).concat(data.new);
+            if (autocompleteInput && (data.deleted.length || data.new.length)) {
+                rebuildCslAutocomplete(autocompleteInput.options.list.filter(name => !data.deleted.includes(name)).concat(data.new));
+            }
         });
         const controller = this;
         const playerLeft = quiz._playerLeaveListner.fire;
@@ -2012,6 +2014,15 @@ const loadInterval = setInterval(() => {
         setup();
     }
 }, 500);
+
+// Rebuild AMQ's autocomplete index and cancel searches using the previous names.
+function rebuildCslAutocomplete(names) {
+    if (autocompleteInput) {
+        autocompleteInput.hide();
+        autocompleteInput.destroy();
+    }
+    autocompleteInput = new AmqAwesomeplete(document.querySelector("#cslgNewAnswerInput"), { list: names }, true);
+}
 
 // Build the existing editor and attach the replacement quiz runtime.
 function setup() {
