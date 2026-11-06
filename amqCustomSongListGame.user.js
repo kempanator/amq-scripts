@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.109
+// @version      0.110
 // @description  Play a simulated AMQ solo or multiplayer quiz with a custom song list
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -44,20 +44,50 @@ Some considerations:
 "use strict";
 if (typeof Listener === "undefined") return;
 
+// Protocol and scheduling
+
 // Centralize the limits of the chat transport and quiz lifecycle.
 const CSL = Object.freeze({
-    prefix: "§CSL!", frameLength: 150, maxFragments: 512, maxPlayers: 64,
-    maxBytes: 32768, maxAssemblies: 64, sendSpacing: 50, repairDelay: 1600,
-    cacheTime: 90000, bufferTime: 12000, deliveryGrace: 1200, soloAnswerDelay: 500, collectTime: 6000,
-    revealTime: 25000, fastRevealTime: 6000, announcementDelay: 500
+    prefix: "§CSL!",
+    frameLength: 150,
+    maxFragments: 512,
+    maxPlayers: 64,
+    maxBytes: 32768,
+    maxAssemblies: 64,
+    sendSpacing: 50,
+    repairDelay: 1600,
+    cacheTime: 90000,
+    bufferTime: 12000,
+    deliveryGrace: 1200,
+    soloAnswerDelay: 500,
+    collectTime: 6000,
+    revealTime: 25000,
+    fastRevealTime: 6000,
+    announcementDelay: 500
 });
 
 // Give chat message codes readable names without changing their wire format.
 const CSL_MESSAGE = Object.freeze({
-    BEGIN: "B", PREPARE: "U", READY: "D", PLAY: "P", LOCK: "L", COLLECT: "K",
-    COMMIT: "A", COMMIT_RECEIPT: "J", REVEAL: "V", REVEAL_RECEIPT: "Z",
-    RESULT: "R", FINAL: "F", PAUSE: "T", CONNECTION: "E", STOP: "X",
-    ANNOUNCE: "H", SYNC: "Q", SNAPSHOT: "Y", REPAIR: "N", SKIP: "S"
+    BEGIN: "B",
+    PREPARE: "U",
+    READY: "D",
+    PLAY: "P",
+    LOCK: "L",
+    COLLECT: "K",
+    COMMIT: "A",
+    COMMIT_RECEIPT: "J",
+    REVEAL: "V",
+    REVEAL_RECEIPT: "Z",
+    RESULT: "R",
+    FINAL: "F",
+    PAUSE: "T",
+    CONNECTION: "E",
+    STOP: "X",
+    ANNOUNCE: "H",
+    SYNC: "Q",
+    SNAPSHOT: "Y",
+    REPAIR: "N",
+    SKIP: "S"
 });
 
 // Manual lobby prompts and their replies.
@@ -88,8 +118,13 @@ function cslPack(type, value) {
 
 // Expand player records at the protocol boundary before validation or scoring.
 function cslUnpack(type, value) {
-    if (![CSL_MESSAGE.RESULT, CSL_MESSAGE.SNAPSHOT].includes(type) || !value || !Array.isArray(value.players) || !value.players.every(Array.isArray)) return value;
-    return { ...value, players: value.players.map(row => Object.fromEntries(CSL_PLAYER_FIELDS.map((field, index) => [field, row[index]]))) };
+    if (![CSL_MESSAGE.RESULT, CSL_MESSAGE.SNAPSHOT].includes(type)) return value;
+    if (!value || !Array.isArray(value.players) || !value.players.every(Array.isArray)) return value;
+    const players = value.players.map(row => {
+        const fields = CSL_PLAYER_FIELDS.map((field, index) => [field, row[index]]);
+        return Object.fromEntries(fields);
+    });
+    return { ...value, players };
 }
 
 // Clone plain records before they cross editor, session, or network boundaries.
@@ -200,7 +235,12 @@ class CslTransport {
         if (this.queue.length + frames.length > 2048) throw new Error("CSL chat queue is full");
         this.cache.set(`${session}:${id}`, { frames, type, time: this.now() });
         if (this.cache.size > 256) this.cache.delete(this.cache.keys().next().value);
-        frames.forEach((frame, index) => this.queue.push({ session, type, frame, priority, replaceKey, done: index === frames.length - 1 ? done : null }));
+        frames.forEach((frame, index) => {
+            this.queue.push({
+                session, type, frame, priority, replaceKey,
+                done: index === frames.length - 1 ? done : null
+            });
+        });
         this.pump();
         return id;
     }
@@ -233,7 +273,9 @@ class CslTransport {
         const match = /^§CSL!([A-Za-z0-9_-]{4})\.([a-z0-9]{1,6})\.([a-z0-9]{1,4})\.([A-Z])\.([a-z0-9]{1,2})\.([a-z0-9]{1,2})\.([A-Za-z0-9_-]+)$/.exec(text);
         if (!match) return;
         const [, session, id, roundText, type, indexText, countText, fragment] = match;
-        const round = parseInt(roundText, 36), index = parseInt(indexText, 36), count = parseInt(countText, 36);
+        const round = parseInt(roundText, 36);
+        const index = parseInt(indexText, 36);
+        const count = parseInt(countText, 36);
         const envelope = { session, id, round, type, sender };
         if (count < 1 || count > CSL.maxFragments || index >= count || !this.allow(envelope)) return;
         const key = `${session}:${sender}:${id}`;
@@ -244,7 +286,9 @@ class CslTransport {
             entry = { ...envelope, count, parts: new Map(), time: this.now(), progress: this.now(), repair: 0 };
             this.incoming.set(key, entry);
         }
-        if (entry.count !== count || entry.type !== type || entry.round !== round || (entry.parts.has(index) && entry.parts.get(index) !== fragment)) {
+        const headerChanged = entry.count !== count || entry.type !== type || entry.round !== round;
+        const fragmentChanged = entry.parts.has(index) && entry.parts.get(index) !== fragment;
+        if (headerChanged || fragmentChanged) {
             this.incoming.delete(key);
             this.completed.set(key, this.now());
             return;
@@ -258,7 +302,8 @@ class CslTransport {
         this.incoming.delete(key);
         this.completed.set(key, this.now());
         try {
-            const value = cslDecode(Array.from({ length: count }, (_, part) => entry.parts.get(part)).join(""));
+            const encoded = Array.from({ length: count }, (_, part) => entry.parts.get(part)).join("");
+            const value = cslDecode(encoded);
             if (type === CSL_MESSAGE.REPAIR) this.repair(session, value);
             else this.receiveMessage(envelope, value);
         }
@@ -274,7 +319,10 @@ class CslTransport {
         if (!cached || (cached.lastRepair !== undefined && this.now() - cached.lastRepair < 1000)) return;
         cached.lastRepair = this.now();
         for (const index of new Set(request.missing)) {
-            if (Number.isInteger(index) && cached.frames[index] && !this.queue.some(item => item.frame === cached.frames[index]) && this.queue.length < 2048) this.queue.push({ session, type: cached.type, frame: cached.frames[index], priority: 1 });
+            if (!Number.isInteger(index)) continue;
+            const frame = cached.frames[index];
+            if (!frame || this.queue.some(item => item.frame === frame) || this.queue.length >= 2048) continue;
+            this.queue.push({ session, type: cached.type, frame, priority: 1 });
         }
         this.pump();
     }
@@ -294,7 +342,10 @@ class CslTransport {
             }
         }
         for (const map of [this.cache, this.completed]) {
-            for (const [key, value] of map) if (now - (typeof value === "number" ? value : value.time) > CSL.cacheTime) map.delete(key);
+            for (const [key, value] of map) {
+                const time = typeof value === "number" ? value : value.time;
+                if (now - time > CSL.cacheTime) map.delete(key);
+            }
         }
         this.scope.after(800, () => this.tick());
     }
@@ -325,6 +376,8 @@ class CslTransport {
     }
 }
 
+// Scoring and round lifecycle
+
 // Match accepted titles using the fixed answer set captured at quiz start.
 function cslCorrect(song, answer) {
     return Boolean(answer) && song.acceptedAnswers.includes(answer.trim().toLowerCase());
@@ -332,10 +385,18 @@ function cslCorrect(song, answer) {
 
 // Score the round's original participants even if they leave or reconnect before results.
 function cslScore(players, answers, song, config, round, participants) {
-    const correct = new Map(players.map(player => [player.id, participants.has(player.id) && cslCorrect(song, answers[player.id]?.answer || "")]));
+    const correct = new Map(players.map(player => {
+        const answer = answers[player.id]?.answer || "";
+        return [player.id, participants.has(player.id) && cslCorrect(song, answer)];
+    }));
     const livingCorrect = players.length === 1 || players.some(player => player.score > 0 && correct.get(player.id));
     return players.map(player => {
-        const result = { ...player, correct: correct.get(player.id), answer: answers[player.id]?.answer || "", time: answers[player.id]?.time ?? config.guessTime + config.extraGuessTime };
+        const result = {
+            ...player,
+            correct: correct.get(player.id),
+            answer: answers[player.id]?.answer || "",
+            time: answers[player.id]?.time ?? config.guessTime + config.extraGuessTime
+        };
         if (!participants.has(player.id)) return result;
         if (result.correct) result.correctGuesses++;
         if (config.scoreType === 4) {
@@ -359,10 +420,17 @@ function cslScore(players, answers, song, config, round, participants) {
 
 // Rank ties consistently and retain elimination order in lives mode.
 function cslStandings(players, scoreType) {
-    const value = player => scoreType === 4 ? [player.connected && player.score > 0 ? 1 : 0, player.connected && player.score > 0 ? player.score : player.eliminated ?? 0] : [player.score];
+    const rankValues = player => {
+        if (scoreType !== 4) return [player.score];
+        const alive = player.connected && player.score > 0;
+        return [alive ? 1 : 0, alive ? player.score : player.eliminated ?? 0];
+    };
     const compare = (a, b) => {
-        const av = value(a), bv = value(b);
-        for (let index = 0; index < av.length; index++) if (av[index] !== bv[index]) return bv[index] - av[index];
+        const first = rankValues(a);
+        const second = rankValues(b);
+        for (let index = 0; index < first.length; index++) {
+            if (first[index] !== second[index]) return second[index] - first[index];
+        }
         return 0;
     };
     const sorted = [...players].sort((a, b) => compare(a, b) || a.id - b.id);
@@ -380,7 +448,15 @@ class CslSession {
         Object.assign(this, { id, name, host, solo, emit, hooks, clock, now });
         this.config = cslClone(config);
         this.plan = cslClone(plan);
-        this.players = roster.map(player => ({ ...player, score: config.scoreType === 4 ? config.lives : 0, correctGuesses: 0, reviveScore: 0, eliminated: null, connected: true, activeFrom: 1 }));
+        this.players = roster.map(player => ({
+            ...player,
+            score: config.scoreType === 4 ? config.lives : 0,
+            correctGuesses: 0,
+            reviveScore: 0,
+            eliminated: null,
+            connected: true,
+            activeFrom: 1
+        }));
         this.scope = new CslScope(clock);
         this.phaseScope = new CslScope(clock);
         this.phase = "starting";
@@ -422,7 +498,9 @@ class CslSession {
     // Start presentation once and announce a new host session to the room.
     start(announce = false) {
         this.hooks.start(this);
-        if (announce) this.send(CSL_MESSAGE.BEGIN, { config: this.config, roster: this.players.map(({ id, name }) => ({ id, name })) }, 0, 0, () => this.buffer(1));
+        if (!announce) return;
+        const roster = this.players.map(({ id, name }) => ({ id, name }));
+        this.send(CSL_MESSAGE.BEGIN, { config: this.config, roster }, 0, 0, () => this.buffer(1));
     }
 
     // Route one logical message through the injected network or solo loopback.
@@ -532,7 +610,9 @@ class CslSession {
             this.hooks.answered(this, this.self.id, time);
             return true;
         }
-        const round = this.round, revision = ++this.revision, secret = cslRandom(12);
+        const round = this.round;
+        const revision = ++this.revision;
+        const secret = cslRandom(12);
         const record = { revision, answer, secret };
         this.localAnswers.set(revision, record);
         const hash = await cslCommitment(this.id, round, revision, answer, secret);
@@ -544,7 +624,8 @@ class CslSession {
 
     // Repair a wholly lost commitment as well as a partially received transfer.
     retryCommit(record, round, attempt = 0) {
-        if (this.scope.closed || round !== this.round || record.revision !== this.revision || this.ackRevision >= record.revision || !["guessing", "locking"].includes(this.phase) || attempt >= 3) return;
+        if (this.scope.closed || round !== this.round || record.revision !== this.revision) return;
+        if (this.ackRevision >= record.revision || !["guessing", "locking"].includes(this.phase) || attempt >= 3) return;
         this.send(CSL_MESSAGE.COMMIT, { revision: record.revision, hash: record.hash }, round, 0, () => { }, "answer");
         this.scope.after(700, () => this.retryCommit(record, round, attempt + 1));
     }
@@ -577,9 +658,12 @@ class CslSession {
 
     // Verify a reveal against the commitment frozen before any answers were exposed.
     async reveal(sender, value) {
-        if (!this.isHost || this.phase !== "collecting" || !value || typeof value.answer !== "string" || !/^[a-f0-9]{24}$/.test(value.secret) || new TextEncoder().encode(value.answer).length > 512) return;
+        if (!this.isHost || this.phase !== "collecting") return;
+        if (!value || typeof value.answer !== "string" || !/^[a-f0-9]{24}$/.test(value.secret)) return;
+        if (new TextEncoder().encode(value.answer).length > 512) return;
         const player = this.players.find(player => player.name === sender);
-        const commit = this.commits.get(sender), round = this.round;
+        const commit = this.commits.get(sender);
+        const round = this.round;
         if (!player || !commit || commit.revision !== value.revision) return;
         if (this.answers[player.id]) {
             this.send(CSL_MESSAGE.REVEAL_RECEIPT, { to: sender, revision: value.revision }, round, 0);
@@ -589,20 +673,31 @@ class CslSession {
         if (this.scope.closed || this.round !== round || this.phase !== "collecting" || hash !== commit.hash) return;
         this.answers[player.id] = { answer: value.answer, time: commit.time };
         this.send(CSL_MESSAGE.REVEAL_RECEIPT, { to: sender, revision: value.revision }, round, 0);
-        if ([...this.commits.keys()].every(name => this.answers[this.players.find(player => player.name === name).id])) this.finishRound();
+        if (!this.missingReveals().length) this.finishRound();
+    }
+
+    // Resolve commitments still awaiting their matching answer reveal.
+    missingReveals() {
+        return [...this.commits.keys()].filter(name => {
+            const player = this.players.find(player => player.name === name);
+            return !this.answers[player.id];
+        });
     }
 
     // Publish scores and song metadata together so they cannot arrive out of order.
     finishRound() {
         if (!this.isHost || this.phase !== "collecting" || this.pendingResult) return;
         this.pendingResult = true;
-        const missing = [...this.commits.keys()].filter(name => !this.answers[this.players.find(player => player.name === name).id]);
+        const missing = this.missingReveals();
         if (missing.length) this.hooks.warning(`Missing answer reveals: ${missing.join(", ")}`);
         const song = this.plan[this.round - 1];
         const players = cslScore(this.players, this.answers, song, this.config, this.round, this.roundParticipants);
         const { acceptedAnswers, sample, ...publicSong } = song;
         const living = players.filter(player => player.connected && player.score > 0);
-        const finished = this.round === this.config.totalSongs || (this.config.scoreType === 4 && (this.players.length === 1 ? living.length === 0 : living.length <= 1));
+        const lastSong = this.round === this.config.totalSongs;
+        const livesFinished = this.config.scoreType === 4
+            && (this.players.length === 1 ? living.length === 0 : living.length <= 1);
+        const finished = lastSong || livesFinished;
         this.publish(CSL_MESSAGE.RESULT, { players, song: publicSong, finished });
     }
 
@@ -801,40 +896,39 @@ class CslSession {
             return;
         }
         if (type === CSL_MESSAGE.PREPARE) {
-            if (fromHost && round >= this.waitUntilRound && round >= this.round && round <= this.round + 1 && !this.media.has(round) && cslValidMedia(value)) {
-                this.media.set(round, value);
-                this.hooks.prepare(this, round, value);
-            }
+            if (!fromHost || !(round >= this.waitUntilRound && round >= this.round && round <= this.round + 1)) return;
+            if (this.media.has(round) || !cslValidMedia(value)) return;
+            this.media.set(round, value);
+            this.hooks.prepare(this, round, value);
             return;
         }
         if (type === CSL_MESSAGE.READY) {
-            if (this.isHost && player && typeof value.ok === "boolean" && round >= this.round && round <= this.round + 1) {
-                if (!this.readiness.has(round)) this.readiness.set(round, new Map());
-                this.readiness.get(round).set(sender, value.ok);
-                if (!value.ok && sender !== this.name) this.hooks.warning(`Song ${round}: ${sender} could not load media; continuing automatically`);
-                this.maybePlay();
+            if (!this.isHost || !player || typeof value.ok !== "boolean") return;
+            if (!(round >= this.round && round <= this.round + 1)) return;
+            if (!this.readiness.has(round)) this.readiness.set(round, new Map());
+            this.readiness.get(round).set(sender, value.ok);
+            if (!value.ok && sender !== this.name) {
+                this.hooks.warning(`Song ${round}: ${sender} could not load media; continuing automatically`);
             }
+            this.maybePlay();
             return;
         }
         if (type === CSL_MESSAGE.COMMIT) {
-            if (player && player.connected && player.activeFrom <= round && round === this.round && ["guessing", "locking"].includes(this.phase) && Number.isInteger(value.revision) && value.revision > 0 && value.revision <= 10000 && /^[A-Za-z0-9_-]{43}$/.test(value.hash)) {
-                const previous = this.commits.get(sender);
-                if (this.isHost && (!previous || previous.revision < value.revision || (previous.revision === value.revision && previous.hash === value.hash))) {
-                    this.send(CSL_MESSAGE.COMMIT_RECEIPT, { to: sender, revision: value.revision }, round, 0, () => { }, `receipt:${sender}`);
-                }
-                if (previous && previous.revision >= value.revision) return;
-                const time = this.answerTime();
-                this.commits.set(sender, { revision: value.revision, hash: value.hash, time });
-                this.hooks.answered(this, player.id, time);
-            }
+            this.receiveCommit(sender, player, round, value);
             return;
         }
         if (type === CSL_MESSAGE.COMMIT_RECEIPT) {
-            if (fromHost && round === this.round && value.to === this.name && Number.isInteger(value.revision) && value.revision <= this.revision) this.ackRevision = Math.max(this.ackRevision, value.revision);
+            if (!fromHost || round !== this.round || value.to !== this.name) return;
+            if (Number.isInteger(value.revision) && value.revision <= this.revision) {
+                this.ackRevision = Math.max(this.ackRevision, value.revision);
+            }
             return;
         }
         if (type === CSL_MESSAGE.REVEAL_RECEIPT) {
-            if (fromHost && round === this.round && value.to === this.name && this.localAnswers.has(value.revision)) this.revealAckRevision = Math.max(this.revealAckRevision, value.revision);
+            if (!fromHost || round !== this.round || value.to !== this.name) return;
+            if (this.localAnswers.has(value.revision)) {
+                this.revealAckRevision = Math.max(this.revealAckRevision, value.revision);
+            }
             return;
         }
         if (type === CSL_MESSAGE.REVEAL) {
@@ -842,13 +936,42 @@ class CslSession {
             return;
         }
         if (type === CSL_MESSAGE.SKIP) {
-            if (this.isHost && player && player.connected && player.activeFrom <= round && round === this.round && value.phase === this.phase) {
-                this.votes.add(sender);
-                this.checkVotes();
-            }
+            if (!this.isHost || !player || !player.connected || !(player.activeFrom <= round)) return;
+            if (round !== this.round || value.phase !== this.phase) return;
+            this.votes.add(sender);
+            this.checkVotes();
             return;
         }
-        if (!fromHost || !Number.isSafeInteger(value.q) || value.q <= this.applied || ![CSL_MESSAGE.PLAY, CSL_MESSAGE.LOCK, CSL_MESSAGE.COLLECT, CSL_MESSAGE.RESULT, CSL_MESSAGE.FINAL, CSL_MESSAGE.PAUSE, CSL_MESSAGE.CONNECTION, CSL_MESSAGE.STOP].includes(type)) return;
+        if (fromHost) this.receiveControl(type, round, value);
+    }
+
+    // Accept newer commitments and acknowledge identical retries from the sender.
+    receiveCommit(sender, player, round, value) {
+        if (!player || !player.connected || !(player.activeFrom <= round) || round !== this.round) return;
+        if (!["guessing", "locking"].includes(this.phase)) return;
+        if (!Number.isInteger(value.revision) || value.revision <= 0 || value.revision > 10000) return;
+        if (!/^[A-Za-z0-9_-]{43}$/.test(value.hash)) return;
+
+        const previous = this.commits.get(sender);
+        const newer = !previous || previous.revision < value.revision;
+        const identical = previous && previous.revision === value.revision && previous.hash === value.hash;
+        if (this.isHost && (newer || identical)) {
+            this.send(CSL_MESSAGE.COMMIT_RECEIPT, { to: sender, revision: value.revision }, round, 0, () => { }, `receipt:${sender}`);
+        }
+        if (previous && previous.revision >= value.revision) return;
+        const time = this.answerTime();
+        this.commits.set(sender, { revision: value.revision, hash: value.hash, time });
+        this.hooks.answered(this, player.id, time);
+    }
+
+    // Enforce host sequencing before applying a gameplay transition.
+    receiveControl(type, round, value) {
+        if (!Number.isSafeInteger(value.q) || value.q <= this.applied) return;
+        const controlTypes = [
+            CSL_MESSAGE.PLAY, CSL_MESSAGE.LOCK, CSL_MESSAGE.COLLECT, CSL_MESSAGE.RESULT,
+            CSL_MESSAGE.FINAL, CSL_MESSAGE.PAUSE, CSL_MESSAGE.CONNECTION, CSL_MESSAGE.STOP
+        ];
+        if (!controlTypes.includes(type)) return;
         if (type === CSL_MESSAGE.STOP) {
             this.applied = value.q;
             this.hooks.end(this);
@@ -859,9 +982,13 @@ class CslSession {
             return;
         }
         if (!cslValidControl(type, value, this.players, this.config)) return;
-        if (type === CSL_MESSAGE.PLAY && (!this.media.has(round) || round < this.waitUntilRound || (round !== this.round + 1 && !(round === this.round && ["buffering", "waiting"].includes(this.phase))))) {
-            this.synchronize();
-            return;
+        if (type === CSL_MESSAGE.PLAY) {
+            const sameBufferedRound = round === this.round && ["buffering", "waiting"].includes(this.phase);
+            const nextRound = round === this.round + 1;
+            if (!this.media.has(round) || round < this.waitUntilRound || (!nextRound && !sameBufferedRound)) {
+                this.synchronize();
+                return;
+            }
         }
         this.applied = value.q;
         if (type === CSL_MESSAGE.PAUSE) {
@@ -897,6 +1024,8 @@ class CslSession {
     }
 }
 
+// Message validation
+
 // Validate playback records from chat without trusting arbitrary object shapes.
 function cslValidMedia(value) {
     return value && Number.isInteger(value.sample) && value.sample >= 0 && value.sample <= 100 && cslValidMediaLinks(value);
@@ -911,50 +1040,78 @@ function cslValidMediaLinks(value) {
 
 // Check score snapshots independently from optional answer-result presentation fields.
 function cslValidPlayerState(players, config) {
-    return players.every(player => Number.isInteger(player.score) && player.score >= 0 && player.score <= (config.scoreType === 4 ? config.lives : config.totalSongs)
-        && Number.isInteger(player.correctGuesses) && player.correctGuesses >= 0 && player.correctGuesses <= config.totalSongs
-        && Number.isInteger(player.reviveScore) && player.reviveScore >= 0 && player.reviveScore <= 2
-        && typeof player.connected === "boolean" && Number.isInteger(player.activeFrom) && player.activeFrom >= 1 && player.activeFrom <= config.totalSongs + 1
-        && (player.eliminated === null || (Number.isInteger(player.eliminated) && player.eliminated >= 1 && player.eliminated <= config.totalSongs)));
+    return players.every(player => {
+        if (!Number.isInteger(player.score) || player.score < 0) return false;
+        const maxScore = config.scoreType === 4 ? config.lives : config.totalSongs;
+        if (!(player.score <= maxScore)) return false;
+        if (!Number.isInteger(player.correctGuesses) || player.correctGuesses < 0 || !(player.correctGuesses <= config.totalSongs)) return false;
+        if (!Number.isInteger(player.reviveScore) || player.reviveScore < 0 || player.reviveScore > 2) return false;
+        if (typeof player.connected !== "boolean") return false;
+        if (!Number.isInteger(player.activeFrom) || player.activeFrom < 1 || !(player.activeFrom <= config.totalSongs + 1)) return false;
+        if (player.eliminated === null) return true;
+        return Number.isInteger(player.eliminated) && player.eliminated >= 1 && player.eliminated <= config.totalSongs;
+    });
 }
 
 // Validate settings before starting a host-announced session or restoring state.
 function cslValidConfig(value) {
-    return value && [1, 4].includes(value.scoreType) && Number.isInteger(value.lives) && value.lives >= 1 && value.lives <= 5
-        && Number.isInteger(value.totalSongs) && value.totalSongs > 0 && value.totalSongs <= 10000
-        && Number.isInteger(value.guessTime) && value.guessTime >= 1 && value.guessTime <= 99
-        && Number.isInteger(value.extraGuessTime) && value.extraGuessTime >= 0 && value.extraGuessTime <= 15
-        && typeof value.fastSkip === "boolean" && typeof value.fullSongRange === "boolean"
-        && typeof value.quizId === "string" && value.quizId.length <= 64 && typeof value.startTime === "string";
+    if (!value) return value;
+    if (![1, 4].includes(value.scoreType)) return false;
+    if (!Number.isInteger(value.lives) || value.lives < 1 || value.lives > 5) return false;
+    if (!Number.isInteger(value.totalSongs) || value.totalSongs < 1 || value.totalSongs > 10000) return false;
+    if (!Number.isInteger(value.guessTime) || value.guessTime < 1 || value.guessTime > 99) return false;
+    if (!Number.isInteger(value.extraGuessTime) || value.extraGuessTime < 0 || value.extraGuessTime > 15) return false;
+    if (typeof value.fastSkip !== "boolean" || typeof value.fullSongRange !== "boolean") return false;
+    return typeof value.quizId === "string" && value.quizId.length <= 64 && typeof value.startTime === "string";
 }
 
 // Validate authoritative state before sequence advancement or AMQ presentation.
 function cslValidControl(type, value, players, config) {
     if (type === CSL_MESSAGE.PAUSE) return typeof value.paused === "boolean";
     if (type === CSL_MESSAGE.CONNECTION) return players.some(player => player.name === value.name) && typeof value.connected === "boolean";
-    if (type === CSL_MESSAGE.COLLECT) return Array.isArray(value.commits) && value.commits.length <= players.length && value.commits.every(entry => Array.isArray(entry) && players.some(player => player.name === entry[0]) && Number.isInteger(entry[1]));
-    if (type === CSL_MESSAGE.FINAL) return Array.isArray(value.ranks) && value.ranks.length === players.length && new Set(value.ranks.map(rank => rank.id)).size === players.length && value.ranks.every(rank => players.some(player => player.id === rank.id) && Number.isInteger(rank.place) && rank.place > 0 && rank.place <= players.length);
+    if (type === CSL_MESSAGE.COLLECT) {
+        if (!Array.isArray(value.commits) || value.commits.length > players.length) return false;
+        return value.commits.every(entry => {
+            if (!Array.isArray(entry)) return false;
+            return players.some(player => player.name === entry[0]) && Number.isInteger(entry[1]);
+        });
+    }
+    if (type === CSL_MESSAGE.FINAL) {
+        if (!Array.isArray(value.ranks) || value.ranks.length !== players.length) return false;
+        if (new Set(value.ranks.map(rank => rank.id)).size !== players.length) return false;
+        return value.ranks.every(rank => {
+            if (!players.some(player => player.id === rank.id)) return false;
+            return Number.isInteger(rank.place) && rank.place > 0 && rank.place <= players.length;
+        });
+    }
     if (type !== CSL_MESSAGE.RESULT) return true;
-    return Array.isArray(value.players) && value.players.length === players.length && new Set(value.players.map(player => player.id)).size === players.length && cslValidPlayerState(value.players, config)
-        && value.players.every(player => players.some(old => old.id === player.id && old.name === player.name)
-            && Number.isInteger(player.score) && player.score >= 0 && player.score <= (config.scoreType === 4 ? config.lives : config.totalSongs)
-            && Number.isInteger(player.correctGuesses) && player.correctGuesses >= 0 && player.correctGuesses <= config.totalSongs
-            && Number.isInteger(player.reviveScore) && player.reviveScore >= 0 && player.reviveScore <= 2
-            && typeof player.connected === "boolean" && typeof player.correct === "boolean" && typeof player.answer === "string" && player.answer.length <= 512
-            && Number.isFinite(player.time) && player.time >= 0 && player.time <= config.guessTime + config.extraGuessTime)
-        && typeof value.finished === "boolean" && cslValidSong(value.song);
+    if (!Array.isArray(value.players) || value.players.length !== players.length) return false;
+    if (new Set(value.players.map(player => player.id)).size !== players.length) return false;
+    if (!cslValidPlayerState(value.players, config)) return false;
+    const validResults = value.players.every(player => {
+        if (!players.some(old => old.id === player.id && old.name === player.name)) return false;
+        if (typeof player.correct !== "boolean" || typeof player.answer !== "string" || player.answer.length > 512) return false;
+        return Number.isFinite(player.time) && player.time >= 0 && player.time <= config.guessTime + config.extraGuessTime;
+    });
+    return validResults && typeof value.finished === "boolean" && cslValidSong(value.song);
 }
 
 // Require the normalized fields consumed by AMQ's song-info presentation.
 function cslValidSong(song) {
-    return song && ["animeRomajiName", "animeEnglishName", "songName", "songArtist"].every(key => typeof song[key] === "string")
-        && cslValidMediaLinks(song)
-        && ["altAnimeNames", "altAnimeNamesAnswers", "animeTags", "animeGenre"].every(key => Array.isArray(song[key]) && song[key].every(value => typeof value === "string"))
-        && [1, 2, 3].includes(song.songType) && typeof song.animeType === "string"
-        && (song.animeVintage === null || typeof song.animeVintage === "string")
-        && (song.songDifficulty === null || (Number.isFinite(song.songDifficulty) && song.songDifficulty >= 0 && song.songDifficulty <= 100));
+    if (!song) return song;
+    const textFields = ["animeRomajiName", "animeEnglishName", "songName", "songArtist"];
+    if (!textFields.every(key => typeof song[key] === "string")) return false;
+    if (!cslValidMediaLinks(song)) return false;
+    const listFields = ["altAnimeNames", "altAnimeNamesAnswers", "animeTags", "animeGenre"];
+    if (!listFields.every(key => Array.isArray(song[key]) && song[key].every(value => typeof value === "string"))) return false;
+    if (![1, 2, 3].includes(song.songType) || typeof song.animeType !== "string") return false;
+    if (song.animeVintage !== null && typeof song.animeVintage !== "string") return false;
+    if (song.songDifficulty === null) return true;
+    return Number.isFinite(song.songDifficulty) && song.songDifficulty >= 0 && song.songDifficulty <= 100;
 }
 
+
+// Song import and answer merging
 
 // Keep imported text fields explicit instead of coercing arbitrary objects.
 function cslText(value) {
@@ -963,7 +1120,12 @@ function cslText(value) {
 
 // Normalize list-valued metadata while removing empty and duplicate strings.
 function cslStrings(value) {
-    return [...new Set((Array.isArray(value) ? value : [value]).filter(item => typeof item === "string").map(item => item.trim()).filter(Boolean))];
+    const values = Array.isArray(value) ? value : [value];
+    const strings = values
+        .filter(item => typeof item === "string")
+        .map(item => item.trim())
+        .filter(Boolean);
+    return [...new Set(strings)];
 }
 
 // Preserve legitimate zero difficulty while distinguishing missing values.
@@ -1010,56 +1172,67 @@ function cslPlaylistMediaKey(media) {
 function mergeCslAnimeAnswers(songs) {
     const parents = songs.map((song, index) => index);
     // Resolve a group's representative without retaining long chains.
-    const root = index => {
+    const findGroup = index => {
         while (parents[index] !== index) {
             parents[index] = parents[parents[index]];
             index = parents[index];
         }
         return index;
     };
-    // Connect songs sharing any key during one matching pass.
-    const connect = keys => {
+    // Join overlapping matches so every song receives the whole group's answers.
+    const connectMatchingSongs = keyForSong => {
         const seen = new Map();
         songs.forEach((song, index) => {
-            for (const key of keys(song)) {
-                const previous = seen.get(key);
-                if (previous === undefined) seen.set(key, index);
-                else parents[root(index)] = root(previous);
-            }
+            const key = keyForSong(song);
+            if (key === null) return;
+            const previous = seen.get(key);
+            if (previous === undefined) seen.set(key, index);
+            else parents[findGroup(index)] = findGroup(previous);
         });
     };
     // Group by optional AMQ song ID first, independently of unique ANN song IDs.
-    connect(song => song.amqSongId ? [song.amqSongId] : []);
+    connectMatchingSongs(song => song.amqSongId || null);
     // Fall back to a complete song/artist pair without altering punctuation.
-    connect(song => song.songName && song.songArtist ? [JSON.stringify([song.songName.toLowerCase(), song.songArtist.toLowerCase()])] : []);
-    const answers = new Map();
+    connectMatchingSongs(song => {
+        if (!song.songName || !song.songArtist) return null;
+        return JSON.stringify([song.songName.toLowerCase(), song.songArtist.toLowerCase()]);
+    });
+    const groupAnswers = new Map();
     songs.forEach((song, index) => {
-        const key = root(index);
-        if (!answers.has(key)) answers.set(key, new Set());
-        for (const title of [song.animeRomajiName, song.animeEnglishName, ...song.altAnimeNames, ...song.altAnimeNamesAnswers]) {
-            if (title) answers.get(key).add(title);
+        const group = findGroup(index);
+        if (!groupAnswers.has(group)) groupAnswers.set(group, new Set());
+        const titles = [song.animeRomajiName, song.animeEnglishName, ...song.altAnimeNames, ...song.altAnimeNamesAnswers];
+        for (const title of titles) {
+            if (title) groupAnswers.get(group).add(title);
         }
     });
     songs.forEach((song, index) => {
-        song.altAnimeNamesAnswers = [...answers.get(root(index))].filter(title => !song.altAnimeNames.includes(title));
+        const titles = [...groupAnswers.get(findGroup(index))];
+        song.altAnimeNamesAnswers = titles.filter(title => !song.altAnimeNames.includes(title));
     });
     return songs;
 }
 
 // Merge repeated anime appearances while retaining separate playlist occurrences.
 function mergeCslSongs(first, second) {
-    const map = new Map();
+    const songsByAppearance = new Map();
     for (const song of [...first, ...second]) {
-        const key = JSON.stringify([cslRecordingKey(song), song.annId || song.malId || song.animeRomajiName, song.songType, song.songTypeNumber]);
-        const existing = map.get(key);
-        if (!existing) map.set(key, JSON.parse(JSON.stringify(song)));
-        else {
-            existing.amqSongId ??= song.amqSongId;
-            existing.altAnimeNames = [...new Set([...existing.altAnimeNames, ...song.altAnimeNames])];
-            existing.altAnimeNamesAnswers = [...new Set([...existing.altAnimeNamesAnswers, ...song.altAnimeNamesAnswers])];
+        const key = JSON.stringify([
+            cslRecordingKey(song),
+            song.annId || song.malId || song.animeRomajiName,
+            song.songType,
+            song.songTypeNumber
+        ]);
+        const existing = songsByAppearance.get(key);
+        if (!existing) {
+            songsByAppearance.set(key, cslClone(song));
+            continue;
         }
+        existing.amqSongId ??= song.amqSongId;
+        existing.altAnimeNames = [...new Set([...existing.altAnimeNames, ...song.altAnimeNames])];
+        existing.altAnimeNamesAnswers = [...new Set([...existing.altAnimeNamesAnswers, ...song.altAnimeNamesAnswers])];
     }
-    return mergeCslAnimeAnswers([...map.values()]);
+    return mergeCslAnimeAnswers([...songsByAppearance.values()]);
 }
 
 // Detect creator records that AMQ can resolve into hover information.
@@ -1126,140 +1299,153 @@ function resolveCreatorInfo(song, infoKey, anisongdbKey, nameFallback) {
     return nameFallback ? { name: nameFallback } : null;
 }
 
-// Normalize external song records atomically, retaining detailed import warnings.
+// Unwrap the supported export containers without changing format precedence.
+function cslSongRecords(data) {
+    if (Array.isArray(data)) return data;
+    if (!data || typeof data !== "object") throw new Error("Unrecognized song-list format");
+    if (data.songs) return data.songs;
+    if (data.songHistory) return Object.values(data.songHistory);
+    throw new Error("Unrecognized song-list format");
+}
+
+// Normalize a list atomically and report records that cannot be played.
 function normalizeCslSongs(data) {
+    const records = cslSongRecords(data);
+    if (!Array.isArray(records)) throw new Error("Song list must contain an array");
     const songs = [];
     let skipped = 0;
-    // Remap data to actual song array
-    if (!Array.isArray(data)) {
-        if (data && typeof data === "object") {
-            if (data.songs) {
-                data = data.songs;
-            }
-            else if (data.songHistory) {
-                data = Object.values(data.songHistory);
-            }
-            else throw new Error("Unrecognized song-list format");
-        }
-        else throw new Error("Unrecognized song-list format");
-    }
-    if (!Array.isArray(data)) throw new Error("Song list must contain an array");
-    for (const song of data) {
-        if (!song || typeof song !== "object" || Array.isArray(song)) { skipped++; continue; }
-        let animeRomajiName = song.animeRomajiName ?? song.animeJPName ?? song.songInfo?.animeNames?.romaji ?? song.anime?.romaji ?? song.animeRomaji ?? song.animeRom ?? "";
-        let animeEnglishName = song.animeEnglishName ?? song.animeENName ?? song.songInfo?.animeNames?.english ?? song.anime?.english ?? song.animeEnglish ?? song.animeEng ?? "";
-        let altAnimeNames = song.altAnimeNames ?? song.songInfo?.altAnimeNames ?? [].concat(animeRomajiName, animeEnglishName, song.animeAltName || []);
-        let altAnimeNamesAnswers = song.altAnimeNamesAnswers ?? song.songInfo?.altAnimeNamesAnswers ?? [];
-        let songArtist = song.songArtist ?? song.artist ?? song.songInfo?.artist ?? song.artistInfo?.name ?? formatAnisongdbCreatorNames(song.artists) ?? "";
-        let artistInfo = resolveCreatorInfo(song, "artistInfo", "artists", songArtist);
-        let songArranger = song.songArranger ?? song.arrangerInfo?.name ?? song.songInfo?.arrangerInfo?.name ?? formatAnisongdbCreatorNames(song.arrangers) ?? "";
-        let arrangerInfo = resolveCreatorInfo(song, "arrangerInfo", "arrangers", songArranger);
-        let songComposer = song.songComposer ?? song.composerInfo?.name ?? song.songInfo?.composerInfo?.name ?? formatAnisongdbCreatorNames(song.composers) ?? "";
-        let composerInfo = resolveCreatorInfo(song, "composerInfo", "composers", songComposer);
-        let songName = song.songName ?? song.name ?? song.songInfo?.songName ?? "";
-        let songType = song.songType ?? song.type ?? song.songInfo?.type ?? null;
-        let songTypeNumber = song.songTypeNumber ?? song.songInfo?.typeNumber ?? null;
-        let songDifficulty = cslDifficulty(song.songDifficulty ?? song.difficulty ?? song.songInfo?.animeDifficulty);
-        let animeType = song.animeType ?? song.songInfo?.animeType ?? "";
-        let animeVintage = song.animeVintage ?? song.vintage ?? song.songInfo?.vintage ?? null;
-        let annId = song.annId ?? song.siteIds?.annId ?? song.songInfo?.siteIds?.annId ?? null;
-        let malId = song.malId ?? song.linked_ids?.myanimelist ?? song.siteIds?.malId ?? song.songInfo?.siteIds?.malId ?? null;
-        let kitsuId = song.kitsuId ?? song.linked_ids?.kitsu ?? song.siteIds?.kitsuId ?? song.songInfo?.siteIds?.kitsuId ?? null;
-        let aniListId = song.aniListId ?? song.linked_ids?.anilist ?? song.siteIds?.aniListId ?? song.songInfo?.siteIds?.aniListId ?? null;
-        let animeTags = song.animeTags ?? song.tags ?? song.songInfo?.animeTags ?? [];
-        let animeGenre = song.animeGenre ?? song.genre ?? song.songInfo?.animeGenre ?? [];
-        let rebroadcast = song.rebroadcast ?? song.isRebroadcast ?? song.songInfo?.rebroadcast ?? null;
-        let dub = song.dub ?? song.isDub ?? song.songInfo?.dub ?? null;
-        let startPoint = song.startPoint ?? song.startSample ?? null;
-        let annSongId = song.annSongId ?? song.songInfo?.annSongId ?? null;
-        let amqSongId = song.amqSongId ?? song.songInfo?.amqSongId ?? null;
-        let audio = song.audio ?? song.videoUrl ?? song.urls?.catbox?.[0] ?? song.songInfo?.videoTargetMap?.catbox?.[0] ?? song.songInfo?.urlMap?.catbox?.[0] ?? song.LinkMp3 ?? "";
-        let video480 = song.video480 ?? song.MQ ?? song.videoUrl ?? song.urls?.catbox?.[480] ?? song.songInfo?.videoTargetMap?.catbox?.[480] ?? song.songInfo?.urlMap?.catbox?.[480] ?? "";
-        let video720 = song.video720 ?? song.HQ ?? song.videoUrl ?? song.urls?.catbox?.[720] ?? song.songInfo?.videoTargetMap?.catbox?.[720] ?? song.songInfo?.urlMap?.catbox?.[720] ?? song.LinkVideo ?? "";
-        let correctGuess = song.correctGuess ?? null;
-        let incorrectGuess = song.incorrectGuess ?? song.wrongGuess ?? null;
-        if (correctGuess === null && typeof song.correct === "boolean") { // Joseph script check
-            correctGuess = song.correct;
-            incorrectGuess = !song.correct;
-        }
-        if (typeof animeVintage === "object" && animeVintage?.key && animeVintage?.data?.year) { // AMQ songinfo vintage is an object
-            const season = animeVintage.key.split(".").at(-1);
-            animeVintage = season[0].toUpperCase() + season.slice(1) + " " + animeVintage.data.year;
-        }
-        if (typeof songType === "string") { // Convert songtype string to amq integers
-            songType = songType.trim().toUpperCase();
-            if (songType.startsWith("O")) {
-                songTypeNumber = parseInt(songType.match(/\d+/)?.[0]) || null;
-                songType = 1;
-            }
-            else if (songType.startsWith("E")) {
-                songTypeNumber = parseInt(songType.match(/\d+/)?.[0]) || null;
-                songType = 2;
-            }
-            else if (songType.startsWith("I")) {
-                songTypeNumber = null;
-                songType = 3;
-            }
-        }
-        animeRomajiName = cslText(animeRomajiName);
-        animeEnglishName = cslText(animeEnglishName);
-        songName = cslText(songName);
-        songArtist = cslText(songArtist);
-        songArranger = cslText(songArranger);
-        songComposer = cslText(songComposer);
-        animeType = cslText(animeType);
-        animeVintage = typeof animeVintage === "string" ? animeVintage : null;
-        altAnimeNames = [...new Set([...cslStrings(altAnimeNames), animeRomajiName, animeEnglishName].filter(Boolean))];
-        altAnimeNamesAnswers = cslStrings(altAnimeNamesAnswers);
-        animeTags = cslStrings(animeTags);
-        animeGenre = cslStrings(animeGenre);
-        audio = cslMedia(audio);
-        video480 = cslMedia(video480);
-        video720 = cslMedia(video720);
-        songType = Number(songType);
-        songTypeNumber = Number.isInteger(Number(songTypeNumber)) && Number(songTypeNumber) > 0 ? Number(songTypeNumber) : null;
-        if ((audio || video480 || video720) && [1, 2, 3].includes(songType) && altAnimeNames.length) {
-            songs.push({
-                animeRomajiName,
-                animeEnglishName,
-                altAnimeNames,
-                altAnimeNamesAnswers,
-                songArtist,
-                artistInfo,
-                songArranger,
-                arrangerInfo,
-                songComposer,
-                composerInfo,
-                songName,
-                songType,
-                songTypeNumber,
-                songDifficulty,
-                animeType,
-                animeVintage,
-                annId: cslId(annId),
-                malId: cslId(malId),
-                kitsuId: cslId(kitsuId),
-                aniListId: cslId(aniListId),
-                animeTags,
-                animeGenre,
-                rebroadcast: rebroadcast === true,
-                dub: dub === true,
-                startPoint,
-                annSongId: cslId(annSongId),
-                amqSongId: cslId(amqSongId),
-                audio,
-                video480,
-                video720,
-                correctGuess: typeof correctGuess === "boolean" ? correctGuess : null,
-                incorrectGuess: typeof incorrectGuess === "boolean" ? incorrectGuess : null
-            });
-        }
+    for (const record of records) {
+        const song = normalizeCslSong(record);
+        if (song) songs.push(song);
         else skipped++;
     }
     mergeCslAnimeAnswers(songs);
-    return { songs, warnings: skipped ? [`Skipped ${skipped} records with missing or invalid titles, types, or media`] : [] };
+    const warnings = skipped ? [`Skipped ${skipped} records with missing or invalid titles, types, or media`] : [];
+    return { songs, warnings };
 }
 
+// Resolve supported source fields before validating one playable song.
+function normalizeCslSong(song) {
+    if (!song || typeof song !== "object" || Array.isArray(song)) return null;
+    let animeRomajiName = song.animeRomajiName ?? song.animeJPName ?? song.songInfo?.animeNames?.romaji ?? song.anime?.romaji ?? song.animeRomaji ?? song.animeRom ?? "";
+    let animeEnglishName = song.animeEnglishName ?? song.animeENName ?? song.songInfo?.animeNames?.english ?? song.anime?.english ?? song.animeEnglish ?? song.animeEng ?? "";
+    let altAnimeNames = song.altAnimeNames ?? song.songInfo?.altAnimeNames ?? [].concat(animeRomajiName, animeEnglishName, song.animeAltName || []);
+    let altAnimeNamesAnswers = song.altAnimeNamesAnswers ?? song.songInfo?.altAnimeNamesAnswers ?? [];
+
+    let songArtist = song.songArtist ?? song.artist ?? song.songInfo?.artist ?? song.artistInfo?.name ?? formatAnisongdbCreatorNames(song.artists) ?? "";
+    let artistInfo = resolveCreatorInfo(song, "artistInfo", "artists", songArtist);
+    let songArranger = song.songArranger ?? song.arrangerInfo?.name ?? song.songInfo?.arrangerInfo?.name ?? formatAnisongdbCreatorNames(song.arrangers) ?? "";
+    let arrangerInfo = resolveCreatorInfo(song, "arrangerInfo", "arrangers", songArranger);
+    let songComposer = song.songComposer ?? song.composerInfo?.name ?? song.songInfo?.composerInfo?.name ?? formatAnisongdbCreatorNames(song.composers) ?? "";
+    let composerInfo = resolveCreatorInfo(song, "composerInfo", "composers", songComposer);
+
+    let songName = song.songName ?? song.name ?? song.songInfo?.songName ?? "";
+    let songType = song.songType ?? song.type ?? song.songInfo?.type ?? null;
+    let songTypeNumber = song.songTypeNumber ?? song.songInfo?.typeNumber ?? null;
+    let songDifficulty = cslDifficulty(song.songDifficulty ?? song.difficulty ?? song.songInfo?.animeDifficulty);
+    let dub = song.dub ?? song.isDub ?? song.songInfo?.dub ?? null;
+    let rebroadcast = song.rebroadcast ?? song.isRebroadcast ?? song.songInfo?.rebroadcast ?? null;
+    let startPoint = song.startPoint ?? song.startSample ?? null;
+
+    let animeType = song.animeType ?? song.songInfo?.animeType ?? "";
+    let animeVintage = song.animeVintage ?? song.vintage ?? song.songInfo?.vintage ?? null;
+    let animeTags = song.animeTags ?? song.tags ?? song.songInfo?.animeTags ?? [];
+    let animeGenre = song.animeGenre ?? song.genre ?? song.songInfo?.animeGenre ?? [];
+
+    let annId = song.annId ?? song.siteIds?.annId ?? song.songInfo?.siteIds?.annId ?? null;
+    let malId = song.malId ?? song.linked_ids?.myanimelist ?? song.siteIds?.malId ?? song.songInfo?.siteIds?.malId ?? null;
+    let kitsuId = song.kitsuId ?? song.linked_ids?.kitsu ?? song.siteIds?.kitsuId ?? song.songInfo?.siteIds?.kitsuId ?? null;
+    let aniListId = song.aniListId ?? song.linked_ids?.anilist ?? song.siteIds?.aniListId ?? song.songInfo?.siteIds?.aniListId ?? null;
+    let annSongId = song.annSongId ?? song.songInfo?.annSongId ?? null;
+    let amqSongId = song.amqSongId ?? song.songInfo?.amqSongId ?? null;
+
+    let audio = song.audio ?? song.videoUrl ?? song.urls?.catbox?.[0] ?? song.songInfo?.videoTargetMap?.catbox?.[0] ?? song.songInfo?.urlMap?.catbox?.[0] ?? song.LinkMp3 ?? "";
+    let video480 = song.video480 ?? song.MQ ?? song.videoUrl ?? song.urls?.catbox?.[480] ?? song.songInfo?.videoTargetMap?.catbox?.[480] ?? song.songInfo?.urlMap?.catbox?.[480] ?? "";
+    let video720 = song.video720 ?? song.HQ ?? song.videoUrl ?? song.urls?.catbox?.[720] ?? song.songInfo?.videoTargetMap?.catbox?.[720] ?? song.songInfo?.urlMap?.catbox?.[720] ?? song.LinkVideo ?? "";
+
+    let correctGuess = song.correctGuess ?? null;
+    let incorrectGuess = song.incorrectGuess ?? song.wrongGuess ?? null;
+    
+    if (correctGuess === null && typeof song.correct === "boolean") { // Joseph script check
+        correctGuess = song.correct;
+        incorrectGuess = !song.correct;
+    }
+    if (typeof animeVintage === "object" && animeVintage?.key && animeVintage?.data?.year) { // AMQ songinfo vintage is an object
+        const season = animeVintage.key.split(".").at(-1);
+        animeVintage = season[0].toUpperCase() + season.slice(1) + " " + animeVintage.data.year;
+    }
+    if (typeof songType === "string") { // Convert songtype string to amq integers
+        songType = songType.trim().toUpperCase();
+        if (songType.startsWith("O")) {
+            songTypeNumber = parseInt(songType.match(/\d+/)?.[0]) || null;
+            songType = 1;
+        }
+        else if (songType.startsWith("E")) {
+            songTypeNumber = parseInt(songType.match(/\d+/)?.[0]) || null;
+            songType = 2;
+        }
+        else if (songType.startsWith("I")) {
+            songTypeNumber = null;
+            songType = 3;
+        }
+    }
+
+    animeRomajiName = cslText(animeRomajiName);
+    animeEnglishName = cslText(animeEnglishName);
+    songName = cslText(songName);
+    songArtist = cslText(songArtist);
+    songArranger = cslText(songArranger);
+    songComposer = cslText(songComposer);
+    animeType = cslText(animeType);
+    animeVintage = typeof animeVintage === "string" ? animeVintage : null;
+    altAnimeNames = [...new Set([...cslStrings(altAnimeNames), animeRomajiName, animeEnglishName].filter(Boolean))];
+    altAnimeNamesAnswers = cslStrings(altAnimeNamesAnswers);
+    animeTags = cslStrings(animeTags);
+    animeGenre = cslStrings(animeGenre);
+    audio = cslMedia(audio);
+    video480 = cslMedia(video480);
+    video720 = cslMedia(video720);
+    songType = Number(songType);
+    songTypeNumber = Number.isInteger(Number(songTypeNumber)) && Number(songTypeNumber) > 0 ? Number(songTypeNumber) : null;
+    if (!(audio || video480 || video720) || ![1, 2, 3].includes(songType) || !altAnimeNames.length) return null;
+    return {
+        animeRomajiName,
+        animeEnglishName,
+        altAnimeNames,
+        altAnimeNamesAnswers,
+        songArtist,
+        artistInfo,
+        songArranger,
+        arrangerInfo,
+        songComposer,
+        composerInfo,
+        songName,
+        songType,
+        songTypeNumber,
+        songDifficulty,
+        animeType,
+        animeVintage,
+        annId: cslId(annId),
+        malId: cslId(malId),
+        kitsuId: cslId(kitsuId),
+        aniListId: cslId(aniListId),
+        animeTags,
+        animeGenre,
+        rebroadcast: rebroadcast === true,
+        dub: dub === true,
+        startPoint,
+        annSongId: cslId(annSongId),
+        amqSongId: cslId(amqSongId),
+        audio,
+        video480,
+        video720,
+        correctGuess: typeof correctGuess === "boolean" ? correctGuess : null,
+        incorrectGuess: typeof incorrectGuess === "boolean" ? incorrectGuess : null
+    };
+}
+
+
+// AMQ presentation and room integration
 
 // Dispatch synthetic AMQ events with the same isolation as the native socket.
 function fireListener(type, data) {
@@ -1381,7 +1567,12 @@ class CslAmqAdapter {
         try {
             fireListener("Game Starting", {
                 gameMode: settings.gameMode, showSelection: 1, groupSlotMap: groups, players,
-                multipleChoice: false, quizDescription: { quizId: session.config.quizId, startTime: session.config.startTime, roomName: this.originalSettings.roomName || "Custom Song List" }
+                multipleChoice: false,
+                quizDescription: {
+                    quizId: session.config.quizId,
+                    startTime: session.config.startTime,
+                    roomName: this.originalSettings.roomName || "Custom Song List"
+                }
             });
         }
         finally {
@@ -1432,7 +1623,10 @@ class CslAmqAdapter {
             arrangerInfo: song.arrangerInfo, composerInfo: song.composerInfo, songName: song.songName,
             videoTargetMap: { catbox: createCatboxLinkObject(song.audio, song.video480, song.video720) },
             type: song.songType, typeNumber: song.songTypeNumber, annId: song.annId, annSongId: song.annSongId,
-            highRisk: 0, animeScore: null, animeType: escapeHtml(song.animeType), vintage: formatAmqVintage(song.animeVintage) || { key: "avatar_lore.unknown", data: {} },
+            highRisk: 0,
+            animeScore: null,
+            animeType: escapeHtml(song.animeType),
+            vintage: formatAmqVintage(song.animeVintage) || { key: "avatar_lore.unknown", data: {} },
             animeDifficulty: song.songDifficulty, animeTags: song.animeTags.map(escapeHtml), animeGenre: song.animeGenre.map(escapeHtml),
             altAnimeNames: song.altAnimeNames, altAnimeNamesAnswers: song.altAnimeNamesAnswers,
             rebroadcast: song.rebroadcast, dub: song.dub,
@@ -1443,15 +1637,26 @@ class CslAmqAdapter {
     // Build the native result and scoreboard fields from one shared player model.
     playerResults(session) {
         const { ordered, groups } = this.layout(session);
-        return {
-            groups, players: ordered.map((player, index) => ({
+        const players = ordered.map((player, index) => {
+            let pose = 6;
+            if (player.correct) pose = 5;
+            else if (player.answer) pose = 4;
+            return {
                 gamePlayerId: player.id,
-                pose: player.correct ? 5 : player.answer ? 4 : 6, correct: Boolean(player.correct),
-                score: player.score, reviveScore: player.reviveScore, correctGuesses: player.correctGuesses,
-                level: quiz.players[player.id].level, answerTimeing: player.time ?? session.config.guessTime + session.config.extraGuessTime,
-                listStatus: null, showScore: null, position: Math.floor(index / 8) + 1, positionSlot: index % 8
-            }))
-        };
+                pose,
+                correct: Boolean(player.correct),
+                score: player.score,
+                reviveScore: player.reviveScore,
+                correctGuesses: player.correctGuesses,
+                level: quiz.players[player.id].level,
+                answerTimeing: player.time ?? session.config.guessTime + session.config.extraGuessTime,
+                listStatus: null,
+                showScore: null,
+                position: Math.floor(index / 8) + 1,
+                positionSlot: index % 8
+            };
+        });
+        return { groups, players };
     }
 
     // Reveal answers and metadata atomically through the existing AMQ event API.
@@ -1465,7 +1670,12 @@ class CslAmqAdapter {
         });
         fireListener("answer results", {
             players: native.players, songInfo: this.songInfo(result.song),
-            groupMap: native.groups, progressBarState: { length: session.config.fastSkip ? CSL.fastRevealTime / 1000 : CSL.revealTime / 1000, played: 0 }, watched: false
+            groupMap: native.groups,
+            progressBarState: {
+                length: session.config.fastSkip ? CSL.fastRevealTime / 1000 : CSL.revealTime / 1000,
+                played: 0
+            },
+            watched: false
         });
     }
 
@@ -1500,6 +1710,12 @@ class CslAmqAdapter {
     }
 }
 
+// Allow CSL only in normal rooms, with native quizzes excluded from discovery.
+function cslSupportedRoom() {
+    if (quiz.inQuiz && (!quiz.cslActive || !["Solo", "Standard"].includes(quiz.gameMode))) return false;
+    return (lobby.inLobby || quiz.inQuiz) && ["Solo", "Multiplayer"].includes(lobby.settings.gameMode);
+}
+
 // Integrate the editor, chat transport, and AMQ presentation without global quiz state.
 class CslController {
     // Keep long-lived integration resources separate from each disposable session.
@@ -1531,6 +1747,13 @@ class CslController {
             send: (frame, envelope) => this.transmit(frame, envelope), canSend: envelope => this.canSend(envelope),
             receive: (envelope, value) => this.receive(envelope, value), allow: envelope => this.allow(envelope), warning: sendSystemMessage
         });
+        this.installRoomListeners();
+        this.installAutocompleteListeners();
+        this.installNativeControls();
+    }
+
+    // Keep server membership and chat events separate from simulated quiz state.
+    installRoomListeners() {
         this.listen("game chat update", data => data.messages.forEach(message => this.chat(message)));
         this.listen("Game Chat Message", message => this.chat(message));
         for (const event of ["Join Game", "Spectate Game", "Host Game"]) this.listen(event, data => {
@@ -1541,11 +1764,10 @@ class CslController {
         this.listen("Game Starting", () => { if (!this.synthetic) this.dispose(); });
         this.listen("Host Promotion", data => {
             this.discovery = null;
-            if (this.session) {
-                lobby.hostName = data.newHost;
-                sendSystemMessage("Host changed; ending custom quiz");
-                this.roomScope.after(0, () => this.end());
-            }
+            if (!this.session) return;
+            lobby.hostName = data.newHost;
+            sendSystemMessage("Host changed; ending custom quiz");
+            this.roomScope.after(0, () => this.end());
         });
         this.listen("Player Left", data => {
             if (this.session && data.newHost) lobby.hostName = data.newHost;
@@ -1570,20 +1792,19 @@ class CslController {
         });
         this.listen("New Spectator", () => this.announce());
         this.listen("Player Changed To Spectator", data => {
-            if (this.session) {
-                const name = data.spectatorDescription.name;
-                this.adapter.serverPlayers.delete(name);
-                this.session.disconnect(name);
-                const player = this.session.players.find(player => player.name === name);
-                if (player && quiz.players[player.id]) {
-                    quiz.players[player.id].avatarDisabled = true;
-                    quiz.players[player.id].inGame = false;
-                }
-                if (name === selfName) {
-                    quiz.isSpectator = true;
-                    quiz.answerInput.active = false;
-                    quiz.answerInput.disable();
-                }
+            if (!this.session) return;
+            const name = data.spectatorDescription.name;
+            this.adapter.serverPlayers.delete(name);
+            this.session.disconnect(name);
+            const player = this.session.players.find(player => player.name === name);
+            if (player && quiz.players[player.id]) {
+                quiz.players[player.id].avatarDisabled = true;
+                quiz.players[player.id].inGame = false;
+            }
+            if (name === selfName) {
+                quiz.isSpectator = true;
+                quiz.answerInput.active = false;
+                quiz.answerInput.disable();
             }
         });
         this.listen("game closed", data => {
@@ -1596,6 +1817,10 @@ class CslController {
         this.listen("Room Settings Changed", data => {
             if (this.session) Object.assign(this.adapter.originalSettings, cslClone(data.changes));
         });
+    }
+
+    // Maintain answer-editor suggestions alongside AMQ's autocomplete updates.
+    installAutocompleteListeners() {
         this.listen("get all song names", data => {
             animeListLower = new Set(data.names.map(name => name.toLowerCase()));
             rebuildCslAutocomplete(data.names);
@@ -1603,10 +1828,14 @@ class CslController {
         this.listen("update all song names", data => {
             for (const name of data.deleted) animeListLower.delete(name.toLowerCase());
             for (const name of data.new) animeListLower.add(name.toLowerCase());
-            if (autocompleteInput && (data.deleted.length || data.new.length)) {
-                rebuildCslAutocomplete(autocompleteInput.options.list.filter(name => !data.deleted.includes(name)).concat(data.new));
-            }
+            if (!autocompleteInput || !(data.deleted.length || data.new.length)) return;
+            const remainingNames = autocompleteInput.options.list.filter(name => !data.deleted.includes(name));
+            rebuildCslAutocomplete(remainingNames.concat(data.new));
         });
+    }
+
+    // Redirect native controls only while a custom quiz owns the presentation.
+    installNativeControls() {
         const controller = this;
         const playerLeft = quiz._playerLeaveListner.fire;
         // Translate changed server IDs only for AMQ's own fixed quiz roster listener.
@@ -1680,10 +1909,13 @@ class CslController {
     // Identify only a live session announced by the current room's current host.
     sessionId() {
         if (this.roomId !== lobby.gameId || !cslSupportedRoom()) return "";
-        if (this.session) return !this.session.scope.closed && this.session.host === lobby.hostName ? this.session.id : "";
+        if (this.session) {
+            if (this.session.scope.closed || this.session.host !== lobby.hostName) return "";
+            return this.session.id;
+        }
         const discovery = this.discovery;
-        return discovery && discovery.host === lobby.hostName && !this.ended.has(discovery.id)
-            && cslNow() - discovery.time <= CSL.cacheTime ? discovery.id : "";
+        if (!discovery || discovery.host !== lobby.hostName || this.ended.has(discovery.id)) return "";
+        return cslNow() - discovery.time <= CSL.cacheTime ? discovery.id : "";
     }
 
     // Coalesce joins into one delayed announcement, only while hosting multiplayer CSL.
@@ -1723,17 +1955,29 @@ class CslController {
     // Limit parsing to current-room senders and allowed directions of authority.
     allow({ session, sender, type }) {
         if (this.roomId !== lobby.gameId || !cslSupportedRoom()) return false;
-        const roomSender = sender === selfName || sender === lobby.hostName || Object.values(lobby.players).some(player => player.name === sender)
-            || this.session?.players.some(player => player.name === sender) || gameChat.spectators.some(player => player.name === sender);
+        const roomSender = sender === selfName || sender === lobby.hostName
+            || Object.values(lobby.players).some(player => player.name === sender)
+            || this.session?.players.some(player => player.name === sender)
+            || gameChat.spectators.some(player => player.name === sender);
         if (!roomSender) return false;
         if (type === CSL_MESSAGE.SYNC) return this.session?.isHost && session === this.session.id;
-        if (!this.session && lobby.inLobby && sender === lobby.hostName && !this.ended.has(session)
-            && [CSL_MESSAGE.ANNOUNCE, CSL_MESSAGE.PREPARE, CSL_MESSAGE.PLAY, CSL_MESSAGE.LOCK, CSL_MESSAGE.COLLECT, CSL_MESSAGE.RESULT, CSL_MESSAGE.FINAL, CSL_MESSAGE.PAUSE, CSL_MESSAGE.CONNECTION].includes(type)) return true;
+        if (!this.session && lobby.inLobby && sender === lobby.hostName && !this.ended.has(session)) {
+            const discoveryTypes = [
+                CSL_MESSAGE.ANNOUNCE, CSL_MESSAGE.PREPARE, CSL_MESSAGE.PLAY, CSL_MESSAGE.LOCK,
+                CSL_MESSAGE.COLLECT, CSL_MESSAGE.RESULT, CSL_MESSAGE.FINAL, CSL_MESSAGE.PAUSE, CSL_MESSAGE.CONNECTION
+            ];
+            if (discoveryTypes.includes(type)) return true;
+        }
         if (type === CSL_MESSAGE.SNAPSHOT) return session === this.sessionId() && sender === lobby.hostName && Boolean(this.syncNonce);
         if (type === CSL_MESSAGE.BEGIN) return !this.session && lobby.inLobby && sender === lobby.hostName && !this.ended.has(session);
         if (!this.session && [CSL_MESSAGE.REPAIR, CSL_MESSAGE.STOP].includes(type)) return session === this.sessionId() && sender === lobby.hostName;
         if (session !== this.session?.id) return false;
-        if ([CSL_MESSAGE.PREPARE, CSL_MESSAGE.PLAY, CSL_MESSAGE.LOCK, CSL_MESSAGE.COLLECT, CSL_MESSAGE.RESULT, CSL_MESSAGE.FINAL, CSL_MESSAGE.PAUSE, CSL_MESSAGE.CONNECTION, CSL_MESSAGE.STOP, CSL_MESSAGE.ANNOUNCE, CSL_MESSAGE.COMMIT_RECEIPT, CSL_MESSAGE.REVEAL_RECEIPT].includes(type)) return sender === this.session.host;
+        const hostTypes = [
+            CSL_MESSAGE.PREPARE, CSL_MESSAGE.PLAY, CSL_MESSAGE.LOCK, CSL_MESSAGE.COLLECT,
+            CSL_MESSAGE.RESULT, CSL_MESSAGE.FINAL, CSL_MESSAGE.PAUSE, CSL_MESSAGE.CONNECTION,
+            CSL_MESSAGE.STOP, CSL_MESSAGE.ANNOUNCE, CSL_MESSAGE.COMMIT_RECEIPT, CSL_MESSAGE.REVEAL_RECEIPT
+        ];
+        if (hostTypes.includes(type)) return sender === this.session.host;
         return [CSL_MESSAGE.COMMIT, CSL_MESSAGE.REVEAL, CSL_MESSAGE.READY, CSL_MESSAGE.SKIP, CSL_MESSAGE.REPAIR].includes(type);
     }
 
@@ -1763,14 +2007,20 @@ class CslController {
     // Construct session hooks with all AMQ-specific effects kept in the adapter.
     hooks() {
         return {
-            start: session => this.adapter.start(session), prepare: (session, round, media) => this.adapter.prepare(session, round, media),
-            buffer: session => this.adapter.buffer(session), play: session => this.adapter.play(session),
-            lock: session => this.adapter.lock(session), extra: () => fireListener("extra guess time"),
-            result: (session, result) => this.adapter.result(session, result), restore: session => this.adapter.restore(session),
+            start: session => this.adapter.start(session),
+            prepare: (session, round, media) => this.adapter.prepare(session, round, media),
+            buffer: session => this.adapter.buffer(session),
+            play: session => this.adapter.play(session),
+            lock: session => this.adapter.lock(session),
+            extra: () => fireListener("extra guess time"),
+            result: (session, result) => this.adapter.result(session, result),
+            restore: session => this.adapter.restore(session),
             finish: (session, ranks) => this.adapter.finish(session, ranks),
             pause: session => fireListener(session.paused ? "quiz pause triggered" : "quiz unpause triggered", { playerName: session.host }),
             answered: (session, id, time) => fireListener("player answered", [{ answerTime: time, gamePlayerIds: [id] }]),
-            sync: () => this.sync(), warning: sendSystemMessage, end: () => this.end()
+            sync: () => this.sync(),
+            warning: sendSystemMessage,
+            end: () => this.end()
         };
     }
 
@@ -1833,7 +2083,11 @@ class CslController {
             return;
         }
         if (type === CSL_MESSAGE.BEGIN) {
-            if (!cslValidConfig(value.config) || !this.validRoster(value.roster) || value.roster.some(player => !Object.values(lobby.players).some(local => local.name === player.name))) return;
+            if (!cslValidConfig(value.config) || !this.validRoster(value.roster)) return;
+            const allPlayersPresent = value.roster.every(player => {
+                return Object.values(lobby.players).some(local => local.name === player.name);
+            });
+            if (!allPlayersPresent) return;
             this.adapter.capture();
             this.discovery = null;
             this.syncNonce = "";
@@ -1846,33 +2100,7 @@ class CslController {
             return;
         }
         if (type === CSL_MESSAGE.SNAPSHOT) {
-            if (value.to !== selfName || value.nonce !== this.syncNonce || !cslValidConfig(value.config) || !this.validRoster(value.players)
-                || !Number.isSafeInteger(value.q) || value.q < 0 || !Number.isInteger(round) || round < 0 || round > value.config.totalSongs
-                || !Array.isArray(value.media) || value.media.length > 2 || !value.media.every(entry => Array.isArray(entry) && Number.isInteger(entry[0]) && cslValidMedia(entry[1]))
-                || !cslValidPlayerState(value.players, value.config) || typeof value.paused !== "boolean"
-                || !["starting", "buffering", "guessing", "locking", "collecting", "revealing", "finished"].includes(value.phase)
-                || (value.phase === "collecting" && !cslValidControl(CSL_MESSAGE.COLLECT, value, value.players, value.config))
-                || (value.result !== undefined && (value.phase !== "revealing" || !cslValidControl(CSL_MESSAGE.RESULT, { ...value.result, players: value.players }, value.players, value.config)))
-                || (value.ranks !== null && !cslValidControl(CSL_MESSAGE.FINAL, { ranks: value.ranks }, value.players, value.config))) return;
-            if (this.session && this.session.id !== session) return;
-            if (!this.session && lobby.isSpectator && value.players.some(player => player.name === selfName)) {
-                if (!this.joiningAsPlayer) {
-                    this.joiningAsPlayer = true;
-                    socket.sendCommand({ type: "lobby", command: "change to player" });
-                }
-                return;
-            }
-            if (!this.session) {
-                this.adapter.capture();
-                this.session = new CslSession({
-                    id: session, name: selfName, host: sender, config: value.config, roster: value.players,
-                    emit: (...args) => this.emit(...args), hooks: this.hooks()
-                });
-                this.session.start();
-            }
-            this.syncNonce = "";
-            this.discovery = null;
-            this.session.restore(value, round);
+            if (this.validSnapshot(value, round)) this.restoreSnapshot(envelope, value);
             return;
         }
         this.session?.receive(envelope, value);
@@ -1880,9 +2108,56 @@ class CslController {
 
     // Reject ambiguous participant identities before they enter a session.
     validRoster(roster) {
-        return Array.isArray(roster) && roster.length > 0 && roster.length <= CSL.maxPlayers
-            && new Set(roster.map(player => player.id)).size === roster.length && new Set(roster.map(player => player.name)).size === roster.length
-            && roster.every(player => Number.isSafeInteger(player.id) && player.id >= 0 && typeof player.name === "string" && player.name.length > 0 && player.name.length <= 64);
+        if (!Array.isArray(roster) || roster.length === 0 || roster.length > CSL.maxPlayers) return false;
+        if (new Set(roster.map(player => player.id)).size !== roster.length) return false;
+        if (new Set(roster.map(player => player.name)).size !== roster.length) return false;
+        return roster.every(player => {
+            if (!Number.isSafeInteger(player.id) || player.id < 0) return false;
+            return typeof player.name === "string" && player.name.length > 0 && player.name.length <= 64;
+        });
+    }
+
+    // Validate recovery state completely before changing lobby roles or quiz state.
+    validSnapshot(value, round) {
+        if (value.to !== selfName || value.nonce !== this.syncNonce) return false;
+        if (!cslValidConfig(value.config) || !this.validRoster(value.players)) return false;
+        if (!Number.isSafeInteger(value.q) || value.q < 0) return false;
+        if (!Number.isInteger(round) || round < 0 || round > value.config.totalSongs) return false;
+        if (!Array.isArray(value.media) || value.media.length > 2) return false;
+        if (!value.media.every(entry => Array.isArray(entry) && Number.isInteger(entry[0]) && cslValidMedia(entry[1]))) return false;
+        if (!cslValidPlayerState(value.players, value.config) || typeof value.paused !== "boolean") return false;
+        if (!["starting", "buffering", "guessing", "locking", "collecting", "revealing", "finished"].includes(value.phase)) return false;
+        if (value.phase === "collecting" && !cslValidControl(CSL_MESSAGE.COLLECT, value, value.players, value.config)) return false;
+        if (value.result !== undefined) {
+            if (value.phase !== "revealing") return false;
+            const result = { ...value.result, players: value.players };
+            if (!cslValidControl(CSL_MESSAGE.RESULT, result, value.players, value.config)) return false;
+        }
+        if (value.ranks !== null && !cslValidControl(CSL_MESSAGE.FINAL, { ranks: value.ranks }, value.players, value.config)) return false;
+        return true;
+    }
+
+    // Resume a validated snapshot, restoring a returning player's lobby role first.
+    restoreSnapshot({ session, sender, round }, value) {
+        if (this.session && this.session.id !== session) return;
+        if (!this.session && lobby.isSpectator && value.players.some(player => player.name === selfName)) {
+            if (!this.joiningAsPlayer) {
+                this.joiningAsPlayer = true;
+                socket.sendCommand({ type: "lobby", command: "change to player" });
+            }
+            return;
+        }
+        if (!this.session) {
+            this.adapter.capture();
+            this.session = new CslSession({
+                id: session, name: selfName, host: sender, config: value.config, roster: value.players,
+                emit: (...args) => this.emit(...args), hooks: this.hooks()
+            });
+            this.session.start();
+        }
+        this.syncNonce = "";
+        this.discovery = null;
+        this.session.restore(value, round);
     }
 
     // Recognize host gameplay packets before requesting a fully validated snapshot.
@@ -1893,13 +2168,25 @@ class CslController {
         if (type === CSL_MESSAGE.ANNOUNCE) return ["starting", "buffering", "guessing", "locking", "collecting", "revealing", "finished"].includes(value.phase);
         if (round === 0 || value.q === 0) return false;
         if ([CSL_MESSAGE.PLAY, CSL_MESSAGE.LOCK].includes(type)) return true;
-        if (type === CSL_MESSAGE.COLLECT) return Array.isArray(value.commits) && value.commits.length <= CSL.maxPlayers
-            && value.commits.every(entry => Array.isArray(entry) && typeof entry[0] === "string" && Number.isInteger(entry[1]) && entry[1] > 0);
+        if (type === CSL_MESSAGE.COLLECT) {
+            if (!Array.isArray(value.commits) || value.commits.length > CSL.maxPlayers) return false;
+            return value.commits.every(entry => {
+                if (!Array.isArray(entry) || typeof entry[0] !== "string") return false;
+                return Number.isInteger(entry[1]) && entry[1] > 0;
+            });
+        }
         if (type === CSL_MESSAGE.RESULT) return this.validRoster(value.players) && typeof value.finished === "boolean" && cslValidSong(value.song);
-        if (type === CSL_MESSAGE.FINAL) return Array.isArray(value.ranks) && value.ranks.length > 0 && value.ranks.length <= CSL.maxPlayers
-            && value.ranks.every(rank => Number.isSafeInteger(rank.id) && rank.id >= 0 && Number.isInteger(rank.place) && rank.place > 0 && rank.place <= value.ranks.length);
+        if (type === CSL_MESSAGE.FINAL) {
+            if (!Array.isArray(value.ranks) || value.ranks.length === 0 || value.ranks.length > CSL.maxPlayers) return false;
+            return value.ranks.every(rank => {
+                if (!Number.isSafeInteger(rank.id) || rank.id < 0) return false;
+                return Number.isInteger(rank.place) && rank.place > 0 && rank.place <= value.ranks.length;
+            });
+        }
         if (type === CSL_MESSAGE.PAUSE) return typeof value.paused === "boolean";
-        return type === CSL_MESSAGE.CONNECTION && typeof value.name === "string" && value.name.length > 0 && value.name.length <= 64 && typeof value.connected === "boolean";
+        if (type !== CSL_MESSAGE.CONNECTION) return false;
+        return typeof value.name === "string" && value.name.length > 0 && value.name.length <= 64
+            && typeof value.connected === "boolean";
     }
 
     // Request fresh state with a nonce that cannot be satisfied by chat history.
@@ -1970,12 +2257,16 @@ class CslController {
 }
 
 
+// Editor state and initialization
+
 const saveData = validateLocalStorage("customSongListGame");
 const apiBase = "https://anisongdb.com/api/";
 const hostDict = { 1: "eudist.animemusicquiz.com", 2: "nawdist.animemusicquiz.com", 3: "naedist.animemusicquiz.com" };
 let CSLButtonCSS = saveData.CSLButtonCSS || "calc(25% - 250px)";
 let showCSLMessages = saveData.showCSLMessages ?? true;
-let replacedAnswers = Object.assign(Object.create(null), Object.fromEntries(Object.entries(saveData.replacedAnswers || {}).filter(([, value]) => typeof value === "string")));
+const savedAnswerEntries = Object.entries(saveData.replacedAnswers || {})
+    .filter(([, value]) => typeof value === "string");
+let replacedAnswers = Object.assign(Object.create(null), Object.fromEntries(savedAnswerEntries));
 let malClientId = saveData.malClientId ?? "";
 let debug = Boolean(saveData.debug);
 let songListTableView = 0; //0: song + artist, 1: anime + song type + vintage, 2: video/audio links
@@ -2024,9 +2315,25 @@ function rebuildCslAutocomplete(names) {
     autocompleteInput = new AmqAwesomeplete(document.querySelector("#cslgNewAnswerInput"), { list: names }, true);
 }
 
-// Build the existing editor and attach the replacement quiz runtime.
+// Build the editor and attach the custom quiz runtime once AMQ is ready.
 function setup() {
     cslController.install();
+    createCslSettingsModal();
+    bindCslTabs();
+    bindSongListControls();
+    bindQuizSettingsControls();
+    bindMergedSongControls();
+    bindAutocompleteControl();
+    bindListImportControls();
+    bindEditorTableControls();
+    initializeSettingsControls();
+    installCslHotkeys();
+    applyStyles();
+    registerCslScriptInfo();
+}
+
+// Build the editor markup before binding its controls.
+function createCslSettingsModal() {
     $("#lobbyPage .topMenuBar").append(`<div id="lnCustomSongListButton" class="clickAble topMenuButton topMenuMediumButton"><h3>CSL</h3></div>`);
     $("#lnCustomSongListButton").on("click", openSettingsModal);
 
@@ -2297,8 +2604,8 @@ function setup() {
                         </div>
                         <div id="cslgAnswerContainer" class="tabSection">
                             <div class="cslgToolbar">
-                                <div class="cslgField"><input aria-label="Old answer" id="cslgOldAnswerInput" class="form-control" type="text"></div>
-                                <div class="cslgField"><input aria-label="New answer" id="cslgNewAnswerInput" class="form-control" type="text"></div>
+                                <div class="cslgField"><input aria-label="Old answer" id="cslgOldAnswerInput" class="form-control" type="text" placeholder="Old answer"></div>
+                                <div class="cslgField"><input aria-label="New answer" id="cslgNewAnswerInput" class="form-control" type="text" placeholder="New answer"></div>
                                 <button id="cslgAnswerButtonAdd" class="btn btn-default" type="button">Add</button>
                             </div>
                             <div id="cslgAnswerText" class="cslgStatus">No list loaded</div>
@@ -2412,7 +2719,10 @@ function setup() {
             </div>
         </div>
     `));
+}
 
+// Connect tab selection to the existing modal sections.
+function bindCslTabs() {
     const tabs = ["cslgSongList", "cslgQuizSettings", "cslgAnswer", "cslgMerge", "cslgHotkey", "cslgListImport", "cslgInfo"];
     for (const tab of tabs) {
         $(`#${tab}Tab`).on("click", () => {
@@ -2420,7 +2730,52 @@ function setup() {
         });
     }
     switchTab("cslgSongList");
+}
 
+// Add the current songs without repeating an existing playlist appearance.
+function mergeCurrentSongList() {
+    mergedSongList = mergeCslSongs(mergedSongList, songList);
+    createMergedSongListTable();
+}
+
+// Cancel pending searches before clearing the current editor list.
+function clearCurrentSongList() {
+    cancelSongSearch();
+    songList = [];
+    createSongListTable();
+}
+
+// Copy the merged playlist into the current editor list.
+function transferMergedToCurrentSongList() {
+    cancelSongSearch();
+    songList = Array.from(mergedSongList);
+    createSongListTable();
+}
+
+// Advance through the existing song, anime, and media table views.
+function cycleSongListTableView() {
+    songListTableView = (songListTableView + 1) % 3;
+    createSongListTable();
+}
+
+// Clear the merged list and refresh its table.
+function clearMergedSongList() {
+    mergedSongList = [];
+    createMergedSongListTable();
+}
+
+// Download the merged playlist or explain why there is nothing to save.
+function downloadMergedSongList() {
+    if (mergedSongList.length) {
+        downloadListJson(mergedSongList, "merged.json");
+    }
+    else {
+        messageDisplayer.displayMessage("No songs", "Add some songs to the merged song list");
+    }
+}
+
+// Bind searches, uploads, filters, and song-list toolbar actions.
+function bindSongListControls() {
     $("#cslgAnisongdbSearchButtonGo").on("click", () => {
         anisongdbDataSearch();
     });
@@ -2476,39 +2831,37 @@ function setup() {
         }
     });
     $("#cslgMergeAllButton").on("click", () => {
-        mergedSongList = mergeCslSongs(mergedSongList, songList);
-        createMergedSongListTable();
+        mergeCurrentSongList();
     }).popover({
         content: "Add all to merged",
         trigger: "hover",
         placement: "bottom"
     });
     $("#cslgClearSongListButton").on("click", () => {
-        cancelSongSearch();
-        songList = [];
-        createSongListTable();
+        clearCurrentSongList();
     }).popover({
         content: "Clear song list",
         trigger: "hover",
         placement: "bottom"
     });
     $("#cslgTransferSongListButton").on("click", () => {
-        cancelSongSearch();
-        songList = Array.from(mergedSongList);
-        createSongListTable();
+        transferMergedToCurrentSongList();
     }).popover({
         content: "Transfer from merged",
         trigger: "hover",
         placement: "bottom"
     });
     $("#cslgTableModeButton").on("click", () => {
-        songListTableView = (songListTableView + 1) % 3;
-        createSongListTable();
+        cycleSongListTableView();
     }).popover({
         content: "Table mode",
         trigger: "hover",
         placement: "bottom"
     });
+}
+
+// Keep playback choices and scoring-dependent controls in sync.
+function bindQuizSettingsControls() {
     $("#cslgSongOrderSelect").on("change", function () {
         songOrderType = this.value;
     });
@@ -2519,48 +2872,52 @@ function setup() {
     $("#cslgSettingsScoreType").on("change", function () {
         $("#cslgSettingsLivesLabel").toggle(Number(this.value) === quiz.SCORE_TYPE_IDS.LIVES);
     });
+}
+
+// Bind the merged-list actions independently of its table.
+function bindMergedSongControls() {
     $("#cslgMergeButton").on("click", () => {
-        mergedSongList = mergeCslSongs(mergedSongList, songList);
-        createMergedSongListTable();
+        mergeCurrentSongList();
     });
     $("#cslgMergeClearButton").on("click", () => {
-        mergedSongList = [];
-        createMergedSongListTable();
+        clearMergedSongList();
     });
     $("#cslgMergeDownloadButton").on("click", () => {
-        if (mergedSongList.length) {
-            downloadListJson(mergedSongList, "merged.json");
-        }
-        else {
-            messageDisplayer.displayMessage("No songs", "Add some songs to the merged song list");
-        }
+        downloadMergedSongList();
     });
+}
+
+// Obtain AMQ autocomplete by briefly running a native solo quiz.
+function bindAutocompleteControl() {
     $("#cslgAutocompleteButton").on("click", () => {
-        if (lobby.soloMode) {
-            $("#cslgSettingsModal").modal("hide");
-            socket.sendCommand({ type: "lobby", command: "start game" });
-            const autocompleteListener = new Listener("get all song names", () => {
-                autocompleteListener.unbindListener();
-                viewChanger.changeView("main");
-                setTimeout(() => {
-                    hostModal.displayHostSolo();
-                }, 200);
-                setTimeout(() => {
-                    const returnListener = new Listener("Host Game", () => {
-                        returnListener.unbindListener();
-                        if (songList.length) createAnswerTable();
-                        setTimeout(() => { openSettingsModal() }, 10);
-                    });
-                    returnListener.bindListener();
-                    roomBrowser.host();
-                }, 400);
-            });
-            autocompleteListener.bindListener();
-        }
-        else {
+        if (!lobby.soloMode) {
             messageDisplayer.displayMessage("Autocomplete", "For multiplayer, just start the quiz normally and immediately lobby");
+            return;
         }
+        $("#cslgSettingsModal").modal("hide");
+        socket.sendCommand({ type: "lobby", command: "start game" });
+        const autocompleteListener = new Listener("get all song names", () => {
+            autocompleteListener.unbindListener();
+            viewChanger.changeView("main");
+            setTimeout(() => {
+                hostModal.displayHostSolo();
+            }, 200);
+            setTimeout(() => {
+                const returnListener = new Listener("Host Game", () => {
+                    returnListener.unbindListener();
+                    if (songList.length) createAnswerTable();
+                    setTimeout(() => { openSettingsModal() }, 10);
+                });
+                returnListener.bindListener();
+                roomBrowser.host();
+            }, 400);
+        });
+        autocompleteListener.bindListener();
     });
+}
+
+// Connect anime-list imports to the editor and JSON downloads.
+function bindListImportControls() {
     $("#cslgListImportUsernameInput").on("keypress", (event) => {
         if (event.key === "Enter") {
             startImport();
@@ -2587,6 +2944,10 @@ function setup() {
         const fileName = `${username} ${listType} ${year}-${month}-${day} song list.json`;
         downloadListJson(importedSongList, fileName);
     });
+}
+
+// Handle table actions using the displayed song order.
+function bindEditorTableControls() {
     $("#cslgStartButton").on("click", () => {
         validateStart();
     });
@@ -2617,12 +2978,11 @@ function setup() {
     $("#cslgAnswerButtonAdd").on("click", function () {
         const oldName = $("#cslgOldAnswerInput").val().trim();
         const newName = $("#cslgNewAnswerInput").val().trim();
-        if (oldName) {
-            if (newName) replacedAnswers[oldName] = newName;
-            else delete replacedAnswers[oldName];
-            saveSettings();
-            createAnswerTable();
-        }
+        if (!oldName) return;
+        if (newName) replacedAnswers[oldName] = newName;
+        else delete replacedAnswers[oldName];
+        saveSettings();
+        createAnswerTable();
     });
     $("#cslgAnswerTable").on("click", "i.fa-pencil", function () {
         const $row = $(this).closest("tr");
@@ -2657,6 +3017,10 @@ function setup() {
         .on("mouseleave", "i.fa-chevron-up, i.fa-chevron-down, i.fa-trash", function () {
             $(this).closest("tr").removeClass("selected");
         });
+}
+
+// Set initial field values and bind saved script preferences.
+function initializeSettingsControls() {
     $("#cslgSongListModeSelect").val("Anisongdb").on("change", function () {
         const val = this.value;
         const idMap = {
@@ -2711,7 +3075,10 @@ function setup() {
         malClientId = this.value;
         saveSettings();
     });
+}
 
+// Render bindings and dispatch the configured keyboard actions.
+function installCslHotkeys() {
     createHotkeyTable([
         { action: "cslgWindow", title: "Open This Window" },
         { action: "start", title: "Start CSL" },
@@ -2740,36 +3107,24 @@ function setup() {
             cslController.stop();
         },
         mergeAll: () => {
-            mergedSongList = mergeCslSongs(mergedSongList, songList);
-            createMergedSongListTable();
+            mergeCurrentSongList();
         },
         clearSongList: () => {
             if (quiz.inQuiz) return;
-            cancelSongSearch();
-            songList = [];
-            createSongListTable();
+            clearCurrentSongList();
         },
         transferMerged: () => {
             if (quiz.inQuiz) return;
-            cancelSongSearch();
-            songList = Array.from(mergedSongList);
-            createSongListTable();
+            transferMergedToCurrentSongList();
         },
         clearMerged: () => {
-            mergedSongList = [];
-            createMergedSongListTable();
+            clearMergedSongList();
         },
         downloadMerged: () => {
-            if (mergedSongList.length) {
-                downloadListJson(mergedSongList, "merged.json");
-            }
-            else {
-                messageDisplayer.displayMessage("No songs", "Add some songs to the merged song list");
-            }
+            downloadMergedSongList();
         },
         tableMode: () => {
-            songListTableView = (songListTableView + 1) % 3;
-            createSongListTable();
+            cycleSongListTableView();
         }
     };
 
@@ -2778,24 +3133,25 @@ function setup() {
         const ctrl = event.ctrlKey;
         const alt = event.altKey;
         const shift = event.shiftKey;
-        const match = (b) => {
-            if (!b.key) return false;
-            if (key !== b.key) return false;
-            if (ctrl !== b.ctrl) return false;
-            if (alt !== b.alt) return false;
-            if (shift !== b.shift) return false;
+        const matchesBinding = binding => {
+            if (!binding.key) return false;
+            if (key !== binding.key) return false;
+            if (ctrl !== binding.ctrl) return false;
+            if (alt !== binding.alt) return false;
+            if (shift !== binding.shift) return false;
             return true;
         }
-        for (const [action, bind] of Object.entries(hotKeys)) {
-            if (match(bind)) {
+        for (const [action, binding] of Object.entries(hotKeys)) {
+            if (matchesBinding(binding)) {
                 event.preventDefault();
                 hotkeyActions[action]();
             }
         }
     });
+}
 
-
-    applyStyles();
+// Expose the script description through AMQ script information.
+function registerCslScriptInfo() {
     AMQ_addScriptData({
         name: "Custom Song List Game",
         author: "kempanator",
@@ -2814,6 +3170,8 @@ function setup() {
         `
     });
 }
+
+// Quiz settings and playlist selection
 
 // Validate all settings and attempt to start csl quiz
 function validateStart() {
@@ -2844,30 +3202,66 @@ function validateStart() {
         return messageDisplayer.displayMessage("Unable to start", "Invalid extra guess time");
     }
     const startPointText = $("#cslgSettingsStartPoint").val().trim();
-    if (/^[0-9]+$/.test(startPointText)) {
-        startPointRange = [parseInt(startPointText), parseInt(startPointText)];
-    }
-    else if (/^[0-9]+[\s-]+[0-9]+$/.test(startPointText)) {
-        const regex = /^([0-9]+)[\s-]+([0-9]+)$/.exec(startPointText);
-        startPointRange = [parseInt(regex[1]), parseInt(regex[2])];
-    }
-    else {
+    const sampleRange = parseCslRange(startPointText, true);
+    if (!sampleRange) {
         return messageDisplayer.displayMessage("Unable to start", "Song start sample must be a number or range 0-100");
     }
-    if (startPointRange[0] < 0 || startPointRange[0] > 100 || startPointRange[1] < 0 || startPointRange[1] > 100 || startPointRange[0] > startPointRange[1]) {
+    startPointRange = sampleRange;
+    if (!cslValidPercentRange(startPointRange)) {
         return messageDisplayer.displayMessage("Unable to start", "Song start sample must be a number or range 0-100");
     }
     const difficultyText = $("#cslgSettingsDifficulty").val().trim();
-    if (/^[0-9]+[\s-]+[0-9]+$/.test(difficultyText)) {
-        const regex = /^([0-9]+)[\s-]+([0-9]+)$/.exec(difficultyText);
-        difficultyRange = [parseInt(regex[1]), parseInt(regex[2])];
-    }
-    else {
+    const selectedDifficulty = parseCslRange(difficultyText);
+    if (!selectedDifficulty) {
         return messageDisplayer.displayMessage("Unable to start", "Difficulty must be a range 0-100");
     }
-    if (difficultyRange[0] < 0 || difficultyRange[0] > 100 || difficultyRange[1] < 0 || difficultyRange[1] > 100 || difficultyRange[0] > difficultyRange[1]) {
+    difficultyRange = selectedDifficulty;
+    if (!cslValidPercentRange(difficultyRange)) {
         return messageDisplayer.displayMessage("Unable to start", "Difficulty must be a range 0-100");
     }
+    const selected = selectCslQuizSongs(numSongs);
+    if (!selected.length) return messageDisplayer.displayMessage("Unable to start", "No songs match the settings");
+    const scoreType = Number($("#cslgSettingsScoreType").val());
+    if (![quiz.SCORE_TYPE_IDS.COUNT, quiz.SCORE_TYPE_IDS.LIVES].includes(scoreType)) {
+        return messageDisplayer.displayMessage("Unable to start", "Choose Count or Lives in the CSL settings");
+    }
+    const lives = Number($("#cslgSettingsLives").val());
+    if (!Number.isInteger(lives) || lives < 1 || lives > 5) return messageDisplayer.displayMessage("Unable to start", "Starting lives must be between 1 and 5");
+    if (lobby.settings.teamSize > 1) return messageDisplayer.displayMessage("Unable to start", "Set team size to 1 for custom song list games");
+    const config = {
+        totalSongs: selected.length, guessTime, extraGuessTime, scoreType,
+        lives, fastSkip: $("#cslgSettingsFastSkipCheckbox").prop("checked"),
+        fullSongRange: $("#cslgSettingsFullSongRangeCheckbox").prop("checked"),
+        quizId: crypto.randomUUID(), startTime: new Date().toISOString()
+    };
+    try {
+        const plan = selected.map(createCslQuizSong);
+        cslController.start(config, plan);
+        $("#cslgSettingsModal").modal("hide");
+    }
+    catch (error) {
+        messageDisplayer.displayMessage("Unable to start", error.message);
+    }
+}
+
+// Parse the existing numeric syntax, allowing a single value only for song samples.
+function parseCslRange(text, allowSingle = false) {
+    if (allowSingle && /^[0-9]+$/.test(text)) {
+        const value = parseInt(text);
+        return [value, value];
+    }
+    const match = /^([0-9]+)[\s-]+([0-9]+)$/.exec(text);
+    if (!match) return null;
+    return [parseInt(match[1]), parseInt(match[2])];
+}
+
+// Require an ordered percentage interval without changing the parsed values.
+function cslValidPercentRange([low, high]) {
+    return !(low < 0 || low > 100 || high < 0 || high > 100 || low > high);
+}
+
+// Filter stored playlist keys before applying the chosen playback order and length.
+function selectCslQuizSongs(numSongs) {
     const ops = $("#cslgSettingsOPCheckbox").prop("checked");
     const eds = $("#cslgSettingsEDCheckbox").prop("checked");
     const ins = $("#cslgSettingsINCheckbox").prop("checked");
@@ -2889,36 +3283,27 @@ function validateStart() {
         .filter((key) => broadcastTypeFilter(songList[key], dub, rebroadcast));
     if (songOrderType === "random") shuffleArray(songKeys);
     else if (songOrderType === "descending") songKeys.reverse();
-    const selected = songKeys.slice(0, numSongs).map(key => songList[key]);
-    if (!selected.length) return messageDisplayer.displayMessage("Unable to start", "No songs match the settings");
-    const scoreType = Number($("#cslgSettingsScoreType").val());
-    if (![quiz.SCORE_TYPE_IDS.COUNT, quiz.SCORE_TYPE_IDS.LIVES].includes(scoreType)) {
-        return messageDisplayer.displayMessage("Unable to start", "Choose Count or Lives in the CSL settings");
-    }
-    const lives = Number($("#cslgSettingsLives").val());
-    if (!Number.isInteger(lives) || lives < 1 || lives > 5) return messageDisplayer.displayMessage("Unable to start", "Starting lives must be between 1 and 5");
-    if (lobby.settings.teamSize > 1) return messageDisplayer.displayMessage("Unable to start", "Set team size to 1 for custom song list games");
-    const config = {
-        totalSongs: selected.length, guessTime, extraGuessTime, scoreType,
-        lives, fastSkip: $("#cslgSettingsFastSkipCheckbox").prop("checked"),
-        fullSongRange: $("#cslgSettingsFullSongRangeCheckbox").prop("checked"),
-        quizId: crypto.randomUUID(), startTime: new Date().toISOString()
-    };
-    try {
-        const plan = selected.map(song => {
-            const snapshot = cslClone(song);
-            const answers = [...snapshot.altAnimeNames, ...snapshot.altAnimeNamesAnswers, snapshot.animeRomajiName, snapshot.animeEnglishName];
-            snapshot.acceptedAnswers = [...new Set(answers.flatMap(answer => [answer, replacedAnswers[answer] || ""]).filter(Boolean).map(answer => answer.trim().toLowerCase()))];
-            snapshot.sample = getStartPoint();
-            if (new TextEncoder().encode(JSON.stringify(snapshot)).length > 8192) throw new Error(`Song metadata is too large: ${snapshot.songName}`);
-            return snapshot;
-        });
-        cslController.start(config, plan);
-        $("#cslgSettingsModal").modal("hide");
-    }
-    catch (error) {
-        messageDisplayer.displayMessage("Unable to start", error.message);
-    }
+    return songKeys.slice(0, numSongs).map(key => songList[key]);
+}
+
+// Snapshot accepted titles and media sampling before the editable list can change.
+function createCslQuizSong(song) {
+    const snapshot = cslClone(song);
+    const answers = [
+        ...snapshot.altAnimeNames,
+        ...snapshot.altAnimeNamesAnswers,
+        snapshot.animeRomajiName,
+        snapshot.animeEnglishName
+    ];
+    const acceptedAnswers = answers
+        .flatMap(answer => [answer, replacedAnswers[answer] || ""])
+        .filter(Boolean)
+        .map(answer => answer.trim().toLowerCase());
+    snapshot.acceptedAnswers = [...new Set(acceptedAnswers)];
+    snapshot.sample = getStartPoint();
+    const metadataSize = new TextEncoder().encode(JSON.stringify(snapshot)).length;
+    if (metadataSize > 8192) throw new Error("Song metadata is too large: " + snapshot.songName);
+    return snapshot;
 }
 
 // Get start point value (0-100)
@@ -2975,15 +3360,14 @@ function broadcastTypeFilter(song, dub, rebroadcast) {
 
 // Open custom song list settings modal
 function openSettingsModal() {
-    if (lobby.inLobby) {
-        if (animeListLower.size) {
-            $("#cslgAutocompleteButton").removeClass("btn-danger").addClass("btn-success disabled");
-        }
-        if ($("#cslgSongListModeSelect").val() === "Previous Game") {
-            loadPreviousGameOptions();
-        }
-        $("#cslgSettingsModal").modal("show");
+    if (!lobby.inLobby) return;
+    if (animeListLower.size) {
+        $("#cslgAutocompleteButton").removeClass("btn-danger").addClass("btn-success disabled");
     }
+    if ($("#cslgSongListModeSelect").val() === "Previous Game") {
+        loadPreviousGameOptions();
+    }
+    $("#cslgSettingsModal").modal("show");
 }
 
 // Load previous game options in song list window
@@ -3006,7 +3390,9 @@ function loadPreviousGameOptions() {
     }
 }
 
-// When you click the go button
+// Remote song search
+
+// Read the selected AnisongDB search and filters.
 function anisongdbDataSearch() {
     const mode = $("#cslgAnisongdbModeSelect").val().toLowerCase();
     const query = $("#cslgAnisongdbQueryInput").val();
@@ -3033,12 +3419,35 @@ function anisongdbDataSearch() {
     }
 }
 
-// Send anisongdb request
+// Replace the editor list only if this search is still the latest operation.
 function getAnisongdbData(mode, query, options) {
     $("#cslgSongListCount").text("Loading...");
     $("#cslgSongListTable tbody").empty();
-    let url, data;
-    let songTypes = [], broadcasts = [], songCategories = [];
+    const { url, data } = createAnisongdbRequest(mode, query, options);
+    searchController?.abort();
+    searchController = new AbortController();
+    const request = ++searchRequest;
+    fetchCslJson(url, { ...data, signal: searchController.signal })
+        .then(json => {
+            if (request !== searchRequest) return;
+            handleData(json);
+            setSongListTableSort();
+            createSongListTable();
+            createAnswerTable();
+        })
+        .catch(error => {
+            if (request !== searchRequest || error.name === "AbortError") return;
+            createSongListTable();
+            $("#cslgSongListWarning").text(error.message);
+        });
+}
+
+// Build the API-specific body without mixing it with editor or cancellation state.
+function createAnisongdbRequest(mode, query, options) {
+    let url;
+    const songTypes = [];
+    const broadcasts = [];
+    const songCategories = [];
     if (options.ops) songTypes.push("opening");
     if (options.eds) songTypes.push("ending");
     if (options.ins) songTypes.push("insert");
@@ -3049,7 +3458,7 @@ function getAnisongdbData(mode, query, options) {
     if (options.character) songCategories.push("character");
     if (options.chanting) songCategories.push("chanting");
     if (options.instrumental) songCategories.push("instrumental");
-    let body = {
+    const body = {
         ignore_duplicate: options.ignoreDuplicates,
         filters: {
             song_types: songTypes,
@@ -3118,27 +3527,12 @@ function getAnisongdbData(mode, query, options) {
         url = apiBase + "amq_song_ids_request";
         body.amq_song_ids = query.trim().split(/[\s,]+/).map(Number);
     }
-    data = {
+    const data = {
         method: "POST",
         headers: { "Accept": "application/json", "Content-Type": "application/json", "X-Client-Id": "amqCustomSongListGame" },
         body: JSON.stringify(body)
     };
-    searchController?.abort();
-    searchController = new AbortController();
-    const request = ++searchRequest;
-    fetchCslJson(url, { ...data, signal: searchController.signal })
-        .then(json => {
-            if (request !== searchRequest) return;
-            handleData(json);
-            setSongListTableSort();
-            createSongListTable();
-            createAnswerTable();
-        })
-        .catch(error => {
-            if (request !== searchRequest || error.name === "AbortError") return;
-            createSongListTable();
-            $("#cslgSongListWarning").text(error.message);
-        });
+    return { url, data };
 }
 
 // Bound external API requests and preserve HTTP/API failure information.
@@ -3177,6 +3571,43 @@ function cancelSongSearch() {
     return ++searchRequest;
 }
 
+// Song tables and editor filtering
+
+// Sort only the display copy so playback continues using the stored list order.
+function sortCslSongListView(view, language) {
+    if (!songListTableSort.mode) return;
+    switch (songListTableSort.mode) {
+        case "songName":
+            view.sort((a, b) => a.songName.localeCompare(b.songName));
+            break;
+        case "artist":
+            view.sort((a, b) => a.songArtist.localeCompare(b.songArtist));
+            break;
+        case "difficulty":
+            view.sort((a, b) => a.songDifficulty - b.songDifficulty);
+            break;
+        case "anime":
+            view.sort((a, b) => a[language].localeCompare(b[language]));
+            break;
+        case "songType":
+            view.sort(songTypeSortValue);
+            break;
+        case "vintage":
+            view.sort(vintageSortValue);
+            break;
+        case "mp3":
+            view.sort((a, b) => a.audio.localeCompare(b.audio));
+            break;
+        case "480":
+            view.sort((a, b) => a.video480.localeCompare(b.video480));
+            break;
+        case "720":
+            view.sort((a, b) => a.video720.localeCompare(b.video720));
+            break;
+    }
+    if (!songListTableSort.ascending) view.reverse();
+}
+
 // Create song list table
 function createSongListTable() {
     $("#cslgSongListCount").text("Songs: " + songList.length);
@@ -3185,38 +3616,7 @@ function createSongListTable() {
     const $thead = $("#cslgSongListTable thead").empty();
     const $tbody = $("#cslgSongListTable tbody").empty();
     const view = [...songList];
-    if (songListTableSort.mode) {
-        if (songListTableSort.mode === "songName") {
-            view.sort((a, b) => a.songName.localeCompare(b.songName));
-        }
-        else if (songListTableSort.mode === "artist") {
-            view.sort((a, b) => a.songArtist.localeCompare(b.songArtist));
-        }
-        else if (songListTableSort.mode === "difficulty") {
-            view.sort((a, b) => a.songDifficulty - b.songDifficulty);
-        }
-        else if (songListTableSort.mode === "anime") {
-            view.sort((a, b) => a[language].localeCompare(b[language]));
-        }
-        else if (songListTableSort.mode === "songType") {
-            view.sort((a, b) => songTypeSortValue(a, b));
-        }
-        else if (songListTableSort.mode === "vintage") {
-            view.sort((a, b) => vintageSortValue(a, b));
-        }
-        else if (songListTableSort.mode === "mp3") {
-            view.sort((a, b) => a.audio.localeCompare(b.audio));
-        }
-        else if (songListTableSort.mode === "480") {
-            view.sort((a, b) => a.video480.localeCompare(b.video480));
-        }
-        else if (songListTableSort.mode === "720") {
-            view.sort((a, b) => a.video720.localeCompare(b.video720));
-        }
-        if (!songListTableSort.ascending) {
-            view.reverse();
-        }
-    }
+    sortCslSongListView(view, language);
     songListView = view;
     if (songListTableView === 0) {
         $thead.append($("<tr>")
@@ -3311,32 +3711,32 @@ function createAnswerTable() {
     const $tbody = $("#cslgAnswerTable tbody").empty();
     if (songList.length === 0) {
         $("#cslgAnswerText").text("No list loaded");
+        return;
     }
-    else if (animeListLower.size === 0) {
+    if (animeListLower.size === 0) {
         $("#cslgAnswerText").text("Fetch autocomplete first");
+        return;
     }
-    else {
-        const animeList = new Set();
-        const missingAnimeList = [];
-        for (const song of songList) {
-            const answers = [song.animeEnglishName, song.animeRomajiName].concat(song.altAnimeNames, song.altAnimeNamesAnswers);
-            answers.forEach(x => animeList.add(x));
+    const animeList = new Set();
+    const missingAnimeList = [];
+    for (const song of songList) {
+        const answers = [song.animeEnglishName, song.animeRomajiName].concat(song.altAnimeNames, song.altAnimeNamesAnswers);
+        answers.forEach(x => animeList.add(x));
+    }
+    for (const anime of animeList) {
+        if (!animeListLower.has(anime.toLowerCase())) {
+            missingAnimeList.push(anime);
         }
-        for (const anime of animeList) {
-            if (!animeListLower.has(anime.toLowerCase())) {
-                missingAnimeList.push(anime);
-            }
-        }
-        missingAnimeList.sort((a, b) => a.localeCompare(b));
-        $("#cslgAnswerText").text(`Found ${missingAnimeList.length} anime missing from AMQ's autocomplete`);
-        for (const anime of missingAnimeList) {
-            $tbody.append($("<tr>")
-                .append($("<td>", { class: "oldName", text: anime }))
-                .append($("<td>", { class: "newName", text: replacedAnswers[anime] || "" }))
-                .append($("<td>", { class: "edit" })
-                    .append(`<i class="fa fa-pencil clickAble" aria-hidden="true"></i>`))
-            );
-        }
+    }
+    missingAnimeList.sort((a, b) => a.localeCompare(b));
+    $("#cslgAnswerText").text(`Found ${missingAnimeList.length} anime missing from AMQ's autocomplete`);
+    for (const anime of missingAnimeList) {
+        $tbody.append($("<tr>")
+            .append($("<td>", { class: "oldName", text: anime }))
+            .append($("<td>", { class: "newName", text: replacedAnswers[anime] || "" }))
+            .append($("<td>", { class: "edit" })
+                .append(`<i class="fa fa-pencil clickAble" aria-hidden="true"></i>`))
+        );
     }
 }
 
@@ -3390,136 +3790,92 @@ function songTypeSortValue(a, b) {
     return 0;
 }
 
-// Filter the song list
+// Apply one editor filter while keeping invalid input from changing the list.
 function filterSongList() {
     cancelSongSearch();
     const keep = $("#cslgFilterModeSelect").val() === "Keep";
     const key = $("#cslgFilterKeySelect").val();
-    let text = $("#cslgFilterListInput").val();
+    const text = $("#cslgFilterListInput").val();
     const caseSensitive = $("#cslgFilterListCaseCheckbox").prop("checked");
-    const customIncludes = (string, sub) => {
-        return caseSensitive ? string.includes(sub) : string.toLowerCase().includes(sub.toLowerCase());
-    }
-    if (key === "Anime") {
-        if (!text) return;
-        songList = songList.filter((song) => {
-            const match = customIncludes(song.animeRomajiName, text) || customIncludes(song.animeEnglishName, text);
-            return keep ? match : !match;
-        });
-    }
-    else if (key === "Artist") {
-        if (!text) return;
-        songList = songList.filter((song) => {
-            const match = customIncludes(song.songArtist, text);
-            return keep ? match : !match;
-        });
-    }
-    else if (key === "Song Name") {
-        if (!text) return;
-        songList = songList.filter((song) => {
-            const match = customIncludes(song.songName, text);
-            return keep ? match : !match;
-        });
-    }
-    else if (key === "Song Type") {
-        text = text.toLowerCase().trim();
-        if (!text) return;
-        let option;
-        const number = parseInt(text.match(/[0-9]+/)?.[0]) || null;
-        if (text.startsWith("o")) {
-            option = { songType: 1, songTypeNumber: number };
-        }
-        else if (text.startsWith("e")) {
-            option = { songType: 2, songTypeNumber: number };
-        }
-        else if (text.startsWith("i")) {
-            option = { songType: 3, songTypeNumber: null };
-        }
-        else return;
-        songList = songList.filter((song) => {
-            const matchesType = song.songType === option.songType;
-            const matchesNumber = !option.songTypeNumber || option.songTypeNumber === song.songTypeNumber;
-            const match = matchesType && matchesNumber;
-            return keep ? match : !match;
-        });
-    }
-    else if (key === "Anime Type") {
-        text = text.toLowerCase().trim();
-        if (!text) return;
-        songList = songList.filter((song) => {
-            const match = song.animeType && text === song.animeType.toLowerCase();
-            return keep ? match : !match;
-        });
-    }
-    else if (key === "Difficulty") {
-        text = text.toLowerCase().trim();
-        if (!text) return;
-        if (text === "null") {
-            songList = songList.filter((song) => {
-                const match = song.songDifficulty === null;
-                return keep ? match : !match;
-            });
-        }
-        else {
-            const [low, high] = text.split(/[\s-]+/).map(Number);
-            if (isNaN(low) || isNaN(high) || low > high) return;
-            songList = songList.filter((song) => {
-                const match = song.songDifficulty && song.songDifficulty >= low && song.songDifficulty <= high;
-                return keep ? match : !match;
-            });
-        }
-    }
-    else if (key === "Vintage") {
-        text = text.toLowerCase().trim();
-        if (!text) return;
-        if (text === "null") {
-            songList = songList.filter((song) => {
-                const match = song.animeVintage === null;
-                return keep ? match : !match;
-            });
-        }
-        else if (/^[0-9]{4}[\s-]+[0-9]{4}$/.test(text)) {
-            const [low, high] = text.split(/[\s-]+/).map(Number);
-            if (isNaN(low) || isNaN(high) || low > high) return;
-            songList = songList.filter((song) => {
-                const year = song.animeVintage ? Number(song.animeVintage.split(" ")[1]) : NaN;
-                const match = Number.isInteger(year) && year >= low && year <= high;
-                return keep ? match : !match;
-            });
-        }
-        else {
-            songList = songList.filter((song) => {
-                const match = song.animeVintage && song.animeVintage.toLowerCase().includes(text);
-                return keep ? match : !match;
-            });
-        }
-    }
-    else if (key === "Rebroadcast") {
-        songList = songList.filter((song) => {
-            const match = Boolean(song.rebroadcast);
-            return keep ? match : !match;
-        });
-    }
-    else if (key === "Dub") {
-        songList = songList.filter((song) => {
-            const match = Boolean(song.dub);
-            return keep ? match : !match;
-        });
-    }
-    else if (key === "Correct") {
-        songList = songList.filter((song) => {
-            const match = song.correctGuess === true;
-            return keep ? match : !match;
-        });
-    }
-    else if (key === "Incorrect") {
-        songList = songList.filter((song) => {
-            const match = song.incorrectGuess === true;
+    const matches = createCslSongFilter(key, text, caseSensitive);
+    if (matches === null) return;
+    if (matches) {
+        songList = songList.filter(song => {
+            const match = matches(song);
             return keep ? match : !match;
         });
     }
     createSongListTable();
     createAnswerTable();
+}
+
+// Return a predicate, null for invalid input, or undefined for an unknown field.
+function createCslSongFilter(key, text, caseSensitive) {
+    const includes = (value, query) => {
+        if (caseSensitive) return value.includes(query);
+        return value.toLowerCase().includes(query.toLowerCase());
+    };
+    switch (key) {
+        case "Anime":
+            if (!text) return null;
+            return song => includes(song.animeRomajiName, text) || includes(song.animeEnglishName, text);
+        case "Artist":
+            if (!text) return null;
+            return song => includes(song.songArtist, text);
+        case "Song Name":
+            if (!text) return null;
+            return song => includes(song.songName, text);
+        case "Song Type": {
+            const query = text.toLowerCase().trim();
+            if (!query) return null;
+            const number = parseInt(query.match(/[0-9]+/)?.[0]) || null;
+            let type;
+            let typeNumber = number;
+            if (query.startsWith("o")) type = 1;
+            else if (query.startsWith("e")) type = 2;
+            else if (query.startsWith("i")) {
+                type = 3;
+                typeNumber = null;
+            }
+            else return null;
+            return song => song.songType === type && (!typeNumber || typeNumber === song.songTypeNumber);
+        }
+        case "Anime Type": {
+            const query = text.toLowerCase().trim();
+            if (!query) return null;
+            return song => song.animeType && query === song.animeType.toLowerCase();
+        }
+        case "Difficulty": {
+            const query = text.toLowerCase().trim();
+            if (!query) return null;
+            if (query === "null") return song => song.songDifficulty === null;
+            const [low, high] = query.split(/[\s-]+/).map(Number);
+            if (isNaN(low) || isNaN(high) || low > high) return null;
+            return song => Number.isFinite(song.songDifficulty) && song.songDifficulty >= low && song.songDifficulty <= high;
+        }
+        case "Vintage": {
+            const query = text.toLowerCase().trim();
+            if (!query) return null;
+            if (query === "null") return song => song.animeVintage === null;
+            if (/^[0-9]{4}[\s-]+[0-9]{4}$/.test(query)) {
+                const [low, high] = query.split(/[\s-]+/).map(Number);
+                if (isNaN(low) || isNaN(high) || low > high) return null;
+                return song => {
+                    const year = song.animeVintage ? Number(song.animeVintage.split(" ")[1]) : NaN;
+                    return Number.isInteger(year) && year >= low && year <= high;
+                };
+            }
+            return song => song.animeVintage && song.animeVintage.toLowerCase().includes(query);
+        }
+        case "Rebroadcast":
+            return song => Boolean(song.rebroadcast);
+        case "Dub":
+            return song => Boolean(song.dub);
+        case "Correct":
+            return song => song.correctGuess === true;
+        case "Incorrect":
+            return song => song.incorrectGuess === true;
+    }
 }
 
 // Reset all tabs and switch to the inputted tab
@@ -3530,6 +3886,8 @@ function switchTab(tab) {
     $w.find(`#${tab}Tab`).addClass("selected");
     $w.find(`#${tab}Container`).show();
 }
+
+// Media and AMQ song metadata
 
 // Convert vintage string into AMQ songInfo vintage object
 function formatAmqVintage(vintage) {
@@ -3599,6 +3957,8 @@ function createCatboxLinkObject(audio, video480, video720) {
     return links;
 }
 
+// Hotkey configuration
+
 // Load hotkey from local storage, input optional default values
 function loadHotkey(action, key = "", ctrl = false, alt = false, shift = false) {
     const item = saveData.hotKeys?.[action];
@@ -3661,21 +4021,17 @@ function startHotkeyRecord() {
 }
 
 // Input hotKeys[action] and convert the data to a string for the input field
-function bindingToText(b) {
-    if (!b) return "";
+function bindingToText(binding) {
+    if (!binding) return "";
     const keys = [];
-    if (b.ctrl) keys.push("CTRL");
-    if (b.alt) keys.push("ALT");
-    if (b.shift) keys.push("SHIFT");
-    if (b.key) keys.push(b.key === " " ? "SPACE" : b.key);
+    if (binding.ctrl) keys.push("CTRL");
+    if (binding.alt) keys.push("ALT");
+    if (binding.shift) keys.push("SHIFT");
+    if (binding.key) keys.push(binding.key === " " ? "SPACE" : binding.key);
     return keys.join(" + ");
 }
 
-// Allow CSL only in normal rooms, with native quizzes excluded from discovery.
-function cslSupportedRoom() {
-    if (quiz.inQuiz && (!quiz.cslActive || !["Solo", "Standard"].includes(quiz.gameMode))) return false;
-    return (lobby.inLobby || quiz.inQuiz) && ["Solo", "Multiplayer"].includes(lobby.settings.gameMode);
-}
+// Anime-list imports
 
 // Input myanimelist username, return list of mal ids
 async function getMalIdsFromMyanimelist(username) {
@@ -3701,27 +4057,36 @@ async function getMalIdsFromMyanimelist(username) {
         $("#cslgListImportText").text(`Retrieving Myanimelist: ${status}`);
         let nextPage = `https://api.myanimelist.net/v2/users/${username}/animelist?offset=0&limit=1000&nsfw=true&status=${status}`;
         while (nextPage) {
-            const result = await new Promise((resolve, reject) => {
-                GM_xmlhttpRequest({
-                    method: "GET", url: nextPage, timeout: 25000,
-                    headers: { "Accept": "application/json", "X-MAL-CLIENT-ID": malClientId },
-                    onload: response => {
-                        try {
-                            const json = JSON.parse(response.responseText);
-                            if (response.status < 200 || response.status >= 300 || json.error || !Array.isArray(json.data)) throw new Error(json.message || json.error || `MAL HTTP ${response.status}`);
-                            resolve(json);
-                        }
-                        catch (error) { reject(error); }
-                    },
-                    onerror: () => reject(new Error("MAL request failed")),
-                    ontimeout: () => reject(new Error("MAL request timed out"))
-                });
-            });
+            const result = await fetchCslMalPage(nextPage);
             for (const anime of result.data) malIds.push(anime.node.id);
             nextPage = result.paging?.next || "";
         }
     }
     return malIds;
+}
+
+// Fetch one MAL page through Tampermonkey and retain provider error details.
+function fetchCslMalPage(url) {
+    return new Promise((resolve, reject) => {
+        GM_xmlhttpRequest({
+            method: "GET", url, timeout: 25000,
+            headers: { "Accept": "application/json", "X-MAL-CLIENT-ID": malClientId },
+            onload: response => {
+                try {
+                    const json = JSON.parse(response.responseText);
+                    if (response.status < 200 || response.status >= 300 || json.error || !Array.isArray(json.data)) {
+                        throw new Error(json.message || json.error || `MAL HTTP ${response.status}`);
+                    }
+                    resolve(json);
+                }
+                catch (error) {
+                    reject(error);
+                }
+            },
+            onerror: () => reject(new Error("MAL request failed")),
+            ontimeout: () => reject(new Error("MAL request timed out"))
+        });
+    });
 }
 
 // Input anilist username, return list of mal ids
@@ -3832,6 +4197,8 @@ async function startImport() {
         importRunning = false;
     }
 }
+
+// Persistence and styling
 
 // Input list and file name, download json file
 function downloadListJson(list, fileName) {
