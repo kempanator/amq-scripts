@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.110
+// @version      0.111
 // @description  Play a simulated AMQ solo or multiplayer quiz with a custom song list
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -1754,11 +1754,15 @@ class CslController {
 
     // Keep server membership and chat events separate from simulated quiz state.
     installRoomListeners() {
+        this.roomId = lobby.gameId;
         this.listen("game chat update", data => data.messages.forEach(message => this.chat(message)));
         this.listen("Game Chat Message", message => this.chat(message));
-        for (const event of ["Join Game", "Spectate Game", "Host Game"]) this.listen(event, data => {
+        for (const event of ["Join Game", "Spectate Game", "Host Game", "Host Custom Game"]) this.listen(event, data => {
             if (data.error) return;
             this.dispose();
+            this.roomId = data.gameId;
+        });
+        this.listen("quiz over", data => {
             this.roomId = data.gameId;
         });
         this.listen("Game Starting", () => { if (!this.synthetic) this.dispose(); });
@@ -2198,9 +2202,9 @@ class CslController {
         this.transport.send(session, 0, CSL_MESSAGE.SYNC, { nonce: this.syncNonce }, 1, () => { }, "sync");
     }
 
-    // Allow manual prompts in the current normal lobby, including solo.
+    // Use AMQ's current lobby state for manual prompts, independently of CSL tracking.
     lobbyCommandsAllowed() {
-        return this.roomId === lobby.gameId && lobby.inLobby && cslSupportedRoom();
+        return lobby.inLobby && ["Solo", "Multiplayer"].includes(lobby.settings.gameMode);
     }
 
     // Broadcast one host request; the host replies through the same chat listener.
