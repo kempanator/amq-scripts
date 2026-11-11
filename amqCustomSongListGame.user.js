@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.112
+// @version      0.113
 // @description  Play a simulated AMQ solo or multiplayer quiz with a custom song list
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -40,13 +40,105 @@ Some considerations:
   4. Keep duplicates in the song list if you want to use any acceptable title for each
 */
 
-
 "use strict";
 if (typeof Listener === "undefined") return;
 
-// Protocol and scheduling
+// === State, protocol, scheduling, initialization ===
 
-// Centralize the limits of the chat transport and quiz lifecycle.
+const saveData = validateLocalStorage("customSongListGame");
+const apiBase = "https://anisongdb.com/api/";
+const hostDict = { 1: "eudist.animemusicquiz.com", 2: "nawdist.animemusicquiz.com", 3: "naedist.animemusicquiz.com" };
+let CSLButtonCSS = saveData.CSLButtonCSS || "calc(25% - 250px)";
+let showCSLMessages = saveData.showCSLMessages ?? true;
+const savedAnswerEntries = Object.entries(saveData.replacedAnswers || {})
+    .filter(([, value]) => typeof value === "string");
+let replacedAnswers = Object.assign(Object.create(null), Object.fromEntries(savedAnswerEntries));
+let malClientId = saveData.malClientId ?? "";
+let debug = Boolean(saveData.debug);
+let songListTableView = 0; //0: song + artist, 1: anime + song type + vintage, 2: video/audio links
+let songListTableSort = { mode: "", ascending: true } //modes: songName, artist, difficulty, anime, songType, vintage, mp3, 480, 720
+let songList = [];
+let mergedSongList = [];
+let importedSongList = [];
+let songOrderType = "random";
+let startPointRange = [0, 100];
+let difficultyRange = [0, 100];
+let fileHostOverride = 0;
+let animeListLower = new Set(); //store lowercase version for faster compare speed
+let autocompleteInput;
+let importRunning = false;
+let songListView = [];
+let searchController;
+let searchRequest = 0;
+let cslController;
+let hotkeyController;
+let hotKeys;
+
+const hotkeyActions = {
+    cslgWindow: {
+        label: "Open This Window",
+        run: () => {
+            if ($("#cslgSettingsModal").is(":visible")) {
+                $("#cslgSettingsModal").modal("hide");
+            }
+            else {
+                openSettingsModal();
+            }
+        }
+    },
+    start: {
+        label: "Start CSL",
+        run: () => {
+            validateStart();
+        }
+    },
+    stop: {
+        label: "Stop CSL",
+        run: () => {
+            cslController.stop();
+        }
+    },
+    mergeAll: {
+        label: "Add All To Merged",
+        run: () => {
+            mergeCurrentSongList();
+        }
+    },
+    clearSongList: {
+        label: "Clear Song List",
+        run: () => {
+            if (quiz.inQuiz) return;
+            clearCurrentSongList();
+        }
+    },
+    transferMerged: {
+        label: "Transfer From Merged",
+        run: () => {
+            if (quiz.inQuiz) return;
+            transferMergedToCurrentSongList();
+        }
+    },
+    clearMerged: {
+        label: "Clear Merged",
+        run: () => {
+            clearMergedSongList();
+        }
+    },
+    downloadMerged: {
+        label: "Download Merged",
+        run: () => {
+            downloadMergedSongList();
+        }
+    },
+    tableMode: {
+        label: "Change Table Mode",
+        run: () => {
+            cycleSongListTableView();
+        }
+    }
+};
+
+// Centralize the limits of the chat transport and quiz lifecycle
 const CSL = Object.freeze({
     prefix: "§CSL!",
     frameLength: 150,
@@ -66,7 +158,7 @@ const CSL = Object.freeze({
     announcementDelay: 500
 });
 
-// Give chat message codes readable names without changing their wire format.
+// Give chat message codes readable names without changing their wire format
 const CSL_MESSAGE = Object.freeze({
     BEGIN: "B",
     PREPARE: "U",
@@ -90,7 +182,7 @@ const CSL_MESSAGE = Object.freeze({
     SKIP: "S"
 });
 
-// Manual lobby prompts and their replies.
+// Manual lobby prompts and their replies
 const CSL_LOBBY_COMMAND = Object.freeze({
     AUTOCOMPLETE: {
         command: "§CSL?A",
@@ -102,21 +194,65 @@ const CSL_LOBBY_COMMAND = Object.freeze({
     }
 });
 
-// Measure durations independently of system-clock adjustments.
+// Avoid repeating verbose field names for every player in chat results and snapshots
+const CSL_PLAYER_FIELDS = ["id", "name", "score", "correctGuesses", "reviveScore", "eliminated", "connected", "activeFrom", "correct", "answer", "time"];
+
+// Initialize once AMQ finishes loading, or immediately when it is already ready
+function startScript() {
+    initializeState();
+    const loadingScreen = document.querySelector("#loadingScreen");
+    if (loadingScreen.classList.contains("hidden")) {
+        setup();
+        return;
+    }
+    const observer = new MutationObserver(() => {
+        if (!loadingScreen.classList.contains("hidden")) return;
+        observer.disconnect();
+        setup();
+    });
+    observer.observe(loadingScreen, { attributes: true, attributeFilter: ["class"] });
+}
+
+// Prepare runtime state and early hooks before waiting for the page
+function initializeState() {
+    hotkeyController = new HotkeyController({
+        actions: hotkeyActions,
+        savedBindings: saveData.hotKeys,
+        onChange: saveSettings
+    });
+    hotKeys = hotkeyController.bindings;
+    cslController = new CslController();
+}
+
+// Build the editor and attach the custom quiz runtime once AMQ is ready
+function setup() {
+    cslController.install();
+    createCslSettingsModal();
+    bindCslTabs();
+    bindSongListControls();
+    bindQuizSettingsControls();
+    bindMergedSongControls();
+    bindAutocompleteControl();
+    bindListImportControls();
+    bindEditorTableControls();
+    initializeSettingsControls();
+    setupHotkeys();
+    applyStyles();
+    registerScriptInfo();
+}
+
+// Measure durations independently of system-clock adjustments
 function cslNow() {
     return performance.now();
 }
 
-// Avoid repeating verbose field names for every player in chat results and snapshots.
-const CSL_PLAYER_FIELDS = ["id", "name", "score", "correctGuesses", "reviveScore", "eliminated", "connected", "activeFrom", "correct", "answer", "time"];
-
-// Compact repeated player records while keeping decoded state descriptive.
+// Compact repeated player records while keeping decoded state descriptive
 function cslPack(type, value) {
     if (![CSL_MESSAGE.RESULT, CSL_MESSAGE.SNAPSHOT].includes(type)) return value;
     return { ...value, players: value.players.map(player => CSL_PLAYER_FIELDS.map(field => player[field] ?? null)) };
 }
 
-// Expand player records at the protocol boundary before validation or scoring.
+// Expand player records at the protocol boundary before validation or scoring
 function cslUnpack(type, value) {
     if (![CSL_MESSAGE.RESULT, CSL_MESSAGE.SNAPSHOT].includes(type)) return value;
     if (!value || !Array.isArray(value.players) || !value.players.every(Array.isArray)) return value;
@@ -127,12 +263,12 @@ function cslUnpack(type, value) {
     return { ...value, players };
 }
 
-// Clone plain records before they cross editor, session, or network boundaries.
+// Clone plain records before they cross editor, session, or network boundaries
 function cslClone(value) {
     return JSON.parse(JSON.stringify(value));
 }
 
-// Encode Unicode JSON without relying on Latin-1 btoa input.
+// Encode Unicode JSON without relying on Latin-1 btoa input
 function cslEncode(value) {
     const bytes = new TextEncoder().encode(JSON.stringify(value));
     if (bytes.length > CSL.maxBytes) throw new Error("CSL message is too large");
@@ -140,250 +276,38 @@ function cslEncode(value) {
         .replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
 }
 
-// Decode and bound an assembled JSON message before interpreting its contents.
+// Decode and bound an assembled JSON message before interpreting its contents
 function cslDecode(text) {
     const bytes = Uint8Array.from(atob(text.replaceAll("-", "+").replaceAll("_", "/")), char => char.charCodeAt(0));
     if (bytes.length > CSL.maxBytes) throw new Error("CSL message is too large");
     return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
 }
 
-// Generate hexadecimal recovery nonces and answer secrets with the browser RNG.
+// Generate hexadecimal recovery nonces and answer secrets with the browser RNG
 function cslRandom(bytes = 6) {
     return Array.from(crypto.getRandomValues(new Uint8Array(bytes)), byte => byte.toString(16).padStart(2, "0")).join("");
 }
 
-// Encode three random bytes as a four-character base64url session identifier.
+// Encode three random bytes as a four-character base64url session identifier
 function cslSessionId() {
     return btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(3)))).replaceAll("+", "-").replaceAll("/", "_");
 }
 
-// Bind an answer commitment to its exact session, round, revision, and secret.
+// Bind an answer commitment to its exact session, round, revision, and secret
 async function cslCommitment(session, round, revision, answer, secret) {
     const data = new TextEncoder().encode(JSON.stringify([session, round, revision, answer, secret]));
     const hash = new Uint8Array(await crypto.subtle.digest("SHA-256", data));
     return btoa(Array.from(hash, byte => String.fromCharCode(byte)).join("")).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
 }
 
-// Own cancellable work so callbacks cannot survive a stopped session or phase.
-class CslScope {
-    // Accept a replaceable clock for deterministic lifecycle tests.
-    constructor(clock = globalThis) {
-        this.clock = clock;
-        this.timers = new Set();
-        this.closed = false;
-    }
+// === Scoring and round lifecycle ===
 
-    // Run a callback only while this scope remains alive.
-    after(delay, callback) {
-        if (this.closed) return;
-        const timer = this.clock.setTimeout(() => {
-            this.timers.delete(timer);
-            if (!this.closed) callback();
-        }, delay);
-        this.timers.add(timer);
-        return timer;
-    }
-
-    // Cancel every outstanding callback and permanently close the scope.
-    close() {
-        this.closed = true;
-        for (const timer of this.timers) this.clock.clearTimeout(timer);
-        this.timers.clear();
-    }
-}
-
-// Carry bounded, repairable logical messages over AMQ's existing room chat.
-class CslTransport {
-    // Inject chat delivery and scheduling rather than depending on AMQ globals.
-    constructor({ name, send, receive, allow, warning, canSend = () => true, clock = globalThis, now = cslNow, spacing = CSL.sendSpacing }) {
-        Object.assign(this, { name, sendFrame: send, receiveMessage: receive, allow, warning, canSend, clock, now, spacing });
-        this.scope = new CslScope(clock);
-        this.queue = [];
-        this.cache = new Map();
-        this.incoming = new Map();
-        this.completed = new Map();
-        this.serial = 0;
-        this.sending = false;
-        this.tick();
-    }
-
-    // Fill each frame using its actual header size, recalculating if the count grows.
-    frames(session, id, round, type, value) {
-        const encoded = cslEncode(value);
-        const prefix = `${CSL.prefix}${session}.${id}.${round.toString(36)}.${type}.`;
-        let count = 1;
-        while (true) {
-            const frames = [];
-            for (let offset = 0; offset < encoded.length;) {
-                if (frames.length >= CSL.maxFragments) throw new Error("Too many CSL fragments");
-                const header = `${prefix}${frames.length.toString(36)}.${count.toString(36)}.`;
-                const fragment = encoded.slice(offset, offset + CSL.frameLength - header.length);
-                frames.push(header + fragment);
-                offset += fragment.length;
-            }
-            if (frames.length === count) return frames;
-            count = frames.length;
-        }
-    }
-
-    // Queue one message atomically and retain its fragments for bounded repair.
-    send(session, round, type, value, priority = 2, done = () => { }, replaceKey = "") {
-        if (this.scope.closed || !this.canSend({ session, type })) return;
-        const id = (++this.serial).toString(36);
-        const frames = this.frames(session, id, round, type, value);
-        if (replaceKey) this.queue = this.queue.filter(item => item.replaceKey !== replaceKey);
-        if (this.queue.length + frames.length > 2048) throw new Error("CSL chat queue is full");
-        this.cache.set(`${session}:${id}`, { frames, type, time: this.now() });
-        if (this.cache.size > 256) this.cache.delete(this.cache.keys().next().value);
-        frames.forEach((frame, index) => {
-            this.queue.push({
-                session, type, frame, priority, replaceKey,
-                done: index === frames.length - 1 ? done : null
-            });
-        });
-        this.pump();
-        return id;
-    }
-
-    // Deliver at a bounded rate while preserving insertion order within priorities.
-    pump() {
-        if (this.sending || !this.queue.length || this.scope.closed) return;
-        this.queue = this.queue.filter(item => this.canSend(item));
-        if (!this.queue.length) return;
-        const scope = this.scope;
-        this.sending = true;
-        this.queue.sort((a, b) => a.priority - b.priority);
-        const item = this.queue.shift();
-        try {
-            const sent = this.sendFrame(item.frame, item);
-            if (sent !== false && item.done) item.done();
-        }
-        catch (error) {
-            this.warning(`Chat delivery failed: ${error.message}`);
-        }
-        scope.after(this.spacing, () => {
-            this.sending = false;
-            this.pump();
-        });
-    }
-
-    // Validate headers before allocating buffers or accepting any message payload.
-    receive(text, sender) {
-        if (typeof text !== "string" || text.length > CSL.frameLength || typeof sender !== "string") return;
-        const match = /^§CSL!([A-Za-z0-9_-]{4})\.([a-z0-9]{1,6})\.([a-z0-9]{1,4})\.([A-Z])\.([a-z0-9]{1,2})\.([a-z0-9]{1,2})\.([A-Za-z0-9_-]+)$/.exec(text);
-        if (!match) return;
-        const [, session, id, roundText, type, indexText, countText, fragment] = match;
-        const round = parseInt(roundText, 36);
-        const index = parseInt(indexText, 36);
-        const count = parseInt(countText, 36);
-        const envelope = { session, id, round, type, sender };
-        if (count < 1 || count > CSL.maxFragments || index >= count || !this.allow(envelope)) return;
-        const key = `${session}:${sender}:${id}`;
-        if (this.completed.has(key)) return;
-        let entry = this.incoming.get(key);
-        if (!entry) {
-            if (this.incoming.size >= CSL.maxAssemblies) return;
-            entry = { ...envelope, count, parts: new Map(), time: this.now(), progress: this.now(), repair: 0 };
-            this.incoming.set(key, entry);
-        }
-        const headerChanged = entry.count !== count || entry.type !== type || entry.round !== round;
-        const fragmentChanged = entry.parts.has(index) && entry.parts.get(index) !== fragment;
-        if (headerChanged || fragmentChanged) {
-            this.incoming.delete(key);
-            this.completed.set(key, this.now());
-            return;
-        }
-        if (!entry.parts.has(index)) {
-            entry.progress = this.now();
-            entry.repair = 0;
-        }
-        entry.parts.set(index, fragment);
-        if (entry.parts.size !== count) return;
-        this.incoming.delete(key);
-        this.completed.set(key, this.now());
-        try {
-            const encoded = Array.from({ length: count }, (_, part) => entry.parts.get(part)).join("");
-            const value = cslDecode(encoded);
-            if (type === CSL_MESSAGE.REPAIR) this.repair(session, value);
-            else this.receiveMessage(envelope, value);
-        }
-        catch (error) {
-            this.warning(`Ignored invalid chat data: ${error.message}`);
-        }
-    }
-
-    // Resend only requested fragments of an existing cached message.
-    repair(session, request) {
-        if (!request || request.to !== this.name || !Array.isArray(request.missing) || request.missing.length > CSL.maxFragments) return;
-        const cached = this.cache.get(`${session}:${request.id}`);
-        if (!cached || (cached.lastRepair !== undefined && this.now() - cached.lastRepair < 1000)) return;
-        cached.lastRepair = this.now();
-        for (const index of new Set(request.missing)) {
-            if (!Number.isInteger(index)) continue;
-            const frame = cached.frames[index];
-            if (!frame || this.queue.some(item => item.frame === frame) || this.queue.length >= 2048) continue;
-            this.queue.push({ session, type: cached.type, frame, priority: 1 });
-        }
-        this.pump();
-    }
-
-    // Expire transfer state and ask for missing fragments without infinite retries.
-    tick() {
-        const now = this.now();
-        for (const [key, entry] of this.incoming) {
-            if (!this.allow(entry) || now - entry.time > CSL.cacheTime || entry.repair >= 3) {
-                this.incoming.delete(key);
-                continue;
-            }
-            if (now - entry.progress > CSL.repairDelay * (entry.repair + 1)) {
-                entry.repair++;
-                const missing = Array.from({ length: entry.count }, (_, index) => index).filter(index => !entry.parts.has(index));
-                this.send(entry.session, entry.round, CSL_MESSAGE.REPAIR, { to: entry.sender, id: entry.id, missing }, 1);
-            }
-        }
-        for (const map of [this.cache, this.completed]) {
-            for (const [key, value] of map) {
-                const time = typeof value === "number" ? value : value.time;
-                if (now - time > CSL.cacheTime) map.delete(key);
-            }
-        }
-        this.scope.after(800, () => this.tick());
-    }
-
-    // Remove pending transfers when their session is no longer relevant.
-    cancel(session) {
-        this.queue = this.queue.filter(item => item.session !== session);
-        for (const map of [this.cache, this.incoming, this.completed]) {
-            for (const key of map.keys()) if (key.startsWith(`${session}:`)) map.delete(key);
-        }
-    }
-
-    // Discard every transfer and timer before using this transport in another room.
-    reset() {
-        this.close();
-        this.scope = new CslScope(this.clock);
-        this.tick();
-    }
-
-    // Release all scheduler resources when the transport itself is discarded.
-    close() {
-        this.scope.close();
-        this.queue = [];
-        this.cache.clear();
-        this.incoming.clear();
-        this.completed.clear();
-        this.sending = false;
-    }
-}
-
-// Scoring and round lifecycle
-
-// Match accepted titles using the fixed answer set captured at quiz start.
+// Match accepted titles using the fixed answer set captured at quiz start
 function cslCorrect(song, answer) {
     return Boolean(answer) && song.acceptedAnswers.includes(answer.trim().toLowerCase());
 }
 
-// Score the round's original participants even if they leave or reconnect before results.
+// Score the round's original participants even if they leave or reconnect before results
 function cslScore(players, answers, song, config, round, participants) {
     const correct = new Map(players.map(player => {
         const answer = answers[player.id]?.answer || "";
@@ -418,7 +342,7 @@ function cslScore(players, answers, song, config, round, participants) {
     });
 }
 
-// Rank ties consistently and retain elimination order in lives mode.
+// Rank ties consistently and retain elimination order in lives mode
 function cslStandings(players, scoreType) {
     const rankValues = player => {
         if (scoreType !== 4) return [player.score];
@@ -441,604 +365,21 @@ function cslStandings(players, scoreType) {
     });
 }
 
-// Drive solo and multiplayer through the same host-authoritative round lifecycle.
-class CslSession {
-    // Receive immutable quiz inputs and environment-specific presentation hooks.
-    constructor({ id, name, host, config, roster, plan = [], solo = false, emit, hooks, clock = globalThis, now = cslNow }) {
-        Object.assign(this, { id, name, host, solo, emit, hooks, clock, now });
-        this.config = cslClone(config);
-        this.plan = cslClone(plan);
-        this.players = roster.map(player => ({
-            ...player,
-            score: config.scoreType === 4 ? config.lives : 0,
-            correctGuesses: 0,
-            reviveScore: 0,
-            eliminated: null,
-            connected: true,
-            activeFrom: 1
-        }));
-        this.scope = new CslScope(clock);
-        this.phaseScope = new CslScope(clock);
-        this.phase = "starting";
-        this.round = 0;
-        this.playedRound = 0;
-        this.sequence = 0;
-        this.applied = 0;
-        this.media = new Map();
-        this.readiness = new Map();
-        this.commits = new Map();
-        this.localAnswers = new Map();
-        this.answers = {};
-        this.roundParticipants = new Set();
-        this.votes = new Set();
-        this.revision = 0;
-        this.ackRevision = 0;
-        this.paused = false;
-        this.lastSync = -Infinity;
-        this.waitUntilRound = 1;
-        this.result = null;
-        this.pendingResult = false;
-    }
+// === Message validation ===
 
-    // Identify the sole authority for transitions and scoring.
-    get isHost() {
-        return this.name === this.host;
-    }
-
-    // Resolve the local participant without accepting player IDs from chat payloads.
-    get self() {
-        return this.players.find(player => player.name === this.name);
-    }
-
-    // Select participants eligible for this round and its readiness/skip votes.
-    active() {
-        return this.players.filter(player => player.connected && player.activeFrom <= this.round);
-    }
-
-    // Start presentation once and announce a new host session to the room.
-    start(announce = false) {
-        this.hooks.start(this);
-        if (!announce) return;
-        const roster = this.players.map(({ id, name }) => ({ id, name }));
-        this.send(CSL_MESSAGE.BEGIN, { config: this.config, roster }, 0, 0, () => this.buffer(1));
-    }
-
-    // Route one logical message through the injected network or solo loopback.
-    send(type, value, round = this.round, priority = 1, done = () => { }, replaceKey = "") {
-        if (this.scope.closed) return;
-        try {
-            return this.emit(this.id, round, type, this.solo ? value : cslPack(type, value), priority, done, replaceKey);
-        }
-        catch (error) {
-            this.hooks.warning(error.message);
-            this.hooks.end(this);
-        }
-    }
-
-    // Broadcast an ordered host decision and apply it locally after it is sent.
-    publish(type, value = {}, round = this.round, done = () => { }) {
-        if (!this.isHost || this.scope.closed) return;
-        const payload = { ...value, q: ++this.sequence };
-        this.send(type, payload, round, 1, () => {
-            if (this.scope.closed) return;
-            this.receive({ session: this.id, sender: this.host, round, type }, payload);
-            done();
-        });
-    }
-
-    // Cancel phase work before entering another phase.
-    enter(phase) {
-        this.phaseScope.close();
-        this.phaseScope = new CslScope(this.clock);
-        this.phase = phase;
-        this.votes.clear();
-    }
-
-    // Send only media information before guessing, keeping titles on the host.
-    prepare(round) {
-        if (!this.isHost || round > this.config.totalSongs || this.media.has(round)) return;
-        const song = this.plan[round - 1];
-        const media = { audio: song.audio, video480: song.video480, video720: song.video720, sample: song.sample };
-        this.media.set(round, media);
-        this.hooks.prepare(this, round, media);
-        this.send(CSL_MESSAGE.PREPARE, media, round, 2);
-    }
-
-    // Wait a bounded time for preparation, then continue even when media fails.
-    buffer(round) {
-        if (this.scope.closed || !this.isHost) return;
-        this.round = round;
-        this.enter("buffering");
-        this.hooks.buffer(this);
-        this.phaseScope.after(CSL.bufferTime, () => {
-            const status = this.readiness.get(round) || new Map();
-            const missing = this.active().filter(player => !status.has(player.name));
-            if (missing.length) this.hooks.warning(`Song ${round}: continuing without ${missing.map(player => player.name).join(", ")} (loading timed out)`);
-            this.bufferExpired = true;
-            this.maybePlay();
-        });
-        this.prepare(round);
-        this.maybePlay();
-    }
-
-    // Start exactly once when everyone responds or the loading deadline expires.
-    maybePlay() {
-        if (!this.isHost || this.phase !== "buffering" || this.paused || this.playPending) return;
-        const status = this.readiness.get(this.round) || new Map();
-        if (!this.bufferExpired && this.active().some(player => !status.has(player.name))) return;
-        this.playPending = true;
-        this.publish(CSL_MESSAGE.PLAY, {}, this.round);
-    }
-
-    // Report success or failure for the actual media round reported by AMQ.
-    ready(round, ok) {
-        if (!Number.isInteger(round) || round < Math.max(1, this.round) || round > this.round + 1) return;
-        if (!this.readiness.has(round)) this.readiness.set(round, new Map());
-        const status = this.readiness.get(round);
-        if (status.has(this.name) && status.get(this.name) === ok) return;
-        status.set(this.name, ok);
-        if (!ok) this.hooks.warning(`Song ${round}: media could not load; the game will continue`);
-        this.send(CSL_MESSAGE.READY, { ok }, round);
-        this.maybePlay();
-    }
-
-    // Freeze local input once, allowing AMQ's normal auto-submit handler to run.
-    freeze() {
-        if (this.frozen) return;
-        this.autoSubmitting = true;
-        this.hooks.lock(this);
-        this.autoSubmitting = false;
-        this.frozen = true;
-    }
-
-    // Measure submission time within the current round's guess window.
-    answerTime() {
-        return Math.max(0, Math.min((this.now() - this.started) / 1000, this.config.guessTime + this.config.extraGuessTime));
-    }
-
-    // Store solo answers directly and commit multiplayer answers for later reveal.
-    async submit(answer) {
-        if ((this.phase !== "guessing" || this.frozen) && !this.autoSubmitting) return false;
-        if (!this.self || !this.self.connected || this.self.activeFrom > this.round || typeof answer !== "string") return false;
-        if (new TextEncoder().encode(answer).length > 512) {
-            this.hooks.warning("Answer is too long to send");
-            return false;
-        }
-        if (this.solo) {
-            const time = this.answerTime();
-            this.answers[this.self.id] = { answer, time };
-            this.hooks.answered(this, this.self.id, time);
-            return true;
-        }
-        const round = this.round;
-        const revision = ++this.revision;
-        const secret = cslRandom(12);
-        const record = { revision, answer, secret };
-        this.localAnswers.set(revision, record);
-        const hash = await cslCommitment(this.id, round, revision, answer, secret);
-        if (this.scope.closed || this.round !== round || revision !== this.revision || !["guessing", "locking"].includes(this.phase)) return false;
-        record.hash = hash;
-        this.retryCommit(record, round);
-        return true;
-    }
-
-    // Repair a wholly lost commitment as well as a partially received transfer.
-    retryCommit(record, round, attempt = 0) {
-        if (this.scope.closed || round !== this.round || record.revision !== this.revision) return;
-        if (this.ackRevision >= record.revision || !["guessing", "locking"].includes(this.phase) || attempt >= 3) return;
-        this.send(CSL_MESSAGE.COMMIT, { revision: record.revision, hash: record.hash }, round, 0, () => { }, "answer");
-        this.scope.after(700, () => this.retryCommit(record, round, attempt + 1));
-    }
-
-    // Retry a complete reveal until the host confirms it or collection ends.
-    retryReveal(record, round, attempt = 0) {
-        if (this.scope.closed || round !== this.round || this.phase !== "collecting" || this.revealAckRevision >= record.revision || attempt >= 3) return;
-        this.send(CSL_MESSAGE.REVEAL, { revision: record.revision, answer: record.answer, secret: record.secret }, round, 0);
-        this.scope.after(1000, () => this.retryReveal(record, round, attempt + 1));
-    }
-
-    // Record one phase-specific skip vote from the local participant.
-    vote() {
-        if (this.self && this.self.connected && ["guessing", "revealing"].includes(this.phase)) this.send(CSL_MESSAGE.SKIP, { phase: this.phase });
-    }
-
-    // Advance after unanimous votes without allowing dead or missing peers to stall.
-    checkVotes() {
-        if (!this.isHost || !this.active().length || this.active().some(player => !this.votes.has(player.name))) return;
-        if (this.phase === "guessing") this.lock();
-        else if (this.phase === "revealing") this.advance();
-    }
-
-    // Stop guessing, then reserve a short window for in-flight commitments.
-    lock() {
-        if (!this.isHost || this.phase !== "guessing" || this.lockPending) return;
-        this.lockPending = true;
-        this.publish(CSL_MESSAGE.LOCK);
-    }
-
-    // Verify a reveal against the commitment frozen before any answers were exposed.
-    async reveal(sender, value) {
-        if (!this.isHost || this.phase !== "collecting") return;
-        if (!value || typeof value.answer !== "string" || !/^[a-f0-9]{24}$/.test(value.secret)) return;
-        if (new TextEncoder().encode(value.answer).length > 512) return;
-        const player = this.players.find(player => player.name === sender);
-        const commit = this.commits.get(sender);
-        const round = this.round;
-        if (!player || !commit || commit.revision !== value.revision) return;
-        if (this.answers[player.id]) {
-            this.send(CSL_MESSAGE.REVEAL_RECEIPT, { to: sender, revision: value.revision }, round, 0);
-            return;
-        }
-        const hash = await cslCommitment(this.id, round, value.revision, value.answer, value.secret);
-        if (this.scope.closed || this.round !== round || this.phase !== "collecting" || hash !== commit.hash) return;
-        this.answers[player.id] = { answer: value.answer, time: commit.time };
-        this.send(CSL_MESSAGE.REVEAL_RECEIPT, { to: sender, revision: value.revision }, round, 0);
-        if (!this.missingReveals().length) this.finishRound();
-    }
-
-    // Resolve commitments still awaiting their matching answer reveal.
-    missingReveals() {
-        return [...this.commits.keys()].filter(name => {
-            const player = this.players.find(player => player.name === name);
-            return !this.answers[player.id];
-        });
-    }
-
-    // Publish scores and song metadata together so they cannot arrive out of order.
-    finishRound() {
-        if (!this.isHost || this.phase !== "collecting" || this.pendingResult) return;
-        this.pendingResult = true;
-        const missing = this.missingReveals();
-        if (missing.length) this.hooks.warning(`Missing answer reveals: ${missing.join(", ")}`);
-        const song = this.plan[this.round - 1];
-        const players = cslScore(this.players, this.answers, song, this.config, this.round, this.roundParticipants);
-        const { acceptedAnswers, sample, ...publicSong } = song;
-        const living = players.filter(player => player.connected && player.score > 0);
-        const lastSong = this.round === this.config.totalSongs;
-        const livesFinished = this.config.scoreType === 4
-            && (this.players.length === 1 ? living.length === 0 : living.length <= 1);
-        const finished = lastSong || livesFinished;
-        this.publish(CSL_MESSAGE.RESULT, { players, song: publicSong, finished });
-    }
-
-    // Finish the reveal while paused and defer the next round until the host resumes.
-    advance() {
-        if (!this.isHost || this.phase !== "revealing" || this.advancePending) return;
-        this.advanceRequested = true;
-        if (this.paused && !this.result.finished) return;
-        this.advancePending = true;
-        if (this.result.finished) this.publish(CSL_MESSAGE.FINAL, { ranks: cslStandings(this.players, this.config.scoreType) });
-        else {
-            this.bufferExpired = false;
-            this.buffer(this.round + 1);
-            this.advancePending = false;
-        }
-    }
-
-    // Toggle the normal AMQ pause-between-songs behavior on the host.
-    pause() {
-        if (this.isHost) this.publish(CSL_MESSAGE.PAUSE, { paused: !this.paused });
-    }
-
-    // Announce host-controlled return to the server's still-existing lobby.
-    stop() {
-        if (this.isHost) {
-            this.enter("stopping");
-            this.publish(CSL_MESSAGE.STOP);
-        }
-        else this.hooks.warning("The host controls returning to the lobby; use Leave to exit");
-    }
-
-    // Mark disconnected players so readiness and votes keep making progress.
-    disconnect(name) {
-        const player = this.players.find(player => player.name === name);
-        if (!this.isHost || !player?.connected) return;
-        player.connected = false;
-        player.eliminated = this.round;
-        this.publish(CSL_MESSAGE.CONNECTION, { name, connected: false });
-        this.maybePlay();
-        this.checkVotes();
-    }
-
-    // Produce a bounded snapshot without exposing unrevealed titles or answers.
-    snapshot(to, nonce) {
-        if (!this.isHost) return;
-        const player = this.players.find(player => player.name === to);
-        if (player && !player.connected) {
-            player.connected = true;
-            player.activeFrom = this.phase === "buffering" ? this.round : this.round + 1;
-        }
-        const result = this.phase === "revealing" ? { song: this.result.song, finished: this.result.finished } : null;
-        const players = result ? this.players : this.players.map(({ answer, correct, time, ...player }) => player);
-        this.send(CSL_MESSAGE.SNAPSHOT, {
-            to, nonce, config: this.config, players, q: this.applied, phase: this.phase,
-            media: [...this.media].filter(([round]) => round >= this.round).map(([round, media]) => [round, media]),
-            ...(result ? { result } : {}),
-            ...(this.phase === "collecting" ? { commits: [...this.commits].map(([name, commit]) => [name, commit.revision]) } : {}),
-            paused: this.paused, ranks: this.phase === "finished" ? cslStandings(this.players, this.config.scoreType) : null
-        }, this.round, 2);
-    }
-
-    // Preserve an ongoing round during sync while keeping late arrivals at a round boundary.
-    restore(snapshot, round) {
-        if (snapshot.q < this.applied) return;
-        const reveal = snapshot.result && round === this.playedRound;
-        const ongoing = round === this.playedRound && ["guessing", "locking", "collecting"].includes(this.phase)
-            && ["guessing", "locking", "collecting"].includes(snapshot.phase);
-        const alreadyRevealed = this.phase === "revealing";
-        if (reveal) this.freeze();
-        this.applied = snapshot.q;
-        this.players = cslClone(snapshot.players);
-        this.round = round;
-        this.paused = snapshot.paused;
-        if (!ongoing) this.enter(reveal ? "revealing" : "waiting");
-        this.waitUntilRound = ongoing || snapshot.phase === "buffering" ? round : round + 1;
-        if (reveal) {
-            this.result = { ...snapshot.result, players: this.players };
-            if (!alreadyRevealed) this.hooks.result(this, this.result);
-        }
-        else if (ongoing) {
-            if (snapshot.phase === "locking" && this.phase === "guessing") this.beginLocking();
-            if (snapshot.phase === "collecting") this.beginCollection(snapshot.commits);
-        }
-        else this.hooks.restore(this);
-        this.hooks.pause(this);
-        for (const [mediaRound, media] of snapshot.media) {
-            if (mediaRound >= this.waitUntilRound && !this.media.has(mediaRound)) {
-                this.media.set(mediaRound, media);
-                this.hooks.prepare(this, mediaRound, media);
-            }
-        }
-        if (snapshot.ranks) {
-            this.enter("finished");
-            this.hooks.finish(this, snapshot.ranks);
-        }
-    }
-
-    // Ask the host for fresh state, limiting requests during a prolonged outage.
-    synchronize() {
-        if (this.isHost || this.now() - this.lastSync < 4000) return;
-        this.lastSync = this.now();
-        this.hooks.sync(this);
-    }
-
-    // Capture scoring participants before any gameplay callbacks can change connection state.
-    beginGuessing(round) {
-        this.round = round;
-        this.playedRound = round;
-        this.roundParticipants = new Set(this.active().map(player => player.id));
-        this.enter("guessing");
-        this.playPending = false;
-        this.bufferExpired = false;
-        this.lockPending = false;
-        this.advancePending = false;
-        this.advanceRequested = false;
-        this.pendingResult = false;
-        this.commits.clear();
-        this.localAnswers.clear();
-        this.answers = {};
-        this.result = null;
-        this.revision = 0;
-        this.ackRevision = 0;
-        this.revealAckRevision = 0;
-        this.frozen = false;
-        this.started = this.now();
-        this.hooks.play(this);
-        this.phaseScope.after(this.config.guessTime * 1000, () => {
-            if (this.config.extraGuessTime) this.hooks.extra(this);
-        });
-        this.phaseScope.after((this.config.guessTime + this.config.extraGuessTime) * 1000, () => {
-            this.freeze();
-            this.lock();
-        });
-        if (this.isHost) this.scope.after(100, () => this.prepare(round + 1));
-        for (const oldRound of this.media.keys()) if (oldRound < round) this.media.delete(oldRound);
-        for (const oldRound of this.readiness.keys()) if (oldRound < round) this.readiness.delete(oldRound);
-    }
-
-    // Hold solo results for 500 ms or allow multiplayer commitments to finish arriving.
-    beginLocking() {
-        this.freeze();
-        this.enter("locking");
-        if (!this.isHost) return;
-        this.phaseScope.after(this.solo ? CSL.soloAnswerDelay : CSL.deliveryGrace, () => {
-            if (this.solo) this.beginCollection();
-            else this.publish(CSL_MESSAGE.COLLECT, { commits: [...this.commits].map(([name, commit]) => [name, commit.revision]) });
-        });
-    }
-
-    // Score solo immediately after its delay or collect the frozen multiplayer reveals.
-    beginCollection(commits = []) {
-        this.freeze();
-        this.enter("collecting");
-        if (this.solo) {
-            this.finishRound();
-            return;
-        }
-        const accepted = commits.find(([name]) => name === this.name);
-        if (accepted) {
-            const answer = this.localAnswers.get(accepted[1]);
-            if (answer) this.retryReveal(answer, this.round);
-            else this.hooks.warning("Your accepted answer could not be recovered");
-        }
-        else if (this.revision) this.hooks.warning("Your answer did not reach the host before guessing closed");
-        if (this.isHost) this.phaseScope.after(this.commits.size ? CSL.collectTime : 50, () => this.finishRound());
-    }
-
-    // Apply one authoritative round result and schedule the existing replay duration.
-    applyResults(value) {
-        this.players = cslClone(value.players);
-        this.result = value;
-        const waiting = this.phase === "waiting" && this.playedRound !== this.round;
-        if (!waiting) this.freeze();
-        this.enter(waiting ? "waiting" : "revealing");
-        if (waiting) this.hooks.restore(this);
-        else this.hooks.result(this, value);
-        if (this.isHost) this.phaseScope.after(this.config.fastSkip ? CSL.fastRevealTime : CSL.revealTime, () => this.advance());
-    }
-
-    // Display final ranks and keep the automatic return-to-lobby delay.
-    showFinalStandings(ranks) {
-        this.enter("finished");
-        this.hooks.finish(this, ranks);
-        if (this.isHost) this.phaseScope.after(this.config.fastSkip ? 4000 : 8000, () => this.stop());
-    }
-
-    // Apply validated host decisions or participant requests exactly once.
-    receive(envelope, value) {
-        value = cslUnpack(envelope.type, value);
-        if (this.scope.closed || envelope.session !== this.id || !value || typeof value !== "object") return;
-        const { sender, type, round } = envelope;
-        const fromHost = sender === this.host;
-        const player = this.players.find(player => player.name === sender);
-        if (type === CSL_MESSAGE.ANNOUNCE) {
-            if (fromHost && value.q > this.applied) this.synchronize();
-            return;
-        }
-        if (type === CSL_MESSAGE.PREPARE) {
-            if (!fromHost || !(round >= this.waitUntilRound && round >= this.round && round <= this.round + 1)) return;
-            if (this.media.has(round) || !cslValidMedia(value)) return;
-            this.media.set(round, value);
-            this.hooks.prepare(this, round, value);
-            return;
-        }
-        if (type === CSL_MESSAGE.READY) {
-            if (!this.isHost || !player || typeof value.ok !== "boolean") return;
-            if (!(round >= this.round && round <= this.round + 1)) return;
-            if (!this.readiness.has(round)) this.readiness.set(round, new Map());
-            this.readiness.get(round).set(sender, value.ok);
-            if (!value.ok && sender !== this.name) {
-                this.hooks.warning(`Song ${round}: ${sender} could not load media; continuing automatically`);
-            }
-            this.maybePlay();
-            return;
-        }
-        if (type === CSL_MESSAGE.COMMIT) {
-            this.receiveCommit(sender, player, round, value);
-            return;
-        }
-        if (type === CSL_MESSAGE.COMMIT_RECEIPT) {
-            if (!fromHost || round !== this.round || value.to !== this.name) return;
-            if (Number.isInteger(value.revision) && value.revision <= this.revision) {
-                this.ackRevision = Math.max(this.ackRevision, value.revision);
-            }
-            return;
-        }
-        if (type === CSL_MESSAGE.REVEAL_RECEIPT) {
-            if (!fromHost || round !== this.round || value.to !== this.name) return;
-            if (this.localAnswers.has(value.revision)) {
-                this.revealAckRevision = Math.max(this.revealAckRevision, value.revision);
-            }
-            return;
-        }
-        if (type === CSL_MESSAGE.REVEAL) {
-            if (round === this.round) this.reveal(sender, value).catch(error => this.hooks.warning(error.message));
-            return;
-        }
-        if (type === CSL_MESSAGE.SKIP) {
-            if (!this.isHost || !player || !player.connected || !(player.activeFrom <= round)) return;
-            if (round !== this.round || value.phase !== this.phase) return;
-            this.votes.add(sender);
-            this.checkVotes();
-            return;
-        }
-        if (fromHost) this.receiveControl(type, round, value);
-    }
-
-    // Accept newer commitments and acknowledge identical retries from the sender.
-    receiveCommit(sender, player, round, value) {
-        if (!player || !player.connected || !(player.activeFrom <= round) || round !== this.round) return;
-        if (!["guessing", "locking"].includes(this.phase)) return;
-        if (!Number.isInteger(value.revision) || value.revision <= 0 || value.revision > 10000) return;
-        if (!/^[A-Za-z0-9_-]{43}$/.test(value.hash)) return;
-
-        const previous = this.commits.get(sender);
-        const newer = !previous || previous.revision < value.revision;
-        const identical = previous && previous.revision === value.revision && previous.hash === value.hash;
-        if (this.isHost && (newer || identical)) {
-            this.send(CSL_MESSAGE.COMMIT_RECEIPT, { to: sender, revision: value.revision }, round, 0, () => { }, `receipt:${sender}`);
-        }
-        if (previous && previous.revision >= value.revision) return;
-        const time = this.answerTime();
-        this.commits.set(sender, { revision: value.revision, hash: value.hash, time });
-        this.hooks.answered(this, player.id, time);
-    }
-
-    // Enforce host sequencing before applying a gameplay transition.
-    receiveControl(type, round, value) {
-        if (!Number.isSafeInteger(value.q) || value.q <= this.applied) return;
-        const controlTypes = [
-            CSL_MESSAGE.PLAY, CSL_MESSAGE.LOCK, CSL_MESSAGE.COLLECT, CSL_MESSAGE.RESULT,
-            CSL_MESSAGE.FINAL, CSL_MESSAGE.PAUSE, CSL_MESSAGE.CONNECTION, CSL_MESSAGE.STOP
-        ];
-        if (!controlTypes.includes(type)) return;
-        if (type === CSL_MESSAGE.STOP) {
-            this.applied = value.q;
-            this.hooks.end(this);
-            return;
-        }
-        if (value.q !== this.applied + 1) {
-            this.synchronize();
-            return;
-        }
-        if (!cslValidControl(type, value, this.players, this.config)) return;
-        if (type === CSL_MESSAGE.PLAY) {
-            const sameBufferedRound = round === this.round && ["buffering", "waiting"].includes(this.phase);
-            const nextRound = round === this.round + 1;
-            if (!this.media.has(round) || round < this.waitUntilRound || (!nextRound && !sameBufferedRound)) {
-                this.synchronize();
-                return;
-            }
-        }
-        this.applied = value.q;
-        if (type === CSL_MESSAGE.PAUSE) {
-            this.paused = value.paused;
-            this.hooks.pause(this);
-            this.maybePlay();
-            if (!this.paused && this.advanceRequested) this.advance();
-            return;
-        }
-        if (type === CSL_MESSAGE.CONNECTION) {
-            const target = this.players.find(player => player.name === value.name);
-            if (target) {
-                target.connected = value.connected;
-                if (!target.connected) target.eliminated = round;
-            }
-            this.maybePlay();
-            this.checkVotes();
-            return;
-        }
-        if (type === CSL_MESSAGE.PLAY) this.beginGuessing(round);
-        else if (type === CSL_MESSAGE.LOCK && round === this.round && this.phase !== "waiting") this.beginLocking();
-        else if (type === CSL_MESSAGE.COLLECT && round === this.round && this.phase !== "waiting") this.beginCollection(value.commits);
-        else if (type === CSL_MESSAGE.RESULT && round === this.round) this.applyResults(value);
-        else if (type === CSL_MESSAGE.FINAL) this.showFinalStandings(value.ranks);
-    }
-
-    // Invalidate timers and asynchronous answer work when this quiz ends.
-    close() {
-        this.scope.close();
-        this.phaseScope.close();
-        this.phase = "closed";
-        this.localAnswers.clear();
-    }
-}
-
-// Message validation
-
-// Validate playback records from chat without trusting arbitrary object shapes.
+// Validate playback records from chat without trusting arbitrary object shapes
 function cslValidMedia(value) {
     return value && Number.isInteger(value.sample) && value.sample >= 0 && value.sample <= 100 && cslValidMediaLinks(value);
 }
 
-// Require at least one usable media link and reject unsafe optional qualities too.
+// Require at least one usable media link and reject unsafe optional qualities too
 function cslValidMediaLinks(value) {
     const links = [value.audio, value.video480, value.video720];
     return links.some(link => typeof link === "string" && link !== "")
         && links.every(link => typeof link === "string" && (link === "" || cslMedia(link) !== ""));
 }
 
-// Check score snapshots independently from optional answer-result presentation fields.
+// Check score snapshots independently from optional answer-result presentation fields
 function cslValidPlayerState(players, config) {
     return players.every(player => {
         if (!Number.isInteger(player.score) || player.score < 0) return false;
@@ -1053,7 +394,7 @@ function cslValidPlayerState(players, config) {
     });
 }
 
-// Validate settings before starting a host-announced session or restoring state.
+// Validate settings before starting a host-announced session or restoring state
 function cslValidConfig(value) {
     if (!value) return value;
     if (![1, 4].includes(value.scoreType)) return false;
@@ -1065,7 +406,7 @@ function cslValidConfig(value) {
     return typeof value.quizId === "string" && value.quizId.length <= 64 && typeof value.startTime === "string";
 }
 
-// Validate authoritative state before sequence advancement or AMQ presentation.
+// Validate authoritative state before sequence advancement or AMQ presentation
 function cslValidControl(type, value, players, config) {
     if (type === CSL_MESSAGE.PAUSE) return typeof value.paused === "boolean";
     if (type === CSL_MESSAGE.CONNECTION) return players.some(player => player.name === value.name) && typeof value.connected === "boolean";
@@ -1096,7 +437,7 @@ function cslValidControl(type, value, players, config) {
     return validResults && typeof value.finished === "boolean" && cslValidSong(value.song);
 }
 
-// Require the normalized fields consumed by AMQ's song-info presentation.
+// Require the normalized fields consumed by AMQ's song-info presentation
 function cslValidSong(song) {
     if (!song) return song;
     const textFields = ["animeRomajiName", "animeEnglishName", "songName", "songArtist"];
@@ -1110,15 +451,14 @@ function cslValidSong(song) {
     return Number.isFinite(song.songDifficulty) && song.songDifficulty >= 0 && song.songDifficulty <= 100;
 }
 
+// === Song import and answer merging ===
 
-// Song import and answer merging
-
-// Keep imported text fields explicit instead of coercing arbitrary objects.
+// Keep imported text fields explicit instead of coercing arbitrary objects
 function cslText(value) {
     return typeof value === "string" ? value.trim() : "";
 }
 
-// Normalize list-valued metadata while removing empty and duplicate strings.
+// Normalize list-valued metadata while removing empty and duplicate strings
 function cslStrings(value) {
     const values = Array.isArray(value) ? value : [value];
     const strings = values
@@ -1128,20 +468,20 @@ function cslStrings(value) {
     return [...new Set(strings)];
 }
 
-// Preserve legitimate zero difficulty while distinguishing missing values.
+// Preserve legitimate zero difficulty while distinguishing missing values
 function cslDifficulty(value) {
     if (value === null || value === undefined || value === "") return null;
     const number = Number(value);
     return Number.isFinite(number) && number >= 0 && number <= 100 ? number : null;
 }
 
-// Validate external anime/song identifiers without preserving object-shaped values.
+// Validate external anime/song identifiers without preserving object-shaped values
 function cslId(value) {
     const number = Number(value);
     return Number.isSafeInteger(number) && number > 0 ? number : null;
 }
 
-// Normalize media links using the same HTTPS-only policy at every boundary.
+// Normalize media links using the same HTTPS-only policy at every boundary
 function cslMedia(value) {
     if (typeof value !== "string" || value.length > 2048) return "";
     value = value.trim();
@@ -1155,23 +495,23 @@ function cslMedia(value) {
     }
 }
 
-// Identify repeated playlist appearances by unique ANN ID or normalized media.
+// Identify repeated playlist appearances by unique ANN ID or normalized media
 function cslRecordingKey(song) {
     if (song.annSongId) return `ann:${song.annSongId}`;
     return `media:${cslPlaylistMediaKey(song.audio || song.video720 || song.video480)}`;
 }
 
-// Match AMQ mirrors and bare filenames while preserving other hosts' full URLs.
+// Match AMQ mirrors and bare filenames while preserving other hosts' full URLs
 function cslPlaylistMediaKey(media) {
     if (!media.startsWith("https://")) return `amq:/${media}`;
     const url = new URL(media);
     return url.hostname === "animemusicquiz.com" || url.hostname.endsWith(".animemusicquiz.com") ? `amq:${url.pathname}` : media;
 }
 
-// Share anime answers across overlapping AMQ ID and song/artist matches.
+// Share anime answers across overlapping AMQ ID and song/artist matches
 function mergeCslAnimeAnswers(songs) {
     const parents = songs.map((song, index) => index);
-    // Resolve a group's representative without retaining long chains.
+    // Resolve a group's representative without retaining long chains
     const findGroup = index => {
         while (parents[index] !== index) {
             parents[index] = parents[parents[index]];
@@ -1179,7 +519,7 @@ function mergeCslAnimeAnswers(songs) {
         }
         return index;
     };
-    // Join overlapping matches so every song receives the whole group's answers.
+    // Join overlapping matches so every song receives the whole group's answers
     const connectMatchingSongs = keyForSong => {
         const seen = new Map();
         songs.forEach((song, index) => {
@@ -1190,9 +530,9 @@ function mergeCslAnimeAnswers(songs) {
             else parents[findGroup(index)] = findGroup(previous);
         });
     };
-    // Group by optional AMQ song ID first, independently of unique ANN song IDs.
+    // Group by optional AMQ song ID first, independently of unique ANN song IDs
     connectMatchingSongs(song => song.amqSongId || null);
-    // Fall back to a complete song/artist pair without altering punctuation.
+    // Fall back to a complete song/artist pair without altering punctuation
     connectMatchingSongs(song => {
         if (!song.songName || !song.songArtist) return null;
         return JSON.stringify([song.songName.toLowerCase(), song.songArtist.toLowerCase()]);
@@ -1213,7 +553,7 @@ function mergeCslAnimeAnswers(songs) {
     return songs;
 }
 
-// Merge repeated anime appearances while retaining separate playlist occurrences.
+// Merge repeated anime appearances while retaining separate playlist occurrences
 function mergeCslSongs(first, second) {
     const songsByAppearance = new Map();
     for (const song of [...first, ...second]) {
@@ -1235,7 +575,7 @@ function mergeCslSongs(first, second) {
     return mergeCslAnimeAnswers([...songsByAppearance.values()]);
 }
 
-// Detect creator records that AMQ can resolve into hover information.
+// Detect creator records that AMQ can resolve into hover information
 function isArtistHoverInfo(info) {
     return Boolean(info && (info.artistId || info.groupId || info.memberArtists || info.memberGroups || info.memberInGroups?.length || info.altNames?.length));
 }
@@ -1247,10 +587,10 @@ function formatAnisongdbCreatorNames(entries) {
     return names.length ? names.join(" & ") : null;
 }
 
-// Convert a database creator into AMQ artist/group identifiers.
+// Convert a database creator into AMQ artist/group identifiers
 function parseAnisongdbArtistEntry(entry) {
-    // Anisongdb uses artists/composers/arrangers[] with { id, names, members }; AMQ uses artistId or groupId.
-    // Hover only supports one id; multi-artist songs use the first entry for hover and the full credit string for name.
+    // Anisongdb uses artists/composers/arrangers[] with { id, names, members }; AMQ uses artistId or groupId
+    // Hover only supports one id; multi-artist songs use the first entry for hover and the full credit string for name
     if (!entry || entry.id == null) return null;
     const name = entry.names?.[0] ?? "";
     const hasMembers = Array.isArray(entry.members) && entry.members.length > 0;
@@ -1270,11 +610,11 @@ function parseAnisongdbArtistEntry(entry) {
     return info;
 }
 
-// Preserve structured creator credits across all supported import sources.
+// Preserve structured creator credits across all supported import sources
 function resolveCreatorInfo(song, infoKey, anisongdbKey, nameFallback) {
-    // Prefer AMQ songInfo, then anisongdb array, else name-only (no hover).
+    // Prefer AMQ songInfo, then anisongdb array, else name-only (no hover)
     // Always prefer nameFallback for display: quiz UI shows artistInfo.name, and multi-artist
-    // anisongdb songs have a full songArtist string ("A & B") while artists[] are individuals.
+    // Anisongdb songs have a full songArtist string ("A & B") while artists[] are individuals
     const existing = song[infoKey] ?? song.songInfo?.[infoKey];
     if (isArtistHoverInfo(existing)) {
         return {
@@ -1299,7 +639,7 @@ function resolveCreatorInfo(song, infoKey, anisongdbKey, nameFallback) {
     return nameFallback ? { name: nameFallback } : null;
 }
 
-// Unwrap the supported export containers without changing format precedence.
+// Unwrap the supported export containers without changing format precedence
 function cslSongRecords(data) {
     if (Array.isArray(data)) return data;
     if (!data || typeof data !== "object") throw new Error("Unrecognized song-list format");
@@ -1308,7 +648,7 @@ function cslSongRecords(data) {
     throw new Error("Unrecognized song-list format");
 }
 
-// Normalize a list atomically and report records that cannot be played.
+// Normalize a list atomically and report records that cannot be played
 function normalizeCslSongs(data) {
     const records = cslSongRecords(data);
     if (!Array.isArray(records)) throw new Error("Song list must contain an array");
@@ -1324,7 +664,7 @@ function normalizeCslSongs(data) {
     return { songs, warnings };
 }
 
-// Resolve supported source fields before validating one playable song.
+// Resolve supported source fields before validating one playable song
 function normalizeCslSong(song) {
     if (!song || typeof song !== "object" || Array.isArray(song)) return null;
     let animeRomajiName = song.animeRomajiName ?? song.animeJPName ?? song.songInfo?.animeNames?.romaji ?? song.anime?.romaji ?? song.animeRomaji ?? song.animeRom ?? "";
@@ -1365,7 +705,7 @@ function normalizeCslSong(song) {
 
     let correctGuess = song.correctGuess ?? null;
     let incorrectGuess = song.incorrectGuess ?? song.wrongGuess ?? null;
-    
+
     if (correctGuess === null && typeof song.correct === "boolean") { // Joseph script check
         correctGuess = song.correct;
         incorrectGuess = !song.correct;
@@ -1444,10 +784,9 @@ function normalizeCslSong(song) {
     };
 }
 
+// === AMQ presentation and room integration ===
 
-// AMQ presentation and room integration
-
-// Dispatch synthetic AMQ events with the same isolation as the native socket.
+// Dispatch synthetic AMQ events with the same isolation as the native socket
 function fireListener(type, data) {
     for (const listener of [...(socket.listners[type] || [])]) {
         try {
@@ -1459,26 +798,26 @@ function fireListener(type, data) {
     }
 }
 
-// Escape untrusted warning details before AMQ inserts them into system-chat HTML.
+// Escape untrusted warning details before AMQ inserts them into system-chat HTML
 function sendSystemMessage(message) {
     if (gameChat.open) gameChat.systemMessage(escapeHtml(`CSL: ${message}`));
     else console.warn(`CSL: ${message}`);
 }
 
-// Protect native HTML renderers while leaving stored names and answers untouched.
+// Protect native HTML renderers while leaving stored names and answers untouched
 function installCslTextRendering() {
     const buildArtist = ArtistHover.prototype.build;
-    // Escape the hover heading without changing the raw name used for artist searches.
+    // Escape the hover heading without changing the raw name used for artist searches
     ArtistHover.prototype.build = function (artist, delay, searchCallback) {
         const search = searchCallback ? () => searchCallback(artist.name) : searchCallback;
         return buildArtist.call(this, { ...artist, name: escapeHtml(cslText(artist.name)) }, delay, search);
     };
     const buildArtistMap = ArtistHoverMapSetup.prototype.build;
-    // Escape the loading heading before native artist information has arrived.
+    // Escape the loading heading before native artist information has arrived
     ArtistHoverMapSetup.prototype.build = function (artist, delay, searchCallback) {
         return buildArtistMap.call(this, { ...artist, name: escapeHtml(cslText(artist.name)) }, delay, searchCallback);
     };
-    // Create member labels as text and retain raw metadata for their nested hovers.
+    // Create member labels as text and retain raw metadata for their nested hovers
     const createMemberEntry = function (member, typeLetter, delay, searchCallback) {
         const typeKey = typeLetter === "G" ? "artist_hover.group.shorthand" : "artist_hover.artist.shorthand";
         const entry = $(format(this.MEMBER_ENTRY, typeKey, ""));
@@ -1492,835 +831,19 @@ function installCslTextRendering() {
     ArtistHover.prototype.createMemberEntry = createMemberEntry;
     ArtistHoverMapSetup.prototype.createMemberEntry = createMemberEntry;
     const historyNames = SongHistoryInfoWindow.prototype.createAnimeNameList;
-    // Escape history labels only at the native HTML-list rendering boundary.
+    // Escape history labels only at the native HTML-list rendering boundary
     SongHistoryInfoWindow.prototype.createAnimeNameList = function (altNames, altAnswers) {
         return historyNames.call(this, altNames, altAnswers).map(escapeHtml);
     };
 }
 
-// Translate canonical session records into the existing AMQ quiz presentation.
-class CslAmqAdapter {
-    // Retain the real server lobby independently of AMQ's temporary quiz view.
-    constructor(controller) {
-        this.controller = controller;
-        this.serverPlayers = new Map();
-        this.presentPlayers = new Map();
-        this.prepared = new Set();
-    }
-
-    // Copy lobby players before the native view transition removes them.
-    capture() {
-        this.originalSettings = cslClone(lobby.settings);
-        this.originalSolo = lobby.soloMode;
-        this.originalSpectator = lobby.isSpectator;
-        this.serverPlayers = new Map(Object.values(lobby.players).map(player => [player.name, {
-            name: player.name, gamePlayerId: player.gamePlayerId, level: player.level,
-            avatar: cslClone(player.avatarInfo), ready: player.ready, inGame: true,
-            teamNumber: player.teamNumber, multipleChoice: false
-        }]));
-        this.presentPlayers = new Map(this.serverPlayers);
-        this.prepared.clear();
-    }
-
-    // Build compact group and position maps only for avatars present on this client.
-    layout(session) {
-        const ordered = cslStandings(session.players, session.config.scoreType)
-            .map(rank => session.players.find(player => player.id === rank.id))
-            .filter(player => quiz.players[player.id]);
-        const groups = {};
-        ordered.forEach((player, index) => {
-            const group = Math.floor(index / 8) + 1;
-            (groups[group] ||= []).push(player.id);
-        });
-        return { ordered, groups };
-    }
-
-    // Initialize the native quiz with supported scoring and independent settings.
-    start(session) {
-        const settings = cslClone(this.originalSettings);
-        settings.gameMode = this.originalSolo ? "Solo" : "Standard";
-        settings.scoreType = session.config.scoreType;
-        settings.lives = session.config.lives;
-        settings.teamSize = 1;
-        settings.showSelection = quiz.SHOW_SELECTION_IDS.AUTO;
-        settings.numberOfSongs = session.config.totalSongs;
-        settings.modifiers.fullSongRange = session.config.fullSongRange;
-        settings.modifiers.skipGuessing = true;
-        settings.modifiers.skipReplay = true;
-        const players = session.players.flatMap((player, index) => {
-            const info = this.presentPlayers.get(player.name);
-            if (!info) return [];
-            return [{
-                name: player.name, level: info.level, gamePlayerId: player.id,
-                avatarInfo: cslClone(info.avatar), host: player.name === session.host,
-                score: player.score, correctGuesses: player.correctGuesses, inGame: player.connected,
-                pose: 1, position: Math.floor(index / 8) + 1, positionSlot: index % 8,
-                teamCaptain: null, teamNumber: null, teamPlayer: null
-            }];
-        });
-        const groups = {};
-        players.forEach((player, index) => (groups[Math.floor(index / 8) + 1] ||= []).push(player.gamePlayerId));
-        quiz.cslActive = true;
-        const originalLobbySettings = lobby.settings;
-        lobby.settings = settings;
-        this.controller.synthetic = true;
-        try {
-            fireListener("Game Starting", {
-                gameMode: settings.gameMode, showSelection: 1, groupSlotMap: groups, players,
-                multipleChoice: false,
-                quizDescription: {
-                    quizId: session.config.quizId,
-                    startTime: session.config.startTime,
-                    roomName: this.originalSettings.roomName || "Custom Song List"
-                }
-            });
-        }
-        finally {
-            lobby.settings = originalLobbySettings;
-            this.controller.synthetic = false;
-        }
-        quiz.fullSongRange = session.config.fullSongRange;
-    }
-
-    // Load the next AMQ player using a unique session-and-round media identity.
-    prepare(session, round, media) {
-        if (this.prepared.has(round)) return;
-        this.prepared.add(round);
-        const videoInfo = createCslVideoInfo(media.audio, media.video480, media.video720);
-        videoInfo.id = `${session.id}:${round}`;
-        fireListener("quiz next video info", {
-            playLength: session.config.guessTime, playbackSpeed: 1,
-            startPoint: media.sample, videoInfo, forceBuffering: this.prepared.size > 1
-        });
-        if (this.prepared.size === 1) fireListener("quiz ready", { numberOfSongs: session.config.totalSongs });
-    }
-
-    // Show normal buffering feedback while the host's loading deadline runs.
-    buffer(session) {
-        fireListener("quiz waiting buffering", { firstSong: session.round === 1 });
-    }
-
-    // Render a normal guess phase using the canonical session settings.
-    play(session) {
-        quiz.answerInput.active = !quiz.isSpectator;
-        fireListener("play next song", {
-            time: session.config.guessTime, extraGuessTime: session.config.extraGuessTime,
-            songNumber: session.round, progressBarState: { length: session.config.guessTime, played: 0 },
-            onLastSong: session.round === session.config.totalSongs, multipleChoiceNames: null
-        });
-    }
-
-    // Let AMQ perform normal auto-submit and input disabling.
-    lock() {
-        fireListener("guess phase over");
-    }
-
-    // Translate one normalized song consistently for solo and multiplayer.
-    songInfo(song) {
-        return {
-            animeNames: { english: song.animeEnglishName, romaji: song.animeRomajiName },
-            artist: song.songArtist, artistInfo: song.artistInfo || { name: song.songArtist },
-            arrangerInfo: song.arrangerInfo, composerInfo: song.composerInfo, songName: song.songName,
-            videoTargetMap: { catbox: createCatboxLinkObject(song.audio, song.video480, song.video720) },
-            type: song.songType, typeNumber: song.songTypeNumber, annId: song.annId, annSongId: song.annSongId,
-            highRisk: 0,
-            animeScore: null,
-            animeType: escapeHtml(song.animeType),
-            vintage: formatAmqVintage(song.animeVintage) || { key: "avatar_lore.unknown", data: {} },
-            animeDifficulty: song.songDifficulty, animeTags: song.animeTags.map(escapeHtml), animeGenre: song.animeGenre.map(escapeHtml),
-            altAnimeNames: song.altAnimeNames, altAnimeNamesAnswers: song.altAnimeNamesAnswers,
-            rebroadcast: song.rebroadcast, dub: song.dub,
-            siteIds: { annId: song.annId, malId: song.malId, kitsuId: song.kitsuId, aniListId: song.aniListId }
-        };
-    }
-
-    // Build the native result and scoreboard fields from one shared player model.
-    playerResults(session) {
-        const { ordered, groups } = this.layout(session);
-        const players = ordered.map((player, index) => {
-            let pose = 6;
-            if (player.correct) pose = 5;
-            else if (player.answer) pose = 4;
-            return {
-                gamePlayerId: player.id,
-                pose,
-                correct: Boolean(player.correct),
-                score: player.score,
-                reviveScore: player.reviveScore,
-                correctGuesses: player.correctGuesses,
-                level: quiz.players[player.id].level,
-                answerTimeing: player.time ?? session.config.guessTime + session.config.extraGuessTime,
-                listStatus: null,
-                showScore: null,
-                position: Math.floor(index / 8) + 1,
-                positionSlot: index % 8
-            };
-        });
-        return { groups, players };
-    }
-
-    // Reveal answers and metadata atomically through the existing AMQ event API.
-    result(session, result) {
-        const native = this.playerResults(session);
-        fireListener("player answers", {
-            answers: native.players.map(player => ({
-                gamePlayerId: player.gamePlayerId,
-                pose: player.pose, answer: session.players.find(entry => entry.id === player.gamePlayerId).answer
-            })), progressBarState: null
-        });
-        fireListener("answer results", {
-            players: native.players, songInfo: this.songInfo(result.song),
-            groupMap: native.groups,
-            progressBarState: {
-                length: session.config.fastSkip ? CSL.fastRevealTime / 1000 : CSL.revealTime / 1000,
-                played: 0
-            },
-            watched: false
-        });
-    }
-
-    // Restore scores without inventing missing round history or replaying a song.
-    restore(session) {
-        const native = this.playerResults(session);
-        for (const player of session.players) {
-            if (quiz.players[player.id]) quiz.players[player.id].state = { score: player.score, reviveScore: player.reviveScore, inGame: player.connected };
-        }
-        quiz.scoreboard.updateStandings(native.players, native.groups);
-        quiz.infoContainer.setCurrentSongCount(session.round);
-        quiz.answerInput.active = false;
-        fireListener("quiz overlay message", "Waiting for Next Song");
-    }
-
-    // Present the same final ranking on every participant's client.
-    finish(session, ranks) {
-        fireListener("quiz end result", { resultStates: ranks.map(rank => ({ gamePlayerId: rank.id, pose: 1, endPosition: rank.place })), progressBarState: null });
-    }
-
-    // Reconstruct the real server lobby using server membership and original IDs.
-    end() {
-        const players = [...this.serverPlayers.values()].map(player => ({ ...player, ready: true, teamNumber: null, multipleChoice: false }));
-        const spectators = gameChat.spectators.map(player => ({ name: player.name, gamePlayerId: null }));
-        const ownIsSpectator = !players.some(player => player.name === selfName);
-        quiz.cslActive = false;
-        quiz.isSpectator = ownIsSpectator;
-        fireListener("quiz over", {
-            spectators, inLobby: true, settings: this.originalSettings, soloMode: this.originalSolo,
-            inQueue: [], hostName: lobby.hostName, gameId: lobby.gameId, players, numberOfTeams: 0, teamFullMap: {}, songPool: {}
-        });
-    }
-}
-
-// Allow CSL only in normal rooms, with native quizzes excluded from discovery.
+// Allow CSL only in normal rooms, with native quizzes excluded from discovery
 function cslSupportedRoom() {
     if (quiz.inQuiz && (!quiz.cslActive || !["Solo", "Standard"].includes(quiz.gameMode))) return false;
     return (lobby.inLobby || quiz.inQuiz) && ["Solo", "Multiplayer"].includes(lobby.settings.gameMode);
 }
 
-// Integrate the editor, chat transport, and AMQ presentation without global quiz state.
-class CslController {
-    // Keep long-lived integration resources separate from each disposable session.
-    constructor() {
-        this.roomScope = new CslScope();
-        this.roomId = lobby.gameId;
-        this.session = null;
-        this.discovery = null;
-        this.adapter = new CslAmqAdapter(this);
-        this.ended = new Set();
-        this.syncNonce = "";
-        this.lastSyncSent = -Infinity;
-        this.joiningAsPlayer = false;
-        this.announcementPending = false;
-        this.syncRequests = new Map();
-        this.lobbyCommandIds = new Set();
-    }
-
-    // Bind a game listener once for the userscript lifetime.
-    listen(type, callback) {
-        new Listener(type, callback).bindListener();
-    }
-
-    // Install chat listeners and narrowly scoped native controls.
-    install() {
-        installCslTextRendering();
-        this.transport = new CslTransport({
-            name: selfName,
-            send: (frame, envelope) => this.transmit(frame, envelope), canSend: envelope => this.canSend(envelope),
-            receive: (envelope, value) => this.receive(envelope, value), allow: envelope => this.allow(envelope), warning: sendSystemMessage
-        });
-        this.installRoomListeners();
-        this.installAutocompleteListeners();
-        this.installNativeControls();
-    }
-
-    // Keep server membership and chat events separate from simulated quiz state.
-    installRoomListeners() {
-        this.roomId = lobby.gameId;
-        this.listen("game chat update", data => data.messages.forEach(message => this.chat(message)));
-        this.listen("Game Chat Message", message => this.chat(message));
-        for (const event of ["Join Game", "Spectate Game", "Host Game", "Host Custom Game"]) this.listen(event, data => {
-            if (data.error) return;
-            this.dispose();
-            this.roomId = data.gameId;
-        });
-        this.listen("quiz over", data => {
-            this.roomId = data.gameId;
-        });
-        this.listen("Game Starting", () => { if (!this.synthetic) this.dispose(); });
-        this.listen("Host Promotion", data => {
-            this.discovery = null;
-            if (!this.session) return;
-            lobby.hostName = data.newHost;
-            sendSystemMessage("Host changed; ending custom quiz");
-            this.roomScope.after(0, () => this.end());
-        });
-        this.listen("Player Left", data => {
-            if (this.session && data.newHost) lobby.hostName = data.newHost;
-            this.left(data.player.name);
-        });
-        this.listen("Spectator Left", data => {
-            if (this.session && data.newHost) lobby.hostName = data.newHost;
-            this.left(data.spectator);
-        });
-        for (const event of ["New Player", "Spectator Change To Player"]) this.listen(event, data => {
-            this.announce();
-            if (data.name === selfName) {
-                this.joiningAsPlayer = false;
-                this.roomScope.after(4200, () => this.sync());
-            }
-            if (!this.session) return;
-            this.adapter.serverPlayers.set(data.name, cslClone(data));
-            this.adapter.presentPlayers.set(data.name, cslClone(data));
-            const player = this.session.players.find(player => player.name === data.name);
-            if (player && quiz.players[player.id]) fireListener("Rejoining Player", { name: data.name, gamePlayerId: player.id });
-            if (!player && this.session.isHost) lobby.changeToSpectator(data.name);
-        });
-        this.listen("New Spectator", () => this.announce());
-        this.listen("Player Changed To Spectator", data => {
-            if (!this.session) return;
-            const name = data.spectatorDescription.name;
-            this.adapter.serverPlayers.delete(name);
-            this.session.disconnect(name);
-            const player = this.session.players.find(player => player.name === name);
-            if (player && quiz.players[player.id]) {
-                quiz.players[player.id].avatarDisabled = true;
-                quiz.players[player.id].inGame = false;
-            }
-            if (name === selfName) {
-                quiz.isSpectator = true;
-                quiz.answerInput.active = false;
-                quiz.answerInput.disable();
-            }
-        });
-        this.listen("game closed", data => {
-            const active = Boolean(this.session);
-            this.dispose();
-            if (!active) return;
-            messageDisplayer.displayMessage("Room Closed", data.reason);
-            lobby.leave({ supressServerMsg: true });
-        });
-        this.listen("Room Settings Changed", data => {
-            if (this.session) Object.assign(this.adapter.originalSettings, cslClone(data.changes));
-        });
-    }
-
-    // Maintain answer-editor suggestions alongside AMQ's autocomplete updates.
-    installAutocompleteListeners() {
-        this.listen("get all song names", data => {
-            animeListLower = new Set(data.names.map(name => name.toLowerCase()));
-            rebuildCslAutocomplete(data.names);
-        });
-        this.listen("update all song names", data => {
-            for (const name of data.deleted) animeListLower.delete(name.toLowerCase());
-            for (const name of data.new) animeListLower.add(name.toLowerCase());
-            if (!autocompleteInput || !(data.deleted.length || data.new.length)) return;
-            const remainingNames = autocompleteInput.options.list.filter(name => !data.deleted.includes(name));
-            rebuildCslAutocomplete(remainingNames.concat(data.new));
-        });
-    }
-
-    // Redirect native controls only while a custom quiz owns the presentation.
-    installNativeControls() {
-        const controller = this;
-        const playerLeft = quiz._playerLeaveListner.fire;
-        // Translate changed server IDs only for AMQ's own fixed quiz roster listener.
-        quiz._playerLeaveListner.fire = function (data) {
-            if (!controller.session) return playerLeft.call(this, data);
-            const player = controller.session.players.find(player => player.name === data.player.name);
-            if (player && quiz.players[player.id]) return playerLeft.call(this, { ...data, player: { ...data.player, gamePlayerId: player.id } });
-        };
-        const submit = QuizTypeAnswerInputController.prototype.submitAnswer;
-        // Redirect only custom-quiz submissions and preserve normal AMQ behavior.
-        QuizTypeAnswerInputController.prototype.submitAnswer = function (answer) {
-            const session = controller.session;
-            if (!session) return submit.apply(this, arguments);
-            session.submit(answer).then(sent => {
-                if (!sent || controller.session !== session) return;
-                this.skipController.highlight = true;
-                fireListener("quiz answer", { answer, success: true });
-                if (options.autoVoteSkipGuess) this.skipController.voteSkip();
-            }).catch(error => sendSystemMessage(error.message));
-        };
-        const skip = quiz.skipController.sendSkipVote;
-        // Send phase-specific votes without polling AMQ's private toggle state.
-        quiz.skipController.sendSkipVote = function () {
-            if (!controller.session) return skip.apply(this, arguments);
-            clearTimeout(this.autoVoteTimeout);
-            controller.session.vote();
-        };
-        const videoReady = quiz.videoReady;
-        // Associate native readiness with its exact session-and-round video ID.
-        quiz.videoReady = function (id) {
-            if (!controller.session) return videoReady.apply(this, arguments);
-            const round = controller.mediaRound(id);
-            if (round) controller.session.ready(round, true);
-        };
-        const videoError = MoeVideoPlayer.prototype.handleError;
-        // Exhaust alternate media before reporting a non-blocking load failure.
-        MoeVideoPlayer.prototype.handleError = function () {
-            if (!controller.session) return videoError.apply(this, arguments);
-            const round = controller.mediaRound(this.songId);
-            if (!round) return;
-            this.tryNextVideo();
-            if (!Object.keys(this.videoMap).length) controller.session.ready(round, false);
-        };
-        const returnLobby = quiz.startReturnLobbyVote;
-        // Keep normal lobby voting outside custom quizzes.
-        quiz.startReturnLobbyVote = function () {
-            if (!controller.session) return returnLobby.apply(this, arguments);
-            controller.stop();
-        };
-        const closeView = quiz.closeView;
-        // Dispose only when the quiz actually closes, allowing canceled Leave dialogs.
-        quiz.closeView = function () {
-            controller.dispose();
-            return closeView.apply(this, arguments);
-        };
-        const closeLobby = lobby.closeView;
-        // Clear passive discovery and queued chat when leaving the real room view.
-        lobby.closeView = function () {
-            if (!controller.synthetic) controller.dispose();
-            return closeLobby.apply(this, arguments);
-        };
-        // Capture custom pause clicks without removing native or third-party handlers.
-        quiz.pauseButton.$button[0].addEventListener("click", event => {
-            if (!this.session) return;
-            event.stopImmediatePropagation();
-            event.preventDefault();
-            this.session.pause();
-        }, true);
-    }
-
-    // Identify only a live session announced by the current room's current host.
-    sessionId() {
-        if (this.roomId !== lobby.gameId || !cslSupportedRoom()) return "";
-        if (this.session) {
-            if (this.session.scope.closed || this.session.host !== lobby.hostName) return "";
-            return this.session.id;
-        }
-        const discovery = this.discovery;
-        if (!discovery || discovery.host !== lobby.hostName || this.ended.has(discovery.id)) return "";
-        return cslNow() - discovery.time <= CSL.cacheTime ? discovery.id : "";
-    }
-
-    // Coalesce joins into one delayed announcement, only while hosting multiplayer CSL.
-    announce() {
-        if (!this.session?.isHost || this.session.solo || this.announcementPending) return;
-        this.announcementPending = true;
-        this.roomScope.after(CSL.announcementDelay, () => {
-            this.announcementPending = false;
-            const session = this.session;
-            if (!session?.isHost || session.solo || session.phase === "stopping") return;
-            session.send(CSL_MESSAGE.ANNOUNCE, { q: session.applied, phase: session.phase }, session.round, 0, () => { }, "announcement");
-        });
-    }
-
-    // Permit public game traffic only for active CSL or its recovery handshake.
-    canSend({ session, type }) {
-        const active = this.sessionId();
-        if (!active || lobby.soloMode || session !== active) return false;
-        return Boolean(this.session) || [CSL_MESSAGE.SYNC, CSL_MESSAGE.REPAIR].includes(type);
-    }
-
-    // Recheck room, mode, and session immediately before writing to public chat.
-    transmit(frame, envelope) {
-        if (!this.canSend(envelope)) return false;
-        socket.sendCommand({ type: "lobby", command: "game chat message", data: { msg: frame, teamMessage: false } });
-        return true;
-    }
-
-    // Resolve round IDs only for the active session's own media.
-    mediaRound(id) {
-        const prefix = `${this.session.id}:`;
-        if (typeof id !== "string" || !id.startsWith(prefix)) return null;
-        const round = Number(id.slice(prefix.length));
-        return Number.isInteger(round) ? round : null;
-    }
-
-    // Limit parsing to current-room senders and allowed directions of authority.
-    allow({ session, sender, type }) {
-        if (this.roomId !== lobby.gameId || !cslSupportedRoom()) return false;
-        const roomSender = sender === selfName || sender === lobby.hostName
-            || Object.values(lobby.players).some(player => player.name === sender)
-            || this.session?.players.some(player => player.name === sender)
-            || gameChat.spectators.some(player => player.name === sender);
-        if (!roomSender) return false;
-        if (type === CSL_MESSAGE.SYNC) return this.session?.isHost && session === this.session.id;
-        if (!this.session && lobby.inLobby && sender === lobby.hostName && !this.ended.has(session)) {
-            const discoveryTypes = [
-                CSL_MESSAGE.ANNOUNCE, CSL_MESSAGE.PREPARE, CSL_MESSAGE.PLAY, CSL_MESSAGE.LOCK,
-                CSL_MESSAGE.COLLECT, CSL_MESSAGE.RESULT, CSL_MESSAGE.FINAL, CSL_MESSAGE.PAUSE, CSL_MESSAGE.CONNECTION
-            ];
-            if (discoveryTypes.includes(type)) return true;
-        }
-        if (type === CSL_MESSAGE.SNAPSHOT) return session === this.sessionId() && sender === lobby.hostName && Boolean(this.syncNonce);
-        if (type === CSL_MESSAGE.BEGIN) return !this.session && lobby.inLobby && sender === lobby.hostName && !this.ended.has(session);
-        if (!this.session && [CSL_MESSAGE.REPAIR, CSL_MESSAGE.STOP].includes(type)) return session === this.sessionId() && sender === lobby.hostName;
-        if (session !== this.session?.id) return false;
-        const hostTypes = [
-            CSL_MESSAGE.PREPARE, CSL_MESSAGE.PLAY, CSL_MESSAGE.LOCK, CSL_MESSAGE.COLLECT,
-            CSL_MESSAGE.RESULT, CSL_MESSAGE.FINAL, CSL_MESSAGE.PAUSE, CSL_MESSAGE.CONNECTION,
-            CSL_MESSAGE.STOP, CSL_MESSAGE.ANNOUNCE, CSL_MESSAGE.COMMIT_RECEIPT, CSL_MESSAGE.REVEAL_RECEIPT
-        ];
-        if (hostTypes.includes(type)) return sender === this.session.host;
-        return [CSL_MESSAGE.COMMIT, CSL_MESSAGE.REVEAL, CSL_MESSAGE.READY, CSL_MESSAGE.SKIP, CSL_MESSAGE.REPAIR].includes(type);
-    }
-
-    // Consume protocol traffic independently from its optional chat visibility.
-    chat(message) {
-        const lobbyCommand = Object.values(CSL_LOBBY_COMMAND).find(entry => entry.command === message.message);
-        if (lobbyCommand) {
-            if (!this.lobbyCommandsAllowed() || message.sender !== lobby.hostName || this.lobbyCommandIds.has(message.messageId)) return;
-            this.lobbyCommandIds.add(message.messageId);
-            if (this.lobbyCommandIds.size > 64) this.lobbyCommandIds.delete(this.lobbyCommandIds.values().next().value);
-            socket.sendCommand({ type: "lobby", command: "game chat message", data: { msg: lobbyCommand.reply(), teamMessage: false } });
-        }
-        else {
-            if (typeof message.message !== "string" || !message.message.startsWith(CSL.prefix)) return;
-            this.transport.receive(message.message, message.sender);
-        }
-        if (!showCSLMessages) this.roomScope.after(0, () => {
-            const entry = $("#gcPlayerMessage-" + message.messageId);
-            if (entry.length && entry.find(".gcMessage").text() === message.message) {
-                entry.remove();
-                gameChat.currentMessageCount = Math.max(0, gameChat.currentMessageCount - 1);
-                gameChat.$SCROLLABLE_CONTAINERS.perfectScrollbar("update");
-            }
-        });
-    }
-
-    // Construct session hooks with all AMQ-specific effects kept in the adapter.
-    hooks() {
-        return {
-            start: session => this.adapter.start(session),
-            prepare: (session, round, media) => this.adapter.prepare(session, round, media),
-            buffer: session => this.adapter.buffer(session),
-            play: session => this.adapter.play(session),
-            lock: session => this.adapter.lock(session),
-            extra: () => fireListener("extra guess time"),
-            result: (session, result) => this.adapter.result(session, result),
-            restore: session => this.adapter.restore(session),
-            finish: (session, ranks) => this.adapter.finish(session, ranks),
-            pause: session => fireListener(session.paused ? "quiz pause triggered" : "quiz unpause triggered", { playerName: session.host }),
-            answered: (session, id, time) => fireListener("player answered", [{ answerTime: time, gamePlayerIds: [id] }]),
-            sync: () => this.sync(),
-            warning: sendSystemMessage,
-            end: () => this.end()
-        };
-    }
-
-    // Select in-memory delivery for solo while preserving identical session rules.
-    emit(session, round, type, value, priority, done, replaceKey) {
-        if (this.adapter.originalSolo) {
-            this.session.receive({ session, round, type, sender: selfName }, cslClone(value));
-            done();
-            return;
-        }
-        this.transport.send(session, round, type, value, priority, done, replaceKey);
-    }
-
-    // Start a fixed host plan without sharing the editable song array.
-    start(config, plan) {
-        if (this.session) throw new Error("A custom quiz is already running");
-        if (!cslSupportedRoom() || !lobby.inLobby || !lobby.isHost) throw new Error("Use a normal solo or multiplayer lobby as host");
-        if (!cslValidConfig(config)) throw new Error("Invalid quiz settings");
-        this.adapter.capture();
-        const roster = [...this.adapter.serverPlayers.values()].map(player => ({ id: player.gamePlayerId, name: player.name }));
-        if (roster.length > CSL.maxPlayers) throw new Error(`CSL supports at most ${CSL.maxPlayers} players`);
-        if (!this.validRoster(roster)) throw new Error("Invalid player roster");
-        this.session = new CslSession({
-            id: cslSessionId(), name: selfName, host: selfName, config, roster, plan, solo: this.adapter.originalSolo,
-            emit: (...args) => this.emit(...args), hooks: this.hooks()
-        });
-        this.session.start(true);
-    }
-
-    // Validate lobby announcements and nonce-bound recovery before creating a session.
-    receive(envelope, value) {
-        if (!this.allow(envelope)) return;
-        value = cslUnpack(envelope.type, value);
-        if (!value || typeof value !== "object") return;
-        const { type, sender, session, round } = envelope;
-        if (type === CSL_MESSAGE.ANNOUNCE && !this.validDiscovery(envelope, value)) return;
-        if (!this.session && this.validDiscovery(envelope, value)) {
-            if (this.discovery?.id !== session || this.discovery.host !== sender) {
-                this.transport.reset();
-                this.syncNonce = "";
-                this.lastSyncSent = -Infinity;
-            }
-            this.discovery = { id: session, host: sender, time: cslNow() };
-            this.sync();
-            return;
-        }
-        if (type === CSL_MESSAGE.STOP && !this.session) {
-            if (Number.isSafeInteger(value.q) && value.q >= 0) {
-                this.ended.add(session);
-                if (this.ended.size > 64) this.ended.delete(this.ended.values().next().value);
-                this.dispose();
-            }
-            return;
-        }
-        if (type === CSL_MESSAGE.SYNC) {
-            if (this.session?.isHost && /^[a-f0-9]{12}$/.test(value.nonce) && cslNow() - (this.syncRequests.get(sender) ?? -Infinity) > 4000) {
-                this.syncRequests.set(sender, cslNow());
-                this.session.snapshot(sender, value.nonce);
-            }
-            return;
-        }
-        if (type === CSL_MESSAGE.BEGIN) {
-            if (!cslValidConfig(value.config) || !this.validRoster(value.roster)) return;
-            const allPlayersPresent = value.roster.every(player => {
-                return Object.values(lobby.players).some(local => local.name === player.name);
-            });
-            if (!allPlayersPresent) return;
-            this.adapter.capture();
-            this.discovery = null;
-            this.syncNonce = "";
-            this.transport.cancel(session);
-            this.session = new CslSession({
-                id: session, name: selfName, host: sender, config: value.config, roster: value.roster,
-                emit: (...args) => this.emit(...args), hooks: this.hooks()
-            });
-            this.session.start();
-            return;
-        }
-        if (type === CSL_MESSAGE.SNAPSHOT) {
-            if (this.validSnapshot(value, round)) this.restoreSnapshot(envelope, value);
-            return;
-        }
-        this.session?.receive(envelope, value);
-    }
-
-    // Reject ambiguous participant identities before they enter a session.
-    validRoster(roster) {
-        if (!Array.isArray(roster) || roster.length === 0 || roster.length > CSL.maxPlayers) return false;
-        if (new Set(roster.map(player => player.id)).size !== roster.length) return false;
-        if (new Set(roster.map(player => player.name)).size !== roster.length) return false;
-        return roster.every(player => {
-            if (!Number.isSafeInteger(player.id) || player.id < 0) return false;
-            return typeof player.name === "string" && player.name.length > 0 && player.name.length <= 64;
-        });
-    }
-
-    // Validate recovery state completely before changing lobby roles or quiz state.
-    validSnapshot(value, round) {
-        if (value.to !== selfName || value.nonce !== this.syncNonce) return false;
-        if (!cslValidConfig(value.config) || !this.validRoster(value.players)) return false;
-        if (!Number.isSafeInteger(value.q) || value.q < 0) return false;
-        if (!Number.isInteger(round) || round < 0 || round > value.config.totalSongs) return false;
-        if (!Array.isArray(value.media) || value.media.length > 2) return false;
-        if (!value.media.every(entry => Array.isArray(entry) && Number.isInteger(entry[0]) && cslValidMedia(entry[1]))) return false;
-        if (!cslValidPlayerState(value.players, value.config) || typeof value.paused !== "boolean") return false;
-        if (!["starting", "buffering", "guessing", "locking", "collecting", "revealing", "finished"].includes(value.phase)) return false;
-        if (value.phase === "collecting" && !cslValidControl(CSL_MESSAGE.COLLECT, value, value.players, value.config)) return false;
-        if (value.result !== undefined) {
-            if (value.phase !== "revealing") return false;
-            const result = { ...value.result, players: value.players };
-            if (!cslValidControl(CSL_MESSAGE.RESULT, result, value.players, value.config)) return false;
-        }
-        if (value.ranks !== null && !cslValidControl(CSL_MESSAGE.FINAL, { ranks: value.ranks }, value.players, value.config)) return false;
-        return true;
-    }
-
-    // Resume a validated snapshot, restoring a returning player's lobby role first.
-    restoreSnapshot({ session, sender, round }, value) {
-        if (this.session && this.session.id !== session) return;
-        if (!this.session && lobby.isSpectator && value.players.some(player => player.name === selfName)) {
-            if (!this.joiningAsPlayer) {
-                this.joiningAsPlayer = true;
-                socket.sendCommand({ type: "lobby", command: "change to player" });
-            }
-            return;
-        }
-        if (!this.session) {
-            this.adapter.capture();
-            this.session = new CslSession({
-                id: session, name: selfName, host: sender, config: value.config, roster: value.players,
-                emit: (...args) => this.emit(...args), hooks: this.hooks()
-            });
-            this.session.start();
-        }
-        this.syncNonce = "";
-        this.discovery = null;
-        this.session.restore(value, round);
-    }
-
-    // Recognize host gameplay packets before requesting a fully validated snapshot.
-    validDiscovery({ type, round }, value) {
-        if (!Number.isInteger(round) || round < 0 || round > 10000) return false;
-        if (type === CSL_MESSAGE.PREPARE) return round > 0 && cslValidMedia(value);
-        if (!Number.isSafeInteger(value.q) || value.q < 0) return false;
-        if (type === CSL_MESSAGE.ANNOUNCE) return ["starting", "buffering", "guessing", "locking", "collecting", "revealing", "finished"].includes(value.phase);
-        if (round === 0 || value.q === 0) return false;
-        if ([CSL_MESSAGE.PLAY, CSL_MESSAGE.LOCK].includes(type)) return true;
-        if (type === CSL_MESSAGE.COLLECT) {
-            if (!Array.isArray(value.commits) || value.commits.length > CSL.maxPlayers) return false;
-            return value.commits.every(entry => {
-                if (!Array.isArray(entry) || typeof entry[0] !== "string") return false;
-                return Number.isInteger(entry[1]) && entry[1] > 0;
-            });
-        }
-        if (type === CSL_MESSAGE.RESULT) return this.validRoster(value.players) && typeof value.finished === "boolean" && cslValidSong(value.song);
-        if (type === CSL_MESSAGE.FINAL) {
-            if (!Array.isArray(value.ranks) || value.ranks.length === 0 || value.ranks.length > CSL.maxPlayers) return false;
-            return value.ranks.every(rank => {
-                if (!Number.isSafeInteger(rank.id) || rank.id < 0) return false;
-                return Number.isInteger(rank.place) && rank.place > 0 && rank.place <= value.ranks.length;
-            });
-        }
-        if (type === CSL_MESSAGE.PAUSE) return typeof value.paused === "boolean";
-        if (type !== CSL_MESSAGE.CONNECTION) return false;
-        return typeof value.name === "string" && value.name.length > 0 && value.name.length <= 64
-            && typeof value.connected === "boolean";
-    }
-
-    // Request fresh state with a nonce that cannot be satisfied by chat history.
-    sync() {
-        const session = this.sessionId();
-        if (!session || this.session?.isHost || lobby.soloMode || cslNow() - this.lastSyncSent < 4000) return;
-        this.lastSyncSent = cslNow();
-        this.syncNonce ||= cslRandom();
-        this.transport.send(session, 0, CSL_MESSAGE.SYNC, { nonce: this.syncNonce }, 1, () => { }, "sync");
-    }
-
-    // Use AMQ's current lobby state for manual prompts, independently of CSL tracking.
-    lobbyCommandsAllowed() {
-        return lobby.inLobby && ["Solo", "Multiplayer"].includes(lobby.settings.gameMode);
-    }
-
-    // Broadcast one host request; the host replies through the same chat listener.
-    promptLobby(entry) {
-        if (!Object.values(CSL_LOBBY_COMMAND).includes(entry)) return;
-        if (!this.lobbyCommandsAllowed() || !lobby.isHost) return sendSystemMessage("Use these buttons as host in a normal solo or multiplayer lobby");
-        socket.sendCommand({ type: "lobby", command: "game chat message", data: { msg: entry.command, teamMessage: false } });
-    }
-
-    // Track actual departures separately from custom quiz score/player identities.
-    left(name) {
-        if (!this.session) return;
-        this.syncRequests.delete(name);
-        this.adapter.serverPlayers.delete(name);
-        if (name === this.session.host) {
-            sendSystemMessage("Host left; ending custom quiz");
-            this.roomScope.after(0, () => this.end());
-        }
-        else this.session.disconnect(name);
-    }
-
-    // Route the existing stop hotkey and lobby control through host authority.
-    stop() {
-        if (this.session?.isHost) this.transport.cancel(this.session.id);
-        this.session?.stop();
-    }
-
-    // Retire a completed or aborted session before returning to the real lobby.
-    end() {
-        if (!this.session) return;
-        this.ended.add(this.session.id);
-        if (this.ended.size > 64) this.ended.delete(this.ended.values().next().value);
-        this.dispose();
-        this.adapter.end();
-    }
-
-    // Release local state while allowing rejoining a session that is still running.
-    dispose() {
-        this.roomScope.close();
-        this.roomScope = new CslScope();
-        this.transport.reset();
-        this.discovery = null;
-        this.syncNonce = "";
-        this.lastSyncSent = -Infinity;
-        this.joiningAsPlayer = false;
-        this.announcementPending = false;
-        this.syncRequests.clear();
-        this.lobbyCommandIds.clear();
-        if (!this.session) return;
-        this.session.close();
-        this.session = null;
-        quiz.cslActive = false;
-    }
-}
-
-
-// Editor state and initialization
-
-const saveData = validateLocalStorage("customSongListGame");
-const apiBase = "https://anisongdb.com/api/";
-const hostDict = { 1: "eudist.animemusicquiz.com", 2: "nawdist.animemusicquiz.com", 3: "naedist.animemusicquiz.com" };
-let CSLButtonCSS = saveData.CSLButtonCSS || "calc(25% - 250px)";
-let showCSLMessages = saveData.showCSLMessages ?? true;
-const savedAnswerEntries = Object.entries(saveData.replacedAnswers || {})
-    .filter(([, value]) => typeof value === "string");
-let replacedAnswers = Object.assign(Object.create(null), Object.fromEntries(savedAnswerEntries));
-let malClientId = saveData.malClientId ?? "";
-let debug = Boolean(saveData.debug);
-let songListTableView = 0; //0: song + artist, 1: anime + song type + vintage, 2: video/audio links
-let songListTableSort = { mode: "", ascending: true } //modes: songName, artist, difficulty, anime, songType, vintage, mp3, 480, 720
-let songList = [];
-let mergedSongList = [];
-let importedSongList = [];
-let songOrderType = "random";
-let startPointRange = [0, 100];
-let difficultyRange = [0, 100];
-let fileHostOverride = 0;
-let animeListLower = new Set(); //store lowercase version for faster compare speed
-let autocompleteInput;
-let importRunning = false;
-let hotKeys = {
-    cslgWindow: loadHotkey("cslgWindow"),
-    start: loadHotkey("start"),
-    stop: loadHotkey("stop"),
-    mergeAll: loadHotkey("mergeAll"),
-    clearSongList: loadHotkey("clearSongList"),
-    transferMerged: loadHotkey("transferMerged"),
-    clearMerged: loadHotkey("clearMerged"),
-    downloadMerged: loadHotkey("downloadMerged"),
-    tableMode: loadHotkey("tableMode"),
-};
-
-let songListView = [];
-let searchController;
-let searchRequest = 0;
-const cslController = new CslController();
-
-// Initialize once AMQ finishes loading, or immediately if it is already ready.
-function startScript() {
-    const loadingScreen = document.querySelector("#loadingScreen");
-    if (!loadingScreen) return;
-    if (loadingScreen.classList.contains("hidden")) {
-        setup();
-    }
-    else {
-        const observer = new MutationObserver(() => {
-            if (loadingScreen.classList.contains("hidden")) {
-                observer.disconnect();
-                setup();
-            }
-        });
-        observer.observe(loadingScreen, { attributes: true, attributeFilter: ["class"] });
-    }
-}
-
-// Rebuild AMQ's autocomplete index and cancel searches using the previous names.
+// Rebuild AMQ's autocomplete index and cancel searches using the previous names
 function rebuildCslAutocomplete(names) {
     if (autocompleteInput) {
         autocompleteInput.hide();
@@ -2329,29 +852,10 @@ function rebuildCslAutocomplete(names) {
     autocompleteInput = new AmqAwesomeplete(document.querySelector("#cslgNewAnswerInput"), { list: names }, true);
 }
 
-// Build the editor and attach the custom quiz runtime once AMQ is ready.
-function setup() {
-    cslController.install();
-    createCslSettingsModal();
-    bindCslTabs();
-    bindSongListControls();
-    bindQuizSettingsControls();
-    bindMergedSongControls();
-    bindAutocompleteControl();
-    bindListImportControls();
-    bindEditorTableControls();
-    initializeSettingsControls();
-    installCslHotkeys();
-    applyStyles();
-    registerCslScriptInfo();
-}
-
-// Build the editor markup before binding its controls.
+// Build the editor markup before binding its controls
 function createCslSettingsModal() {
     $("#lobbyPage .topMenuBar").append(`<div id="lnCustomSongListButton" class="clickAble topMenuButton topMenuMediumButton"><h3>CSL</h3></div>`);
     $("#lnCustomSongListButton").on("click", openSettingsModal);
-
-    // build settings modal
     $("#gameContainer").append($(/*html*/`
         <div class="modal fade tab-modal" id="cslgSettingsModal" tabindex="-1" role="dialog">
             <div class="modal-dialog" role="document">
@@ -2735,7 +1239,7 @@ function createCslSettingsModal() {
     `));
 }
 
-// Connect tab selection to the existing modal sections.
+// Connect tab selection to the existing modal sections
 function bindCslTabs() {
     const tabs = ["cslgSongList", "cslgQuizSettings", "cslgAnswer", "cslgMerge", "cslgHotkey", "cslgListImport", "cslgInfo"];
     for (const tab of tabs) {
@@ -2746,39 +1250,39 @@ function bindCslTabs() {
     switchTab("cslgSongList");
 }
 
-// Add the current songs without repeating an existing playlist appearance.
+// Add the current songs without repeating an existing playlist appearance
 function mergeCurrentSongList() {
     mergedSongList = mergeCslSongs(mergedSongList, songList);
     createMergedSongListTable();
 }
 
-// Cancel pending searches before clearing the current editor list.
+// Cancel pending searches before clearing the current editor list
 function clearCurrentSongList() {
     cancelSongSearch();
     songList = [];
     createSongListTable();
 }
 
-// Copy the merged playlist into the current editor list.
+// Copy the merged playlist into the current editor list
 function transferMergedToCurrentSongList() {
     cancelSongSearch();
     songList = Array.from(mergedSongList);
     createSongListTable();
 }
 
-// Advance through the existing song, anime, and media table views.
+// Advance through the existing song, anime, and media table views
 function cycleSongListTableView() {
     songListTableView = (songListTableView + 1) % 3;
     createSongListTable();
 }
 
-// Clear the merged list and refresh its table.
+// Clear the merged list and refresh its table
 function clearMergedSongList() {
     mergedSongList = [];
     createMergedSongListTable();
 }
 
-// Download the merged playlist or explain why there is nothing to save.
+// Download the merged playlist or explain why there is nothing to save
 function downloadMergedSongList() {
     if (mergedSongList.length) {
         downloadListJson(mergedSongList, "merged.json");
@@ -2788,7 +1292,7 @@ function downloadMergedSongList() {
     }
 }
 
-// Bind searches, uploads, filters, and song-list toolbar actions.
+// Bind searches, uploads, filters, and song-list toolbar actions
 function bindSongListControls() {
     $("#cslgAnisongdbSearchButtonGo").on("click", () => {
         anisongdbDataSearch();
@@ -2798,7 +1302,7 @@ function bindSongListControls() {
             anisongdbDataSearch();
         }
     });
-    // Keep the filter disclosure and its accessible state together.
+    // Keep the filter disclosure and its accessible state together
     $("#cslgAnisongdbFilterDropdownButton").on("click", function () {
         $(this).attr("aria-expanded", $(this).attr("aria-expanded") !== "true");
         $(this).find("i").toggleClass("fa-caret-down fa-caret-up");
@@ -2874,7 +1378,7 @@ function bindSongListControls() {
     });
 }
 
-// Keep playback choices and scoring-dependent controls in sync.
+// Keep playback choices and scoring-dependent controls in sync
 function bindQuizSettingsControls() {
     $("#cslgSongOrderSelect").on("change", function () {
         songOrderType = this.value;
@@ -2882,13 +1386,13 @@ function bindQuizSettingsControls() {
     $("#cslgHostOverrideSelect").on("change", function () {
         fileHostOverride = parseInt(this.value);
     });
-    // Show starting lives only when lives scoring is selected.
+    // Show starting lives only when lives scoring is selected
     $("#cslgSettingsScoreType").on("change", function () {
         $("#cslgSettingsLivesLabel").toggle(Number(this.value) === quiz.SCORE_TYPE_IDS.LIVES);
     });
 }
 
-// Bind the merged-list actions independently of its table.
+// Bind the merged-list actions independently of its table
 function bindMergedSongControls() {
     $("#cslgMergeButton").on("click", () => {
         mergeCurrentSongList();
@@ -2901,7 +1405,7 @@ function bindMergedSongControls() {
     });
 }
 
-// Obtain AMQ autocomplete by briefly running a native solo quiz.
+// Obtain AMQ autocomplete by briefly running a native solo quiz
 function bindAutocompleteControl() {
     $("#cslgAutocompleteButton").on("click", () => {
         if (!lobby.soloMode) {
@@ -2930,7 +1434,7 @@ function bindAutocompleteControl() {
     });
 }
 
-// Connect anime-list imports to the editor and JSON downloads.
+// Connect anime-list imports to the editor and JSON downloads
 function bindListImportControls() {
     $("#cslgListImportUsernameInput").on("keypress", (event) => {
         if (event.key === "Enter") {
@@ -2960,7 +1464,7 @@ function bindListImportControls() {
     });
 }
 
-// Handle table actions using the displayed song order.
+// Handle table actions using the displayed song order
 function bindEditorTableControls() {
     $("#cslgStartButton").on("click", () => {
         validateStart();
@@ -3033,7 +1537,7 @@ function bindEditorTableControls() {
         });
 }
 
-// Set initial field values and bind saved script preferences.
+// Set initial field values and bind saved script preferences
 function initializeSettingsControls() {
     $("#cslgSongListModeSelect").val("Anisongdb").on("change", function () {
         const val = this.value;
@@ -3091,81 +1595,14 @@ function initializeSettingsControls() {
     });
 }
 
-// Render bindings and dispatch the configured keyboard actions.
-function installCslHotkeys() {
-    createHotkeyTable([
-        { action: "cslgWindow", title: "Open This Window" },
-        { action: "start", title: "Start CSL" },
-        { action: "stop", title: "Stop CSL" },
-        { action: "mergeAll", title: "Add All To Merged" },
-        { action: "clearSongList", title: "Clear Song List" },
-        { action: "transferMerged", title: "Transfer From Merged" },
-        { action: "clearMerged", title: "Clear Merged" },
-        { action: "downloadMerged", title: "Download Merged" },
-        { action: "tableMode", title: "Change Table Mode" }
-    ]);
-
-    const hotkeyActions = {
-        cslgWindow: () => {
-            if ($("#cslgSettingsModal").is(":visible")) {
-                $("#cslgSettingsModal").modal("hide");
-            }
-            else {
-                openSettingsModal();
-            }
-        },
-        start: () => {
-            validateStart();
-        },
-        stop: () => {
-            cslController.stop();
-        },
-        mergeAll: () => {
-            mergeCurrentSongList();
-        },
-        clearSongList: () => {
-            if (quiz.inQuiz) return;
-            clearCurrentSongList();
-        },
-        transferMerged: () => {
-            if (quiz.inQuiz) return;
-            transferMergedToCurrentSongList();
-        },
-        clearMerged: () => {
-            clearMergedSongList();
-        },
-        downloadMerged: () => {
-            downloadMergedSongList();
-        },
-        tableMode: () => {
-            cycleSongListTableView();
-        }
-    };
-
-    document.addEventListener("keydown", (event) => {
-        const key = event.key.toUpperCase();
-        const ctrl = event.ctrlKey;
-        const alt = event.altKey;
-        const shift = event.shiftKey;
-        const matchesBinding = binding => {
-            if (!binding.key) return false;
-            if (key !== binding.key) return false;
-            if (ctrl !== binding.ctrl) return false;
-            if (alt !== binding.alt) return false;
-            if (shift !== binding.shift) return false;
-            return true;
-        }
-        for (const [action, binding] of Object.entries(hotKeys)) {
-            if (matchesBinding(binding)) {
-                event.preventDefault();
-                hotkeyActions[action]();
-            }
-        }
-    });
+// Render bindings and dispatch the configured keyboard actions
+function setupHotkeys() {
+    hotkeyController.renderTable(document.querySelector("#cslgHotkeyTable tbody"));
+    hotkeyController.start();
 }
 
-// Expose the script description through AMQ script information.
-function registerCslScriptInfo() {
+// Expose the script description through AMQ script information
+function registerScriptInfo() {
     AMQ_addScriptData({
         name: "Custom Song List Game",
         author: "kempanator",
@@ -3185,7 +1622,7 @@ function registerCslScriptInfo() {
     });
 }
 
-// Quiz settings and playlist selection
+// === Quiz settings and playlist selection ===
 
 // Validate all settings and attempt to start csl quiz
 function validateStart() {
@@ -3258,7 +1695,7 @@ function validateStart() {
     }
 }
 
-// Parse the existing numeric syntax, allowing a single value only for song samples.
+// Parse the existing numeric syntax, allowing a single value only for song samples
 function parseCslRange(text, allowSingle = false) {
     if (allowSingle && /^[0-9]+$/.test(text)) {
         const value = parseInt(text);
@@ -3269,12 +1706,12 @@ function parseCslRange(text, allowSingle = false) {
     return [parseInt(match[1]), parseInt(match[2])];
 }
 
-// Require an ordered percentage interval without changing the parsed values.
+// Require an ordered percentage interval without changing the parsed values
 function cslValidPercentRange([low, high]) {
     return !(low < 0 || low > 100 || high < 0 || high > 100 || low > high);
 }
 
-// Filter stored playlist keys before applying the chosen playback order and length.
+// Filter stored playlist keys before applying the chosen playback order and length
 function selectCslQuizSongs(numSongs) {
     const ops = $("#cslgSettingsOPCheckbox").prop("checked");
     const eds = $("#cslgSettingsEDCheckbox").prop("checked");
@@ -3300,7 +1737,7 @@ function selectCslQuizSongs(numSongs) {
     return songKeys.slice(0, numSongs).map(key => songList[key]);
 }
 
-// Snapshot accepted titles and media sampling before the editable list can change.
+// Snapshot accepted titles and media sampling before the editable list can change
 function createCslQuizSong(song) {
     const snapshot = cslClone(song);
     const answers = [
@@ -3334,7 +1771,7 @@ function songTypeFilter(song, ops, eds, ins) {
     return false;
 }
 
-// Match named anime types, with Other covering every unlisted or missing type.
+// Match named anime types, with Other covering every unlisted or missing type
 function animeTypeFilter(song, tv, movie, ova, ona, special, other) {
     switch ((song.animeType || "").trim().toLowerCase()) {
         case "tv": return tv;
@@ -3404,9 +1841,9 @@ function loadPreviousGameOptions() {
     }
 }
 
-// Remote song search
+// === Remote song search ===
 
-// Read the selected AnisongDB search and filters.
+// Read the selected AnisongDB search and filters
 function anisongdbDataSearch() {
     const mode = $("#cslgAnisongdbModeSelect").val().toLowerCase();
     const query = $("#cslgAnisongdbQueryInput").val();
@@ -3433,7 +1870,7 @@ function anisongdbDataSearch() {
     }
 }
 
-// Replace the editor list only if this search is still the latest operation.
+// Replace the editor list only if this search is still the latest operation
 function getAnisongdbData(mode, query, options) {
     $("#cslgSongListCount").text("Loading...");
     $("#cslgSongListTable tbody").empty();
@@ -3456,7 +1893,7 @@ function getAnisongdbData(mode, query, options) {
         });
 }
 
-// Build the API-specific body without mixing it with editor or cancellation state.
+// Build the API-specific body without mixing it with editor or cancellation state
 function createAnisongdbRequest(mode, query, options) {
     let url;
     const songTypes = [];
@@ -3468,7 +1905,7 @@ function createAnisongdbRequest(mode, query, options) {
     if (options.normal) broadcasts.push("normal");
     if (options.dub) broadcasts.push("dub");
     if (options.rebroadcast) broadcasts.push("rebroadcast");
-    if (options.standard) songCategories.push("standard", "other"); // matches anisongdb frontend
+    if (options.standard) songCategories.push("standard", "other"); // Matches anisongdb frontend
     if (options.character) songCategories.push("character");
     if (options.chanting) songCategories.push("chanting");
     if (options.instrumental) songCategories.push("instrumental");
@@ -3549,7 +1986,7 @@ function createAnisongdbRequest(mode, query, options) {
     return { url, data };
 }
 
-// Bound external API requests and preserve HTTP/API failure information.
+// Bound external API requests and preserve HTTP/API failure information
 async function fetchCslJson(url, options = {}) {
     const controller = new AbortController();
     const forwardAbort = () => controller.abort();
@@ -3570,7 +2007,7 @@ async function fetchCslJson(url, options = {}) {
     }
 }
 
-// Replace the editor list only after an entire import has been normalized.
+// Replace the editor list only after an entire import has been normalized
 function handleData(data) {
     const result = normalizeCslSongs(data);
     if (!result.songs.length && result.warnings.length) throw new Error(result.warnings.join("; "));
@@ -3579,7 +2016,7 @@ function handleData(data) {
     $("#cslgSongListWarning").text(result.warnings.join("; "));
 }
 
-// Prevent an older remote search from overwriting a newer editor operation.
+// Prevent an older remote search from overwriting a newer editor operation
 function cancelSongSearch() {
     searchController?.abort();
     return ++searchRequest;
@@ -3587,7 +2024,7 @@ function cancelSongSearch() {
 
 // Song tables and editor filtering
 
-// Sort only the display copy so playback continues using the stored list order.
+// Sort only the display copy so playback continues using the stored list order
 function sortCslSongListView(view, language) {
     if (!songListTableSort.mode) return;
     switch (songListTableSort.mode) {
@@ -3754,7 +2191,7 @@ function createAnswerTable() {
     }
 }
 
-// Resolve table links using the same media-host policy as quiz playback.
+// Resolve table links using the same media-host policy as quiz playback
 function createLinkElement(link) {
     if (!link) return "";
     const $a = $("<a>", { target: "_blank", href: resolveCslMediaUrl(link) });
@@ -3804,7 +2241,7 @@ function songTypeSortValue(a, b) {
     return 0;
 }
 
-// Apply one editor filter while keeping invalid input from changing the list.
+// Apply one editor filter while keeping invalid input from changing the list
 function filterSongList() {
     cancelSongSearch();
     const keep = $("#cslgFilterModeSelect").val() === "Keep";
@@ -3823,7 +2260,7 @@ function filterSongList() {
     createAnswerTable();
 }
 
-// Return a predicate, null for invalid input, or undefined for an unknown field.
+// Return a predicate, null for invalid input, or undefined for an unknown field
 function createCslSongFilter(key, text, caseSensitive) {
     const includes = (value, query) => {
         if (caseSensitive) return value.includes(query);
@@ -3901,7 +2338,7 @@ function switchTab(tab) {
     $w.find(`#${tab}Container`).show();
 }
 
-// Media and AMQ song metadata
+// === Media and AMQ song metadata ===
 
 // Convert vintage string into AMQ songInfo vintage object
 function formatAmqVintage(vintage) {
@@ -3916,7 +2353,7 @@ function formatAmqVintage(vintage) {
     }
 }
 
-// Override only AMQ media hosts, preserving external URLs and full media paths.
+// Override only AMQ media hosts, preserving external URLs and full media paths
 function resolveCslMediaUrl(url) {
     url = cslMedia(url);
     if (!url) return "";
@@ -3940,7 +2377,7 @@ function songTypeText(type, typeNumber) {
     if (type === 2) return "ED" + typeNumber;
     if (type === 3) return "IN";
     return "";
-};
+}
 
 // VideoInfo payload for quiz next video info (guessMode required by MoeVideoPlayer.updatePlayMode)
 function createCslVideoInfo(audio, video480, video720) {
@@ -3971,81 +2408,7 @@ function createCatboxLinkObject(audio, video480, video720) {
     return links;
 }
 
-// Hotkey configuration
-
-// Load hotkey from local storage, input optional default values
-function loadHotkey(action, key = "", ctrl = false, alt = false, shift = false) {
-    const item = saveData.hotKeys?.[action];
-    return {
-        key: (typeof item?.key === "string" ? item.key : key).toUpperCase(),
-        ctrl: Boolean(item?.ctrl ?? ctrl),
-        alt: Boolean(item?.alt ?? alt),
-        shift: Boolean(item?.shift ?? shift)
-    }
-}
-
-// Create hotkey rows and add to table
-function createHotkeyTable(data) {
-    const $tbody = $("#cslgHotkeyTable tbody");
-    for (const { action, title } of data) {
-        const $input = $("<input>", { type: "text", class: "form-control hk-input", readonly: true, "data-action": action })
-            .val(bindingToText(hotKeys[action]))
-            .on("click", startHotkeyRecord);
-        $tbody.append($("<tr>")
-            .append($("<td>", { text: title }))
-            .append($("<td>").append($input)));
-    }
-}
-
-// Begin hotkey capture on click
-function startHotkeyRecord() {
-    const $input = $(this);
-    if ($input.hasClass("recording")) return;
-    const action = $input.data("action");
-    const capture = (e) => {
-        e.stopImmediatePropagation();
-        e.preventDefault();
-        if (!e.key) return;
-        if (["Shift", "Control", "Alt", "Meta"].includes(e.key)) return;
-        if ((e.key === "Delete" || e.key === "Backspace" || e.key === "Escape") && !e.altKey && !e.ctrlKey && !e.shiftKey && !e.metaKey) {
-            hotKeys[action] = {
-                key: "",
-                ctrl: false,
-                alt: false,
-                shift: false
-            };
-        }
-        else {
-            hotKeys[action] = {
-                key: e.key.toUpperCase(),
-                ctrl: e.ctrlKey,
-                alt: e.altKey,
-                shift: e.shiftKey
-            };
-        }
-        saveSettings();
-        finish();
-    };
-    const finish = () => {
-        document.removeEventListener("keydown", capture, true);
-        $input.removeClass("recording").val(bindingToText(hotKeys[action])).off("blur", finish);
-    };
-    document.addEventListener("keydown", capture, true);
-    $input.addClass("recording").val("Press keys…").on("blur", finish);
-}
-
-// Input hotKeys[action] and convert the data to a string for the input field
-function bindingToText(binding) {
-    if (!binding) return "";
-    const keys = [];
-    if (binding.ctrl) keys.push("CTRL");
-    if (binding.alt) keys.push("ALT");
-    if (binding.shift) keys.push("SHIFT");
-    if (binding.key) keys.push(binding.key === " " ? "SPACE" : binding.key);
-    return keys.join(" + ");
-}
-
-// Anime-list imports
+// === Anime-list imports ===
 
 // Input myanimelist username, return list of mal ids
 async function getMalIdsFromMyanimelist(username) {
@@ -4079,7 +2442,7 @@ async function getMalIdsFromMyanimelist(username) {
     return malIds;
 }
 
-// Fetch one MAL page through Tampermonkey and retain provider error details.
+// Fetch one MAL page through Tampermonkey and retain provider error details
 function fetchCslMalPage(url) {
     return new Promise((resolve, reject) => {
         GM_xmlhttpRequest({
@@ -4169,7 +2532,7 @@ async function getAnilistData(username, statuses, pageNumber) {
     return json.data.Page;
 }
 
-// Stage every import batch before exposing a complete result to the editor.
+// Stage every import batch before exposing a complete result to the editor
 async function getSongListFromMalIds(malIds) {
     const ids = [...new Set(malIds)];
     const songs = [];
@@ -4186,7 +2549,7 @@ async function getSongListFromMalIds(malIds) {
     return songs;
 }
 
-// Release the import lock after success, failure, timeout, or malformed API data.
+// Release the import lock after success, failure, timeout, or malformed API data
 async function startImport() {
     if (importRunning) return;
     const source = $("#cslgListImportSelect").val();
@@ -4212,7 +2575,7 @@ async function startImport() {
     }
 }
 
-// Persistence and styling
+// === Persistence and styling ===
 
 // Input list and file name, download json file
 function downloadListJson(list, fileName) {
@@ -4564,10 +2927,26 @@ function applyStyles() {
         #cslgHotkeyTable td {
             padding: 2px 20px 2px 0;
         }
-        #cslgHotkeyTable input.hk-input {
+        #cslgHotkeyTable button.hk-clear {
+            margin-left: 6px;
+            padding: 0;
+            border: 0;
+            background: transparent;
+            box-shadow: none;
+            color: inherit;
+            cursor: pointer;
+        }
+        #cslgHotkeyTable button.hk-clear:hover {
+            opacity: 0.7;
+        }
+        #cslgHotkeyTable button.hk-input {
+            color: black;
             width: 200px;
             cursor: pointer;
             user-select: none;
+        }
+        #cslgHotkeyTable button.hk-input.unset {
+            color: gray;
         }
         table.styledTable thead tr {
             background-color: #282828;
@@ -4588,6 +2967,1778 @@ function applyStyles() {
         style.id = "customSongListGameStyle";
         style.textContent = css.trim();
         document.head.appendChild(style);
+    }
+}
+
+// Manage hotkey bindings, recording, and settings editor
+class HotkeyController {
+    static bindingTypes = { key: "string", ctrl: "boolean", alt: "boolean", shift: "boolean" };
+
+    static normalizeKey(key) {
+        const uppercase = key.toUpperCase();
+        if ([...key].length === 1 && [...uppercase].length !== 1) return key;
+        return uppercase;
+    }
+
+    // Keep valid fields and silently replace invalid values with defaults
+    static normalizeBinding(value, fallback = { key: "", ctrl: false, alt: false, shift: false }) {
+        if (!value || typeof value !== "object" || Array.isArray(value)) {
+            return { ...fallback };
+        }
+
+        const binding = {};
+        for (const [field, type] of Object.entries(HotkeyController.bindingTypes)) {
+            const savedValue = value[field];
+            if (typeof savedValue !== type) {
+                binding[field] = fallback[field];
+                continue;
+            }
+            binding[field] = field === "key" ? HotkeyController.normalizeKey(savedValue) : savedValue;
+        }
+        return binding;
+    }
+
+    // Restore known actions and discard unrecognized saved entries
+    static normalizeBindings(value, defaults) {
+        const bindings = {};
+        if (!value || typeof value !== "object" || Array.isArray(value)) {
+            value = {};
+        }
+        for (const [action, fallback] of Object.entries(defaults)) {
+            bindings[action] = HotkeyController.normalizeBinding(value[action], fallback);
+        }
+        return bindings;
+    }
+
+    static getDefaults(actions) {
+        const defaults = {};
+        for (const [action, definition] of Object.entries(actions)) {
+            defaults[action] = HotkeyController.normalizeBinding(definition.defaultBinding);
+        }
+        return defaults;
+    }
+
+    constructor({ actions, savedBindings, onChange }) {
+        this.actions = actions;
+        this.entries = Object.entries(actions);
+        this.onChange = onChange;
+        this.defaults = HotkeyController.getDefaults(actions);
+        this.editors = new Map();
+        this.recording = null;
+
+        this.bindings = HotkeyController.normalizeBindings(savedBindings, this.defaults);
+    }
+
+    formatBinding(binding) {
+        if (!binding.key) return "";
+        const parts = [];
+        if (binding.ctrl) parts.push("CTRL");
+        if (binding.alt) parts.push("ALT");
+        if (binding.shift) parts.push("SHIFT");
+        parts.push(binding.key === " " ? "SPACE" : binding.key);
+        return parts.join(" + ");
+    }
+
+    isSupportedEvent(event) {
+        if (!event.key || event.metaKey || event.isComposing || event.getModifierState("AltGraph")) return false;
+        const key = HotkeyController.normalizeKey(event.key);
+        return !["SHIFT", "CONTROL", "ALT", "META", "ALTGRAPH", "DEAD", "PROCESS", "UNIDENTIFIED"].includes(key);
+    }
+
+    start() {
+        document.addEventListener("keydown", this.handleKeydown);
+    }
+
+    destroy() {
+        this.cancelRecording();
+        document.removeEventListener("keydown", this.handleKeydown);
+        this.editors.clear();
+    }
+
+    setBindings(value) {
+        const imported = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+        this.stopRecording();
+
+        for (const [action] of this.entries) {
+            this.bindings[action] = Object.hasOwn(imported, action)
+                ? HotkeyController.normalizeBinding(imported[action])
+                : { ...this.defaults[action] };
+        }
+        this.refreshEditors();
+    }
+
+    handleKeydown = event => {
+        if (this.recording || !this.isSupportedEvent(event)) return;
+        const key = HotkeyController.normalizeKey(event.key);
+
+        // All matches intentionally run, including while typing and on repeated keydowns
+        for (const [action, definition] of this.entries) {
+            const binding = this.bindings[action];
+            if (!binding.key || binding.key !== key) continue;
+            if (binding.ctrl !== event.ctrlKey) continue;
+            if (binding.alt !== event.altKey) continue;
+            if (binding.shift !== event.shiftKey) continue;
+            if (definition.enabled && !definition.enabled()) continue;
+
+            event.preventDefault();
+            definition.run();
+        }
+    };
+
+    refreshEditors() {
+        for (const [action, editor] of this.editors) {
+            const text = this.formatBinding(this.bindings[action]);
+            editor.button.textContent = text || "—";
+            editor.button.setAttribute("aria-label", this.actions[action].label + " shortcut: " + (text || "unbound"));
+            editor.button.classList.remove("recording");
+            editor.button.classList.toggle("unset", !this.bindings[action].key);
+            editor.clear.hidden = !this.bindings[action].key;
+        }
+    }
+
+    stopRecording() {
+        if (!this.recording) return false;
+        document.removeEventListener("keydown", this.captureKeydown, true);
+        this.recording.button.removeEventListener("blur", this.cancelRecording);
+        window.removeEventListener("blur", this.cancelRecording);
+        this.recording = null;
+        return true;
+    }
+
+    cancelRecording = () => {
+        if (this.stopRecording()) this.refreshEditors();
+    };
+
+    commitBinding(action, binding) {
+        this.stopRecording();
+        this.bindings[action] = binding;
+        this.refreshEditors();
+        this.onChange();
+    }
+
+    captureKeydown = event => {
+        event.stopImmediatePropagation();
+        if (event.isComposing) return;
+        event.preventDefault();
+
+        const unmodified = !event.ctrlKey && !event.altKey && !event.shiftKey && !event.metaKey;
+        if (unmodified && event.key === "Escape") {
+            this.cancelRecording();
+            return;
+        }
+        if (unmodified && ["Delete", "Backspace"].includes(event.key)) {
+            this.commitBinding(this.recording.action, HotkeyController.normalizeBinding());
+            return;
+        }
+        if (!this.isSupportedEvent(event)) return;
+
+        this.commitBinding(this.recording.action, {
+            key: HotkeyController.normalizeKey(event.key),
+            ctrl: event.ctrlKey,
+            alt: event.altKey,
+            shift: event.shiftKey
+        });
+    };
+
+    startRecording(action) {
+        this.cancelRecording();
+        const editor = this.editors.get(action);
+        this.recording = { action, button: editor.button };
+        editor.button.focus();
+        editor.button.classList.remove("unset");
+        editor.button.classList.add("recording");
+        editor.button.textContent = "Press keys…";
+        editor.button.addEventListener("blur", this.cancelRecording);
+        window.addEventListener("blur", this.cancelRecording);
+        document.addEventListener("keydown", this.captureKeydown, true);
+    }
+
+    renderTable(tbody) {
+        this.stopRecording();
+        this.editors.clear();
+        tbody.replaceChildren();
+
+        for (const [action, definition] of this.entries) {
+            const row = document.createElement("tr");
+            const label = document.createElement("td");
+            label.textContent = definition.label;
+            const controls = document.createElement("td");
+
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = "hk-input";
+            button.dataset.hotkeyAction = action;
+            button.addEventListener("click", () => this.startRecording(action));
+
+            const clear = document.createElement("button");
+            clear.type = "button";
+            clear.className = "hk-clear";
+            clear.setAttribute("aria-label", "Clear " + definition.label + " shortcut");
+            clear.title = "Clear shortcut";
+            clear.addEventListener("click", () => this.commitBinding(action, HotkeyController.normalizeBinding()));
+
+            const icon = document.createElement("i");
+            icon.className = "fa fa-trash";
+            icon.setAttribute("aria-hidden", "true");
+            clear.append(icon);
+
+            controls.append(button, clear);
+            row.append(label, controls);
+            tbody.append(row);
+            this.editors.set(action, { button, clear });
+        }
+        this.refreshEditors();
+    }
+}
+
+// Own cancellable work so callbacks cannot survive a stopped session or phase
+class CslScope {
+    // Accept a replaceable clock for deterministic lifecycle tests
+    constructor(clock = globalThis) {
+        this.clock = clock;
+        this.timers = new Set();
+        this.closed = false;
+    }
+
+    // Run a callback only while this scope remains alive
+    after(delay, callback) {
+        if (this.closed) return;
+        const timer = this.clock.setTimeout(() => {
+            this.timers.delete(timer);
+            if (!this.closed) callback();
+        }, delay);
+        this.timers.add(timer);
+        return timer;
+    }
+
+    // Cancel every outstanding callback and permanently close the scope
+    close() {
+        this.closed = true;
+        for (const timer of this.timers) this.clock.clearTimeout(timer);
+        this.timers.clear();
+    }
+}
+
+// Carry bounded, repairable logical messages over AMQ's existing room chat
+class CslTransport {
+    // Inject chat delivery and scheduling rather than depending on AMQ globals
+    constructor({ name, send, receive, allow, warning, canSend = () => true, clock = globalThis, now = cslNow, spacing = CSL.sendSpacing }) {
+        Object.assign(this, { name, sendFrame: send, receiveMessage: receive, allow, warning, canSend, clock, now, spacing });
+        this.scope = new CslScope(clock);
+        this.queue = [];
+        this.cache = new Map();
+        this.incoming = new Map();
+        this.completed = new Map();
+        this.serial = 0;
+        this.sending = false;
+        this.tick();
+    }
+
+    // Fill each frame using its actual header size, recalculating if the count grows
+    frames(session, id, round, type, value) {
+        const encoded = cslEncode(value);
+        const prefix = `${CSL.prefix}${session}.${id}.${round.toString(36)}.${type}.`;
+        let count = 1;
+        while (true) {
+            const frames = [];
+            for (let offset = 0; offset < encoded.length;) {
+                if (frames.length >= CSL.maxFragments) throw new Error("Too many CSL fragments");
+                const header = `${prefix}${frames.length.toString(36)}.${count.toString(36)}.`;
+                const fragment = encoded.slice(offset, offset + CSL.frameLength - header.length);
+                frames.push(header + fragment);
+                offset += fragment.length;
+            }
+            if (frames.length === count) return frames;
+            count = frames.length;
+        }
+    }
+
+    // Queue one message atomically and retain its fragments for bounded repair
+    send(session, round, type, value, priority = 2, done = () => { }, replaceKey = "") {
+        if (this.scope.closed || !this.canSend({ session, type })) return;
+        const id = (++this.serial).toString(36);
+        const frames = this.frames(session, id, round, type, value);
+        if (replaceKey) this.queue = this.queue.filter(item => item.replaceKey !== replaceKey);
+        if (this.queue.length + frames.length > 2048) throw new Error("CSL chat queue is full");
+        this.cache.set(`${session}:${id}`, { frames, type, time: this.now() });
+        if (this.cache.size > 256) this.cache.delete(this.cache.keys().next().value);
+        frames.forEach((frame, index) => {
+            this.queue.push({
+                session, type, frame, priority, replaceKey,
+                done: index === frames.length - 1 ? done : null
+            });
+        });
+        this.pump();
+        return id;
+    }
+
+    // Deliver at a bounded rate while preserving insertion order within priorities
+    pump() {
+        if (this.sending || !this.queue.length || this.scope.closed) return;
+        this.queue = this.queue.filter(item => this.canSend(item));
+        if (!this.queue.length) return;
+        const scope = this.scope;
+        this.sending = true;
+        this.queue.sort((a, b) => a.priority - b.priority);
+        const item = this.queue.shift();
+        try {
+            const sent = this.sendFrame(item.frame, item);
+            if (sent !== false && item.done) item.done();
+        }
+        catch (error) {
+            this.warning(`Chat delivery failed: ${error.message}`);
+        }
+        scope.after(this.spacing, () => {
+            this.sending = false;
+            this.pump();
+        });
+    }
+
+    // Validate headers before allocating buffers or accepting any message payload
+    receive(text, sender) {
+        if (typeof text !== "string" || text.length > CSL.frameLength || typeof sender !== "string") return;
+        const match = /^§CSL!([A-Za-z0-9_-]{4})\.([a-z0-9]{1,6})\.([a-z0-9]{1,4})\.([A-Z])\.([a-z0-9]{1,2})\.([a-z0-9]{1,2})\.([A-Za-z0-9_-]+)$/.exec(text);
+        if (!match) return;
+        const [, session, id, roundText, type, indexText, countText, fragment] = match;
+        const round = parseInt(roundText, 36);
+        const index = parseInt(indexText, 36);
+        const count = parseInt(countText, 36);
+        const envelope = { session, id, round, type, sender };
+        if (count < 1 || count > CSL.maxFragments || index >= count || !this.allow(envelope)) return;
+        const key = `${session}:${sender}:${id}`;
+        if (this.completed.has(key)) return;
+        let entry = this.incoming.get(key);
+        if (!entry) {
+            if (this.incoming.size >= CSL.maxAssemblies) return;
+            entry = { ...envelope, count, parts: new Map(), time: this.now(), progress: this.now(), repair: 0 };
+            this.incoming.set(key, entry);
+        }
+        const headerChanged = entry.count !== count || entry.type !== type || entry.round !== round;
+        const fragmentChanged = entry.parts.has(index) && entry.parts.get(index) !== fragment;
+        if (headerChanged || fragmentChanged) {
+            this.incoming.delete(key);
+            this.completed.set(key, this.now());
+            return;
+        }
+        if (!entry.parts.has(index)) {
+            entry.progress = this.now();
+            entry.repair = 0;
+        }
+        entry.parts.set(index, fragment);
+        if (entry.parts.size !== count) return;
+        this.incoming.delete(key);
+        this.completed.set(key, this.now());
+        try {
+            const encoded = Array.from({ length: count }, (_, part) => entry.parts.get(part)).join("");
+            const value = cslDecode(encoded);
+            if (type === CSL_MESSAGE.REPAIR) this.repair(session, value);
+            else this.receiveMessage(envelope, value);
+        }
+        catch (error) {
+            this.warning(`Ignored invalid chat data: ${error.message}`);
+        }
+    }
+
+    // Resend only requested fragments of an existing cached message
+    repair(session, request) {
+        if (!request || request.to !== this.name || !Array.isArray(request.missing) || request.missing.length > CSL.maxFragments) return;
+        const cached = this.cache.get(`${session}:${request.id}`);
+        if (!cached || (cached.lastRepair !== undefined && this.now() - cached.lastRepair < 1000)) return;
+        cached.lastRepair = this.now();
+        for (const index of new Set(request.missing)) {
+            if (!Number.isInteger(index)) continue;
+            const frame = cached.frames[index];
+            if (!frame || this.queue.some(item => item.frame === frame) || this.queue.length >= 2048) continue;
+            this.queue.push({ session, type: cached.type, frame, priority: 1 });
+        }
+        this.pump();
+    }
+
+    // Expire transfer state and ask for missing fragments without infinite retries
+    tick() {
+        const now = this.now();
+        for (const [key, entry] of this.incoming) {
+            if (!this.allow(entry) || now - entry.time > CSL.cacheTime || entry.repair >= 3) {
+                this.incoming.delete(key);
+                continue;
+            }
+            if (now - entry.progress > CSL.repairDelay * (entry.repair + 1)) {
+                entry.repair++;
+                const missing = Array.from({ length: entry.count }, (_, index) => index).filter(index => !entry.parts.has(index));
+                this.send(entry.session, entry.round, CSL_MESSAGE.REPAIR, { to: entry.sender, id: entry.id, missing }, 1);
+            }
+        }
+        for (const map of [this.cache, this.completed]) {
+            for (const [key, value] of map) {
+                const time = typeof value === "number" ? value : value.time;
+                if (now - time > CSL.cacheTime) map.delete(key);
+            }
+        }
+        this.scope.after(800, () => this.tick());
+    }
+
+    // Remove pending transfers when their session is no longer relevant
+    cancel(session) {
+        this.queue = this.queue.filter(item => item.session !== session);
+        for (const map of [this.cache, this.incoming, this.completed]) {
+            for (const key of map.keys()) if (key.startsWith(`${session}:`)) map.delete(key);
+        }
+    }
+
+    // Discard every transfer and timer before using this transport in another room
+    reset() {
+        this.close();
+        this.scope = new CslScope(this.clock);
+        this.tick();
+    }
+
+    // Release all scheduler resources when the transport itself is discarded
+    close() {
+        this.scope.close();
+        this.queue = [];
+        this.cache.clear();
+        this.incoming.clear();
+        this.completed.clear();
+        this.sending = false;
+    }
+}
+
+// Drive solo and multiplayer through the same host-authoritative round lifecycle
+class CslSession {
+    // Receive immutable quiz inputs and environment-specific presentation hooks
+    constructor({ id, name, host, config, roster, plan = [], solo = false, emit, hooks, clock = globalThis, now = cslNow }) {
+        Object.assign(this, { id, name, host, solo, emit, hooks, clock, now });
+        this.config = cslClone(config);
+        this.plan = cslClone(plan);
+        this.players = roster.map(player => ({
+            ...player,
+            score: config.scoreType === 4 ? config.lives : 0,
+            correctGuesses: 0,
+            reviveScore: 0,
+            eliminated: null,
+            connected: true,
+            activeFrom: 1
+        }));
+        this.scope = new CslScope(clock);
+        this.phaseScope = new CslScope(clock);
+        this.phase = "starting";
+        this.round = 0;
+        this.playedRound = 0;
+        this.sequence = 0;
+        this.applied = 0;
+        this.media = new Map();
+        this.readiness = new Map();
+        this.commits = new Map();
+        this.localAnswers = new Map();
+        this.answers = {};
+        this.roundParticipants = new Set();
+        this.votes = new Set();
+        this.revision = 0;
+        this.ackRevision = 0;
+        this.paused = false;
+        this.lastSync = -Infinity;
+        this.waitUntilRound = 1;
+        this.result = null;
+        this.pendingResult = false;
+    }
+
+    // Identify the sole authority for transitions and scoring
+    get isHost() {
+        return this.name === this.host;
+    }
+
+    // Resolve the local participant without accepting player IDs from chat payloads
+    get self() {
+        return this.players.find(player => player.name === this.name);
+    }
+
+    // Select participants eligible for this round and its readiness/skip votes
+    active() {
+        return this.players.filter(player => player.connected && player.activeFrom <= this.round);
+    }
+
+    // Start presentation once and announce a new host session to the room
+    start(announce = false) {
+        this.hooks.start(this);
+        if (!announce) return;
+        const roster = this.players.map(({ id, name }) => ({ id, name }));
+        this.send(CSL_MESSAGE.BEGIN, { config: this.config, roster }, 0, 0, () => this.buffer(1));
+    }
+
+    // Route one logical message through the injected network or solo loopback
+    send(type, value, round = this.round, priority = 1, done = () => { }, replaceKey = "") {
+        if (this.scope.closed) return;
+        try {
+            return this.emit(this.id, round, type, this.solo ? value : cslPack(type, value), priority, done, replaceKey);
+        }
+        catch (error) {
+            this.hooks.warning(error.message);
+            this.hooks.end(this);
+        }
+    }
+
+    // Broadcast an ordered host decision and apply it locally after it is sent
+    publish(type, value = {}, round = this.round, done = () => { }) {
+        if (!this.isHost || this.scope.closed) return;
+        const payload = { ...value, q: ++this.sequence };
+        this.send(type, payload, round, 1, () => {
+            if (this.scope.closed) return;
+            this.receive({ session: this.id, sender: this.host, round, type }, payload);
+            done();
+        });
+    }
+
+    // Cancel phase work before entering another phase
+    enter(phase) {
+        this.phaseScope.close();
+        this.phaseScope = new CslScope(this.clock);
+        this.phase = phase;
+        this.votes.clear();
+    }
+
+    // Send only media information before guessing, keeping titles on the host
+    prepare(round) {
+        if (!this.isHost || round > this.config.totalSongs || this.media.has(round)) return;
+        const song = this.plan[round - 1];
+        const media = { audio: song.audio, video480: song.video480, video720: song.video720, sample: song.sample };
+        this.media.set(round, media);
+        this.hooks.prepare(this, round, media);
+        this.send(CSL_MESSAGE.PREPARE, media, round, 2);
+    }
+
+    // Wait a bounded time for preparation, then continue even when media fails
+    buffer(round) {
+        if (this.scope.closed || !this.isHost) return;
+        this.round = round;
+        this.enter("buffering");
+        this.hooks.buffer(this);
+        this.phaseScope.after(CSL.bufferTime, () => {
+            const status = this.readiness.get(round) || new Map();
+            const missing = this.active().filter(player => !status.has(player.name));
+            if (missing.length) this.hooks.warning(`Song ${round}: continuing without ${missing.map(player => player.name).join(", ")} (loading timed out)`);
+            this.bufferExpired = true;
+            this.maybePlay();
+        });
+        this.prepare(round);
+        this.maybePlay();
+    }
+
+    // Start exactly once when everyone responds or the loading deadline expires
+    maybePlay() {
+        if (!this.isHost || this.phase !== "buffering" || this.paused || this.playPending) return;
+        const status = this.readiness.get(this.round) || new Map();
+        if (!this.bufferExpired && this.active().some(player => !status.has(player.name))) return;
+        this.playPending = true;
+        this.publish(CSL_MESSAGE.PLAY, {}, this.round);
+    }
+
+    // Report success or failure for the actual media round reported by AMQ
+    ready(round, ok) {
+        if (!Number.isInteger(round) || round < Math.max(1, this.round) || round > this.round + 1) return;
+        if (!this.readiness.has(round)) this.readiness.set(round, new Map());
+        const status = this.readiness.get(round);
+        if (status.has(this.name) && status.get(this.name) === ok) return;
+        status.set(this.name, ok);
+        if (!ok) this.hooks.warning(`Song ${round}: media could not load; the game will continue`);
+        this.send(CSL_MESSAGE.READY, { ok }, round);
+        this.maybePlay();
+    }
+
+    // Freeze local input once, allowing AMQ's normal auto-submit handler to run
+    freeze() {
+        if (this.frozen) return;
+        this.autoSubmitting = true;
+        this.hooks.lock(this);
+        this.autoSubmitting = false;
+        this.frozen = true;
+    }
+
+    // Measure submission time within the current round's guess window
+    answerTime() {
+        return Math.max(0, Math.min((this.now() - this.started) / 1000, this.config.guessTime + this.config.extraGuessTime));
+    }
+
+    // Store solo answers directly and commit multiplayer answers for later reveal
+    async submit(answer) {
+        if ((this.phase !== "guessing" || this.frozen) && !this.autoSubmitting) return false;
+        if (!this.self || !this.self.connected || this.self.activeFrom > this.round || typeof answer !== "string") return false;
+        if (new TextEncoder().encode(answer).length > 512) {
+            this.hooks.warning("Answer is too long to send");
+            return false;
+        }
+        if (this.solo) {
+            const time = this.answerTime();
+            this.answers[this.self.id] = { answer, time };
+            this.hooks.answered(this, this.self.id, time);
+            return true;
+        }
+        const round = this.round;
+        const revision = ++this.revision;
+        const secret = cslRandom(12);
+        const record = { revision, answer, secret };
+        this.localAnswers.set(revision, record);
+        const hash = await cslCommitment(this.id, round, revision, answer, secret);
+        if (this.scope.closed || this.round !== round || revision !== this.revision || !["guessing", "locking"].includes(this.phase)) return false;
+        record.hash = hash;
+        this.retryCommit(record, round);
+        return true;
+    }
+
+    // Repair a wholly lost commitment as well as a partially received transfer
+    retryCommit(record, round, attempt = 0) {
+        if (this.scope.closed || round !== this.round || record.revision !== this.revision) return;
+        if (this.ackRevision >= record.revision || !["guessing", "locking"].includes(this.phase) || attempt >= 3) return;
+        this.send(CSL_MESSAGE.COMMIT, { revision: record.revision, hash: record.hash }, round, 0, () => { }, "answer");
+        this.scope.after(700, () => this.retryCommit(record, round, attempt + 1));
+    }
+
+    // Retry a complete reveal until the host confirms it or collection ends
+    retryReveal(record, round, attempt = 0) {
+        if (this.scope.closed || round !== this.round || this.phase !== "collecting" || this.revealAckRevision >= record.revision || attempt >= 3) return;
+        this.send(CSL_MESSAGE.REVEAL, { revision: record.revision, answer: record.answer, secret: record.secret }, round, 0);
+        this.scope.after(1000, () => this.retryReveal(record, round, attempt + 1));
+    }
+
+    // Record one phase-specific skip vote from the local participant
+    vote() {
+        if (this.self && this.self.connected && ["guessing", "revealing"].includes(this.phase)) this.send(CSL_MESSAGE.SKIP, { phase: this.phase });
+    }
+
+    // Advance after unanimous votes without allowing dead or missing peers to stall
+    checkVotes() {
+        if (!this.isHost || !this.active().length || this.active().some(player => !this.votes.has(player.name))) return;
+        if (this.phase === "guessing") this.lock();
+        else if (this.phase === "revealing") this.advance();
+    }
+
+    // Stop guessing, then reserve a short window for in-flight commitments
+    lock() {
+        if (!this.isHost || this.phase !== "guessing" || this.lockPending) return;
+        this.lockPending = true;
+        this.publish(CSL_MESSAGE.LOCK);
+    }
+
+    // Verify a reveal against the commitment frozen before any answers were exposed
+    async reveal(sender, value) {
+        if (!this.isHost || this.phase !== "collecting") return;
+        if (!value || typeof value.answer !== "string" || !/^[a-f0-9]{24}$/.test(value.secret)) return;
+        if (new TextEncoder().encode(value.answer).length > 512) return;
+        const player = this.players.find(player => player.name === sender);
+        const commit = this.commits.get(sender);
+        const round = this.round;
+        if (!player || !commit || commit.revision !== value.revision) return;
+        if (this.answers[player.id]) {
+            this.send(CSL_MESSAGE.REVEAL_RECEIPT, { to: sender, revision: value.revision }, round, 0);
+            return;
+        }
+        const hash = await cslCommitment(this.id, round, value.revision, value.answer, value.secret);
+        if (this.scope.closed || this.round !== round || this.phase !== "collecting" || hash !== commit.hash) return;
+        this.answers[player.id] = { answer: value.answer, time: commit.time };
+        this.send(CSL_MESSAGE.REVEAL_RECEIPT, { to: sender, revision: value.revision }, round, 0);
+        if (!this.missingReveals().length) this.finishRound();
+    }
+
+    // Resolve commitments still awaiting their matching answer reveal
+    missingReveals() {
+        return [...this.commits.keys()].filter(name => {
+            const player = this.players.find(player => player.name === name);
+            return !this.answers[player.id];
+        });
+    }
+
+    // Publish scores and song metadata together so they cannot arrive out of order
+    finishRound() {
+        if (!this.isHost || this.phase !== "collecting" || this.pendingResult) return;
+        this.pendingResult = true;
+        const missing = this.missingReveals();
+        if (missing.length) this.hooks.warning(`Missing answer reveals: ${missing.join(", ")}`);
+        const song = this.plan[this.round - 1];
+        const players = cslScore(this.players, this.answers, song, this.config, this.round, this.roundParticipants);
+        const { acceptedAnswers, sample, ...publicSong } = song;
+        const living = players.filter(player => player.connected && player.score > 0);
+        const lastSong = this.round === this.config.totalSongs;
+        const livesFinished = this.config.scoreType === 4
+            && (this.players.length === 1 ? living.length === 0 : living.length <= 1);
+        const finished = lastSong || livesFinished;
+        this.publish(CSL_MESSAGE.RESULT, { players, song: publicSong, finished });
+    }
+
+    // Finish the reveal while paused and defer the next round until the host resumes
+    advance() {
+        if (!this.isHost || this.phase !== "revealing" || this.advancePending) return;
+        this.advanceRequested = true;
+        if (this.paused && !this.result.finished) return;
+        this.advancePending = true;
+        if (this.result.finished) this.publish(CSL_MESSAGE.FINAL, { ranks: cslStandings(this.players, this.config.scoreType) });
+        else {
+            this.bufferExpired = false;
+            this.buffer(this.round + 1);
+            this.advancePending = false;
+        }
+    }
+
+    // Toggle the normal AMQ pause-between-songs behavior on the host
+    pause() {
+        if (this.isHost) this.publish(CSL_MESSAGE.PAUSE, { paused: !this.paused });
+    }
+
+    // Announce host-controlled return to the server's still-existing lobby
+    stop() {
+        if (this.isHost) {
+            this.enter("stopping");
+            this.publish(CSL_MESSAGE.STOP);
+        }
+        else this.hooks.warning("The host controls returning to the lobby; use Leave to exit");
+    }
+
+    // Mark disconnected players so readiness and votes keep making progress
+    disconnect(name) {
+        const player = this.players.find(player => player.name === name);
+        if (!this.isHost || !player?.connected) return;
+        player.connected = false;
+        player.eliminated = this.round;
+        this.publish(CSL_MESSAGE.CONNECTION, { name, connected: false });
+        this.maybePlay();
+        this.checkVotes();
+    }
+
+    // Produce a bounded snapshot without exposing unrevealed titles or answers
+    snapshot(to, nonce) {
+        if (!this.isHost) return;
+        const player = this.players.find(player => player.name === to);
+        if (player && !player.connected) {
+            player.connected = true;
+            player.activeFrom = this.phase === "buffering" ? this.round : this.round + 1;
+        }
+        const result = this.phase === "revealing" ? { song: this.result.song, finished: this.result.finished } : null;
+        const players = result ? this.players : this.players.map(({ answer, correct, time, ...player }) => player);
+        this.send(CSL_MESSAGE.SNAPSHOT, {
+            to, nonce, config: this.config, players, q: this.applied, phase: this.phase,
+            media: [...this.media].filter(([round]) => round >= this.round).map(([round, media]) => [round, media]),
+            ...(result ? { result } : {}),
+            ...(this.phase === "collecting" ? { commits: [...this.commits].map(([name, commit]) => [name, commit.revision]) } : {}),
+            paused: this.paused, ranks: this.phase === "finished" ? cslStandings(this.players, this.config.scoreType) : null
+        }, this.round, 2);
+    }
+
+    // Preserve an ongoing round during sync while keeping late arrivals at a round boundary
+    restore(snapshot, round) {
+        if (snapshot.q < this.applied) return;
+        const reveal = snapshot.result && round === this.playedRound;
+        const ongoing = round === this.playedRound && ["guessing", "locking", "collecting"].includes(this.phase)
+            && ["guessing", "locking", "collecting"].includes(snapshot.phase);
+        const alreadyRevealed = this.phase === "revealing";
+        if (reveal) this.freeze();
+        this.applied = snapshot.q;
+        this.players = cslClone(snapshot.players);
+        this.round = round;
+        this.paused = snapshot.paused;
+        if (!ongoing) this.enter(reveal ? "revealing" : "waiting");
+        this.waitUntilRound = ongoing || snapshot.phase === "buffering" ? round : round + 1;
+        if (reveal) {
+            this.result = { ...snapshot.result, players: this.players };
+            if (!alreadyRevealed) this.hooks.result(this, this.result);
+        }
+        else if (ongoing) {
+            if (snapshot.phase === "locking" && this.phase === "guessing") this.beginLocking();
+            if (snapshot.phase === "collecting") this.beginCollection(snapshot.commits);
+        }
+        else this.hooks.restore(this);
+        this.hooks.pause(this);
+        for (const [mediaRound, media] of snapshot.media) {
+            if (mediaRound >= this.waitUntilRound && !this.media.has(mediaRound)) {
+                this.media.set(mediaRound, media);
+                this.hooks.prepare(this, mediaRound, media);
+            }
+        }
+        if (snapshot.ranks) {
+            this.enter("finished");
+            this.hooks.finish(this, snapshot.ranks);
+        }
+    }
+
+    // Ask the host for fresh state, limiting requests during a prolonged outage
+    synchronize() {
+        if (this.isHost || this.now() - this.lastSync < 4000) return;
+        this.lastSync = this.now();
+        this.hooks.sync(this);
+    }
+
+    // Capture scoring participants before any gameplay callbacks can change connection state
+    beginGuessing(round) {
+        this.round = round;
+        this.playedRound = round;
+        this.roundParticipants = new Set(this.active().map(player => player.id));
+        this.enter("guessing");
+        this.playPending = false;
+        this.bufferExpired = false;
+        this.lockPending = false;
+        this.advancePending = false;
+        this.advanceRequested = false;
+        this.pendingResult = false;
+        this.commits.clear();
+        this.localAnswers.clear();
+        this.answers = {};
+        this.result = null;
+        this.revision = 0;
+        this.ackRevision = 0;
+        this.revealAckRevision = 0;
+        this.frozen = false;
+        this.started = this.now();
+        this.hooks.play(this);
+        this.phaseScope.after(this.config.guessTime * 1000, () => {
+            if (this.config.extraGuessTime) this.hooks.extra(this);
+        });
+        this.phaseScope.after((this.config.guessTime + this.config.extraGuessTime) * 1000, () => {
+            this.freeze();
+            this.lock();
+        });
+        if (this.isHost) this.scope.after(100, () => this.prepare(round + 1));
+        for (const oldRound of this.media.keys()) if (oldRound < round) this.media.delete(oldRound);
+        for (const oldRound of this.readiness.keys()) if (oldRound < round) this.readiness.delete(oldRound);
+    }
+
+    // Hold solo results for 500 ms or allow multiplayer commitments to finish arriving
+    beginLocking() {
+        this.freeze();
+        this.enter("locking");
+        if (!this.isHost) return;
+        this.phaseScope.after(this.solo ? CSL.soloAnswerDelay : CSL.deliveryGrace, () => {
+            if (this.solo) this.beginCollection();
+            else this.publish(CSL_MESSAGE.COLLECT, { commits: [...this.commits].map(([name, commit]) => [name, commit.revision]) });
+        });
+    }
+
+    // Score solo immediately after its delay or collect the frozen multiplayer reveals
+    beginCollection(commits = []) {
+        this.freeze();
+        this.enter("collecting");
+        if (this.solo) {
+            this.finishRound();
+            return;
+        }
+        const accepted = commits.find(([name]) => name === this.name);
+        if (accepted) {
+            const answer = this.localAnswers.get(accepted[1]);
+            if (answer) this.retryReveal(answer, this.round);
+            else this.hooks.warning("Your accepted answer could not be recovered");
+        }
+        else if (this.revision) this.hooks.warning("Your answer did not reach the host before guessing closed");
+        if (this.isHost) this.phaseScope.after(this.commits.size ? CSL.collectTime : 50, () => this.finishRound());
+    }
+
+    // Apply one authoritative round result and schedule the existing replay duration
+    applyResults(value) {
+        this.players = cslClone(value.players);
+        this.result = value;
+        const waiting = this.phase === "waiting" && this.playedRound !== this.round;
+        if (!waiting) this.freeze();
+        this.enter(waiting ? "waiting" : "revealing");
+        if (waiting) this.hooks.restore(this);
+        else this.hooks.result(this, value);
+        if (this.isHost) this.phaseScope.after(this.config.fastSkip ? CSL.fastRevealTime : CSL.revealTime, () => this.advance());
+    }
+
+    // Display final ranks and keep the automatic return-to-lobby delay
+    showFinalStandings(ranks) {
+        this.enter("finished");
+        this.hooks.finish(this, ranks);
+        if (this.isHost) this.phaseScope.after(this.config.fastSkip ? 4000 : 8000, () => this.stop());
+    }
+
+    // Apply validated host decisions or participant requests exactly once
+    receive(envelope, value) {
+        value = cslUnpack(envelope.type, value);
+        if (this.scope.closed || envelope.session !== this.id || !value || typeof value !== "object") return;
+        const { sender, type, round } = envelope;
+        const fromHost = sender === this.host;
+        const player = this.players.find(player => player.name === sender);
+        if (type === CSL_MESSAGE.ANNOUNCE) {
+            if (fromHost && value.q > this.applied) this.synchronize();
+            return;
+        }
+        if (type === CSL_MESSAGE.PREPARE) {
+            if (!fromHost || !(round >= this.waitUntilRound && round >= this.round && round <= this.round + 1)) return;
+            if (this.media.has(round) || !cslValidMedia(value)) return;
+            this.media.set(round, value);
+            this.hooks.prepare(this, round, value);
+            return;
+        }
+        if (type === CSL_MESSAGE.READY) {
+            if (!this.isHost || !player || typeof value.ok !== "boolean") return;
+            if (!(round >= this.round && round <= this.round + 1)) return;
+            if (!this.readiness.has(round)) this.readiness.set(round, new Map());
+            this.readiness.get(round).set(sender, value.ok);
+            if (!value.ok && sender !== this.name) {
+                this.hooks.warning(`Song ${round}: ${sender} could not load media; continuing automatically`);
+            }
+            this.maybePlay();
+            return;
+        }
+        if (type === CSL_MESSAGE.COMMIT) {
+            this.receiveCommit(sender, player, round, value);
+            return;
+        }
+        if (type === CSL_MESSAGE.COMMIT_RECEIPT) {
+            if (!fromHost || round !== this.round || value.to !== this.name) return;
+            if (Number.isInteger(value.revision) && value.revision <= this.revision) {
+                this.ackRevision = Math.max(this.ackRevision, value.revision);
+            }
+            return;
+        }
+        if (type === CSL_MESSAGE.REVEAL_RECEIPT) {
+            if (!fromHost || round !== this.round || value.to !== this.name) return;
+            if (this.localAnswers.has(value.revision)) {
+                this.revealAckRevision = Math.max(this.revealAckRevision, value.revision);
+            }
+            return;
+        }
+        if (type === CSL_MESSAGE.REVEAL) {
+            if (round === this.round) this.reveal(sender, value).catch(error => this.hooks.warning(error.message));
+            return;
+        }
+        if (type === CSL_MESSAGE.SKIP) {
+            if (!this.isHost || !player || !player.connected || !(player.activeFrom <= round)) return;
+            if (round !== this.round || value.phase !== this.phase) return;
+            this.votes.add(sender);
+            this.checkVotes();
+            return;
+        }
+        if (fromHost) this.receiveControl(type, round, value);
+    }
+
+    // Accept newer commitments and acknowledge identical retries from the sender
+    receiveCommit(sender, player, round, value) {
+        if (!player || !player.connected || !(player.activeFrom <= round) || round !== this.round) return;
+        if (!["guessing", "locking"].includes(this.phase)) return;
+        if (!Number.isInteger(value.revision) || value.revision <= 0 || value.revision > 10000) return;
+        if (!/^[A-Za-z0-9_-]{43}$/.test(value.hash)) return;
+
+        const previous = this.commits.get(sender);
+        const newer = !previous || previous.revision < value.revision;
+        const identical = previous && previous.revision === value.revision && previous.hash === value.hash;
+        if (this.isHost && (newer || identical)) {
+            this.send(CSL_MESSAGE.COMMIT_RECEIPT, { to: sender, revision: value.revision }, round, 0, () => { }, `receipt:${sender}`);
+        }
+        if (previous && previous.revision >= value.revision) return;
+        const time = this.answerTime();
+        this.commits.set(sender, { revision: value.revision, hash: value.hash, time });
+        this.hooks.answered(this, player.id, time);
+    }
+
+    // Enforce host sequencing before applying a gameplay transition
+    receiveControl(type, round, value) {
+        if (!Number.isSafeInteger(value.q) || value.q <= this.applied) return;
+        const controlTypes = [
+            CSL_MESSAGE.PLAY, CSL_MESSAGE.LOCK, CSL_MESSAGE.COLLECT, CSL_MESSAGE.RESULT,
+            CSL_MESSAGE.FINAL, CSL_MESSAGE.PAUSE, CSL_MESSAGE.CONNECTION, CSL_MESSAGE.STOP
+        ];
+        if (!controlTypes.includes(type)) return;
+        if (type === CSL_MESSAGE.STOP) {
+            this.applied = value.q;
+            this.hooks.end(this);
+            return;
+        }
+        if (value.q !== this.applied + 1) {
+            this.synchronize();
+            return;
+        }
+        if (!cslValidControl(type, value, this.players, this.config)) return;
+        if (type === CSL_MESSAGE.PLAY) {
+            const sameBufferedRound = round === this.round && ["buffering", "waiting"].includes(this.phase);
+            const nextRound = round === this.round + 1;
+            if (!this.media.has(round) || round < this.waitUntilRound || (!nextRound && !sameBufferedRound)) {
+                this.synchronize();
+                return;
+            }
+        }
+        this.applied = value.q;
+        if (type === CSL_MESSAGE.PAUSE) {
+            this.paused = value.paused;
+            this.hooks.pause(this);
+            this.maybePlay();
+            if (!this.paused && this.advanceRequested) this.advance();
+            return;
+        }
+        if (type === CSL_MESSAGE.CONNECTION) {
+            const target = this.players.find(player => player.name === value.name);
+            if (target) {
+                target.connected = value.connected;
+                if (!target.connected) target.eliminated = round;
+            }
+            this.maybePlay();
+            this.checkVotes();
+            return;
+        }
+        if (type === CSL_MESSAGE.PLAY) this.beginGuessing(round);
+        else if (type === CSL_MESSAGE.LOCK && round === this.round && this.phase !== "waiting") this.beginLocking();
+        else if (type === CSL_MESSAGE.COLLECT && round === this.round && this.phase !== "waiting") this.beginCollection(value.commits);
+        else if (type === CSL_MESSAGE.RESULT && round === this.round) this.applyResults(value);
+        else if (type === CSL_MESSAGE.FINAL) this.showFinalStandings(value.ranks);
+    }
+
+    // Invalidate timers and asynchronous answer work when this quiz ends
+    close() {
+        this.scope.close();
+        this.phaseScope.close();
+        this.phase = "closed";
+        this.localAnswers.clear();
+    }
+}
+
+// Translate canonical session records into the existing AMQ quiz presentation
+class CslAmqAdapter {
+    // Retain the real server lobby independently of AMQ's temporary quiz view
+    constructor(controller) {
+        this.controller = controller;
+        this.serverPlayers = new Map();
+        this.presentPlayers = new Map();
+        this.prepared = new Set();
+    }
+
+    // Copy lobby players before the native view transition removes them
+    capture() {
+        this.originalSettings = cslClone(lobby.settings);
+        this.originalSolo = lobby.soloMode;
+        this.originalSpectator = lobby.isSpectator;
+        this.serverPlayers = new Map(Object.values(lobby.players).map(player => [player.name, {
+            name: player.name, gamePlayerId: player.gamePlayerId, level: player.level,
+            avatar: cslClone(player.avatarInfo), ready: player.ready, inGame: true,
+            teamNumber: player.teamNumber, multipleChoice: false
+        }]));
+        this.presentPlayers = new Map(this.serverPlayers);
+        this.prepared.clear();
+    }
+
+    // Build compact group and position maps only for avatars present on this client
+    layout(session) {
+        const ordered = cslStandings(session.players, session.config.scoreType)
+            .map(rank => session.players.find(player => player.id === rank.id))
+            .filter(player => quiz.players[player.id]);
+        const groups = {};
+        ordered.forEach((player, index) => {
+            const group = Math.floor(index / 8) + 1;
+            (groups[group] ||= []).push(player.id);
+        });
+        return { ordered, groups };
+    }
+
+    // Initialize the native quiz with supported scoring and independent settings
+    start(session) {
+        const settings = cslClone(this.originalSettings);
+        settings.gameMode = this.originalSolo ? "Solo" : "Standard";
+        settings.scoreType = session.config.scoreType;
+        settings.lives = session.config.lives;
+        settings.teamSize = 1;
+        settings.showSelection = quiz.SHOW_SELECTION_IDS.AUTO;
+        settings.numberOfSongs = session.config.totalSongs;
+        settings.modifiers.fullSongRange = session.config.fullSongRange;
+        settings.modifiers.skipGuessing = true;
+        settings.modifiers.skipReplay = true;
+        const players = session.players.flatMap((player, index) => {
+            const info = this.presentPlayers.get(player.name);
+            if (!info) return [];
+            return [{
+                name: player.name, level: info.level, gamePlayerId: player.id,
+                avatarInfo: cslClone(info.avatar), host: player.name === session.host,
+                score: player.score, correctGuesses: player.correctGuesses, inGame: player.connected,
+                pose: 1, position: Math.floor(index / 8) + 1, positionSlot: index % 8,
+                teamCaptain: null, teamNumber: null, teamPlayer: null
+            }];
+        });
+        const groups = {};
+        players.forEach((player, index) => (groups[Math.floor(index / 8) + 1] ||= []).push(player.gamePlayerId));
+        quiz.cslActive = true;
+        const originalLobbySettings = lobby.settings;
+        lobby.settings = settings;
+        this.controller.synthetic = true;
+        try {
+            fireListener("Game Starting", {
+                gameMode: settings.gameMode, showSelection: 1, groupSlotMap: groups, players,
+                multipleChoice: false,
+                quizDescription: {
+                    quizId: session.config.quizId,
+                    startTime: session.config.startTime,
+                    roomName: this.originalSettings.roomName || "Custom Song List"
+                }
+            });
+        }
+        finally {
+            lobby.settings = originalLobbySettings;
+            this.controller.synthetic = false;
+        }
+        quiz.fullSongRange = session.config.fullSongRange;
+    }
+
+    // Load the next AMQ player using a unique session-and-round media identity
+    prepare(session, round, media) {
+        if (this.prepared.has(round)) return;
+        this.prepared.add(round);
+        const videoInfo = createCslVideoInfo(media.audio, media.video480, media.video720);
+        videoInfo.id = `${session.id}:${round}`;
+        fireListener("quiz next video info", {
+            playLength: session.config.guessTime, playbackSpeed: 1,
+            startPoint: media.sample, videoInfo, forceBuffering: this.prepared.size > 1
+        });
+        if (this.prepared.size === 1) fireListener("quiz ready", { numberOfSongs: session.config.totalSongs });
+    }
+
+    // Show normal buffering feedback while the host's loading deadline runs
+    buffer(session) {
+        fireListener("quiz waiting buffering", { firstSong: session.round === 1 });
+    }
+
+    // Render a normal guess phase using the canonical session settings
+    play(session) {
+        quiz.answerInput.active = !quiz.isSpectator;
+        fireListener("play next song", {
+            time: session.config.guessTime, extraGuessTime: session.config.extraGuessTime,
+            songNumber: session.round, progressBarState: { length: session.config.guessTime, played: 0 },
+            onLastSong: session.round === session.config.totalSongs, multipleChoiceNames: null
+        });
+    }
+
+    // Let AMQ perform normal auto-submit and input disabling
+    lock() {
+        fireListener("guess phase over");
+    }
+
+    // Translate one normalized song consistently for solo and multiplayer
+    songInfo(song) {
+        return {
+            animeNames: { english: song.animeEnglishName, romaji: song.animeRomajiName },
+            artist: song.songArtist, artistInfo: song.artistInfo || { name: song.songArtist },
+            arrangerInfo: song.arrangerInfo, composerInfo: song.composerInfo, songName: song.songName,
+            videoTargetMap: { catbox: createCatboxLinkObject(song.audio, song.video480, song.video720) },
+            type: song.songType, typeNumber: song.songTypeNumber, annId: song.annId, annSongId: song.annSongId,
+            highRisk: 0,
+            animeScore: null,
+            animeType: escapeHtml(song.animeType),
+            vintage: formatAmqVintage(song.animeVintage) || { key: "avatar_lore.unknown", data: {} },
+            animeDifficulty: song.songDifficulty, animeTags: song.animeTags.map(escapeHtml), animeGenre: song.animeGenre.map(escapeHtml),
+            altAnimeNames: song.altAnimeNames, altAnimeNamesAnswers: song.altAnimeNamesAnswers,
+            rebroadcast: song.rebroadcast, dub: song.dub,
+            siteIds: { annId: song.annId, malId: song.malId, kitsuId: song.kitsuId, aniListId: song.aniListId }
+        };
+    }
+
+    // Build the native result and scoreboard fields from one shared player model
+    playerResults(session) {
+        const { ordered, groups } = this.layout(session);
+        const players = ordered.map((player, index) => {
+            let pose = 6;
+            if (player.correct) pose = 5;
+            else if (player.answer) pose = 4;
+            return {
+                gamePlayerId: player.id,
+                pose,
+                correct: Boolean(player.correct),
+                score: player.score,
+                reviveScore: player.reviveScore,
+                correctGuesses: player.correctGuesses,
+                level: quiz.players[player.id].level,
+                answerTimeing: player.time ?? session.config.guessTime + session.config.extraGuessTime,
+                listStatus: null,
+                showScore: null,
+                position: Math.floor(index / 8) + 1,
+                positionSlot: index % 8
+            };
+        });
+        return { groups, players };
+    }
+
+    // Reveal answers and metadata atomically through the existing AMQ event API
+    result(session, result) {
+        const native = this.playerResults(session);
+        fireListener("player answers", {
+            answers: native.players.map(player => ({
+                gamePlayerId: player.gamePlayerId,
+                pose: player.pose, answer: session.players.find(entry => entry.id === player.gamePlayerId).answer
+            })), progressBarState: null
+        });
+        fireListener("answer results", {
+            players: native.players, songInfo: this.songInfo(result.song),
+            groupMap: native.groups,
+            progressBarState: {
+                length: session.config.fastSkip ? CSL.fastRevealTime / 1000 : CSL.revealTime / 1000,
+                played: 0
+            },
+            watched: false
+        });
+    }
+
+    // Restore scores without inventing missing round history or replaying a song
+    restore(session) {
+        const native = this.playerResults(session);
+        for (const player of session.players) {
+            if (quiz.players[player.id]) quiz.players[player.id].state = { score: player.score, reviveScore: player.reviveScore, inGame: player.connected };
+        }
+        quiz.scoreboard.updateStandings(native.players, native.groups);
+        quiz.infoContainer.setCurrentSongCount(session.round);
+        quiz.answerInput.active = false;
+        fireListener("quiz overlay message", "Waiting for Next Song");
+    }
+
+    // Present the same final ranking on every participant's client
+    finish(session, ranks) {
+        fireListener("quiz end result", { resultStates: ranks.map(rank => ({ gamePlayerId: rank.id, pose: 1, endPosition: rank.place })), progressBarState: null });
+    }
+
+    // Reconstruct the real server lobby using server membership and original IDs
+    end() {
+        const players = [...this.serverPlayers.values()].map(player => ({ ...player, ready: true, teamNumber: null, multipleChoice: false }));
+        const spectators = gameChat.spectators.map(player => ({ name: player.name, gamePlayerId: null }));
+        const ownIsSpectator = !players.some(player => player.name === selfName);
+        quiz.cslActive = false;
+        quiz.isSpectator = ownIsSpectator;
+        fireListener("quiz over", {
+            spectators, inLobby: true, settings: this.originalSettings, soloMode: this.originalSolo,
+            inQueue: [], hostName: lobby.hostName, gameId: lobby.gameId, players, numberOfTeams: 0, teamFullMap: {}, songPool: {}
+        });
+    }
+}
+
+// Integrate the editor, chat transport, and AMQ presentation without global quiz state
+class CslController {
+    // Keep long-lived integration resources separate from each disposable session
+    constructor() {
+        this.roomScope = new CslScope();
+        this.roomId = lobby.gameId;
+        this.session = null;
+        this.discovery = null;
+        this.adapter = new CslAmqAdapter(this);
+        this.ended = new Set();
+        this.syncNonce = "";
+        this.lastSyncSent = -Infinity;
+        this.joiningAsPlayer = false;
+        this.announcementPending = false;
+        this.syncRequests = new Map();
+        this.lobbyCommandIds = new Set();
+    }
+
+    // Bind a game listener once for the userscript lifetime
+    listen(type, callback) {
+        new Listener(type, callback).bindListener();
+    }
+
+    // Install chat listeners and narrowly scoped native controls
+    install() {
+        installCslTextRendering();
+        this.transport = new CslTransport({
+            name: selfName,
+            send: (frame, envelope) => this.transmit(frame, envelope), canSend: envelope => this.canSend(envelope),
+            receive: (envelope, value) => this.receive(envelope, value), allow: envelope => this.allow(envelope), warning: sendSystemMessage
+        });
+        this.installRoomListeners();
+        this.installAutocompleteListeners();
+        this.installNativeControls();
+    }
+
+    // Keep server membership and chat events separate from simulated quiz state
+    installRoomListeners() {
+        this.roomId = lobby.gameId;
+        this.listen("game chat update", data => data.messages.forEach(message => this.chat(message)));
+        this.listen("Game Chat Message", message => this.chat(message));
+        for (const event of ["Join Game", "Spectate Game", "Host Game", "Host Custom Game"]) this.listen(event, data => {
+            if (data.error) return;
+            this.dispose();
+            this.roomId = data.gameId;
+        });
+        this.listen("quiz over", data => {
+            this.roomId = data.gameId;
+        });
+        this.listen("Game Starting", () => { if (!this.synthetic) this.dispose(); });
+        this.listen("Host Promotion", data => {
+            this.discovery = null;
+            if (!this.session) return;
+            lobby.hostName = data.newHost;
+            sendSystemMessage("Host changed; ending custom quiz");
+            this.roomScope.after(0, () => this.end());
+        });
+        this.listen("Player Left", data => {
+            if (this.session && data.newHost) lobby.hostName = data.newHost;
+            this.left(data.player.name);
+        });
+        this.listen("Spectator Left", data => {
+            if (this.session && data.newHost) lobby.hostName = data.newHost;
+            this.left(data.spectator);
+        });
+        for (const event of ["New Player", "Spectator Change To Player"]) this.listen(event, data => {
+            this.announce();
+            if (data.name === selfName) {
+                this.joiningAsPlayer = false;
+                this.roomScope.after(4200, () => this.sync());
+            }
+            if (!this.session) return;
+            this.adapter.serverPlayers.set(data.name, cslClone(data));
+            this.adapter.presentPlayers.set(data.name, cslClone(data));
+            const player = this.session.players.find(player => player.name === data.name);
+            if (player && quiz.players[player.id]) fireListener("Rejoining Player", { name: data.name, gamePlayerId: player.id });
+            if (!player && this.session.isHost) lobby.changeToSpectator(data.name);
+        });
+        this.listen("New Spectator", () => this.announce());
+        this.listen("Player Changed To Spectator", data => {
+            if (!this.session) return;
+            const name = data.spectatorDescription.name;
+            this.adapter.serverPlayers.delete(name);
+            this.session.disconnect(name);
+            const player = this.session.players.find(player => player.name === name);
+            if (player && quiz.players[player.id]) {
+                quiz.players[player.id].avatarDisabled = true;
+                quiz.players[player.id].inGame = false;
+            }
+            if (name === selfName) {
+                quiz.isSpectator = true;
+                quiz.answerInput.active = false;
+                quiz.answerInput.disable();
+            }
+        });
+        this.listen("game closed", data => {
+            const active = Boolean(this.session);
+            this.dispose();
+            if (!active) return;
+            messageDisplayer.displayMessage("Room Closed", data.reason);
+            lobby.leave({ supressServerMsg: true });
+        });
+        this.listen("Room Settings Changed", data => {
+            if (this.session) Object.assign(this.adapter.originalSettings, cslClone(data.changes));
+        });
+    }
+
+    // Maintain answer-editor suggestions alongside AMQ's autocomplete updates
+    installAutocompleteListeners() {
+        this.listen("get all song names", data => {
+            animeListLower = new Set(data.names.map(name => name.toLowerCase()));
+            rebuildCslAutocomplete(data.names);
+        });
+        this.listen("update all song names", data => {
+            for (const name of data.deleted) animeListLower.delete(name.toLowerCase());
+            for (const name of data.new) animeListLower.add(name.toLowerCase());
+            if (!autocompleteInput || !(data.deleted.length || data.new.length)) return;
+            const remainingNames = autocompleteInput.options.list.filter(name => !data.deleted.includes(name));
+            rebuildCslAutocomplete(remainingNames.concat(data.new));
+        });
+    }
+
+    // Redirect native controls only while a custom quiz owns the presentation
+    installNativeControls() {
+        const controller = this;
+        const playerLeft = quiz._playerLeaveListner.fire;
+        // Translate changed server IDs only for AMQ's own fixed quiz roster listener
+        quiz._playerLeaveListner.fire = function (data) {
+            if (!controller.session) return playerLeft.call(this, data);
+            const player = controller.session.players.find(player => player.name === data.player.name);
+            if (player && quiz.players[player.id]) return playerLeft.call(this, { ...data, player: { ...data.player, gamePlayerId: player.id } });
+        };
+        const submit = QuizTypeAnswerInputController.prototype.submitAnswer;
+        // Redirect only custom-quiz submissions and preserve normal AMQ behavior
+        QuizTypeAnswerInputController.prototype.submitAnswer = function (answer) {
+            const session = controller.session;
+            if (!session) return submit.apply(this, arguments);
+            session.submit(answer).then(sent => {
+                if (!sent || controller.session !== session) return;
+                this.skipController.highlight = true;
+                fireListener("quiz answer", { answer, success: true });
+                if (options.autoVoteSkipGuess) this.skipController.voteSkip();
+            }).catch(error => sendSystemMessage(error.message));
+        };
+        const skip = quiz.skipController.sendSkipVote;
+        // Send phase-specific votes without polling AMQ's private toggle state
+        quiz.skipController.sendSkipVote = function () {
+            if (!controller.session) return skip.apply(this, arguments);
+            clearTimeout(this.autoVoteTimeout);
+            controller.session.vote();
+        };
+        const videoReady = quiz.videoReady;
+        // Associate native readiness with its exact session-and-round video ID
+        quiz.videoReady = function (id) {
+            if (!controller.session) return videoReady.apply(this, arguments);
+            const round = controller.mediaRound(id);
+            if (round) controller.session.ready(round, true);
+        };
+        const videoError = MoeVideoPlayer.prototype.handleError;
+        // Exhaust alternate media before reporting a non-blocking load failure
+        MoeVideoPlayer.prototype.handleError = function () {
+            if (!controller.session) return videoError.apply(this, arguments);
+            const round = controller.mediaRound(this.songId);
+            if (!round) return;
+            this.tryNextVideo();
+            if (!Object.keys(this.videoMap).length) controller.session.ready(round, false);
+        };
+        const returnLobby = quiz.startReturnLobbyVote;
+        // Keep normal lobby voting outside custom quizzes
+        quiz.startReturnLobbyVote = function () {
+            if (!controller.session) return returnLobby.apply(this, arguments);
+            controller.stop();
+        };
+        const closeView = quiz.closeView;
+        // Dispose only when the quiz actually closes, allowing canceled Leave dialogs
+        quiz.closeView = function () {
+            controller.dispose();
+            return closeView.apply(this, arguments);
+        };
+        const closeLobby = lobby.closeView;
+        // Clear passive discovery and queued chat when leaving the real room view
+        lobby.closeView = function () {
+            if (!controller.synthetic) controller.dispose();
+            return closeLobby.apply(this, arguments);
+        };
+        // Capture custom pause clicks without removing native or third-party handlers
+        quiz.pauseButton.$button[0].addEventListener("click", event => {
+            if (!this.session) return;
+            event.stopImmediatePropagation();
+            event.preventDefault();
+            this.session.pause();
+        }, true);
+    }
+
+    // Identify only a live session announced by the current room's current host
+    sessionId() {
+        if (this.roomId !== lobby.gameId || !cslSupportedRoom()) return "";
+        if (this.session) {
+            if (this.session.scope.closed || this.session.host !== lobby.hostName) return "";
+            return this.session.id;
+        }
+        const discovery = this.discovery;
+        if (!discovery || discovery.host !== lobby.hostName || this.ended.has(discovery.id)) return "";
+        return cslNow() - discovery.time <= CSL.cacheTime ? discovery.id : "";
+    }
+
+    // Coalesce joins into one delayed announcement, only while hosting multiplayer CSL
+    announce() {
+        if (!this.session?.isHost || this.session.solo || this.announcementPending) return;
+        this.announcementPending = true;
+        this.roomScope.after(CSL.announcementDelay, () => {
+            this.announcementPending = false;
+            const session = this.session;
+            if (!session?.isHost || session.solo || session.phase === "stopping") return;
+            session.send(CSL_MESSAGE.ANNOUNCE, { q: session.applied, phase: session.phase }, session.round, 0, () => { }, "announcement");
+        });
+    }
+
+    // Permit public game traffic only for active CSL or its recovery handshake
+    canSend({ session, type }) {
+        const active = this.sessionId();
+        if (!active || lobby.soloMode || session !== active) return false;
+        return Boolean(this.session) || [CSL_MESSAGE.SYNC, CSL_MESSAGE.REPAIR].includes(type);
+    }
+
+    // Recheck room, mode, and session immediately before writing to public chat
+    transmit(frame, envelope) {
+        if (!this.canSend(envelope)) return false;
+        socket.sendCommand({ type: "lobby", command: "game chat message", data: { msg: frame, teamMessage: false } });
+        return true;
+    }
+
+    // Resolve round IDs only for the active session's own media
+    mediaRound(id) {
+        const prefix = `${this.session.id}:`;
+        if (typeof id !== "string" || !id.startsWith(prefix)) return null;
+        const round = Number(id.slice(prefix.length));
+        return Number.isInteger(round) ? round : null;
+    }
+
+    // Limit parsing to current-room senders and allowed directions of authority
+    allow({ session, sender, type }) {
+        if (this.roomId !== lobby.gameId || !cslSupportedRoom()) return false;
+        const roomSender = sender === selfName || sender === lobby.hostName
+            || Object.values(lobby.players).some(player => player.name === sender)
+            || this.session?.players.some(player => player.name === sender)
+            || gameChat.spectators.some(player => player.name === sender);
+        if (!roomSender) return false;
+        if (type === CSL_MESSAGE.SYNC) return this.session?.isHost && session === this.session.id;
+        if (!this.session && lobby.inLobby && sender === lobby.hostName && !this.ended.has(session)) {
+            const discoveryTypes = [
+                CSL_MESSAGE.ANNOUNCE, CSL_MESSAGE.PREPARE, CSL_MESSAGE.PLAY, CSL_MESSAGE.LOCK,
+                CSL_MESSAGE.COLLECT, CSL_MESSAGE.RESULT, CSL_MESSAGE.FINAL, CSL_MESSAGE.PAUSE, CSL_MESSAGE.CONNECTION
+            ];
+            if (discoveryTypes.includes(type)) return true;
+        }
+        if (type === CSL_MESSAGE.SNAPSHOT) return session === this.sessionId() && sender === lobby.hostName && Boolean(this.syncNonce);
+        if (type === CSL_MESSAGE.BEGIN) return !this.session && lobby.inLobby && sender === lobby.hostName && !this.ended.has(session);
+        if (!this.session && [CSL_MESSAGE.REPAIR, CSL_MESSAGE.STOP].includes(type)) return session === this.sessionId() && sender === lobby.hostName;
+        if (session !== this.session?.id) return false;
+        const hostTypes = [
+            CSL_MESSAGE.PREPARE, CSL_MESSAGE.PLAY, CSL_MESSAGE.LOCK, CSL_MESSAGE.COLLECT,
+            CSL_MESSAGE.RESULT, CSL_MESSAGE.FINAL, CSL_MESSAGE.PAUSE, CSL_MESSAGE.CONNECTION,
+            CSL_MESSAGE.STOP, CSL_MESSAGE.ANNOUNCE, CSL_MESSAGE.COMMIT_RECEIPT, CSL_MESSAGE.REVEAL_RECEIPT
+        ];
+        if (hostTypes.includes(type)) return sender === this.session.host;
+        return [CSL_MESSAGE.COMMIT, CSL_MESSAGE.REVEAL, CSL_MESSAGE.READY, CSL_MESSAGE.SKIP, CSL_MESSAGE.REPAIR].includes(type);
+    }
+
+    // Consume protocol traffic independently from its optional chat visibility
+    chat(message) {
+        const lobbyCommand = Object.values(CSL_LOBBY_COMMAND).find(entry => entry.command === message.message);
+        if (lobbyCommand) {
+            if (!this.lobbyCommandsAllowed() || message.sender !== lobby.hostName || this.lobbyCommandIds.has(message.messageId)) return;
+            this.lobbyCommandIds.add(message.messageId);
+            if (this.lobbyCommandIds.size > 64) this.lobbyCommandIds.delete(this.lobbyCommandIds.values().next().value);
+            socket.sendCommand({ type: "lobby", command: "game chat message", data: { msg: lobbyCommand.reply(), teamMessage: false } });
+        }
+        else {
+            if (typeof message.message !== "string" || !message.message.startsWith(CSL.prefix)) return;
+            this.transport.receive(message.message, message.sender);
+        }
+        if (!showCSLMessages) this.roomScope.after(0, () => {
+            const entry = $("#gcPlayerMessage-" + message.messageId);
+            if (entry.length && entry.find(".gcMessage").text() === message.message) {
+                entry.remove();
+                gameChat.currentMessageCount = Math.max(0, gameChat.currentMessageCount - 1);
+                gameChat.$SCROLLABLE_CONTAINERS.perfectScrollbar("update");
+            }
+        });
+    }
+
+    // Construct session hooks with all AMQ-specific effects kept in the adapter
+    hooks() {
+        return {
+            start: session => this.adapter.start(session),
+            prepare: (session, round, media) => this.adapter.prepare(session, round, media),
+            buffer: session => this.adapter.buffer(session),
+            play: session => this.adapter.play(session),
+            lock: session => this.adapter.lock(session),
+            extra: () => fireListener("extra guess time"),
+            result: (session, result) => this.adapter.result(session, result),
+            restore: session => this.adapter.restore(session),
+            finish: (session, ranks) => this.adapter.finish(session, ranks),
+            pause: session => fireListener(session.paused ? "quiz pause triggered" : "quiz unpause triggered", { playerName: session.host }),
+            answered: (session, id, time) => fireListener("player answered", [{ answerTime: time, gamePlayerIds: [id] }]),
+            sync: () => this.sync(),
+            warning: sendSystemMessage,
+            end: () => this.end()
+        };
+    }
+
+    // Select in-memory delivery for solo while preserving identical session rules
+    emit(session, round, type, value, priority, done, replaceKey) {
+        if (this.adapter.originalSolo) {
+            this.session.receive({ session, round, type, sender: selfName }, cslClone(value));
+            done();
+            return;
+        }
+        this.transport.send(session, round, type, value, priority, done, replaceKey);
+    }
+
+    // Start a fixed host plan without sharing the editable song array
+    start(config, plan) {
+        if (this.session) throw new Error("A custom quiz is already running");
+        if (!cslSupportedRoom() || !lobby.inLobby || !lobby.isHost) throw new Error("Use a normal solo or multiplayer lobby as host");
+        if (!cslValidConfig(config)) throw new Error("Invalid quiz settings");
+        this.adapter.capture();
+        const roster = [...this.adapter.serverPlayers.values()].map(player => ({ id: player.gamePlayerId, name: player.name }));
+        if (roster.length > CSL.maxPlayers) throw new Error(`CSL supports at most ${CSL.maxPlayers} players`);
+        if (!this.validRoster(roster)) throw new Error("Invalid player roster");
+        this.session = new CslSession({
+            id: cslSessionId(), name: selfName, host: selfName, config, roster, plan, solo: this.adapter.originalSolo,
+            emit: (...args) => this.emit(...args), hooks: this.hooks()
+        });
+        this.session.start(true);
+    }
+
+    // Validate lobby announcements and nonce-bound recovery before creating a session
+    receive(envelope, value) {
+        if (!this.allow(envelope)) return;
+        value = cslUnpack(envelope.type, value);
+        if (!value || typeof value !== "object") return;
+        const { type, sender, session, round } = envelope;
+        if (type === CSL_MESSAGE.ANNOUNCE && !this.validDiscovery(envelope, value)) return;
+        if (!this.session && this.validDiscovery(envelope, value)) {
+            if (this.discovery?.id !== session || this.discovery.host !== sender) {
+                this.transport.reset();
+                this.syncNonce = "";
+                this.lastSyncSent = -Infinity;
+            }
+            this.discovery = { id: session, host: sender, time: cslNow() };
+            this.sync();
+            return;
+        }
+        if (type === CSL_MESSAGE.STOP && !this.session) {
+            if (Number.isSafeInteger(value.q) && value.q >= 0) {
+                this.ended.add(session);
+                if (this.ended.size > 64) this.ended.delete(this.ended.values().next().value);
+                this.dispose();
+            }
+            return;
+        }
+        if (type === CSL_MESSAGE.SYNC) {
+            if (this.session?.isHost && /^[a-f0-9]{12}$/.test(value.nonce) && cslNow() - (this.syncRequests.get(sender) ?? -Infinity) > 4000) {
+                this.syncRequests.set(sender, cslNow());
+                this.session.snapshot(sender, value.nonce);
+            }
+            return;
+        }
+        if (type === CSL_MESSAGE.BEGIN) {
+            if (!cslValidConfig(value.config) || !this.validRoster(value.roster)) return;
+            const allPlayersPresent = value.roster.every(player => {
+                return Object.values(lobby.players).some(local => local.name === player.name);
+            });
+            if (!allPlayersPresent) return;
+            this.adapter.capture();
+            this.discovery = null;
+            this.syncNonce = "";
+            this.transport.cancel(session);
+            this.session = new CslSession({
+                id: session, name: selfName, host: sender, config: value.config, roster: value.roster,
+                emit: (...args) => this.emit(...args), hooks: this.hooks()
+            });
+            this.session.start();
+            return;
+        }
+        if (type === CSL_MESSAGE.SNAPSHOT) {
+            if (this.validSnapshot(value, round)) this.restoreSnapshot(envelope, value);
+            return;
+        }
+        this.session?.receive(envelope, value);
+    }
+
+    // Reject ambiguous participant identities before they enter a session
+    validRoster(roster) {
+        if (!Array.isArray(roster) || roster.length === 0 || roster.length > CSL.maxPlayers) return false;
+        if (new Set(roster.map(player => player.id)).size !== roster.length) return false;
+        if (new Set(roster.map(player => player.name)).size !== roster.length) return false;
+        return roster.every(player => {
+            if (!Number.isSafeInteger(player.id) || player.id < 0) return false;
+            return typeof player.name === "string" && player.name.length > 0 && player.name.length <= 64;
+        });
+    }
+
+    // Validate recovery state completely before changing lobby roles or quiz state
+    validSnapshot(value, round) {
+        if (value.to !== selfName || value.nonce !== this.syncNonce) return false;
+        if (!cslValidConfig(value.config) || !this.validRoster(value.players)) return false;
+        if (!Number.isSafeInteger(value.q) || value.q < 0) return false;
+        if (!Number.isInteger(round) || round < 0 || round > value.config.totalSongs) return false;
+        if (!Array.isArray(value.media) || value.media.length > 2) return false;
+        if (!value.media.every(entry => Array.isArray(entry) && Number.isInteger(entry[0]) && cslValidMedia(entry[1]))) return false;
+        if (!cslValidPlayerState(value.players, value.config) || typeof value.paused !== "boolean") return false;
+        if (!["starting", "buffering", "guessing", "locking", "collecting", "revealing", "finished"].includes(value.phase)) return false;
+        if (value.phase === "collecting" && !cslValidControl(CSL_MESSAGE.COLLECT, value, value.players, value.config)) return false;
+        if (value.result !== undefined) {
+            if (value.phase !== "revealing") return false;
+            const result = { ...value.result, players: value.players };
+            if (!cslValidControl(CSL_MESSAGE.RESULT, result, value.players, value.config)) return false;
+        }
+        if (value.ranks !== null && !cslValidControl(CSL_MESSAGE.FINAL, { ranks: value.ranks }, value.players, value.config)) return false;
+        return true;
+    }
+
+    // Resume a validated snapshot, restoring a returning player's lobby role first
+    restoreSnapshot({ session, sender, round }, value) {
+        if (this.session && this.session.id !== session) return;
+        if (!this.session && lobby.isSpectator && value.players.some(player => player.name === selfName)) {
+            if (!this.joiningAsPlayer) {
+                this.joiningAsPlayer = true;
+                socket.sendCommand({ type: "lobby", command: "change to player" });
+            }
+            return;
+        }
+        if (!this.session) {
+            this.adapter.capture();
+            this.session = new CslSession({
+                id: session, name: selfName, host: sender, config: value.config, roster: value.players,
+                emit: (...args) => this.emit(...args), hooks: this.hooks()
+            });
+            this.session.start();
+        }
+        this.syncNonce = "";
+        this.discovery = null;
+        this.session.restore(value, round);
+    }
+
+    // Recognize host gameplay packets before requesting a fully validated snapshot
+    validDiscovery({ type, round }, value) {
+        if (!Number.isInteger(round) || round < 0 || round > 10000) return false;
+        if (type === CSL_MESSAGE.PREPARE) return round > 0 && cslValidMedia(value);
+        if (!Number.isSafeInteger(value.q) || value.q < 0) return false;
+        if (type === CSL_MESSAGE.ANNOUNCE) return ["starting", "buffering", "guessing", "locking", "collecting", "revealing", "finished"].includes(value.phase);
+        if (round === 0 || value.q === 0) return false;
+        if ([CSL_MESSAGE.PLAY, CSL_MESSAGE.LOCK].includes(type)) return true;
+        if (type === CSL_MESSAGE.COLLECT) {
+            if (!Array.isArray(value.commits) || value.commits.length > CSL.maxPlayers) return false;
+            return value.commits.every(entry => {
+                if (!Array.isArray(entry) || typeof entry[0] !== "string") return false;
+                return Number.isInteger(entry[1]) && entry[1] > 0;
+            });
+        }
+        if (type === CSL_MESSAGE.RESULT) return this.validRoster(value.players) && typeof value.finished === "boolean" && cslValidSong(value.song);
+        if (type === CSL_MESSAGE.FINAL) {
+            if (!Array.isArray(value.ranks) || value.ranks.length === 0 || value.ranks.length > CSL.maxPlayers) return false;
+            return value.ranks.every(rank => {
+                if (!Number.isSafeInteger(rank.id) || rank.id < 0) return false;
+                return Number.isInteger(rank.place) && rank.place > 0 && rank.place <= value.ranks.length;
+            });
+        }
+        if (type === CSL_MESSAGE.PAUSE) return typeof value.paused === "boolean";
+        if (type !== CSL_MESSAGE.CONNECTION) return false;
+        return typeof value.name === "string" && value.name.length > 0 && value.name.length <= 64
+            && typeof value.connected === "boolean";
+    }
+
+    // Request fresh state with a nonce that cannot be satisfied by chat history
+    sync() {
+        const session = this.sessionId();
+        if (!session || this.session?.isHost || lobby.soloMode || cslNow() - this.lastSyncSent < 4000) return;
+        this.lastSyncSent = cslNow();
+        this.syncNonce ||= cslRandom();
+        this.transport.send(session, 0, CSL_MESSAGE.SYNC, { nonce: this.syncNonce }, 1, () => { }, "sync");
+    }
+
+    // Use AMQ's current lobby state for manual prompts, independently of CSL tracking
+    lobbyCommandsAllowed() {
+        return lobby.inLobby && ["Solo", "Multiplayer"].includes(lobby.settings.gameMode);
+    }
+
+    // Broadcast one host request; the host replies through the same chat listener
+    promptLobby(entry) {
+        if (!Object.values(CSL_LOBBY_COMMAND).includes(entry)) return;
+        if (!this.lobbyCommandsAllowed() || !lobby.isHost) return sendSystemMessage("Use these buttons as host in a normal solo or multiplayer lobby");
+        socket.sendCommand({ type: "lobby", command: "game chat message", data: { msg: entry.command, teamMessage: false } });
+    }
+
+    // Track actual departures separately from custom quiz score/player identities
+    left(name) {
+        if (!this.session) return;
+        this.syncRequests.delete(name);
+        this.adapter.serverPlayers.delete(name);
+        if (name === this.session.host) {
+            sendSystemMessage("Host left; ending custom quiz");
+            this.roomScope.after(0, () => this.end());
+        }
+        else this.session.disconnect(name);
+    }
+
+    // Route the existing stop hotkey and lobby control through host authority
+    stop() {
+        if (this.session?.isHost) this.transport.cancel(this.session.id);
+        this.session?.stop();
+    }
+
+    // Retire a completed or aborted session before returning to the real lobby
+    end() {
+        if (!this.session) return;
+        this.ended.add(this.session.id);
+        if (this.ended.size > 64) this.ended.delete(this.ended.values().next().value);
+        this.dispose();
+        this.adapter.end();
+    }
+
+    // Release local state while allowing rejoining a session that is still running
+    dispose() {
+        this.roomScope.close();
+        this.roomScope = new CslScope();
+        this.transport.reset();
+        this.discovery = null;
+        this.syncNonce = "";
+        this.lastSyncSent = -Infinity;
+        this.joiningAsPlayer = false;
+        this.announcementPending = false;
+        this.syncRequests.clear();
+        this.lobbyCommandIds.clear();
+        if (!this.session) return;
+        this.session.close();
+        this.session = null;
+        quiz.cslActive = false;
     }
 }
 
