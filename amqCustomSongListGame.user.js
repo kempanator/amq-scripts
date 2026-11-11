@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.111
+// @version      0.112
 // @description  Play a simulated AMQ solo or multiplayer quiz with a custom song list
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -2302,13 +2302,23 @@ let searchController;
 let searchRequest = 0;
 const cslController = new CslController();
 
-// Initialize only after AMQ has completed loading its client UI.
-const loadInterval = setInterval(() => {
-    if (document.querySelector("#loadingScreen.hidden")) {
-        clearInterval(loadInterval);
+// Initialize once AMQ finishes loading, or immediately if it is already ready.
+function startScript() {
+    const loadingScreen = document.querySelector("#loadingScreen");
+    if (!loadingScreen) return;
+    if (loadingScreen.classList.contains("hidden")) {
         setup();
     }
-}, 500);
+    else {
+        const observer = new MutationObserver(() => {
+            if (loadingScreen.classList.contains("hidden")) {
+                observer.disconnect();
+                setup();
+            }
+        });
+        observer.observe(loadingScreen, { attributes: true, attributeFilter: ["class"] });
+    }
+}
 
 // Rebuild AMQ's autocomplete index and cancel searches using the previous names.
 function rebuildCslAutocomplete(names) {
@@ -4580,3 +4590,5 @@ function applyStyles() {
         document.head.appendChild(style);
     }
 }
+
+startScript();
