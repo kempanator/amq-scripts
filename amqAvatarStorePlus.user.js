@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Avatar Store Plus
 // @namespace    https://github.com/kempanator
-// @version      0.9
+// @version      0.10
 // @description  More features for the avatar store
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -29,12 +29,6 @@ New Features:
 
 "use strict";
 if (typeof Listener === "undefined") return;
-const loadInterval = setInterval(() => {
-    if (document.querySelector("#loadingScreen.hidden")) {
-        clearInterval(loadInterval);
-        setup();
-    }
-}, 500);
 
 const saveData = validateLocalStorage("avatarStorePlus");
 let avatarTileWidth = saveData.avatarTileWidth ?? "";
@@ -45,17 +39,31 @@ let legacyAvatarStoreFilters = saveData.legacyAvatarStoreFilters ?? false;
 let hideFilteredAvatars = saveData.hideFilteredAvatars ?? false;
 let wishlist = normalizeWishlistFromStorage(saveData.wishlist);
 let wishlistSort = normalizeWishlistSort(saveData.wishlistSort);
-let hotKeys = {
-    prevPage: loadHotkey("prevPage"),
-    nextPage: loadHotkey("nextPage"),
-}
-
 let $modernFilters;
 let $legacyFilters;
 let $searchInput;
 let $wishlist;
 let $aspColorNames;
 let aspStoreColorCatalogRankMap = new Map();
+let hotkeyController;
+let hotKeys;
+
+const hotkeyActions = {
+    prevPage: {
+        label: "Prev Page",
+        enabled: () => storeWindow.open,
+        run: () => {
+            navigateOutfitPage(-1);
+        }
+    },
+    nextPage: {
+        label: "Next Page",
+        enabled: () => storeWindow.open,
+        run: () => {
+            navigateOutfitPage(1);
+        }
+    }
+};
 
 const BULK_BUY_DELAY_MS = 200;
 const CURRENCY_BASE_URL = "https://animemusicquiz.com/cdn/v1/ui/currency/30px/";
@@ -98,7 +106,35 @@ const TIER_MAP = {
     },
 }
 
-// setup
+const WISHLIST_EMPTY_HTML = '<p class="asp-wishlist-empty">No skins saved yet. Click the heart on an avatar tile to save.</p>';
+
+// Initialize once AMQ finishes loading
+function startScript() {
+    initializeState();
+    const loadingScreen = document.querySelector("#loadingScreen");
+    if (loadingScreen.classList.contains("hidden")) {
+        setup();
+        return;
+    }
+    const observer = new MutationObserver(() => {
+        if (!loadingScreen.classList.contains("hidden")) return;
+        observer.disconnect();
+        setup();
+    });
+    observer.observe(loadingScreen, { attributes: true, attributeFilter: ["class"] });
+}
+
+// Prepare runtime state and early hooks before waiting for the page
+function initializeState() {
+    hotkeyController = new HotkeyController({
+        actions: hotkeyActions,
+        savedBindings: saveData.hotKeys,
+        onChange: saveSettings
+    });
+    hotKeys = hotkeyController.bindings;
+}
+
+// Setup
 function setup() {
     // Build legacy and modern store top filters
     const $top = $("#swRightColumnTop");
@@ -348,7 +384,7 @@ function setup() {
     // Insert all containers in order
     $bottomInner.prepend($tabContainer, $avatarContainer, $searchContainer, $wishlistContainer, $settingsContainer);
 
-    // Slot a color-name strip above the pose row showing the active avatar and background colors.
+    // Slot a color-name strip above the pose row showing the active avatar and background colors
     $aspColorNames = $(/*html*/`
         <div id="aspColorNames">
             <div class="asp-color-names-row">
@@ -428,7 +464,7 @@ function setup() {
     $("#aspGoToBackgroundBtn").on("click", () => {
         const bg = storeWindow.avatarColumn.currentBackground;
         if (!bg) return;
-        // Unique backgrounds aren't owned by a character; toggle background-select mode where they live.
+        // Unique backgrounds aren't owned by a character; toggle background-select mode where they live
         if (bg.backgroundUniqueId) {
             if (!storeWindow.inBackgroundMode) storeWindow.toggleBackgroundSelect();
             return;
@@ -618,8 +654,8 @@ function setup() {
     new Listener("decoration unlocked", () => updateSearchPanel()).bindListener();
     new Listener("decoration locked", () => updateSearchPanel()).bindListener();
 
-    // Show event-locked colors in the color grid (client filters them out of displayContent).
-    // When hideFilteredAvatars is on, StoreMainContainer.displayContent drops non-matching tiles.
+    // Show event-locked colors in the color grid (client filters them out of displayContent)
+    // When hideFilteredAvatars is on, StoreMainContainer.displayContent drops non-matching tiles
     StoreAvatar.prototype.displayColors = function () {
         this.mainContainer.displayContent(this.colors);
         if (!this.colorsLoaded) {
@@ -651,40 +687,9 @@ function setup() {
         applyAvatarSearchFilter();
     };
 
-    createHotkeyTable([
-        { action: "prevPage", title: "Prev Page" },
-        { action: "nextPage", title: "Next Page" },
-    ]);
+    hotkeyController.renderTable(document.querySelector("#aspHotkeyTable tbody"));
 
-    const hotkeyActions = {
-        prevPage: () => {
-            navigateOutfitPage(-1);
-        },
-        nextPage: () => {
-            navigateOutfitPage(1);
-        },
-    };
-
-    document.addEventListener("keydown", (event) => {
-        const key = event.key.toUpperCase();
-        const ctrl = event.ctrlKey;
-        const alt = event.altKey;
-        const shift = event.shiftKey;
-        const match = (b) => {
-            if (!b.key) return false;
-            if (key !== b.key) return false;
-            if (ctrl !== b.ctrl) return false;
-            if (alt !== b.alt) return false;
-            if (shift !== b.shift) return false;
-            return true;
-        }
-        for (const [action, bind] of Object.entries(hotKeys)) {
-            if (match(bind)) {
-                event.preventDefault();
-                hotkeyActions[action]();
-            }
-        }
-    });
+    hotkeyController.start();
 
     applyStyles();
     AMQ_addScriptData({
@@ -740,7 +745,7 @@ function readAspStoreTopFilterState() {
 }
 
 /**
- * Returns whether this store color matches the current ASP top-level filters.
+ * Returns whether this store color matches the current ASP top-level filters
  * @param {object} c - StoreColor to test
  * @param {object} s - Filter state object as returned by readAspStoreTopFilterState
  */
@@ -763,7 +768,7 @@ function storeColorMatchesAspTopFilters(c, s) {
  * Refreshes the #aspColorNames strip from `storeWindow.avatarColumn`. Avatar color comes straight
  * off `currentAvatar.colorName` (StoreColor.fullDescription includes it). Background color is more
  * involved: normal `backgroundDescription` from StoreColor carries `avatarId/colorId` but no name,
- * so we resolve through the catalog. Unique backgrounds have their own `name`.
+ * so we resolve through the catalog. Unique backgrounds have their own `name`
  */
 function updateAspColorNames() {
     const a = storeWindow.avatarColumn.currentAvatar;
@@ -780,7 +785,7 @@ function updateAspColorNames() {
             if (c?.name) {
                 bgText = capitalizeMajorWords(c.name);
                 // When the background's source outfit differs from the worn avatar, surface it in
-                // parentheses (e.g. "Red (Winter Hibiki)"). Standard outfits collapse to just the avatar.
+                // parentheses (e.g. "Red (Winter Hibiki)"). Standard outfits collapse to just the avatar
                 if (a && a.avatarId !== b.avatarId) {
                     bgText += av.outfitName === "Standard"
                         ? ` (${av.avatarName})`
@@ -827,9 +832,9 @@ function applyAspStoreTopFilters() {
 }
 
 /**
- * Re-renders the open outfit/color grid so hide-vs-dim matches current inFilter flags.
- * No-op when the main pane is not showing StoreAvatar or StoreColor tiles.
- * If the grid was emptied by a filter with no matches, recovers from the current selection.
+ * Re-renders the open outfit/color grid so hide-vs-dim matches current inFilter flags
+ * No-op when the main pane is not showing StoreAvatar or StoreColor tiles
+ * If the grid was emptied by a filter with no matches, recovers from the current selection
  */
 function refreshAspStoreGridForFilterHide() {
     const content = storeWindow.mainContainer.currentContent;
@@ -913,9 +918,9 @@ function countAllStoreSearchMatches(query) {
 }
 
 /**
- * Ordered list of { character, avatar } outfit pages that pass current filters.
+ * Ordered list of { character, avatar } outfit pages that pass current filters
  * With a query, only outfits with a matching in-filter color are included; without a query, every
- * in-filter outfit is a page. Prev/next steps between outfits (sub-pages), not only between characters.
+ * in-filter outfit is a page. Prev/next steps between outfits (sub-pages), not only between characters
  */
 function getOutfitPages(query) {
     query = normalizeSearchQuery(query);
@@ -956,7 +961,7 @@ function openOutfitInStore(character, storeAvatar, scroll) {
  * Store skin tiles lazy-load images when Perfect Scrollbar scroll events fire (`ps-scroll-y`) or via a
  * manual `lazyLoadEvent`. After swapping grid content `handleRemoved` cancels handlers, but if the outfit
  * was opened before (`colorsLoaded`) the client does not always call `lazyLoadEvent()` again — tiles stay
- * on the spinner until a real wheel scroll fires. Refresh layout and re-trigger loads for visible colors.
+ * on the spinner until a real wheel scroll fires. Refresh layout and re-trigger loads for visible colors
  */
 function kickStoreLazyLoadsAfterLayout() {
     const mc = storeWindow.mainContainer;
@@ -1007,9 +1012,9 @@ function isWishlistableAvatarSkinTile($tile) {
 }
 
 /**
- * Injects/updates one heart per color swatch; keeps wishlisted in sync.
+ * Injects/updates one heart per color swatch; keeps wishlisted in sync
  * Wishlist-row buy-button state is not touched here; it only changes on unlock,
- * which is handled by the "unlock avatar" listener.
+ * which is handled by the "unlock avatar" listener
  */
 function refreshWishlistTileButtons() {
     $("#swContentAvatarContainer .swAvatarTile").each(function () {
@@ -1053,8 +1058,8 @@ function wishlistBuyBlockReason(color) {
 }
 
 /**
- * Disables each row’s buy control when the catalog `StoreColor` is unlocked; re-enables if not.
- * Call after wishlist row DOM changes and when the store may have updated lock state.
+ * Disables each row’s buy control when the catalog `StoreColor` is unlocked; re-enables if not
+ * Call after wishlist row DOM changes and when the store may have updated lock state
  */
 function syncWishlistBuyButtonsOwnedState() {
     $("#aspWishlistList .asp-wishlist-row").each(function () {
@@ -1094,7 +1099,7 @@ function avatarHeadUrl(a, colorName) {
 }
 
 /**
- * Build `priceItems` like `storeAvatarColumn` unlock (avatar + this color only), for `storePriceModal.showAvatar`.
+ * Build `priceItems` like `storeAvatarColumn` unlock (avatar + this color only), for `storePriceModal.showAvatar`
  * @returns {{ priceItems: object[], avatarId: number, colorId: number } | null}
  */
 function buildAvatarUnlockPriceItemsFromStoreColor(c) {
@@ -1155,7 +1160,7 @@ function buildAvatarUnlockPriceItemsFromStoreColor(c) {
     return { priceItems, avatarId, colorId };
 }
 
-// Shows the default AMQ price modal for a wishlist row’s unlock (or errors if not purchasable).
+// Shows the default AMQ price modal for a wishlist row’s unlock (or errors if not purchasable)
 function buyWishlistSkin(avatarId, colorId) {
     const c = findStoreColorInCatalog(avatarId, colorId);
     const reason = wishlistBuyBlockReason(c);
@@ -1167,10 +1172,8 @@ function buyWishlistSkin(avatarId, colorId) {
     storePriceModal.showAvatar(built.priceItems, built.avatarId, built.colorId);
 }
 
-const WISHLIST_EMPTY_HTML = '<p class="asp-wishlist-empty">No skins saved yet. Click the heart on an avatar tile to save.</p>';
-
 /**
- * Given a StoreColor, returns the label strings for the wishlist row: outfit + avatar name, and color name.
+ * Given a StoreColor, returns the label strings for the wishlist row: outfit + avatar name, and color name
  * @param {StoreColor} c
  */
 function wishlistSkinStringsFromColor(c) {
@@ -1194,7 +1197,7 @@ function wishlistRowHtmlFromIds(avatarId, colorId) {
     const reason = wishlistBuyBlockReason(c);
     const buyTitle = reason || "Buy this skin";
     const buyDisabled = reason ? " disabled" : "";
-    // Head is mounted post-insertion by attachWishlistRowHead() so animated skins can use AvatarHeadDisplayHandler.
+    // Head is mounted post-insertion by attachWishlistRowHead() so animated skins can use AvatarHeadDisplayHandler
     return /*html*/`
         <div class="asp-wishlist-row" data-wishlist-key="${k}" data-avatar-id="${avatarId}" data-color-id="${colorId}">
             <div class="asp-wishlist-row-head"></div>
@@ -1295,8 +1298,8 @@ function syncWishlistSortUi() {
  * head image otherwise. The static path mirrors the client's quiz/nexus pattern
  * (`animated ? animatedHeadColorName : name`) rather than calling `StoreColor.getAvatarHeadSrc`,
  * which unconditionally prefers `animatedHeadColorName` and therefore returns the default-color
- * head URL for any static color that has the field populated.
- * Spines pause when the wishlist tab isn't currently selected (resumed by switchTab).
+ * head URL for any static color that has the field populated
+ * Spines pause when the wishlist tab isn't currently selected (resumed by switchTab)
  */
 function attachWishlistRowHead($row, c) {
     const $head = $row.find(".asp-wishlist-row-head");
@@ -1323,7 +1326,7 @@ function attachWishlistRowHead($row, c) {
     }
 }
 
-// Tear down a row's head handler (destroys the spine animator if any). Safe to call on rows that never had one.
+// Tear down a row's head handler (destroys the spine animator if any). Safe to call on rows that never had one
 function detachWishlistRowHead($row) {
     const handler = $row.data("aspHeadHandler");
     if (!handler) return;
@@ -1331,7 +1334,7 @@ function detachWishlistRowHead($row) {
     $row.removeData("aspHeadHandler");
 }
 
-// Removes one wishlist row from the DOM, or restores the empty placeholder when the last row is removed.
+// Removes one wishlist row from the DOM, or restores the empty placeholder when the last row is removed
 function removeWishlistRowInDom(avatarId, colorId) {
     const $row = findWishlistRow(avatarId, colorId);
     detachWishlistRowHead($row);
@@ -1362,7 +1365,7 @@ function insertWishlistRowAtSortedPosition(avatarId, colorId) {
     attachWishlistRowHead(findWishlistRow(avatarId, colorId), color);
 }
 
-// Rebuilds the full wishlist panel from `wishlist` (used on load, sort changes, import; remove uses incremental DOM).
+// Rebuilds the full wishlist panel from `wishlist` (used on load, sort changes, import; remove uses incremental DOM)
 function renderWishlist() {
     $wishlist.find(".asp-wishlist-row").each(function () {
         detachWishlistRowHead($(this));
@@ -1380,7 +1383,7 @@ function renderWishlist() {
     refreshWishlistTileButtons();
 }
 
-// Cost-tier bucket for a color: 0 = Standard (note-priced), 1-4 = Common/Rare/Epic/Legendary, 5 = Unique.
+// Cost-tier bucket for a color: 0 = Standard (note-priced), 1-4 = Common/Rare/Epic/Legendary, 5 = Unique
 function storeColorTierBucket(c) {
     if (!c) return 0;
     if (c.unique) return 5;
@@ -1398,9 +1401,9 @@ function wishlistTierIconHtml(c) {
     return `<i class="${escapeHtml(icon.classes)} asp-wishlist-tier-icon" aria-hidden="true" title="${title}"></i>`;
 }
 
-// Per-tier breakdown rows for an outfit's colors.
-// Cost-tier bucket for a color: 0 = Standard (note-priced), 1-4 = Common/Rare/Epic/Legendary, 5 = Unique.
-// Default colors use the avatar's ticketTier since the unlock cost is the avatar's; other colors use their own.
+// Per-tier breakdown rows for an outfit's colors
+// Cost-tier bucket for a color: 0 = Standard (note-priced), 1-4 = Common/Rare/Epic/Legendary, 5 = Unique
+// Default colors use the avatar's ticketTier since the unlock cost is the avatar's; other colors use their own
 function tierBreakdownRows(avatar) {
     const owned = [0, 0, 0, 0, 0, 0];
     const total = [0, 0, 0, 0, 0, 0];
@@ -1418,7 +1421,7 @@ function tierBreakdownRows(avatar) {
     }));
 }
 
-// Per-outfit breakdown rows for a character preview page. Each row uses the outfit's default-color head as its icon.
+// Per-outfit breakdown rows for a character preview page. Each row uses the outfit's default-color head as its icon
 function outfitBreakdownRows(character) {
     return character.avatars.map((avatar) => {
         const total = avatar.colors.length;
@@ -1456,7 +1459,7 @@ function catalogAllSkinsContext() {
     };
 }
 
-// Builds the right-side context block (name + owned + breakdown) based on current store view.
+// Builds the right-side context block (name + owned + breakdown) based on current store view
 function readSearchContext() {
     const first = storeWindow.mainContainer.currentContent[0];
     if (!first || storeWindow.topBar.tickets.displayed || storeWindow.topBar.favorites.open) {
@@ -1600,7 +1603,7 @@ function getAllStoreColors() {
 }
 
 /**
- * Notes + rhythm for one bulk step (recolor-only when outfit already “bought” in sim).
+ * Notes + rhythm for one bulk step (recolor-only when outfit already “bought” in sim)
  */
 function noteAndRhythmCostForSingleUnlock(av, c, outfitUnlocked) {
     let notes = 0;
@@ -1623,8 +1626,8 @@ function noteAndRhythmCostForSingleUnlock(av, c, outfitUnlocked) {
 }
 
 /**
- * Minimum notes + rhythm if you always pick notes when that checkout line has a note price.
- * Lines with 0 notes but a rhythm price require rhythm — both minima apply across the batch.
+ * Minimum notes + rhythm if you always pick notes when that checkout line has a note price
+ * Lines with 0 notes but a rhythm price require rhythm — both minima apply across the batch
  */
 function minNotesAndRhythmPreferNotesPerUnlock(av, c, outfitUnlocked) {
     let minN = 0;
@@ -1651,7 +1654,7 @@ function minNotesAndRhythmPreferNotesPerUnlock(av, c, outfitUnlocked) {
 
 /**
  * Sends one `unlock avatar` command and resolves after the matching `unlock avatar` socket payload
- * (so bulk buys don’t stack commands before the server / client finish the previous unlock).
+ * (so bulk buys don’t stack commands before the server / client finish the previous unlock)
  */
 function sendUnlockAvatarAndWait(avatarId, colorId, timeoutMs = 10000) {
     return new Promise((resolve, reject) => {
@@ -1688,8 +1691,8 @@ function sendUnlockAvatarAndWait(avatarId, colorId, timeoutMs = 10000) {
 }
 
 /**
- * Bulk-unlock every `candidates` row in an order that matches client pricing.
- * `candidates` are StoreColors on one outfit’s grid.
+ * Bulk-unlock every `candidates` row in an order that matches client pricing
+ * `candidates` are StoreColors on one outfit’s grid
  */
 function bulkBuy(candidates) {
     if (!candidates) return;
@@ -1709,10 +1712,10 @@ function bulkBuy(candidates) {
     if (!avatar) return;
     let ordered;
 
-    if (avatar.unlocked) { // default color is already unlocked
+    if (avatar.unlocked) { // Default color is already unlocked
         ordered = [...candidates];
     }
-    else { // ensures the default color is bought first
+    else { // Ensures the default color is bought first
         const defaultColor = candidates.find((c) => c.colorId === avatar.defaultColorId);
         if (!defaultColor) {
             Swal.fire({
@@ -1847,8 +1850,8 @@ function getFilteredBackgroundDescriptionsForAvatar(avatarDesc) {
 }
 
 /**
- * True if this avatar + background preview would not hit the disabled "Missing Skin Bonus" state.
- * Mirrors storeAvatarColumn: paired default BG, unique BG, or 10+ unlocks on the background’s source outfit.
+ * True if this avatar + background preview would not hit the disabled "Missing Skin Bonus" state
+ * Mirrors storeAvatarColumn: paired default BG, unique BG, or 10+ unlocks on the background’s source outfit
  */
 function comboPassesSkinBonusGate(avatarDesc, bgDesc) {
     if (!avatarDesc || !bgDesc) return false;
@@ -1864,7 +1867,7 @@ function comboPassesSkinBonusGate(avatarDesc, bgDesc) {
     return storeWindow.getAvatarBonusUnlocked(bgDesc.avatarId);
 }
 
-// Sets randomized accessory (option) on/off on a copied avatar description when randomize asks for it.
+// Sets randomized accessory (option) on/off on a copied avatar description when randomize asks for it
 function applyAccessoryToAvatarDesc(avatarDesc, curA, randAvatar, randAccessory) {
     if (randAvatar && !randAccessory) {
         avatarDesc.optionActive = curA.optionActive;
@@ -1953,9 +1956,7 @@ function randomizeSelectedParts() {
     storeWindow.handleAvatarSelected(avatarDesc, bgDesc, frontId, backId);
 }
 
-/**
- * Maps a visible .swAvatarTile to mainContainer.currentContent[i] (same order as tiles in #swContentAvatarContainer).
- */
+// Maps a visible .swAvatarTile to mainContainer.currentContent[i] (same order as tiles in #swContentAvatarContainer)
 function resolveStoreModelFromAvatarTile($tile) {
     const content = storeWindow.mainContainer.currentContent;
     if (!content.length) return null;
@@ -1975,7 +1976,7 @@ function tierShortLabelFromTypeKey(typeKey) {
     return typeKey;
 }
 
-// reset all tabs and switch to the inputted tab
+// Reset all tabs and switch to the inputted tab
 function switchTab(tab) {
     const $w = $("#swRightColumnBottomInner");
     const wasWishlist = $w.find("#aspWishlistTab").hasClass("selected");
@@ -1986,7 +1987,7 @@ function switchTab(tab) {
     if (tab === "aspSearch") {
         queueMicrotask(updateSearchPanel);
     }
-    // Pause/resume any wishlist spine animators based on whether the tab is currently visible.
+    // Pause/resume any wishlist spine animators based on whether the tab is currently visible
     const isWishlist = tab === "aspWishlist";
     if (isWishlist !== wasWishlist) {
         const method = isWishlist ? "handleDisplayed" : "handleDetatched";
@@ -1996,77 +1997,225 @@ function switchTab(tab) {
     }
 }
 
-// load hotkey from local storage, input optional default values
-function loadHotkey(action, key = "", ctrl = false, alt = false, shift = false) {
-    const item = saveData.hotKeys?.[action];
-    if (!item || typeof item !== "object") return { key, ctrl, alt, shift };
-    return {
-        key: String(item.key ?? key).toUpperCase(),
-        ctrl: Boolean(item.ctrl ?? item.ctrlKey ?? ctrl),
-        alt: Boolean(item.alt ?? item.altKey ?? alt),
-        shift: Boolean(item.shift ?? item.shiftKey ?? shift)
+// Manage hotkey bindings, recording, and settings editor
+class HotkeyController {
+    static bindingTypes = { key: "string", ctrl: "boolean", alt: "boolean", shift: "boolean" };
+
+    static normalizeKey(key) {
+        const uppercase = key.toUpperCase();
+        if ([...key].length === 1 && [...uppercase].length !== 1) return key;
+        return uppercase;
     }
-}
 
-// create hotkey rows and add to table
-function createHotkeyTable(data) {
-    const $tbody = $("#aspHotkeyTable tbody");
-    for (const { action, title } of data) {
-        const $input = $("<input>", { type: "text", class: "hk-input", readonly: true, "data-action": action })
-            .val(bindingToText(hotKeys[action]))
-            .on("click", startHotkeyRecord);
-        $tbody.append($("<tr>")
-            .append($("<td>", { text: title }))
-            .append($("<td>", { class: "asp-settings-tile-value" }).append($input)));
+    // Keep valid fields and silently replace invalid values with defaults
+    static normalizeBinding(value, fallback = { key: "", ctrl: false, alt: false, shift: false }) {
+        if (!value || typeof value !== "object" || Array.isArray(value)) {
+            return { ...fallback };
+        }
+
+        const binding = {};
+        for (const [field, type] of Object.entries(HotkeyController.bindingTypes)) {
+            const savedValue = value[field];
+            if (typeof savedValue !== type) {
+                binding[field] = fallback[field];
+                continue;
+            }
+            binding[field] = field === "key" ? HotkeyController.normalizeKey(savedValue) : savedValue;
+        }
+        return binding;
     }
-}
 
-// begin hotkey capture on click
-function startHotkeyRecord() {
-    const $input = $(this);
-    if ($input.hasClass("recording")) return;
-    const action = $input.data("action");
-    const capture = (e) => {
-        e.stopImmediatePropagation();
-        e.preventDefault();
-        if (!e.key) return;
-        if (["Shift", "Control", "Alt", "Meta"].includes(e.key)) return;
-        if ((e.key === "Delete" || e.key === "Backspace" || e.key === "Escape") && !e.altKey && !e.ctrlKey && !e.shiftKey && !e.metaKey) {
-            hotKeys[action] = {
-                key: "",
-                ctrl: false,
-                alt: false,
-                shift: false
-            };
+    // Restore known actions and discard unrecognized saved entries
+    static normalizeBindings(value, defaults) {
+        const bindings = {};
+        if (!value || typeof value !== "object" || Array.isArray(value)) {
+            value = {};
         }
-        else {
-            hotKeys[action] = {
-                key: e.key.toUpperCase(),
-                ctrl: e.ctrlKey,
-                alt: e.altKey,
-                shift: e.shiftKey
-            };
+        for (const [action, fallback] of Object.entries(defaults)) {
+            bindings[action] = HotkeyController.normalizeBinding(value[action], fallback);
         }
-        saveSettings();
-        finish();
-    };
-    const finish = () => {
-        document.removeEventListener("keydown", capture, true);
-        $input.removeClass("recording").val(bindingToText(hotKeys[action])).off("blur", finish);
-    };
-    document.addEventListener("keydown", capture, true);
-    $input.addClass("recording").val("Press keys…").on("blur", finish);
-}
+        return bindings;
+    }
 
-// input hotKeys[action] and convert the data to a string for the input field
-function bindingToText(b) {
-    if (!b) return "";
-    const keys = [];
-    if (b.ctrl) keys.push("CTRL");
-    if (b.alt) keys.push("ALT");
-    if (b.shift) keys.push("SHIFT");
-    if (b.key) keys.push(b.key === " " ? "SPACE" : b.key);
-    return keys.join(" + ");
+    static getDefaults(actions) {
+        const defaults = {};
+        for (const [action, definition] of Object.entries(actions)) {
+            defaults[action] = HotkeyController.normalizeBinding(definition.defaultBinding);
+        }
+        return defaults;
+    }
+
+    constructor({ actions, savedBindings, onChange }) {
+        this.actions = actions;
+        this.entries = Object.entries(actions);
+        this.onChange = onChange;
+        this.defaults = HotkeyController.getDefaults(actions);
+        this.editors = new Map();
+        this.recording = null;
+
+        this.bindings = HotkeyController.normalizeBindings(savedBindings, this.defaults);
+    }
+
+    formatBinding(binding) {
+        if (!binding.key) return "";
+        const parts = [];
+        if (binding.ctrl) parts.push("CTRL");
+        if (binding.alt) parts.push("ALT");
+        if (binding.shift) parts.push("SHIFT");
+        parts.push(binding.key === " " ? "SPACE" : binding.key);
+        return parts.join(" + ");
+    }
+
+    isSupportedEvent(event) {
+        if (!event.key || event.metaKey || event.isComposing || event.getModifierState("AltGraph")) return false;
+        const key = HotkeyController.normalizeKey(event.key);
+        return !["SHIFT", "CONTROL", "ALT", "META", "ALTGRAPH", "DEAD", "PROCESS", "UNIDENTIFIED"].includes(key);
+    }
+
+    start() {
+        document.addEventListener("keydown", this.handleKeydown);
+    }
+
+    destroy() {
+        this.cancelRecording();
+        document.removeEventListener("keydown", this.handleKeydown);
+        this.editors.clear();
+    }
+
+    setBindings(value) {
+        const imported = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+        this.stopRecording();
+
+        for (const [action] of this.entries) {
+            this.bindings[action] = Object.hasOwn(imported, action)
+                ? HotkeyController.normalizeBinding(imported[action])
+                : { ...this.defaults[action] };
+        }
+        this.refreshEditors();
+    }
+
+    handleKeydown = event => {
+        if (this.recording || !this.isSupportedEvent(event)) return;
+        const key = HotkeyController.normalizeKey(event.key);
+
+        // All matches intentionally run, including while typing and on repeated keydowns
+        for (const [action, definition] of this.entries) {
+            const binding = this.bindings[action];
+            if (!binding.key || binding.key !== key) continue;
+            if (binding.ctrl !== event.ctrlKey) continue;
+            if (binding.alt !== event.altKey) continue;
+            if (binding.shift !== event.shiftKey) continue;
+            if (definition.enabled && !definition.enabled()) continue;
+
+            event.preventDefault();
+            definition.run();
+        }
+    };
+
+    refreshEditors() {
+        for (const [action, editor] of this.editors) {
+            const text = this.formatBinding(this.bindings[action]);
+            editor.button.textContent = text || "—";
+            editor.button.setAttribute("aria-label", this.actions[action].label + " shortcut: " + (text || "unbound"));
+            editor.button.classList.remove("recording");
+            editor.button.classList.toggle("unset", !this.bindings[action].key);
+            editor.clear.hidden = !this.bindings[action].key;
+        }
+    }
+
+    stopRecording() {
+        if (!this.recording) return false;
+        document.removeEventListener("keydown", this.captureKeydown, true);
+        this.recording.button.removeEventListener("blur", this.cancelRecording);
+        window.removeEventListener("blur", this.cancelRecording);
+        this.recording = null;
+        return true;
+    }
+
+    cancelRecording = () => {
+        if (this.stopRecording()) this.refreshEditors();
+    };
+
+    commitBinding(action, binding) {
+        this.stopRecording();
+        this.bindings[action] = binding;
+        this.refreshEditors();
+        this.onChange();
+    }
+
+    captureKeydown = event => {
+        event.stopImmediatePropagation();
+        if (event.isComposing) return;
+        event.preventDefault();
+
+        const unmodified = !event.ctrlKey && !event.altKey && !event.shiftKey && !event.metaKey;
+        if (unmodified && event.key === "Escape") {
+            this.cancelRecording();
+            return;
+        }
+        if (unmodified && ["Delete", "Backspace"].includes(event.key)) {
+            this.commitBinding(this.recording.action, HotkeyController.normalizeBinding());
+            return;
+        }
+        if (!this.isSupportedEvent(event)) return;
+
+        this.commitBinding(this.recording.action, {
+            key: HotkeyController.normalizeKey(event.key),
+            ctrl: event.ctrlKey,
+            alt: event.altKey,
+            shift: event.shiftKey
+        });
+    };
+
+    startRecording(action) {
+        this.cancelRecording();
+        const editor = this.editors.get(action);
+        this.recording = { action, button: editor.button };
+        editor.button.focus();
+        editor.button.classList.remove("unset");
+        editor.button.classList.add("recording");
+        editor.button.textContent = "Press keys…";
+        editor.button.addEventListener("blur", this.cancelRecording);
+        window.addEventListener("blur", this.cancelRecording);
+        document.addEventListener("keydown", this.captureKeydown, true);
+    }
+
+    renderTable(tbody) {
+        this.stopRecording();
+        this.editors.clear();
+        tbody.replaceChildren();
+
+        for (const [action, definition] of this.entries) {
+            const row = document.createElement("tr");
+            const label = document.createElement("td");
+            label.textContent = definition.label;
+            const controls = document.createElement("td");
+
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = "hk-input";
+            button.dataset.hotkeyAction = action;
+            button.addEventListener("click", () => this.startRecording(action));
+
+            const clear = document.createElement("button");
+            clear.type = "button";
+            clear.className = "hk-clear";
+            clear.setAttribute("aria-label", "Clear " + definition.label + " shortcut");
+            clear.title = "Clear shortcut";
+            clear.addEventListener("click", () => this.commitBinding(action, HotkeyController.normalizeBinding()));
+
+            const icon = document.createElement("i");
+            icon.className = "fa fa-trash";
+            icon.setAttribute("aria-hidden", "true");
+            clear.append(icon);
+
+            controls.append(button, clear);
+            row.append(label, controls);
+            tbody.append(row);
+            this.editors.set(action, { button, clear });
+        }
+        this.refreshEditors();
+    }
 }
 
 // Normalize and validate wishlist entries loaded from storage
@@ -2090,33 +2239,6 @@ function normalizeWishlistSort(raw) {
     const mode = ["catalog", "alpha", "tier"].includes(raw.mode) ? raw.mode : "catalog";
     const ascending = raw.ascending !== false;
     return { mode, ascending };
-}
-
-// validate json data in local storage
-function validateLocalStorage(item) {
-    try {
-        const json = JSON.parse(localStorage.getItem(item));
-        if (!json || typeof json !== "object") return {};
-        return json;
-    }
-    catch {
-        return {};
-    }
-}
-
-// save settings
-function saveSettings() {
-    localStorage.setItem("avatarStorePlus", JSON.stringify({
-        hotKeys,
-        avatarTileWidth,
-        avatarTileGap,
-        avatarInfoLogging,
-        disableBulkBuy,
-        legacyAvatarStoreFilters,
-        hideFilteredAvatars,
-        wishlistSort,
-        wishlist,
-    }));
 }
 
 function exportAvatarStorePlusData() {
@@ -2148,25 +2270,8 @@ function applyAvatarStorePlusImportData(data) {
     if (data === null || typeof data !== "object" || Array.isArray(data)) {
         return { ok: false, message: "File must be a single JSON object." };
     }
-    if (data.hotKeys != null) {
-        if (typeof data.hotKeys !== "object" || data.hotKeys === null || Array.isArray(data.hotKeys)) {
-            return { ok: false, message: "Property \"hotKeys\" must be an object." };
-        }
-        const next = {};
-        for (const [action, b] of Object.entries(data.hotKeys)) {
-            if (b == null) continue;
-            if (typeof b !== "object" || Array.isArray(b)) {
-                return { ok: false, message: `Invalid hotkey binding for "${String(action)}".` };
-            }
-            const key = (b.key || "").toUpperCase();
-            next[action] = {
-                key,
-                ctrl: Boolean(b.ctrl ?? b.ctrlKey),
-                alt: Boolean(b.alt ?? b.altKey),
-                shift: Boolean(b.shift ?? b.shiftKey),
-            };
-        }
-        hotKeys = next;
+    if (data.hotKeys !== undefined) {
+        hotkeyController.setBindings(data.hotKeys);
     }
     if (data.avatarTileWidth != null) {
         avatarTileWidth = String(data.avatarTileWidth);
@@ -2204,17 +2309,41 @@ function applyAvatarStorePlusImportData(data) {
     $("#aspHideFilteredAvatars").prop("checked", hideFilteredAvatars);
     applyAspStoreTopPanelsMode();
     refreshAspStoreGridForFilterHide();
-    $(`#aspHotkeyTable input.hk-input[data-action]`).each(function () {
-        const action = $(this).data("action");
-        $(this).val(bindingToText(hotKeys[action]));
-    });
+
     renderWishlist();
     syncWishlistSortUi();
     applyStyles();
     return { ok: true };
 }
 
-// apply styles
+// Validate json data in local storage
+function validateLocalStorage(item) {
+    try {
+        const json = JSON.parse(localStorage.getItem(item));
+        if (!json || typeof json !== "object") return {};
+        return json;
+    }
+    catch {
+        return {};
+    }
+}
+
+// Save settings
+function saveSettings() {
+    localStorage.setItem("avatarStorePlus", JSON.stringify({
+        hotKeys,
+        avatarTileWidth,
+        avatarTileGap,
+        avatarInfoLogging,
+        disableBulkBuy,
+        legacyAvatarStoreFilters,
+        hideFilteredAvatars,
+        wishlistSort,
+        wishlist,
+    }));
+}
+
+// Apply styles
 function applyStyles() {
     const cs = getComputedStyle(document.documentElement);
     let css = /*css*/ `
@@ -2736,9 +2865,24 @@ function applyStyles() {
             opacity: 0.5;
             cursor: default;
         }
-        #aspHotkeyTable input.hk-input {
+        #aspHotkeyTable button.hk-clear {
+            margin-left: 6px;
+            padding: 0;
+            border: 0;
+            background: transparent;
+            box-shadow: none;
+            cursor: pointer;
+        }
+        #aspHotkeyTable button.hk-clear:hover {
+            opacity: 0.7;
+        }
+        #aspHotkeyTable button.hk-input {
+            color: black;
             cursor: pointer;
             user-select: none;
+        }
+        #aspHotkeyTable button.hk-input.unset {
+            color: gray;
         }
     `;
     if (avatarTileWidth) css += `
@@ -2765,3 +2909,5 @@ function applyStyles() {
         document.head.appendChild(style);
     }
 }
+
+startScript();
