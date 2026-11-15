@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Chat Plus
 // @namespace    https://github.com/kempanator
-// @version      0.44
+// @version      0.45
 // @description  Add new features to chat and messages
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -34,14 +34,7 @@ New chat/message features:
 
 "use strict";
 if (typeof Listener === "undefined") return;
-const loadInterval = setInterval(() => {
-    if (document.querySelector("#loadingScreen.hidden")) {
-        clearInterval(loadInterval);
-        setup();
-    }
-}, 500);
 
-const saveData = validateLocalStorage("chatPlus");
 const tenorApiKey = "LIVDSRZULELA";
 const litterboxUrl = "https://litterbox.catbox.moe/resources/internals/api.php";
 const joypixelsUrl = "https://cdn.jsdelivr.net/npm/emoji-toolkit@latest/emoji.json";
@@ -51,29 +44,29 @@ const genderModifiers = [0x2642, 0x2640];
 const imageUrlRegex = /^https?:\/\/\S+\.(?:png|jpe?g|gif|webp|bmp|tiff)(?:[?#]\S*)?$/i;
 const audioUrlRegex = /^https?:\/\/\S+\.(?:mp3|ogg|m4a|flac|wav)(?:[?#]\S*)?$/i;
 const videoUrlRegex = /^https?:\/\/\S+\.(?:webm|mp4|mkv|avi|mov)(?:[?#]\S*)?$/i;
-let gcTimestamps = saveData.gcTimestamps ?? true;
-let ncTimestamps = saveData.ncTimestamps ?? true;
-let dmTimestamps = saveData.dmTimestamps ?? true;
-let timeStampFormat = saveData.timeStampFormat ?? "0"; //0: HH:MM, 1: HH:MM:SS
-let ncColor = saveData.ncColor ?? false;
-let dmColor = saveData.dmColor ?? true;
-let reformatBottomBar = saveData.reformatBottomBar ?? true;
-let loadBalancerFromLeft = saveData.loadBalancerFromLeft ?? 225;
-let xpBarWidth = saveData.xpBarWidth ?? 110;
-let xpBarFromRight = saveData.xpBarFromRight ?? 496;
-let dmWidthExtension = saveData.dmWidthExtension ?? 60;
-let dmHeightExtension = saveData.dmHeightExtension ?? 40;
-let resizeNexusChat = saveData.resizeNexusChat ?? false;
-let gcLoadMediaButton = saveData.gcLoadMediaButton ?? true;
-let gcAutoLoadMedia = saveData.gcAutoLoadMedia ?? "never";
-let gifSearch = saveData.gifSearch ?? true;
-let gifSearchHeight = saveData.gifSearchHeight ?? 250;
-let gifSendOnClick = saveData.gifSendOnClick ?? true;
-let gcMaxMessages = saveData.gcMaxMessages ?? 200;
-let ncMaxMessages = saveData.ncMaxMessages ?? 100;
-let fileUploadToLitterbox = saveData.fileUploadToLitterbox ?? true;
-let convertShortcodes = saveData.convertShortcodes ?? true;
-let fetchEmojiList = saveData.fetchEmojiList ?? true;
+let gcTimestamps;
+let ncTimestamps;
+let dmTimestamps;
+let timestampFormat;
+let ncColor;
+let dmColor;
+let reformatBottomBar;
+let loadBalancerFromLeft;
+let xpBarWidth;
+let xpBarFromRight;
+let dmWidthExtension;
+let dmHeightExtension;
+let resizeNexusChat;
+let gcLoadMediaButton;
+let gcAutoLoadMedia;
+let gifSearch;
+let gifSearchHeight;
+let gifSendOnClick;
+let gcMaxMessages;
+let ncMaxMessages;
+let fileUploadToLitterbox;
+let convertShortcodes;
+let fetchEmojiList;
 let $gcInput;
 let $tenorGifContainer;
 let tenorQuery;
@@ -82,12 +75,153 @@ let imagesPerRequest = 20;
 let litterboxUploadTime = "12h";
 let showCustomColors = true;
 let customColorMap = {};
+let oldResetDrag;
 
-applyStyles();
+// Initialize once AMQ finishes loading
+function startScript() {
+    initializeState();
+    applyStyles();
+    installHooks();
+    const loadingScreen = document.querySelector("#loadingScreen");
+    if (loadingScreen.classList.contains("hidden")) {
+        setup();
+        return;
+    }
+    const observer = new MutationObserver(() => {
+        if (!loadingScreen.classList.contains("hidden")) return;
+        observer.disconnect();
+        setup();
+    });
+    observer.observe(loadingScreen, { attributes: true, attributeFilter: ["class"] });
+}
 
-// setup
+// Restore preferences and create runtime state before startup
+function initializeState() {
+    const settings = loadSettings();
+    gcTimestamps = settings.gcTimestamps;
+    ncTimestamps = settings.ncTimestamps;
+    dmTimestamps = settings.dmTimestamps;
+    timestampFormat = settings.timestampFormat;
+    ncColor = settings.ncColor;
+    dmColor = settings.dmColor;
+    reformatBottomBar = settings.reformatBottomBar;
+    loadBalancerFromLeft = settings.loadBalancerFromLeft;
+    xpBarWidth = settings.xpBarWidth;
+    xpBarFromRight = settings.xpBarFromRight;
+    dmWidthExtension = settings.dmWidthExtension;
+    dmHeightExtension = settings.dmHeightExtension;
+    resizeNexusChat = settings.resizeNexusChat;
+    gcLoadMediaButton = settings.gcLoadMediaButton;
+    gcAutoLoadMedia = settings.gcAutoLoadMedia;
+    gifSearch = settings.gifSearch;
+    gifSearchHeight = settings.gifSearchHeight;
+    gifSendOnClick = settings.gifSendOnClick;
+    gcMaxMessages = settings.gcMaxMessages;
+    ncMaxMessages = settings.ncMaxMessages;
+    fileUploadToLitterbox = settings.fileUploadToLitterbox;
+    convertShortcodes = settings.convertShortcodes;
+    fetchEmojiList = settings.fetchEmojiList;
+}
+
+// Install game method overrides before AMQ's initial rendering
+function installHooks() {
+    // Override writeMessage function to inject timestamp and username color
+    ChatBox.prototype.writeMessage = function (sender, msg, emojis, allowHtml) {
+        msg = passChatMessage(msg, emojis, allowHtml);
+        const timestamp = getTimestamp();
+        const atBottom = this.$CHAT_CONTENT.scrollTop() + this.$CHAT_CONTENT.innerHeight() >= this.$CHAT_CONTENT[0].scrollHeight - 20;
+        let dmUsernameClass = "dmUsername";
+        if (sender === selfName) {
+            dmUsernameClass += " self";
+        }
+        else if (socialTab.isFriend(sender)) {
+            dmUsernameClass += " friend";
+        }
+        if (customColorMap.hasOwnProperty(sender.toLowerCase())) {
+            dmUsernameClass += " customColor" + customColorMap[sender.toLowerCase()];
+        }
+        const newDMFormat = dmTimestamps
+            ? `\n\t<li>\n\t\t<span class="dmTimestamp">${timestamp}</span> <span class="${dmUsernameClass}">${sender}:</span> ${msg}\n\t</li>\n`
+            : `\n\t<li>\n\t\t<span class="${dmUsernameClass}">${sender}:</span> ${msg}\n\t</li>\n`;
+        this.$CHAT_CONTENT.append(newDMFormat);
+        if (atBottom) {
+            this.$CHAT_CONTENT.scrollTop(this.$CHAT_CONTENT.prop("scrollHeight"));
+        }
+        this.$CHAT_CONTENT.perfectScrollbar("update");
+    };
+
+    // Override updateLayout function to account for width extension
+    ChatBar.prototype.updateLayout = function () {
+        this._$ACTIVE_CHAT_SCROLL_CONTAINER.width(this.activeChats.length * (165 + dmWidthExtension));
+        this.activeChatContainerDom.perfectScrollbar("update");
+        this.toggleIndicators();
+        this.closeOutsideChats();
+    };
+
+    // Override getInsideOffsets function to account for width extension
+    ChatBar.prototype.getInsideOffsets = function () {
+        const containerWidth = this.activeChatContainerDom.innerWidth();
+        const insideLeftOffset = - this._$ACTIVE_CHAT_SCROLL_CONTAINER.position().left;
+        const insideRightOffset = insideLeftOffset + containerWidth - (165 + dmWidthExtension);
+        return { right: insideRightOffset, left: insideLeftOffset };
+    };
+
+    // Override toggleIndicators function to account for width extension
+    ChatBar.prototype.toggleIndicators = function () {
+        let offsets = this.getInsideOffsets();
+        offsets.left -= (165 + dmWidthExtension) / 2;
+        offsets.right += (165 + dmWidthExtension) / 2;
+        let activeOutsideLeft = false;
+        let activeOutsideRight = false;
+        this.activeChats.forEach(chat => {
+            if (chat.object.update) {
+                const position = chat.object.getXOffset();
+                if (position < offsets.left) activeOutsideLeft = true;
+                else if (position > offsets.right) activeOutsideRight = true;
+            }
+        });
+        if (activeOutsideLeft) this.$LEFT_INDICATOR.addClass("runAnimation");
+        else this.$LEFT_INDICATOR.removeClass("runAnimation");
+        if (activeOutsideRight) this.$RIGHT_INDICATOR.addClass("runAnimation");
+        else this.$RIGHT_INDICATOR.removeClass("runAnimation");
+    };
+
+    // Override handleAlert function to account for height extension
+    ChatBox.prototype.handleAlert = function (msg, callback) {
+        const atBottom = this.$CHAT_CONTENT.scrollTop() + this.$CHAT_CONTENT.innerHeight() >= this.$CHAT_CONTENT[0].scrollHeight;
+        this.$HEADER.text(msg);
+        if (callback) {
+            this.$HEADER.append(format(chatHeaderInputTemplate));
+            this.container.find(".accept").click(createFriendRequestHandler.call(this, true, callback));
+            this.container.find(".reject").click(createFriendRequestHandler.call(this, false, callback));
+        } else {
+            this.$HEADER.append(format(chatHeaderCloseTemplate));
+            this.container.find(".accept").click(this.closeHeader.bind(this));
+        }
+        this.$HEADER.removeClass("hidden");
+        const headerHeight = this.container.find(".header").outerHeight(true);
+        this.$CHAT_CONTENT.css("height", 132 + dmHeightExtension - headerHeight);
+        if (atBottom) this.$CHAT_CONTENT.scrollTop(this.$CHAT_CONTENT.prop("scrollHeight"));
+        this.$CHAT_CONTENT.perfectScrollbar("update");
+        this.newUpdate();
+    };
+
+    oldResetDrag = nexusCoopChat.resetDrag;
+    nexusCoopChat.resetDrag = function () {
+        oldResetDrag.apply(this, arguments);
+        if (resizeNexusChat) {
+            $("#nexusCoopMainContainer").removeAttr("style").css({
+                "resize": "both",
+                "overflow": "hidden",
+                "min-width": "0",
+                "max-width": "none"
+            });
+        }
+    };
+}
+
+// Setup
 function setup() {
-    // build settings
     $("#settingsGraphicContainer").append(/*html*/`
         <div class="row" style="padding-top: 10px">
             <div id="smChatPlusSettings" class="col-xs-12">
@@ -113,8 +247,8 @@ function setup() {
                     </div>
                     <span style="margin-left: 10px">Format</span>
                     <select id="chatPlusTimestampFormatSelect" class="form-control" style="display: inline-block; width: 108px; height: auto; padding: 2px">
-                        <option value="0">HH:MM</option>
-                        <option value="1">HH:MM:SS</option>
+                        <option value="HH:MM">HH:MM</option>
+                        <option value="HH:MM:SS">HH:MM:SS</option>
                     </select>
                 </div>
                 <div style="padding-top: 10px">
@@ -256,8 +390,8 @@ function setup() {
         dmTimestamps = !dmTimestamps;
         saveSettings();
     });
-    $("#chatPlusTimestampFormatSelect").val(timeStampFormat).on("change", function () {
-        timeStampFormat = this.value;
+    $("#chatPlusTimestampFormatSelect").val(timestampFormat).on("change", function () {
+        timestampFormat = this.value;
         saveSettings();
     });
     $("#chatPlusNCColor").prop("checked", ncColor).on("click", () => {
@@ -441,7 +575,7 @@ function setup() {
     if (!gifSearch) $("#chatPlusGifSearchContainer").addClass("disabled");
     if (resizeNexusChat) $("#nexusCoopMainContainer").css({ "resize": "both", "overflow": "hidden", "min-width": "0", "max-width": "none" });
 
-    // watch game chat
+    // Watch game chat
     new MutationObserver((mutations) => {
         for (const mutation of mutations) {
             for (const node of mutation.addedNodes) {
@@ -480,7 +614,7 @@ function setup() {
         }
     }).observe(document.querySelector("#gcMessageContainer"), { childList: true, subtree: false });
 
-    // watch nexus chat
+    // Watch nexus chat
     new MutationObserver((mutations) => {
         for (const mutation of mutations) {
             for (const node of mutation.addedNodes) {
@@ -511,7 +645,7 @@ function setup() {
         }
     }).observe(document.querySelector("#nexusCoopChatContainerInner"), { childList: true, subtree: false });
 
-    // watch dms
+    // Watch dms
     new MutationObserver((mutations) => {
         for (const mutation of mutations) {
             for (const node of mutation.addedNodes) {
@@ -525,7 +659,7 @@ function setup() {
         }
     }).observe(document.querySelector("#activeChatScrollContainer"), { childList: true, subtree: false });
 
-    // create new class for emoji selector on answer input
+    // Create new class for emoji selector on answer input
     class AnswerBoxEmoteWrapper {
         constructor($input, inputIdentifer, customClassName = "") {
             this.$input = $input;
@@ -631,14 +765,14 @@ function setup() {
         }
     }
 
-    // create new custom key handler for AnswerBoxEmoteWrapper, must not activate when anime dropdown is visible
+    // Create new custom key handler for AnswerBoxEmoteWrapper, must not activate when anime dropdown is visible
     const oldCustomKeyHandler = EmoteSelectorInputWrapper.prototype.CUSTOM_KEY_HANDLER;
     AnswerBoxEmoteWrapper.prototype.CUSTOM_KEY_HANDLER = function () {
         if (quiz.answerInput.typingInput.autoCompleteController.awesomepleteInstance.ul.getAttribute("hidden") === null) return;
         oldCustomKeyHandler.apply(this, arguments);
     };
 
-    // add joypixels emojis list to the game
+    // Add joypixels emojis list to the game
     if (fetchEmojiList) {
         fetch(joypixelsUrl)
             .then(res => res.json())
@@ -646,13 +780,13 @@ function setup() {
             .catch(err => console.error("AMQ ChatPlus: failed to load JoyPixels list ", err));
     }
 
-    // auto convert shortcodes
+    // Auto convert shortcodes
     const $qpAnswerInput = $("#qpAnswerInput");
     $qpAnswerInput.on("input", convertText);
     $("#mhRoomNameInput").on("input", convertText);
     $("#hostCustomQuizRoomName").on("input", convertText);
 
-    // setup emoji selector on answer input
+    // Setup emoji selector on answer input
     const answerEmoteSelector = new AnswerBoxEmoteWrapper($qpAnswerInput, "#qpAnswerInput");
     $qpAnswerInput.on("keyup", () => { answerEmoteSelector.handleKeypress() });
 
@@ -678,14 +812,14 @@ function setup() {
     });
 }
 
-// check if the main game chat window is scrolled to the bottom
+// Check if the main game chat window is scrolled to the bottom
 function gcCheckAtBottom(atBottom) {
     if (atBottom) {
         gameChat.$chatMessageContainer.scrollTop(gameChat.$chatMessageContainer.prop("scrollHeight"));
     }
 }
 
-// fetch gifs from tenor
+// Fetch gifs from tenor
 function fetchTenorPage(query, pos = 0, clearExisting = false) {
     if (clearExisting) {
         $tenorGifContainer.find(".tenorGif").remove();
@@ -712,7 +846,7 @@ function fetchTenorPage(query, pos = 0, clearExisting = false) {
     });
 }
 
-// add tenor gif to container
+// Add tenor gif to container
 function appendThumbnail(url) {
     $("<img>", { class: "tenorGif", loading: "lazy", src: url })
         .on("click", () => {
@@ -733,7 +867,7 @@ function appendThumbnail(url) {
         .appendTo($tenorGifContainer);
 }
 
-// create load button or img/audio/video element in chat
+// Create load button or img/audio/video element in chat
 function createMediaElement($node, type, src, autoLoad) {
     const atBottom = gameChat.$chatMessageContainer.scrollTop() + gameChat.$chatMessageContainer.innerHeight() >= gameChat.$chatMessageContainer[0].scrollHeight - 100;
     $node.find(".gcLoadMediaContainer").remove();
@@ -795,7 +929,7 @@ function createMediaElement($node, type, src, autoLoad) {
     $node.append($container);
 }
 
-// return form data for litterbox
+// Return form data for litterbox
 function litterboxFormData(file) {
     const formData = new FormData();
     formData.append("fileToUpload", file);
@@ -804,7 +938,7 @@ function litterboxFormData(file) {
     return formData;
 }
 
-// upload file to litterbox on event in game chat
+// Upload file to litterbox on event in game chat
 function gcUploadEvent(event) {
     if (!fileUploadToLitterbox) return;
     $gcInput.popover("hide");
@@ -832,7 +966,7 @@ function gcUploadEvent(event) {
         });
 }
 
-// upload file to litterbox on event in dm
+// Upload file to litterbox on event in dm
 function dmUploadEvent(event, $node) {
     if (!fileUploadToLitterbox) return;
     const file = event.originalEvent.clipboardData?.files?.[0] ?? event.originalEvent.dataTransfer?.files?.[0];
@@ -854,18 +988,20 @@ function dmUploadEvent(event, $node) {
         });
 }
 
-// get formatted timestamp
+// Get formatted timestamp
 function getTimestamp() {
     const date = new Date();
-    if (timeStampFormat === "0") {
-        return date.getHours().toString().padStart(2, 0) + ":" + date.getMinutes().toString().padStart(2, 0);
+    const hours = String(date.getHours()).padStart(2, "0");
+    const minutes = String(date.getMinutes()).padStart(2, "0");
+    const time = hours + ":" + minutes;
+    if (timestampFormat === "HH:MM:SS") {
+        const seconds = String(date.getSeconds()).padStart(2, "0");
+        return time + ":" + seconds;
     }
-    else if (timeStampFormat === "1") {
-        return date.getHours().toString().padStart(2, 0) + ":" + date.getMinutes().toString().padStart(2, 0) + ":" + date.getSeconds().toString().padStart(2, 0);
-    }
+    return time;
 }
 
-// convert any shortcodes present in the field to unicode as the user types
+// Convert any shortcodes present in the field to unicode as the user types
 function convertText(event) {
     if (!convertShortcodes) return;
     if (!event.target.value.includes(":")) return;
@@ -874,23 +1010,23 @@ function convertText(event) {
     }, 0);
 }
 
-// used to remove skin tone variants in emojis
+// Used to remove skin tone variants in emojis
 function hasSkinTone(codePoints) {
     return codePoints.some(cp => skinModifiers.includes(cp));
 }
 
-// used to remove hair variants in emojis
+// Used to remove hair variants in emojis
 function hasHair(codePoints) {
     return codePoints.some(cp => hairModifiers.includes(cp));
 }
 
-// used to remove gendered variants in emojis
+// Used to remove gendered variants in emojis
 function hasGender(codePoints) {
     if (!codePoints.includes(0x200D)) return false; //must have zero width joiner
     return codePoints.some(cp => genderModifiers.includes(cp));
 }
 
-// merge the JoyPixels catalogue into the global shortcode maps
+// Merge the JoyPixels catalogue into the global shortcode maps
 function populateEmojiMaps(catalogue) {
     for (const data of Object.values(catalogue)) {
         const codePoints = data.code_points.fully_qualified.split("-").map(cp => parseInt(cp, 16));
@@ -915,120 +1051,122 @@ function populateEmojiMaps(catalogue) {
     }
 }
 
-// override writeMessage function to inject timestamp and username color
-ChatBox.prototype.writeMessage = function (sender, msg, emojis, allowHtml) {
-    msg = passChatMessage(msg, emojis, allowHtml);
-    const timestamp = getTimestamp();
-    const atBottom = this.$CHAT_CONTENT.scrollTop() + this.$CHAT_CONTENT.innerHeight() >= this.$CHAT_CONTENT[0].scrollHeight - 20;
-    let dmUsernameClass = "dmUsername";
-    if (sender === selfName) {
-        dmUsernameClass += " self";
-    }
-    else if (socialTab.isFriend(sender)) {
-        dmUsernameClass += " friend";
-    }
-    if (customColorMap.hasOwnProperty(sender.toLowerCase())) {
-        dmUsernameClass += " customColor" + customColorMap[sender.toLowerCase()];
-    }
-    const newDMFormat = dmTimestamps
-        ? `\n\t<li>\n\t\t<span class="dmTimestamp">${timestamp}</span> <span class="${dmUsernameClass}">${sender}:</span> ${msg}\n\t</li>\n`
-        : `\n\t<li>\n\t\t<span class="${dmUsernameClass}">${sender}:</span> ${msg}\n\t</li>\n`;
-    this.$CHAT_CONTENT.append(newDMFormat);
-    if (atBottom) {
-        this.$CHAT_CONTENT.scrollTop(this.$CHAT_CONTENT.prop("scrollHeight"));
-    }
-    this.$CHAT_CONTENT.perfectScrollbar("update");
-};
-
-// override updateLayout function to account for width extension
-ChatBar.prototype.updateLayout = function () {
-    this._$ACTIVE_CHAT_SCROLL_CONTAINER.width(this.activeChats.length * (165 + dmWidthExtension));
-    this.activeChatContainerDom.perfectScrollbar("update");
-    this.toggleIndicators();
-    this.closeOutsideChats();
-};
-
-// override getInsideOffsets function to account for width extension
-ChatBar.prototype.getInsideOffsets = function () {
-    const containerWidth = this.activeChatContainerDom.innerWidth();
-    const insideLeftOffset = - this._$ACTIVE_CHAT_SCROLL_CONTAINER.position().left;
-    const insideRightOffset = insideLeftOffset + containerWidth - (165 + dmWidthExtension);
-    return { right: insideRightOffset, left: insideLeftOffset };
-};
-
-// override toggleIndicators function to account for width extension
-ChatBar.prototype.toggleIndicators = function () {
-    let offsets = this.getInsideOffsets();
-    offsets.left -= (165 + dmWidthExtension) / 2;
-    offsets.right += (165 + dmWidthExtension) / 2;
-    let activeOutsideLeft = false;
-    let activeOutsideRight = false;
-    this.activeChats.forEach(chat => {
-        if (chat.object.update) {
-            const position = chat.object.getXOffset();
-            if (position < offsets.left) activeOutsideLeft = true;
-            else if (position > offsets.right) activeOutsideRight = true;
-        }
-    });
-    if (activeOutsideLeft) this.$LEFT_INDICATOR.addClass("runAnimation");
-    else this.$LEFT_INDICATOR.removeClass("runAnimation");
-    if (activeOutsideRight) this.$RIGHT_INDICATOR.addClass("runAnimation");
-    else this.$RIGHT_INDICATOR.removeClass("runAnimation");
-};
-
-// override handleAlert function to account for height extension
-ChatBox.prototype.handleAlert = function (msg, callback) {
-    const atBottom = this.$CHAT_CONTENT.scrollTop() + this.$CHAT_CONTENT.innerHeight() >= this.$CHAT_CONTENT[0].scrollHeight;
-    this.$HEADER.text(msg);
-    if (callback) {
-        this.$HEADER.append(format(chatHeaderInputTemplate));
-        this.container.find(".accept").click(createFriendRequestHandler.call(this, true, callback));
-        this.container.find(".reject").click(createFriendRequestHandler.call(this, false, callback));
-    } else {
-        this.$HEADER.append(format(chatHeaderCloseTemplate));
-        this.container.find(".accept").click(this.closeHeader.bind(this));
-    }
-    this.$HEADER.removeClass("hidden");
-    const headerHeight = this.container.find(".header").outerHeight(true);
-    this.$CHAT_CONTENT.css("height", 132 + dmHeightExtension - headerHeight);
-    if (atBottom) this.$CHAT_CONTENT.scrollTop(this.$CHAT_CONTENT.prop("scrollHeight"));
-    this.$CHAT_CONTENT.perfectScrollbar("update");
-    this.newUpdate();
-};
-
-// override resetDrag function to remove custom width and height of nexus chat
-const oldResetDrag = nexusCoopChat.resetDrag;
-nexusCoopChat.resetDrag = function () {
-    oldResetDrag.apply(this, arguments);
-    if (resizeNexusChat) {
-        $("#nexusCoopMainContainer").removeAttr("style").css({
-            "resize": "both",
-            "overflow": "hidden",
-            "min-width": "0",
-            "max-width": "none"
-        });
-    }
-};
-
-// validate json data in local storage
-function validateLocalStorage(item) {
+// Read a JSON object from localStorage, returning an empty object if invalid
+function readStorageObject(key) {
+    let value;
     try {
-        const json = JSON.parse(localStorage.getItem(item));
-        if (!json || typeof json !== "object") return {};
-        return json;
+        value = JSON.parse(localStorage.getItem(key));
     }
     catch {
         return {};
     }
+    if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+    return value;
 }
 
-// save settings
+// Load validated preferences without changing runtime state
+function loadSettings() {
+    const settings = {
+        gcTimestamps: true,
+        ncTimestamps: true,
+        dmTimestamps: true,
+        timestampFormat: "HH:MM",
+        ncColor: false,
+        dmColor: true,
+        reformatBottomBar: true,
+        loadBalancerFromLeft: 225,
+        xpBarWidth: 110,
+        xpBarFromRight: 496,
+        dmWidthExtension: 60,
+        dmHeightExtension: 40,
+        resizeNexusChat: false,
+        gcLoadMediaButton: true,
+        gcAutoLoadMedia: "never",
+        gifSearch: true,
+        gifSearchHeight: 250,
+        gifSendOnClick: true,
+        gcMaxMessages: 200,
+        ncMaxMessages: 100,
+        fileUploadToLitterbox: true,
+        convertShortcodes: true,
+        fetchEmojiList: true,
+    };
+    const savedSettings = readStorageObject("chatPlus");
+
+    for (const key of [
+        "gcTimestamps", "ncTimestamps", "dmTimestamps",
+        "ncColor", "dmColor", "reformatBottomBar",
+        "resizeNexusChat", "gcLoadMediaButton", "gifSearch",
+        "gifSendOnClick", "fileUploadToLitterbox", "convertShortcodes",
+        "fetchEmojiList"
+    ]) {
+        if (typeof savedSettings[key] === "boolean") settings[key] = savedSettings[key];
+    }
+    for (const key of [
+        "loadBalancerFromLeft", "xpBarWidth", "xpBarFromRight",
+        "dmWidthExtension", "dmHeightExtension", "gifSearchHeight"
+    ]) {
+        const value = savedSettings[key];
+        if (Number.isInteger(value) && value >= 0) settings[key] = value;
+    }
+    for (const key of ["gcMaxMessages", "ncMaxMessages"]) {
+        const value = savedSettings[key];
+        if (Number.isInteger(value) && value > 0) settings[key] = value;
+    }
+    if (["HH:MM", "HH:MM:SS"].includes(savedSettings.timestampFormat)) {
+        settings.timestampFormat = savedSettings.timestampFormat;
+    }
+    if (["never", "friends", "all"].includes(savedSettings.gcAutoLoadMedia)) {
+        settings.gcAutoLoadMedia = savedSettings.gcAutoLoadMedia;
+    }
+    return settings;
+}
+
+// Load the Highlight Friends preferences used by this script
+function loadHighlightSettings() {
+    const settings = {
+        smColorSelfColor: "#80c7ff",
+        smColorFriendColor: "#80ff80",
+        smColorBlockedColor: "#ff8080",
+        customColors: []
+    };
+    const savedSettings = readStorageObject("highlightFriendsSettings");
+
+    for (const key of [
+        "smColorSelfColor", "smColorFriendColor", "smColorBlockedColor"
+    ]) {
+        if (typeof savedSettings[key] === "string") settings[key] = savedSettings[key];
+    }
+    settings.customColors = normalizeCustomColors(savedSettings.customColors);
+    return settings;
+}
+
+// Normalize saved color groups before building player lookups or CSS
+function normalizeCustomColors(value) {
+    if (!Array.isArray(value)) return [];
+    const colors = [];
+    for (const group of value) {
+        if (!group || typeof group !== "object" || Array.isArray(group)) continue;
+        const players = Array.isArray(group.players)
+            ? group.players.filter(player => typeof player === "string")
+            : [];
+        colors.push({
+            enabled: typeof group.enabled === "boolean" ? group.enabled : true,
+            color: typeof group.color === "string" ? group.color : "#80c7ff",
+            shadow: typeof group.shadow === "string" ? group.shadow : "#228dff",
+            players
+        });
+    }
+    return colors;
+}
+
+// Save settings
 function saveSettings() {
     localStorage.setItem("chatPlus", JSON.stringify({
         gcTimestamps,
         ncTimestamps,
         dmTimestamps,
-        timeStampFormat,
+        timestampFormat,
         dmColor,
         ncColor,
         dmWidthExtension,
@@ -1051,13 +1189,12 @@ function saveSettings() {
     }));
 }
 
-// apply styles
+// Apply styles
 function applyStyles() {
-    const saveData2 = validateLocalStorage("highlightFriendsSettings");
-    const selfColor = saveData2.smColorSelfColor ?? "#80c7ff";
-    const friendColor = saveData2.smColorFriendColor ?? "#80ff80";
-    //const blockedColor = saveData2.smColorBlockedColor ?? "#ff8080";
-    const customColors = saveData2.customColors ?? [];
+    const hfSettings = loadHighlightSettings();
+    const selfColor = hfSettings.smColorSelfColor;
+    const friendColor = hfSettings.smColorFriendColor;
+    const customColors = hfSettings.customColors;
     customColorMap = {};
     customColors.forEach((item, index) => {
         for (let player of item.players) {
@@ -1261,3 +1398,5 @@ function applyStyles() {
         document.head.appendChild(style);
     }
 }
+
+startScript();
