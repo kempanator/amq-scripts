@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Avatar Store Plus
 // @namespace    https://github.com/kempanator
-// @version      0.10
+// @version      0.11
 // @description  More features for the avatar store
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -30,15 +30,14 @@ New Features:
 "use strict";
 if (typeof Listener === "undefined") return;
 
-const saveData = validateLocalStorage("avatarStorePlus");
-let avatarTileWidth = saveData.avatarTileWidth ?? "";
-let avatarTileGap = saveData.avatarTileGap ?? "";
-let avatarInfoLogging = saveData.avatarInfoLogging ?? false;
-let disableBulkBuy = saveData.disableBulkBuy ?? false;
-let legacyAvatarStoreFilters = saveData.legacyAvatarStoreFilters ?? false;
-let hideFilteredAvatars = saveData.hideFilteredAvatars ?? false;
-let wishlist = normalizeWishlistFromStorage(saveData.wishlist);
-let wishlistSort = normalizeWishlistSort(saveData.wishlistSort);
+let avatarTileWidth;
+let avatarTileGap;
+let avatarInfoLogging;
+let disableBulkBuy;
+let legacyAvatarStoreFilters;
+let hideFilteredAvatars;
+let wishlist;
+let wishlistSort;
 let $modernFilters;
 let $legacyFilters;
 let $searchInput;
@@ -124,11 +123,20 @@ function startScript() {
     observer.observe(loadingScreen, { attributes: true, attributeFilter: ["class"] });
 }
 
-// Prepare runtime state and early hooks before waiting for the page
+// Restore preferences and create runtime state before startup
 function initializeState() {
+    const settings = loadSettings();
+    avatarTileWidth = settings.avatarTileWidth;
+    avatarTileGap = settings.avatarTileGap;
+    avatarInfoLogging = settings.avatarInfoLogging;
+    disableBulkBuy = settings.disableBulkBuy;
+    legacyAvatarStoreFilters = settings.legacyAvatarStoreFilters;
+    hideFilteredAvatars = settings.hideFilteredAvatars;
+    wishlist = settings.wishlist;
+    wishlistSort = settings.wishlistSort;
     hotkeyController = new HotkeyController({
         actions: hotkeyActions,
-        savedBindings: saveData.hotKeys,
+        savedBindings: settings.hotKeys,
         onChange: saveSettings
     });
     hotKeys = hotkeyController.bindings;
@@ -149,9 +157,9 @@ function setup() {
                 <span class="asp-stf-label">Ownership</span>
                 <div class="asp-stf-segs">
                     <button type="button" class="asp-stf-seg active" data-asp-stf-value="all">All</button>
-                    <span class="asp-stf-sep" aria-hidden="true">|</span>
+                    <span class="asp-stf-sep">|</span>
                     <button type="button" class="asp-stf-seg" data-asp-stf-value="unlocked">Unlocked</button>
-                    <span class="asp-stf-sep" aria-hidden="true">|</span>
+                    <span class="asp-stf-sep">|</span>
                     <button type="button" class="asp-stf-seg" data-asp-stf-value="locked">Locked</button>
                 </div>
             </div>
@@ -159,9 +167,9 @@ function setup() {
                 <span class="asp-stf-label">Release</span>
                 <div class="asp-stf-segs">
                     <button type="button" class="asp-stf-seg active" data-asp-stf-value="all">All</button>
-                    <span class="asp-stf-sep" aria-hidden="true">|</span>
+                    <span class="asp-stf-sep">|</span>
                     <button type="button" class="asp-stf-seg" data-asp-stf-value="available">Available</button>
-                    <span class="asp-stf-sep" aria-hidden="true">|</span>
+                    <span class="asp-stf-sep">|</span>
                     <button type="button" class="asp-stf-seg" data-asp-stf-value="unavailable">Unavailable</button>
                 </div>
             </div>
@@ -169,9 +177,9 @@ function setup() {
                 <span class="asp-stf-label">Rotation</span>
                 <div class="asp-stf-segs">
                     <button type="button" class="asp-stf-seg active" data-asp-stf-value="all">All</button>
-                    <span class="asp-stf-sep" aria-hidden="true">|</span>
+                    <span class="asp-stf-sep">|</span>
                     <button type="button" class="asp-stf-seg" data-asp-stf-value="limited">Limited</button>
-                    <span class="asp-stf-sep" aria-hidden="true">|</span>
+                    <span class="asp-stf-sep">|</span>
                     <button type="button" class="asp-stf-seg" data-asp-stf-value="permanent">Permanent</button>
                 </div>
             </div>
@@ -203,15 +211,15 @@ function setup() {
     // Create tab container (tab buttons)
     const $tabContainer = $(`
         <div id="aspAvatarTabContainer" class="tabContainer">
-            <div id="aspAvatarTab" class="tab clickAble selected"><h5>Avatar</h5></div>
-            <div id="aspSearchTab" class="tab clickAble"><h5>Search</h5></div>
-            <div id="aspWishlistTab" class="tab clickAble"><h5>Wishlist</h5></div>
-            <div id="aspSettingsTab" class="tab clickAble"><h5>Settings</h5></div>
+            <button type="button" id="aspAvatarTab" class="tab clickAble selected" data-tab="aspAvatar"><span>Avatar</span></button>
+            <button type="button" id="aspSearchTab" class="tab clickAble" data-tab="aspSearch"><span>Search</span></button>
+            <button type="button" id="aspWishlistTab" class="tab clickAble" data-tab="aspWishlist"><span>Wishlist</span></button>
+            <button type="button" id="aspSettingsTab" class="tab clickAble" data-tab="aspSettings"><span>Settings</span></button>
         </div>
     `);
 
     // Create avatar container and move existing children into it
-    const $avatarContainer = $(`<div id="aspAvatarContainer" class="tabSection"></div>`);
+    const $avatarContainer = $(`<div id="aspAvatarContainer" class="tabSection" data-tab="aspAvatar"></div>`);
     const $bottomInner = $("#swRightColumnBottomInner");
     $bottomInner
         .children()
@@ -254,7 +262,7 @@ function setup() {
 
     // Search tab panel
     const $searchContainer = $(`
-        <div id="aspSearchContainer" class="tabSection">
+        <div id="aspSearchContainer" class="tabSection" data-tab="aspSearch">
             <div id="aspSearchRow">
                 <input type="search" id="aspSearchInput" class="form-control" placeholder="Search avatar list…" autocomplete="off" spellcheck="false">
                 <button type="button" id="aspSearchPrevBtn" class="btn btn-default asp-search-button" title="Previous outfit page (filtered by search if active) — Shift+Enter">
@@ -288,7 +296,7 @@ function setup() {
 
     // Wishlist panel
     const $wishlistContainer = $(`
-        <div id="aspWishlistContainer" class="tabSection">
+        <div id="aspWishlistContainer" class="tabSection" data-tab="aspWishlist">
             <div class="asp-wishlist-sort-bar">
                 <label class="asp-wishlist-sort-label" for="aspWishlistSortMode">Sort by</label>
                 <select id="aspWishlistSortMode" class="form-control asp-wishlist-sort-select" title="Wishlist sort order">
@@ -306,7 +314,7 @@ function setup() {
 
     // Settings panel with details and controls
     const $settingsContainer = $(`
-        <div id="aspSettingsContainer" class="tabSection" style="padding: 5px;">
+        <div id="aspSettingsContainer" class="tabSection" data-tab="aspSettings" style="padding: 5px;">
             <div style="text-align: center;">
                 <h4 style="margin: 5px 0;"><b>Avatar Store Plus</b></h4>
                 <div>Created by: kempanator</div>
@@ -351,7 +359,7 @@ function setup() {
                 <button type="button" id="aspSettingsImport" class="btn btn-default" title="Load wishlist and settings from a JSON file">Import</button>
                 <button type="button" id="aspSettingsExport" class="btn btn-default" title="Download wishlist and settings as JSON">Export</button>
             </div>
-            <input type="file" id="aspSettingsImportFile" accept=".json" aria-hidden="true" tabindex="-1" style="display: none;">
+            <input type="file" id="aspSettingsImportFile" accept=".json" tabindex="-1" style="display: none;">
             <h4>Debug</h4>
             <div class="asp-settings-checkbox-row">
                 <label for="aspLegacyFiltersToggle">
@@ -410,10 +418,9 @@ function setup() {
     updateAspColorNames();
 
     // Setup tab handlers
-    $("#aspAvatarTab").on("click", () => switchTab("aspAvatar"));
-    $("#aspSearchTab").on("click", () => switchTab("aspSearch"));
-    $("#aspWishlistTab").on("click", () => switchTab("aspWishlist"));
-    $("#aspSettingsTab").on("click", () => switchTab("aspSettings"));
+    $("#aspAvatarTabContainer").on("click", ".tab[data-tab]", event => {
+        switchTab(event.currentTarget.dataset.tab);
+    });
     switchTab("aspAvatar");
 
     // Global variables
@@ -1304,7 +1311,7 @@ function syncWishlistSortUi() {
 function attachWishlistRowHead($row, c) {
     const $head = $row.find(".asp-wishlist-row-head");
     if (!c?.avatar) {
-        $head.addClass("asp-wishlist-row-head--empty").attr("title", "Skin not in catalog").html('<i class="fa fa-user"></i>');
+        $head.addClass("asp-wishlist-row-head--empty").attr("title", "Skin not in catalog").html('<i class="fa fa-user" aria-hidden="true"></i>');
         return;
     }
     $head.removeClass("asp-wishlist-row-head--empty").attr("title", "Open this skin in the store").addClass("clickAble");
@@ -1398,7 +1405,7 @@ function wishlistTierIconHtml(c) {
     if (icon.type === "img") {
         return `<img class="asp-wishlist-tier-icon" src="${escapeHtml(icon.src)}" alt="" title="${title}" decoding="async">`;
     }
-    return `<i class="${escapeHtml(icon.classes)} asp-wishlist-tier-icon" aria-hidden="true" title="${title}"></i>`;
+    return `<i class="${escapeHtml(icon.classes)} asp-wishlist-tier-icon" title="${title}" aria-hidden="true"></i>`;
 }
 
 // Per-tier breakdown rows for an outfit's colors
@@ -1534,7 +1541,7 @@ function renderContextBreakdown(breakdown) {
             $(`<i class="${row.icon.classes} asp-breakdown-icon" aria-hidden="true"></i>`).appendTo($row);
         }
         else {
-            $('<span class="asp-breakdown-icon" aria-hidden="true"></span>').appendTo($row);
+            $('<span class="asp-breakdown-icon"></span>').appendTo($row);
         }
         $('<span class="asp-breakdown-label"></span>').text(row.label).appendTo($row);
         $('<span class="asp-breakdown-fraction"></span>').text(`${row.owned}/${row.total}`).appendTo($row);
@@ -1976,19 +1983,19 @@ function tierShortLabelFromTypeKey(typeKey) {
     return typeKey;
 }
 
-// Reset all tabs and switch to the inputted tab
-function switchTab(tab) {
-    const $w = $("#swRightColumnBottomInner");
-    const wasWishlist = $w.find("#aspWishlistTab").hasClass("selected");
-    $w.find(".tab").removeClass("selected");
-    $w.find(".tabSection").hide();
-    $w.find(`#${tab}Tab`).addClass("selected");
-    $w.find(`#${tab}Container`).show();
-    if (tab === "aspSearch") {
+// Select a tab and show its matching section
+function switchTab(tabKey) {
+    const $tabRoot = $("#swRightColumnBottomInner");
+    const wasWishlist = $tabRoot.find(".tab.selected").attr("data-tab") === "aspWishlist";
+    $tabRoot.find(".tab").removeClass("selected");
+    $tabRoot.find(".tabSection").hide();
+    $tabRoot.find(`.tab[data-tab="${tabKey}"]`).addClass("selected");
+    $tabRoot.find(`.tabSection[data-tab="${tabKey}"]`).show();
+    if (tabKey === "aspSearch") {
         queueMicrotask(updateSearchPanel);
     }
-    // Pause/resume any wishlist spine animators based on whether the tab is currently visible
-    const isWishlist = tab === "aspWishlist";
+    // Wishlist animations only change when entering or leaving the tab.
+    const isWishlist = tabKey === "aspWishlist";
     if (isWishlist !== wasWishlist) {
         const method = isWishlist ? "handleDisplayed" : "handleDetatched";
         $wishlist?.find(".asp-wishlist-row").each(function () {
@@ -2116,7 +2123,6 @@ class HotkeyController {
         for (const [action, editor] of this.editors) {
             const text = this.formatBinding(this.bindings[action]);
             editor.button.textContent = text || "—";
-            editor.button.setAttribute("aria-label", this.actions[action].label + " shortcut: " + (text || "unbound"));
             editor.button.classList.remove("recording");
             editor.button.classList.toggle("unset", !this.bindings[action].key);
             editor.clear.hidden = !this.bindings[action].key;
@@ -2200,7 +2206,6 @@ class HotkeyController {
             const clear = document.createElement("button");
             clear.type = "button";
             clear.className = "hk-clear";
-            clear.setAttribute("aria-label", "Clear " + definition.label + " shortcut");
             clear.title = "Clear shortcut";
             clear.addEventListener("click", () => this.commitBinding(action, HotkeyController.normalizeBinding()));
 
@@ -2316,16 +2321,49 @@ function applyAvatarStorePlusImportData(data) {
     return { ok: true };
 }
 
-// Validate json data in local storage
-function validateLocalStorage(item) {
+// Read a JSON object from localStorage, returning an empty object if invalid
+function readStorageObject(key) {
+    let value;
     try {
-        const json = JSON.parse(localStorage.getItem(item));
-        if (!json || typeof json !== "object") return {};
-        return json;
+        value = JSON.parse(localStorage.getItem(key));
     }
     catch {
         return {};
     }
+    if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+    return value;
+}
+
+// Load validated preferences without changing runtime state
+function loadSettings() {
+    const settings = {
+        avatarTileWidth: "",
+        avatarTileGap: "",
+        avatarInfoLogging: false,
+        disableBulkBuy: false,
+        legacyAvatarStoreFilters: false,
+        hideFilteredAvatars: false,
+        wishlist: [],
+        wishlistSort: { mode: "catalog", ascending: true },
+    };
+    const savedSettings = readStorageObject("avatarStorePlus");
+
+    if (typeof savedSettings.avatarTileWidth === "string") {
+        settings.avatarTileWidth = savedSettings.avatarTileWidth;
+    }
+    if (typeof savedSettings.avatarTileGap === "string") {
+        settings.avatarTileGap = savedSettings.avatarTileGap;
+    }
+    for (const key of [
+        "avatarInfoLogging", "disableBulkBuy", "legacyAvatarStoreFilters",
+        "hideFilteredAvatars"
+    ]) {
+        if (typeof savedSettings[key] === "boolean") settings[key] = savedSettings[key];
+    }
+    settings.wishlist = normalizeWishlistFromStorage(savedSettings.wishlist);
+    settings.wishlistSort = normalizeWishlistSort(savedSettings.wishlistSort);
+    settings.hotKeys = savedSettings.hotKeys;
+    return settings;
 }
 
 // Save settings
@@ -2347,6 +2385,14 @@ function saveSettings() {
 function applyStyles() {
     const cs = getComputedStyle(document.documentElement);
     let css = /*css*/ `
+        #swRightColumnBottomInner .tabContainer > button.tab {
+            background: transparent;
+            border: 0;
+        }
+        #swRightColumnBottomInner .tabContainer > button.tab > span {
+            display: block;
+            margin: 5px 0;
+        }
         #aspAvatarTabContainer {
             display: flex;
             height: auto;
