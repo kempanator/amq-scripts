@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Chat Plus
 // @namespace    https://github.com/kempanator
-// @version      0.45
+// @version      0.46
 // @description  Add new features to chat and messages
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -37,13 +37,17 @@ if (typeof Listener === "undefined") return;
 
 const tenorApiKey = "LIVDSRZULELA";
 const litterboxUrl = "https://litterbox.catbox.moe/resources/internals/api.php";
-const joypixelsUrl = "https://cdn.jsdelivr.net/npm/emoji-toolkit@latest/emoji.json";
+const emojiCatalogueUrl = "https://cdn.jsdelivr.net/npm/emoji-toolkit@latest/emoji.json";
 const skinModifiers = [0x1F3FB, 0x1F3FC, 0x1F3FD, 0x1F3FE, 0x1F3FF];
 const hairModifiers = [0x1F9B0, 0x1F9B1, 0x1F9B2, 0x1F9B3];
 const genderModifiers = [0x2642, 0x2640];
 const imageUrlRegex = /^https?:\/\/\S+\.(?:png|jpe?g|gif|webp|bmp|tiff)(?:[?#]\S*)?$/i;
 const audioUrlRegex = /^https?:\/\/\S+\.(?:mp3|ogg|m4a|flac|wav)(?:[?#]\S*)?$/i;
 const videoUrlRegex = /^https?:\/\/\S+\.(?:webm|mp4|mkv|avi|mov)(?:[?#]\S*)?$/i;
+const gifPageSize = 20;
+const litterboxUploadTime = "12h";
+
+// Persisted preferences
 let gcTimestamps;
 let ncTimestamps;
 let dmTimestamps;
@@ -67,15 +71,13 @@ let ncMaxMessages;
 let fileUploadToLitterbox;
 let convertShortcodes;
 let fetchEmojiList;
-let $gcInput;
-let $tenorGifContainer;
-let tenorQuery;
-let tenorPosition = 0;
-let imagesPerRequest = 20;
-let litterboxUploadTime = "12h";
-let showCustomColors = true;
-let customColorMap = {};
-let oldResetDrag;
+
+// Chat and GIF runtime state
+let $chatInput;
+let $gifResults;
+let gifSearchQuery;
+let gifResultOffset = 0;
+let customColorMap = Object.create(null);
 
 // Initialize once AMQ finishes loading
 function startScript() {
@@ -125,28 +127,19 @@ function initializeState() {
 
 // Install game method overrides before AMQ's initial rendering
 function installHooks() {
-    // Override writeMessage function to inject timestamp and username color
+    // Preserve AMQ's message formatting while adding timestamps and highlight classes
     ChatBox.prototype.writeMessage = function (sender, msg, emojis, allowHtml) {
-        msg = passChatMessage(msg, emojis, allowHtml);
-        const timestamp = getTimestamp();
-        const atBottom = this.$CHAT_CONTENT.scrollTop() + this.$CHAT_CONTENT.innerHeight() >= this.$CHAT_CONTENT[0].scrollHeight - 20;
-        let dmUsernameClass = "dmUsername";
-        if (sender === selfName) {
-            dmUsernameClass += " self";
+        const message = passChatMessage(msg, emojis, allowHtml);
+        const atBottom = isScrolledToBottom(this.$CHAT_CONTENT, 20);
+        const $line = $("<li>");
+        if (dmTimestamps) {
+            $line.append($("<span>", { class: "cpDmTimestamp", text: getTimestamp() }), " ");
         }
-        else if (socialTab.isFriend(sender)) {
-            dmUsernameClass += " friend";
-        }
-        if (customColorMap.hasOwnProperty(sender.toLowerCase())) {
-            dmUsernameClass += " customColor" + customColorMap[sender.toLowerCase()];
-        }
-        const newDMFormat = dmTimestamps
-            ? `\n\t<li>\n\t\t<span class="dmTimestamp">${timestamp}</span> <span class="${dmUsernameClass}">${sender}:</span> ${msg}\n\t</li>\n`
-            : `\n\t<li>\n\t\t<span class="${dmUsernameClass}">${sender}:</span> ${msg}\n\t</li>\n`;
-        this.$CHAT_CONTENT.append(newDMFormat);
-        if (atBottom) {
-            this.$CHAT_CONTENT.scrollTop(this.$CHAT_CONTENT.prop("scrollHeight"));
-        }
+        const $name = $("<span>", { class: "cpDmUsername", text: sender + ":" })
+            .addClass(getPlayerColorClasses(sender));
+        $line.append($name, " ", message);
+        this.$CHAT_CONTENT.append($line);
+        if (atBottom) scrollToBottom(this.$CHAT_CONTENT);
         this.$CHAT_CONTENT.perfectScrollbar("update");
     };
 
@@ -161,635 +154,82 @@ function installHooks() {
     // Override getInsideOffsets function to account for width extension
     ChatBar.prototype.getInsideOffsets = function () {
         const containerWidth = this.activeChatContainerDom.innerWidth();
-        const insideLeftOffset = - this._$ACTIVE_CHAT_SCROLL_CONTAINER.position().left;
-        const insideRightOffset = insideLeftOffset + containerWidth - (165 + dmWidthExtension);
-        return { right: insideRightOffset, left: insideLeftOffset };
+        const chatWidth = 165 + dmWidthExtension;
+        const left = -this._$ACTIVE_CHAT_SCROLL_CONTAINER.position().left;
+        return { right: left + containerWidth - chatWidth, left };
     };
 
     // Override toggleIndicators function to account for width extension
     ChatBar.prototype.toggleIndicators = function () {
-        let offsets = this.getInsideOffsets();
-        offsets.left -= (165 + dmWidthExtension) / 2;
-        offsets.right += (165 + dmWidthExtension) / 2;
+        const offsets = this.getInsideOffsets();
+        const halfChatWidth = (165 + dmWidthExtension) / 2;
+        offsets.left -= halfChatWidth;
+        offsets.right += halfChatWidth;
         let activeOutsideLeft = false;
         let activeOutsideRight = false;
-        this.activeChats.forEach(chat => {
-            if (chat.object.update) {
-                const position = chat.object.getXOffset();
-                if (position < offsets.left) activeOutsideLeft = true;
-                else if (position > offsets.right) activeOutsideRight = true;
-            }
-        });
-        if (activeOutsideLeft) this.$LEFT_INDICATOR.addClass("runAnimation");
-        else this.$LEFT_INDICATOR.removeClass("runAnimation");
-        if (activeOutsideRight) this.$RIGHT_INDICATOR.addClass("runAnimation");
-        else this.$RIGHT_INDICATOR.removeClass("runAnimation");
+        for (const chat of this.activeChats) {
+            if (!chat.object.update) continue;
+            const position = chat.object.getXOffset();
+            if (position < offsets.left) activeOutsideLeft = true;
+            else if (position > offsets.right) activeOutsideRight = true;
+        }
+        this.$LEFT_INDICATOR.toggleClass("runAnimation", activeOutsideLeft);
+        this.$RIGHT_INDICATOR.toggleClass("runAnimation", activeOutsideRight);
     };
 
     // Override handleAlert function to account for height extension
     ChatBox.prototype.handleAlert = function (msg, callback) {
-        const atBottom = this.$CHAT_CONTENT.scrollTop() + this.$CHAT_CONTENT.innerHeight() >= this.$CHAT_CONTENT[0].scrollHeight;
+        const atBottom = isScrolledToBottom(this.$CHAT_CONTENT);
         this.$HEADER.text(msg);
         if (callback) {
             this.$HEADER.append(format(chatHeaderInputTemplate));
             this.container.find(".accept").click(createFriendRequestHandler.call(this, true, callback));
             this.container.find(".reject").click(createFriendRequestHandler.call(this, false, callback));
-        } else {
+        }
+        else {
             this.$HEADER.append(format(chatHeaderCloseTemplate));
             this.container.find(".accept").click(this.closeHeader.bind(this));
         }
         this.$HEADER.removeClass("hidden");
         const headerHeight = this.container.find(".header").outerHeight(true);
         this.$CHAT_CONTENT.css("height", 132 + dmHeightExtension - headerHeight);
-        if (atBottom) this.$CHAT_CONTENT.scrollTop(this.$CHAT_CONTENT.prop("scrollHeight"));
+        if (atBottom) scrollToBottom(this.$CHAT_CONTENT);
         this.$CHAT_CONTENT.perfectScrollbar("update");
         this.newUpdate();
     };
 
-    oldResetDrag = nexusCoopChat.resetDrag;
+    const originalResetDrag = nexusCoopChat.resetDrag;
     nexusCoopChat.resetDrag = function () {
-        oldResetDrag.apply(this, arguments);
-        if (resizeNexusChat) {
-            $("#nexusCoopMainContainer").removeAttr("style").css({
-                "resize": "both",
-                "overflow": "hidden",
-                "min-width": "0",
-                "max-width": "none"
-            });
-        }
+        originalResetDrag.apply(this, arguments);
+        if (!resizeNexusChat) return;
+        $("#nexusCoopMainContainer").removeAttr("style");
+        enableNexusChatResize();
     };
 }
 
-// Setup
+// Connect settings, chat observers, uploads, and answer-input emoji completion
 function setup() {
-    $("#settingsGraphicContainer").append(/*html*/`
-        <div class="row" style="padding-top: 10px">
-            <div id="smChatPlusSettings" class="col-xs-12">
-                <div style="text-align: center">
-                    <label>Chat Plus Settings</label>
-                </div>
-                <div style="padding-top: 5px">
-                    <span><b>Timestamps:</b></span>
-                    <span style="margin-left: 10px">Chat</span>
-                    <div class="customCheckbox">
-                        <input type="checkbox" id="chatPlusGCTimestamps">
-                        <label for="chatPlusGCTimestamps"><i class="fa fa-check" aria-hidden="true"></i></label>
-                    </div>
-                    <span style="margin-left: 10px">Nexus</span>
-                    <div class="customCheckbox">
-                        <input type="checkbox" id="chatPlusNCTimestamps">
-                        <label for="chatPlusNCTimestamps"><i class="fa fa-check" aria-hidden="true"></i></label>
-                    </div>
-                    <span style="margin-left: 10px">DM</span>
-                    <div class="customCheckbox">
-                        <input type="checkbox" id="chatPlusDMTimestamps">
-                        <label for="chatPlusDMTimestamps"><i class="fa fa-check" aria-hidden="true"></i></label>
-                    </div>
-                    <span style="margin-left: 10px">Format</span>
-                    <select id="chatPlusTimestampFormatSelect" class="form-control" style="display: inline-block; width: 108px; height: auto; padding: 2px">
-                        <option value="HH:MM">HH:MM</option>
-                        <option value="HH:MM:SS">HH:MM:SS</option>
-                    </select>
-                </div>
-                <div style="padding-top: 10px">
-                    <span style="margin-left: 0px"><b>Name Color:</b></span>
-                    <span style="margin-left: 10px">Nexus</span>
-                    <div class="customCheckbox">
-                        <input type="checkbox" id="chatPlusNCColor">
-                        <label for="chatPlusNCColor"><i class="fa fa-check" aria-hidden="true"></i></label>
-                    </div>
-                    <span style="margin-left: 10px">DM</span>
-                    <div class="customCheckbox">
-                        <input type="checkbox" id="chatPlusDMColor">
-                        <label for="chatPlusDMColor"><i class="fa fa-check" aria-hidden="true"></i></label>
-                    </div>
-                    <span id="chatPlusLoadBalancerContainer">
-                        <span style="margin-left: 45px"><b>Load Balancer:</b></span>
-                        <span style="margin-left: 10px"># Pixels From Left</span>
-                        <input id="chatPlusLoadBalancerPositionInput" class="form-control" type="text" style="width: 40px;">
-                    </span>
-                </div>
-                <div style="padding-top: 10px">
-                    <span><b>Extend DM (px):</b></span>
-                    <span style="margin-left: 10px">Width</span>
-                    <input id="chatPlusDMWidthExtension" class="form-control" type="text" style="width: 40px">
-                    <span style="margin-left: 10px">Height</span>
-                    <input id="chatPlusDMHeightExtension" class="form-control" type="text" style="width: 40px">
-                    <span style="margin-left: 38px"><b>Resize Nexus Chat</b></span>
-                    <div class="customCheckbox" style="vertical-align: middle">
-                        <input type="checkbox" id="chatPlusResizeNexusChat">
-                        <label for="chatPlusResizeNexusChat"><i class="fa fa-check" aria-hidden="true"></i></label>
-                    </div>
-                </div>
-                <div style="padding-top: 10px">
-                    <span><b>Reformat XP/Currency</b></span>
-                    <div class="customCheckbox" style="vertical-align: middle">
-                        <input type="checkbox" id="chatPlusReformatBottomBar">
-                        <label for="chatPlusReformatBottomBar"><i class="fa fa-check" aria-hidden="true"></i></label>
-                    </div>
-                    <span id="chatPlusReformatBottomBarContainer" style="margin-left: 19px">
-                        <span>XP Bar Width</span>
-                        <input id="chatPlusXPBarWidth" class="form-control" type="text" style="width: 40px">
-                        <span style="margin-left: 20px"># Pixels From Right</span>
-                        <input id="chatPlusXPBarFromRight" class="form-control" type="text" style="width: 40px">
-                    </span>
-                </div>
-                <div style="padding-top: 10px">
-                    <span><b>Load Media in Chat</b></span>
-                    <div class="customCheckbox" style="vertical-align: middle">
-                        <input type="checkbox" id="chatPlusLoadMedia">
-                        <label for="chatPlusLoadMedia"><i class="fa fa-check" aria-hidden="true"></i></label>
-                    </div>
-                    <span id="chatPlusAutoLoadMediaContainer" style="margin-left: 40px">
-                        <span><b>Auto Load Media:</b></span>
-                        <select id="chatPlusAutoLoadMediaSelect" class="form-control" style="display: inline-block; width: 108px; height: auto; padding: 2px">
-                            <option value="never">Never</option>
-                            <option value="friends">Friends</option>
-                            <option value="all">All</option>
-                        </select>
-                    </span>
-                </div>
-                <div style="padding-top: 10px">
-                    <span><b>Gif Search</b></span>
-                    <div class="customCheckbox" style="vertical-align: middle">
-                        <input type="checkbox" id="chatPlusGifSearch">
-                        <label for="chatPlusGifSearch"><i class="fa fa-check" aria-hidden="true"></i></label>
-                    </div>
-                    <span id="chatPlusGifSearchContainer" style="margin-left: 98px">
-                        <span><b>Gif Window:</b></span>
-                        <span style="margin-left: 10px">Height</span>
-                        <input id="chatPlusGifSearchHeight" class="form-control" type="text" style="width: 40px">
-                        <span style="margin-left: 10px">Send on click</span>
-                        <div class="customCheckbox" style="vertical-align: middle">
-                            <input type="checkbox" id="chatPlusGifSendOnClick">
-                            <label for="chatPlusGifSendOnClick"><i class="fa fa-check" aria-hidden="true"></i></label>
-                        </div>
-                    </span>
-                </div>
-                <div style="padding-top: 10px">
-                    <span><b>Max Messages:</b></span>
-                    <span style="margin-left: 10px">Chat</span>
-                    <input id="chatPlusGCMaxMessages" class="form-control" type="text" style="width: 40px">
-                    <span style="margin-left: 10px">Nexus</span>
-                    <input id="chatPlusNCMaxMessages" class="form-control" type="text" style="width: 40px">
-                    <span style="margin-left: 50px"><b>Upload files to Litterbox</b></span>
-                    <div class="customCheckbox" style="vertical-align: middle">
-                        <input type="checkbox" id="chatPlusUploadToLitterbox">
-                        <label for="chatPlusUploadToLitterbox"><i class="fa fa-check" aria-hidden="true"></i></label>
-                    </div>
-                </div>
-                <div style="padding-top: 10px">
-                    <span><b>More Emojis</b></span>
-                    <div class="customCheckbox" style="vertical-align: middle">
-                        <input type="checkbox" id="chatPlusMoreEmojis">
-                        <label for="chatPlusMoreEmojis"><i class="fa fa-check" aria-hidden="true"></i></label>
-                    </div>
-                    <span style="margin-left: 50px"><b>Convert Shortcodes</b></span>
-                    <div class="customCheckbox" style="vertical-align: middle">
-                        <input type="checkbox" id="chatPlusConvertShortcodes">
-                        <label for="chatPlusConvertShortcodes"><i class="fa fa-check" aria-hidden="true"></i></label>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `);
-
-    $("#gcChatContent .gcInputContainer").append(/*html*/`
-        <div id="gcGifSearchOuterContainer">
-            <div id="gcGifSearchButton" class="clickAble">
-                <i class="fa fa-picture-o" aria-hidden="true"></i>
-            </div>
-        </div>
-    `);
-
-    $("#gcMessageContainer").after(/*html*/`
-        <div id="gcGifContainer">
-            <input id="tenorSearchInput" type="text" placeholder="gif search...">
-            <div id="tenorGifContainer"></div>
-        </div>
-    `);
-
-    $gcInput = $("#gcInput");
-    $tenorGifContainer = $("#tenorGifContainer");
-
-    $gcInput.popover({
-        container: "#gcChatContent",
-        placement: "top",
-        trigger: "manual",
-        content: ""
-    });
-    $("#chatPlusGCTimestamps").prop("checked", gcTimestamps).on("click", () => {
-        gcTimestamps = !gcTimestamps;
-        saveSettings();
-    });
-    $("#chatPlusNCTimestamps").prop("checked", ncTimestamps).on("click", () => {
-        ncTimestamps = !ncTimestamps;
-        saveSettings();
-    });
-    $("#chatPlusDMTimestamps").prop("checked", dmTimestamps).on("click", () => {
-        dmTimestamps = !dmTimestamps;
-        saveSettings();
-    });
-    $("#chatPlusTimestampFormatSelect").val(timestampFormat).on("change", function () {
-        timestampFormat = this.value;
-        saveSettings();
-    });
-    $("#chatPlusNCColor").prop("checked", ncColor).on("click", () => {
-        ncColor = !ncColor;
-        applyStyles();
-        saveSettings();
-    });
-    $("#chatPlusDMColor").prop("checked", dmColor).on("click", () => {
-        dmColor = !dmColor;
-        applyStyles();
-        saveSettings();
-    });
-    $("#chatPlusReformatBottomBar").prop("checked", reformatBottomBar).on("click", () => {
-        reformatBottomBar = !reformatBottomBar;
-        $("#chatPlusReformatBottomBarContainer, #chatPlusLoadBalancerContainer").toggleClass("disabled", !reformatBottomBar);
-        applyStyles();
-        saveSettings();
-    });
-    $("#chatPlusLoadBalancerPositionInput").val(loadBalancerFromLeft).on("blur", function () {
-        const number = parseInt(this.value);
-        if (Number.isInteger(number) && number >= 0) {
-            loadBalancerFromLeft = number;
-            applyStyles();
-            saveSettings();
-        }
-    });
-    $("#chatPlusXPBarWidth").val(xpBarWidth).on("blur", function () {
-        const number = parseInt(this.value);
-        if (Number.isInteger(number) && number >= 0) {
-            xpBarWidth = number;
-            applyStyles();
-            saveSettings();
-        }
-    });
-    $("#chatPlusXPBarFromRight").val(xpBarFromRight).on("blur", function () {
-        const number = parseInt(this.value);
-        if (Number.isInteger(number) && number >= 0) {
-            xpBarFromRight = number;
-            applyStyles();
-            saveSettings();
-        }
-    });
-    $("#chatPlusDMWidthExtension").val(dmWidthExtension).on("blur", function () {
-        const number = parseInt(this.value);
-        if (Number.isInteger(number) && number >= 0) {
-            dmWidthExtension = number;
-            applyStyles();
-            saveSettings();
-        }
-    });
-    $("#chatPlusDMHeightExtension").val(dmHeightExtension).on("blur", function () {
-        const number = parseInt(this.value);
-        if (Number.isInteger(number) && number >= 0) {
-            dmHeightExtension = number;
-            applyStyles();
-            saveSettings();
-        }
-    });
-    $("#chatPlusResizeNexusChat").prop("checked", resizeNexusChat).on("click", () => {
-        resizeNexusChat = !resizeNexusChat;
-        if (resizeNexusChat) {
-            $("#nexusCoopMainContainer").css({
-                "resize": "both",
-                "overflow": "hidden",
-                "min-width": "0",
-                "max-width": "none"
-            });
-        }
-        else {
-            $("#nexusCoopMainContainer").removeAttr("style");
-        }
-        saveSettings();
-    });
-    $("#chatPlusGCMaxMessages").val(gcMaxMessages).on("blur", function () {
-        const number = parseInt(this.value);
-        if (Number.isInteger(number) && number > 0) {
-            gcMaxMessages = number;
-            gameChat.MAX_CHAT_MESSAGES = number;
-            saveSettings();
-        }
-    });
-    $("#chatPlusNCMaxMessages").val(ncMaxMessages).on("blur", function () {
-        const number = parseInt(this.value);
-        if (Number.isInteger(number) && number > 0) {
-            ncMaxMessages = number;
-            nexusCoopChat.MAX_CHAT_MESSAGES = number;
-            saveSettings();
-        }
-    });
-    $("#chatPlusLoadMedia").prop("checked", gcLoadMediaButton).on("click", () => {
-        gcLoadMediaButton = !gcLoadMediaButton;
-        $("#chatPlusAutoLoadMediaContainer").toggleClass("disabled", !gcLoadMediaButton);
-        saveSettings();
-    });
-    $("#chatPlusAutoLoadMediaSelect").val(gcAutoLoadMedia).on("change", function () {
-        gcAutoLoadMedia = this.value;
-        saveSettings();
-    });
-    $("#chatPlusGifSearch").prop("checked", gifSearch).on("click", () => {
-        gifSearch = !gifSearch;
-        if (gifSearch) {
-            $("#gcGifSearchOuterContainer").show();
-            $("#chatPlusGifSearchContainer").removeClass("disabled");
-        }
-        else {
-            $("#gcGifSearchOuterContainer").hide();
-            $("#gcGifContainer").hide();
-            $("#chatPlusGifSearchContainer").addClass("disabled");
-        }
-        applyStyles();
-        saveSettings();
-    });
-    $("#chatPlusGifSearchHeight").val(gifSearchHeight).on("blur", function () {
-        const number = parseInt(this.value);
-        if (!isNaN(number) && number >= 0) {
-            gifSearchHeight = number;
-            applyStyles();
-            saveSettings();
-        }
-    });
-    $("#chatPlusGifSendOnClick").prop("checked", gifSendOnClick).on("click", () => {
-        gifSendOnClick = !gifSendOnClick;
-        saveSettings();
-    });
-    $("#gcGifSearchButton").on("click", () => {
-        if ($("#gcGifContainer").is(":visible")) {
-            $("#gcGifContainer").hide();
-        }
-        else {
-            $("#gcGifContainer").show();
-            $("#tenorSearchInput").val("").focus();
-        }
-    });
-    $("#chatPlusUploadToLitterbox").prop("checked", fileUploadToLitterbox).on("click", () => {
-        fileUploadToLitterbox = !fileUploadToLitterbox;
-        saveSettings();
-    });
-    $("#chatPlusMoreEmojis").prop("checked", fetchEmojiList).on("click", () => {
-        fetchEmojiList = !fetchEmojiList;
-        saveSettings();
-    });
-    $("#chatPlusConvertShortcodes").prop("checked", convertShortcodes).on("click", () => {
-        convertShortcodes = !convertShortcodes;
-        saveSettings();
-    });
-    $tenorGifContainer.on("scroll", () => {
-        const el = $tenorGifContainer[0];
-        const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight;
-        if (atBottom) {
-            fetchTenorPage(tenorQuery, tenorPosition);
-            tenorPosition += imagesPerRequest;
-        }
-    });
-    $("#tenorSearchInput").on("keypress", (event) => {
-        if (event.key === "Enter") {
-            tenorQuery = event.target.value;
-            tenorPosition = imagesPerRequest;
-            fetchTenorPage(tenorQuery, 0, true);
-        }
-    });
-    $gcInput
-        .on("dragenter", () => {
-            if (fileUploadToLitterbox) {
-                $gcInput.data("bs.popover").options.content = "Upload to litterbox";
-                $gcInput.popover("show");
-            }
-        })
-        .on("dragleave", () => {
-            if (fileUploadToLitterbox) {
-                $gcInput.popover("hide");
-            }
-        })
-        .on("drop", gcUploadEvent)
-        .on("paste", gcUploadEvent);
+    window.addEventListener("amq:highlight-friends-changed", refreshHighlightColors);
+    createGraphicsSettings();
+    createGifSearch();
+    bindDisplaySettings();
+    bindMediaSettings();
+    bindLayoutSettings();
+    updateSettingsControls();
+    updateSettingsAvailability();
+    bindGifSearchEvents();
+    bindChatUploadEvents();
+    observeChatMessages();
+    setupAnswerInputEmojis();
+    registerScriptInfo();
 
     gameChat.MAX_CHAT_MESSAGES = gcMaxMessages;
     nexusCoopChat.MAX_CHAT_MESSAGES = ncMaxMessages;
-    $("#tenorGifContainer").perfectScrollbar();
-    if (!reformatBottomBar) $("#chatPlusReformatBottomBarContainer, #chatPlusLoadBalancerContainer").addClass("disabled");
-    if (!gcLoadMediaButton) $("#chatPlusAutoLoadMediaContainer").addClass("disabled");
-    if (!gifSearch) $("#chatPlusGifSearchContainer").addClass("disabled");
-    if (resizeNexusChat) $("#nexusCoopMainContainer").css({ "resize": "both", "overflow": "hidden", "min-width": "0", "max-width": "none" });
+    if (resizeNexusChat) enableNexusChatResize();
+}
 
-    // Watch game chat
-    new MutationObserver((mutations) => {
-        for (const mutation of mutations) {
-            for (const node of mutation.addedNodes) {
-                const $node = $(node);
-                const atBottom = gameChat.$chatMessageContainer.scrollTop() + gameChat.$chatMessageContainer.innerHeight() >= gameChat.$chatMessageContainer[0].scrollHeight - 100;
-                if (gcTimestamps) {
-                    if ($node.is(".gcTimestamp, .ps__scrollbar-y-rail, .ps__scrollbar-x-rail")) continue;
-                    const $timestamp = $("<span>", { class: "gcTimestamp", text: getTimestamp() });
-                    if ($node.find(".gcTeamMessageIcon").length) {
-                        $node.find(".gcTeamMessageIcon").after($timestamp);
-                    }
-                    else {
-                        $node.prepend($timestamp);
-                    }
-                }
-                if (gcLoadMediaButton) {
-                    const urls = extractUrls($node.find(".gcMessage").text());
-                    if (urls.length > 0) {
-                        const name = $node.find(".gcUserName").text();
-                        const canAutoLoad = gcAutoLoadMedia === "all" || (gcAutoLoadMedia === "friends" && (name === selfName || socialTab.isFriend(name)));
-                        if (imageUrlRegex.test(urls[0])) {
-                            createMediaElement($node, "img", urls[0], canAutoLoad);
-                        }
-                        else if (audioUrlRegex.test(urls[0])) {
-                            createMediaElement($node, "audio", urls[0], canAutoLoad);
-                        }
-                        else if (videoUrlRegex.test(urls[0])) {
-                            createMediaElement($node, "video", urls[0], canAutoLoad);
-                        }
-                    }
-                }
-                if (atBottom) {
-                    gameChat.$chatMessageContainer.scrollTop(gameChat.$chatMessageContainer.prop("scrollHeight"));
-                }
-            }
-        }
-    }).observe(document.querySelector("#gcMessageContainer"), { childList: true, subtree: false });
-
-    // Watch nexus chat
-    new MutationObserver((mutations) => {
-        for (const mutation of mutations) {
-            for (const node of mutation.addedNodes) {
-                const $node = $(node);
-                const atBottom = nexusCoopChat.$chatMessageContainer.scrollTop() + nexusCoopChat.$chatMessageContainer.innerHeight() >= nexusCoopChat.$chatMessageContainer[0].scrollHeight - 100;
-                if ($node.is(".ncTimestamp, .ps__scrollbar-y-rail, .ps__scrollbar-x-rail")) continue;
-                if (ncTimestamps) {
-                    const $timestamp = $("<span>", { class: "ncTimestamp", text: getTimestamp() });
-                    if (!$node.find(".nexusCoopChatName").length) $timestamp.css("margin-right", "7px");
-                    $node.prepend($timestamp);
-                }
-                if (ncColor) {
-                    const name = $node.find(".nexusCoopChatName").text().slice(0, -1);
-                    if (name === selfName) {
-                        $node.find(".nexusCoopChatName").addClass("self");
-                    }
-                    else if (socialTab.isFriend(name)) {
-                        $node.find(".nexusCoopChatName").addClass("friend");
-                    }
-                    if (customColorMap.hasOwnProperty(name.toLowerCase())) {
-                        $node.find(".nexusCoopChatName").addClass("customColor" + customColorMap[name.toLowerCase()]);
-                    }
-                }
-                if (atBottom) {
-                    nexusCoopChat.$chatMessageContainer.scrollTop(nexusCoopChat.$chatMessageContainer.prop("scrollHeight"));
-                }
-            }
-        }
-    }).observe(document.querySelector("#nexusCoopChatContainerInner"), { childList: true, subtree: false });
-
-    // Watch dms
-    new MutationObserver((mutations) => {
-        for (const mutation of mutations) {
-            for (const node of mutation.addedNodes) {
-                const $node = $(node);
-                if ($node.hasClass("chatBox")) {
-                    $node.find("textarea")
-                        .on("drop", (event) => { dmUploadEvent(event, $node) })
-                        .on("paste", (event) => { dmUploadEvent(event, $node) });
-                }
-            }
-        }
-    }).observe(document.querySelector("#activeChatScrollContainer"), { childList: true, subtree: false });
-
-    // Create new class for emoji selector on answer input
-    class AnswerBoxEmoteWrapper {
-        constructor($input, inputIdentifer, customClassName = "") {
-            this.$input = $input;
-            this.items = [];
-            this.counter = 0;
-            this.displayed = false;
-            this.currentWord = null;
-            $.contextMenu({
-                selector: inputIdentifer,
-                trigger: "none",
-                className: customClassName,
-                position: (opt) => {
-                    const { left, top } = this.$input.offset();
-                    opt.$menu.css({ width: 280, top: top - 10, left: left, transform: "translateY(-100%)" });
-                },
-                build: () => {
-                    const itemMap = {};
-                    this.items.forEach(({ name, src, srcset }) => {
-                        const $img = $("<img>", { class: "amqEmoji", sizes: "30px" });
-                        if (srcset) $img.attr("srcset", srcset);
-                        $img.attr("src", src);
-                        itemMap[name] = {
-                            name: name,
-                            className: "context-menu-item emoteSelectorItem",
-                            icon: (opt, $itemElement) => {
-                                $itemElement.prepend($img);
-                            },
-                            callback: () => {
-                                const text = this.$input.val();
-                                const targetIndex = this.$input[0].selectionStart;
-                                const prevSpaceIndex = text.lastIndexOf(" ", targetIndex - 1);
-                                const prevEmojiIndex = text.lastIndexOf(":", targetIndex - 1);
-                                const prevIndex = prevSpaceIndex > prevEmojiIndex ? prevSpaceIndex + 1 : prevEmojiIndex;
-                                const nextSpaceIndex = text.indexOf(" ", targetIndex);
-                                const begin = prevIndex < 0 ? 0 : prevIndex;
-                                const end = nextSpaceIndex < 0 ? text.length : nextSpaceIndex;
-                                const insertedEmoji = translateShortcodeToUnicode(name).text;
-                                let newText = text.slice(0, begin) + insertedEmoji + text.slice(end);
-                                const textMaxLength = this.$input.attr("maxlength");
-                                if (textMaxLength && newText.length > parseInt(textMaxLength)) {
-                                    newText = newText.slice(0, parseInt(textMaxLength));
-                                }
-                                this.$input.val(newText);
-                                const newCursorPosition = Math.min(begin + insertedEmoji.length, newText.length);
-                                this.$input[0].selectionStart = newCursorPosition;
-                                this.$input[0].selectionEnd = newCursorPosition;
-                            },
-                        };
-                    });
-                    return { items: itemMap };
-                },
-                events: {
-                    show: () => {
-                        this.displayed = true;
-                        setTimeout(() => {
-                            $(document).off("keydown.contextMenu").on("keydown.contextMenu", AnswerBoxEmoteWrapper.prototype.CUSTOM_KEY_HANDLER.bind(this));
-                        }, 1);
-                    },
-                    hide: () => {
-                        this.displayed = false;
-                    },
-                },
-                animation: { duration: 0, show: "slideDown", hide: "slideUp" },
-            });
-        }
-        handleKeypress() {
-            if (options.disableEmojis) return;
-            const word = emoteSelector.getCurrentWord(this.$input);
-            let entries = [];
-            if (emoteSelector.EMOJI_REGEX.test(word)) {
-                entries = emoteSelector.getEmojiMatches(word).map((shortcode) => {
-                    const text = translateShortcodeToUnicode(shortcode).text;
-                    const tweSrc = $(twemoji.parse(text)).attr("src");
-                    return { name: shortcode, src: tweSrc, srcset: null };
-                });
-            }
-            this.items = entries.slice(0, 10);
-            this.counter++;
-            if (entries.length) {
-                if (this.currentWord !== word) {
-                    this.display();
-                }
-            }
-            else {
-                this.hide();
-            }
-            this.currentWord = word;
-        }
-        display() {
-            if (this.displayed) {
-                this.$input.contextMenu("hide");
-                this.$input.contextMenu();
-            }
-            else {
-                this.$input.contextMenu();
-                this.displayed = true;
-            }
-        }
-        hide() {
-            if (this.displayed) {
-                this.$input.contextMenu("hide");
-            }
-        }
-    }
-
-    // Create new custom key handler for AnswerBoxEmoteWrapper, must not activate when anime dropdown is visible
-    const oldCustomKeyHandler = EmoteSelectorInputWrapper.prototype.CUSTOM_KEY_HANDLER;
-    AnswerBoxEmoteWrapper.prototype.CUSTOM_KEY_HANDLER = function () {
-        if (quiz.answerInput.typingInput.autoCompleteController.awesomepleteInstance.ul.getAttribute("hidden") === null) return;
-        oldCustomKeyHandler.apply(this, arguments);
-    };
-
-    // Add joypixels emojis list to the game
-    if (fetchEmojiList) {
-        fetch(joypixelsUrl)
-            .then(res => res.json())
-            .then(data => populateEmojiMaps(data))
-            .catch(err => console.error("AMQ ChatPlus: failed to load JoyPixels list ", err));
-    }
-
-    // Auto convert shortcodes
-    const $qpAnswerInput = $("#qpAnswerInput");
-    $qpAnswerInput.on("input", convertText);
-    $("#mhRoomNameInput").on("input", convertText);
-    $("#hostCustomQuizRoomName").on("input", convertText);
-
-    // Setup emoji selector on answer input
-    const answerEmoteSelector = new AnswerBoxEmoteWrapper($qpAnswerInput, "#qpAnswerInput");
-    $qpAnswerInput.on("keyup", () => { answerEmoteSelector.handleKeypress() });
-
+// Keep registration text apart from startup and live chat behavior
+function registerScriptInfo() {
     AMQ_addScriptData({
         name: "Chat Plus",
         author: "kempanator",
@@ -812,242 +252,805 @@ function setup() {
     });
 }
 
-// Check if the main game chat window is scrolled to the bottom
-function gcCheckAtBottom(atBottom) {
-    if (atBottom) {
-        gameChat.$chatMessageContainer.scrollTop(gameChat.$chatMessageContainer.prop("scrollHeight"));
-    }
+// Build the feature tabs inside AMQ's Graphics settings
+function createGraphicsSettings() {
+    $("#settingsGraphicContainer").append(/*html*/`
+        <div class="row cpGraphicsSettings">
+            <div id="cpSettings" class="col-xs-12">
+                <h3 id="cpSettingsTitle" class="clickAble">Chat Plus <i class="fa fa-fw fa-caret-right"></i></h3>
+                <div id="cpSettingsContent">
+                    <div id="cpSettingsTabs" class="tabContainer">
+                        <div id="cpDisplayTab" class="tab clickAble" data-tab="cpDisplay"><h5>Display</h5></div>
+                        <div id="cpMediaTab" class="tab clickAble" data-tab="cpMedia"><h5>Media</h5></div>
+                        <div id="cpLayoutTab" class="tab clickAble" data-tab="cpLayout"><h5>Layout</h5></div>
+                        <div id="cpInfoTab" class="tab clickAble right" data-tab="cpInfo">
+                            <h5><i class="fa fa-info-circle" aria-hidden="true"></i></h5>
+                        </div>
+                    </div>
+                    <div id="cpDisplayContainer" class="tabSection" data-tab="cpDisplay">
+                        <table class="cpSettingsTable">
+                            <thead><tr>
+                                <th scope="col">Channel</th>
+                                <th scope="col">Timestamps</th>
+                                <th scope="col">Name colors</th>
+                                <th scope="col">Max messages</th>
+                            </tr></thead>
+                            <tbody>
+                                <tr>
+                                    <th scope="row">Chat</th>
+                                    <td>${createSettingsCheckbox("cpChatTimestampsCheckbox")}</td>
+                                    <td>—</td>
+                                    <td><input id="cpChatMessageLimitInput" class="form-control" type="text"></td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">Nexus</th>
+                                    <td>${createSettingsCheckbox("cpNexusTimestampsCheckbox")}</td>
+                                    <td>${createSettingsCheckbox("cpNexusNameColorsCheckbox")}</td>
+                                    <td><input id="cpNexusMessageLimitInput" class="form-control" type="text"></td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">DM</th>
+                                    <td>${createSettingsCheckbox("cpDmTimestampsCheckbox")}</td>
+                                    <td>${createSettingsCheckbox("cpDmNameColorsCheckbox")}</td>
+                                    <td>—</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <div class="cpDisplayOptions">
+                            <div class="cpSettingsRow">
+                                <label for="cpTimestampFormatSelect">Timestamp format</label>
+                                <select id="cpTimestampFormatSelect" class="form-control">
+                                    <option value="HH:MM">HH:MM</option>
+                                    <option value="HH:MM:SS">HH:MM:SS</option>
+                                </select>
+                            </div>
+                            ${createSettingsCheckbox("cpMoreEmojisCheckbox", "More emojis")}
+                            ${createSettingsCheckbox("cpConvertShortcodesCheckbox", "Convert shortcodes")}
+                        </div>
+                    </div>
+                    <div id="cpMediaContainer" class="tabSection" data-tab="cpMedia">
+                        <div class="cpSettingsStack">
+                            <section class="cpSettingsGroup">
+                                <h4>Images, audio, and video</h4>
+                                <div class="cpSettingsOptions">
+                                    ${createSettingsCheckbox("cpLoadMediaCheckbox", "Load media in chat")}
+                                    <div id="cpAutoLoadMediaContainer" class="cpSettingsRow">
+                                        <label for="cpAutoLoadMediaSelect">Auto load</label>
+                                        <select id="cpAutoLoadMediaSelect" class="form-control">
+                                            <option value="never">Never</option>
+                                            <option value="friends">Friends</option>
+                                            <option value="all">All</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </section>
+                            <section class="cpSettingsGroup">
+                                <h4>GIFs</h4>
+                                <div class="cpSettingsOptions">
+                                    ${createSettingsCheckbox("cpGifSearchCheckbox", "GIF search")}
+                                    <div id="cpGifOptions" class="cpSettingsOptions">
+                                        <div class="cpSettingsRow">
+                                            <label for="cpGifHeightInput">Window height (px)</label>
+                                            <input id="cpGifHeightInput" class="form-control" type="text">
+                                        </div>
+                                        ${createSettingsCheckbox("cpSendGifOnClickCheckbox", "Send on click")}
+                                    </div>
+                                </div>
+                            </section>
+                            <section class="cpSettingsGroup">
+                                <h4>File Uploads</h4>
+                                ${createSettingsCheckbox("cpFileUploadsCheckbox", "Upload files to Litterbox")}
+                            </section>
+                        </div>
+                    </div>
+                    <div id="cpLayoutContainer" class="tabSection" data-tab="cpLayout">
+                        <div class="cpSettingsGrid">
+                            <section class="cpSettingsGroup">
+                                <h4>Chat windows</h4>
+                                <div class="cpSettingsRow">
+                                    <label for="cpDmWidthInput">Extra DM width (px)</label>
+                                    <input id="cpDmWidthInput" class="form-control" type="text">
+                                </div>
+                                <div class="cpSettingsRow">
+                                    <label for="cpDmHeightInput">Extra DM height (px)</label>
+                                    <input id="cpDmHeightInput" class="form-control" type="text">
+                                </div>
+                                ${createSettingsCheckbox("cpResizeNexusChatCheckbox", "Resize Nexus chat")}
+                            </section>
+                            <section class="cpSettingsGroup">
+                                <h4>XP and currency bar</h4>
+                                ${createSettingsCheckbox("cpReformatBottomBarCheckbox", "Reformat XP/Currency")}
+                                <div id="cpBottomBarOptions" class="cpSettingsFields">
+                                    <div class="cpSettingsRow">
+                                        <label for="cpXpBarWidthInput">XP bar width (px)</label>
+                                        <input id="cpXpBarWidthInput" class="form-control" type="text">
+                                    </div>
+                                    <div class="cpSettingsRow">
+                                        <label for="cpXpBarOffsetInput">Offset from right (px)</label>
+                                        <input id="cpXpBarOffsetInput" class="form-control" type="text">
+                                    </div>
+                                </div>
+                                <div id="cpLoadBalancerOptions" class="cpSettingsRow">
+                                    <label for="cpLoadBalancerOffsetInput">Load balancer from left (px)</label>
+                                    <input id="cpLoadBalancerOffsetInput" class="form-control" type="text">
+                                </div>
+                            </section>
+                        </div>
+                    </div>
+                    <div id="cpInfoContainer" class="tabSection" data-tab="cpInfo">
+                        <h4>Script Info</h4>
+                        <div>Created by: kempanator</div>
+                        <div>Version: ${GM_info.script.version}</div>
+                        <div>
+                            <a href="https://github.com/kempanator/amq-scripts/blob/main/amqChatPlus.user.js" target="_blank">Github</a>
+                            <a href="https://github.com/kempanator/amq-scripts/raw/main/amqChatPlus.user.js" target="_blank">Install</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `);
+    $("#cpSettingsContent").hide();
+    $("#cpSettingsTitle").on("click", event => {
+        $(event.currentTarget).find("i").toggleClass("fa-caret-down fa-caret-right");
+        $("#cpSettingsContent").stop(true, true).slideToggle(150);
+    });
+    $("#cpSettingsTabs").on("click", ".tab[data-tab]", event => {
+        switchTab(event.currentTarget.dataset.tab);
+    });
+    switchTab("cpDisplay");
 }
 
-// Fetch gifs from tenor
-function fetchTenorPage(query, pos = 0, clearExisting = false) {
-    if (clearExisting) {
-        $tenorGifContainer.find(".tenorGif").remove();
-    }
-    const url =
-        "https://api.tenor.com/v1/search" +
-        `?q=${encodeURIComponent(query)}` +
-        `&key=${tenorApiKey}` +
-        `&limit=${imagesPerRequest}` +
-        `&pos=${pos}`;
+// Use AMQ's checkbox markup consistently for standalone and table controls
+function createSettingsCheckbox(id, label = "") {
+    let caption = "";
+    if (label) caption = `<label for="${id}">${label}</label>`;
+    return /*html*/`
+        <div class="cpSettingsCheckbox">
+            <div class="customCheckbox">
+                <input type="checkbox" id="${id}">
+                <label for="${id}"><i class="fa fa-check" aria-hidden="true"></i></label>
+            </div>
+            ${caption}
+        </div>
+    `;
+}
 
-    fetch(url).then(res => {
-        if (!res.ok) {
-            throw new Error(`Tenor request failed (${res.status})`);
-        }
-        return res.json();
-    }).then(data => {
-        for (const gif of data.results) {
-            appendThumbnail(gif.media[0].gif.url);
-        }
-    }).catch(err => {
-        console.error("AMQ ChatPlus: failed to fetch Tenor gifs", err);
-        //gameChat.systemMessage("ChatPlus Error: failed to fetch gifs");
+// Switch only this script's settings tabs and preserve the other Graphics sections
+function switchTab(tabKey) {
+    const $tabRoot = $("#cpSettings");
+    $tabRoot.find(".tab").removeClass("selected");
+    $tabRoot.find(".tabSection").hide();
+    $tabRoot.find(`.tab[data-tab="${tabKey}"]`).addClass("selected");
+    $tabRoot.find(`.tabSection[data-tab="${tabKey}"]`).show();
+}
+
+// Reflect persisted values without mixing initial rendering into event handlers
+function updateSettingsControls() {
+    $("#cpChatTimestampsCheckbox").prop("checked", gcTimestamps);
+    $("#cpNexusTimestampsCheckbox").prop("checked", ncTimestamps);
+    $("#cpDmTimestampsCheckbox").prop("checked", dmTimestamps);
+    $("#cpTimestampFormatSelect").val(timestampFormat);
+    $("#cpNexusNameColorsCheckbox").prop("checked", ncColor);
+    $("#cpDmNameColorsCheckbox").prop("checked", dmColor);
+    $("#cpChatMessageLimitInput").val(gcMaxMessages);
+    $("#cpNexusMessageLimitInput").val(ncMaxMessages);
+    $("#cpLoadMediaCheckbox").prop("checked", gcLoadMediaButton);
+    $("#cpAutoLoadMediaSelect").val(gcAutoLoadMedia);
+    $("#cpGifSearchCheckbox").prop("checked", gifSearch);
+    $("#cpGifHeightInput").val(gifSearchHeight);
+    $("#cpSendGifOnClickCheckbox").prop("checked", gifSendOnClick);
+    $("#cpFileUploadsCheckbox").prop("checked", fileUploadToLitterbox);
+    $("#cpMoreEmojisCheckbox").prop("checked", fetchEmojiList);
+    $("#cpConvertShortcodesCheckbox").prop("checked", convertShortcodes);
+    $("#cpDmWidthInput").val(dmWidthExtension);
+    $("#cpDmHeightInput").val(dmHeightExtension);
+    $("#cpResizeNexusChatCheckbox").prop("checked", resizeNexusChat);
+    $("#cpReformatBottomBarCheckbox").prop("checked", reformatBottomBar);
+    $("#cpXpBarWidthInput").val(xpBarWidth);
+    $("#cpXpBarOffsetInput").val(xpBarFromRight);
+    $("#cpLoadBalancerOffsetInput").val(loadBalancerFromLeft);
+}
+
+// Keep dependent controls dimmed and inactive while their feature is disabled
+function updateSettingsAvailability() {
+    $("#cpBottomBarOptions, #cpLoadBalancerOptions").toggleClass("disabled", !reformatBottomBar);
+    $("#cpAutoLoadMediaContainer").toggleClass("disabled", !gcLoadMediaButton);
+    $("#cpGifOptions").toggleClass("disabled", !gifSearch);
+}
+
+// Apply display preferences while preserving the existing positive message limits
+function bindDisplaySettings() {
+    $("#cpChatTimestampsCheckbox").on("click", function () {
+        gcTimestamps = this.checked;
+        saveSettings();
+    });
+    $("#cpNexusTimestampsCheckbox").on("click", function () {
+        ncTimestamps = this.checked;
+        saveSettings();
+    });
+    $("#cpDmTimestampsCheckbox").on("click", function () {
+        dmTimestamps = this.checked;
+        saveSettings();
+    });
+    $("#cpTimestampFormatSelect").on("change", function () {
+        timestampFormat = this.value;
+        saveSettings();
+    });
+    $("#cpNexusNameColorsCheckbox").on("click", function () {
+        ncColor = this.checked;
+        refreshHighlightColors();
+        saveSettings();
+    });
+    $("#cpDmNameColorsCheckbox").on("click", function () {
+        dmColor = this.checked;
+        refreshHighlightColors();
+        saveSettings();
+    });
+    $("#cpChatMessageLimitInput").on("blur", function () {
+        const value = parseInt(this.value);
+        if (!Number.isInteger(value) || value <= 0) return;
+        gcMaxMessages = value;
+        gameChat.MAX_CHAT_MESSAGES = value;
+        saveSettings();
+    });
+    $("#cpNexusMessageLimitInput").on("blur", function () {
+        const value = parseInt(this.value);
+        if (!Number.isInteger(value) || value <= 0) return;
+        ncMaxMessages = value;
+        nexusCoopChat.MAX_CHAT_MESSAGES = value;
+        saveSettings();
+    });
+    $("#cpMoreEmojisCheckbox").on("click", function () {
+        fetchEmojiList = this.checked;
+        saveSettings();
+    });
+    $("#cpConvertShortcodesCheckbox").on("click", function () {
+        convertShortcodes = this.checked;
+        saveSettings();
     });
 }
 
-// Add tenor gif to container
-function appendThumbnail(url) {
-    $("<img>", { class: "tenorGif", loading: "lazy", src: url })
+// Apply media preferences and update only the controls affected by each toggle
+function bindMediaSettings() {
+    $("#cpLoadMediaCheckbox").on("click", function () {
+        gcLoadMediaButton = this.checked;
+        updateSettingsAvailability();
+        saveSettings();
+    });
+    $("#cpAutoLoadMediaSelect").on("change", function () {
+        gcAutoLoadMedia = this.value;
+        saveSettings();
+    });
+    $("#cpGifSearchCheckbox").on("click", function () {
+        gifSearch = this.checked;
+        $("#cpGifButtonContainer").toggle(gifSearch);
+        if (!gifSearch) $("#gcGifContainer").hide();
+        updateSettingsAvailability();
+        applyStyles();
+        saveSettings();
+    });
+    $("#cpGifHeightInput").on("blur", function () {
+        const value = parseInt(this.value);
+        if (isNaN(value) || value < 0) return;
+        gifSearchHeight = value;
+        applyStyles();
+        saveSettings();
+    });
+    $("#cpSendGifOnClickCheckbox").on("click", function () {
+        gifSendOnClick = this.checked;
+        saveSettings();
+    });
+    $("#cpFileUploadsCheckbox").on("click", function () {
+        fileUploadToLitterbox = this.checked;
+        saveSettings();
+    });
+}
+
+// Apply window and bottom-bar dimensions after validating each numeric input
+function bindLayoutSettings() {
+    $("#cpLoadBalancerOffsetInput").on("blur", function () {
+        const value = parseInt(this.value);
+        if (!Number.isInteger(value) || value < 0) return;
+        loadBalancerFromLeft = value;
+        applyStyles();
+        saveSettings();
+    });
+    $("#cpXpBarWidthInput").on("blur", function () {
+        const value = parseInt(this.value);
+        if (!Number.isInteger(value) || value < 0) return;
+        xpBarWidth = value;
+        applyStyles();
+        saveSettings();
+    });
+    $("#cpXpBarOffsetInput").on("blur", function () {
+        const value = parseInt(this.value);
+        if (!Number.isInteger(value) || value < 0) return;
+        xpBarFromRight = value;
+        applyStyles();
+        saveSettings();
+    });
+    $("#cpDmWidthInput").on("blur", function () {
+        const value = parseInt(this.value);
+        if (!Number.isInteger(value) || value < 0) return;
+        dmWidthExtension = value;
+        applyStyles();
+        saveSettings();
+    });
+    $("#cpDmHeightInput").on("blur", function () {
+        const value = parseInt(this.value);
+        if (!Number.isInteger(value) || value < 0) return;
+        dmHeightExtension = value;
+        applyStyles();
+        saveSettings();
+    });
+    $("#cpResizeNexusChatCheckbox").on("click", function () {
+        resizeNexusChat = this.checked;
+        if (resizeNexusChat) enableNexusChatResize();
+        else $("#nexusCoopMainContainer").removeAttr("style");
+        saveSettings();
+    });
+    $("#cpReformatBottomBarCheckbox").on("click", function () {
+        reformatBottomBar = this.checked;
+        updateSettingsAvailability();
+        applyStyles();
+        saveSettings();
+    });
+}
+
+// Restore resize behavior after AMQ resets Nexus chat positioning
+function enableNexusChatResize() {
+    $("#nexusCoopMainContainer").css({
+        "resize": "both",
+        "overflow": "hidden",
+        "min-width": "0",
+        "max-width": "none"
+    });
+}
+
+// Keep the same scroll thresholds when preserving chat position across insertions
+function isScrolledToBottom($container, threshold = 0) {
+    const visibleBottom = $container.scrollTop() + $container.innerHeight();
+    return visibleBottom >= $container[0].scrollHeight - threshold;
+}
+
+// Follow new messages only when the user was already reading the bottom
+function scrollToBottom($container) {
+    $container.scrollTop($container.prop("scrollHeight"));
+}
+
+// Process newly inserted nodes without repeating observer loops for each chat
+function observeAddedNodes(selector, handleNode) {
+    const observer = new MutationObserver(mutations => {
+        for (const mutation of mutations) {
+            for (const node of mutation.addedNodes) handleNode($(node));
+        }
+    });
+    observer.observe(document.querySelector(selector), { childList: true, subtree: false });
+}
+
+// Keep game-chat, Nexus, and DM processing separate from their DOM observers
+function observeChatMessages() {
+    observeAddedNodes("#gcMessageContainer", processChatMessage);
+    observeAddedNodes("#nexusCoopChatContainerInner", processNexusMessage);
+    observeAddedNodes("#activeChatScrollContainer", $chat => {
+        if (!$chat.hasClass("chatBox")) return;
+        $chat.find("textarea").on("drop paste", event => handleDirectMessageUpload(event, $chat));
+    });
+}
+
+// Add timestamps and media controls while retaining the user's chat scroll position
+function processChatMessage($message) {
+    const atBottom = isScrolledToBottom(gameChat.$chatMessageContainer, 100);
+    if (gcTimestamps) {
+        if ($message.is(".cpChatTimestamp, .ps__scrollbar-y-rail, .ps__scrollbar-x-rail")) return;
+        const $timestamp = $("<span>", { class: "cpChatTimestamp", text: getTimestamp() });
+        const $teamIcon = $message.find(".gcTeamMessageIcon");
+        if ($teamIcon.length) $teamIcon.after($timestamp);
+        else $message.prepend($timestamp);
+    }
+    if (gcLoadMediaButton) addMessageMedia($message);
+    if (atBottom) scrollToBottom(gameChat.$chatMessageContainer);
+}
+
+// Apply the Nexus-specific timestamp spacing and name highlights
+function processNexusMessage($message) {
+    const atBottom = isScrolledToBottom(nexusCoopChat.$chatMessageContainer, 100);
+    if ($message.is(".cpNexusTimestamp, .ps__scrollbar-y-rail, .ps__scrollbar-x-rail")) return;
+    const $name = $message.find(".nexusCoopChatName");
+    if (ncTimestamps) {
+        const $timestamp = $("<span>", { class: "cpNexusTimestamp", text: getTimestamp() });
+        if (!$name.length) $timestamp.css("margin-right", "7px");
+        $message.prepend($timestamp);
+    }
+    if (ncColor) $name.addClass(getPlayerColorClasses($name.text().slice(0, -1)));
+    if (atBottom) scrollToBottom(nexusCoopChat.$chatMessageContainer);
+}
+
+// Use the same relationship and custom-group classes in Nexus and direct messages
+function getPlayerColorClasses(name) {
+    const classes = [];
+    if (name === selfName) classes.push("self");
+    else if (socialTab.isFriend(name)) classes.push("friend");
+    const groupIndex = customColorMap[name.toLowerCase()];
+    if (groupIndex !== undefined) classes.push("customColor" + groupIndex);
+    return classes.join(" ");
+}
+
+// Mount the GIF picker and cache its frequently used input and result container
+function createGifSearch() {
+    $("#gcChatContent .gcInputContainer").append(/*html*/`
+        <div id="cpGifButtonContainer">
+            <div id="gcGifSearchButton" class="clickAble">
+                <i class="fa fa-picture-o" aria-hidden="true"></i>
+            </div>
+        </div>
+    `);
+    $("#gcMessageContainer").after(/*html*/`
+        <div id="gcGifContainer">
+            <input id="cpGifSearchInput" type="text" placeholder="gif search...">
+            <div id="cpGifResults">
+                <p class="cpGifNotice">Google shut down the Tenor API on June 30, 2026.</p>
+            </div>
+        </div>
+    `);
+    $chatInput = $("#gcInput");
+    $gifResults = $("#cpGifResults");
+    $gifResults.perfectScrollbar();
+}
+
+// Open the GIF picker, start searches, and request the next page at the bottom
+function bindGifSearchEvents() {
+    $("#gcGifSearchButton").on("click", () => {
+        const $picker = $("#gcGifContainer");
+        if ($picker.is(":visible")) {
+            $picker.hide();
+            return;
+        }
+        $picker.show();
+        $("#cpGifSearchInput").val("").focus();
+    });
+    $("#cpGifSearchInput").on("keypress", event => {
+        if (event.key !== "Enter") return;
+        gifSearchQuery = event.target.value;
+        gifResultOffset = gifPageSize;
+        fetchTenorPage(gifSearchQuery, 0, true);
+    });
+    $gifResults.on("scroll", () => {
+        const container = $gifResults[0];
+        const visibleBottom = container.scrollTop + container.clientHeight;
+        if (visibleBottom < container.scrollHeight) return;
+        fetchTenorPage(gifSearchQuery, gifResultOffset);
+        gifResultOffset += gifPageSize;
+    });
+}
+
+// Append a Tenor result page, clearing the existing thumbnails for new searches
+async function fetchTenorPage(query, position = 0, clearExisting = false) {
+    if (clearExisting) $gifResults.find(".cpGifThumbnail").remove();
+    const url = "https://api.tenor.com/v1/search"
+        + `?q=${encodeURIComponent(query)}`
+        + `&key=${tenorApiKey}`
+        + `&limit=${gifPageSize}`
+        + `&pos=${position}`;
+    try {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`Tenor request failed (${response.status})`);
+        const data = await response.json();
+        for (const gif of data.results) appendGifThumbnail(gif.media[0].gif.url);
+    }
+    catch (error) {
+        console.error("AMQ ChatPlus: failed to fetch Tenor gifs", error);
+    }
+}
+
+// Send a selected GIF immediately or append its URL to the chat input
+function appendGifThumbnail(url) {
+    $("<img>", { class: "cpGifThumbnail", loading: "lazy", src: url })
         .on("click", () => {
-            if (gifSendOnClick) {
-                $("#gcGifContainer").hide();
-                socket.sendCommand({
-                    type: "lobby",
-                    command: "game chat message",
-                    data: {
-                        msg: url,
-                        teamMessage: gameChat.teamChatSwitch.on
-                    }
-                });
-            } else {
-                $gcInput.val((index, value) => value + url);
+            if (!gifSendOnClick) {
+                $chatInput.val((index, value) => value + url);
+                return;
             }
+            $("#gcGifContainer").hide();
+            socket.sendCommand({
+                type: "lobby",
+                command: "game chat message",
+                data: { msg: url, teamMessage: gameChat.teamChatSwitch.on }
+            });
         })
-        .appendTo($tenorGifContainer);
+        .appendTo($gifResults);
 }
 
-// Create load button or img/audio/video element in chat
-function createMediaElement($node, type, src, autoLoad) {
-    const atBottom = gameChat.$chatMessageContainer.scrollTop() + gameChat.$chatMessageContainer.innerHeight() >= gameChat.$chatMessageContainer[0].scrollHeight - 100;
-    $node.find(".gcLoadMediaContainer").remove();
-    const $container = $("<div>", { class: "gcLoadMediaContainer" });
-    if (type === "img") {
-        if (autoLoad) {
-            const $img = $("<img>", { class: "gcLoadedImage", src: src })
-                .on("load", () => gcCheckAtBottom(atBottom));
-            const $closeButton = $("<button>", { class: "btn gcCloseMedia" })
-                .append(`<i class="fa fa-close" aria-hidden="true"></i>`)
-                .on("click", () => createMediaElement($node, type, src, false))
-                .hide();
-            $container.append($img, $closeButton);
-            $container.hover(() => $closeButton.show(), () => $closeButton.hide());
-        }
-        else {
-            const $loadButton = $("<button>", { class: "btn gcLoadMediaButton", text: "Load Image" })
-                .on("click", () => createMediaElement($node, type, src, true));
-            $container.append($loadButton);
-            gcCheckAtBottom(atBottom);
-        }
-    }
-    else if (type === "audio") {
-        if (autoLoad) {
-            const $audio = $("<audio>", { class: "gcLoadedAudio", controls: true, src: src });
-            const $closeButton = $("<button>", { class: "btn gcCloseMedia" })
-                .append(`<i class="fa fa-close" aria-hidden="true"></i>`)
-                .on("click", () => createMediaElement($node, type, src, false))
-                .hide();
-            $container.append($audio, $closeButton);
-            $container.hover(() => $closeButton.show(), () => $closeButton.hide());
-            gcCheckAtBottom(atBottom);
-        }
-        else {
-            const $loadButton = $("<button>", { class: "btn gcLoadMediaButton", text: "Load Audio" })
-                .on("click", () => createMediaElement($node, type, src, true));
-            $container.append($loadButton);
-            gcCheckAtBottom(atBottom);
-        }
-    }
-    else if (type === "video") {
-        if (autoLoad) {
-            const $video = $("<video>", { class: "gcLoadedVideo", controls: true, src: src })
-                .on("canplay", () => gcCheckAtBottom(atBottom));
-            const $closeButton = $("<button>", { class: "btn gcCloseMedia" })
-                .append(`<i class="fa fa-close" aria-hidden="true"></i>`)
-                .on("click", () => createMediaElement($node, type, src, false))
-                .hide();
-            $container.append($video, $closeButton);
-            $container.hover(() => $closeButton.show(), () => $closeButton.hide());
-        }
-        else {
-            const $loadButton = $("<button>", { class: "btn gcLoadMediaButton", text: "Load Video" })
-                .on("click", () => createMediaElement($node, type, src, true));
-            $container.append($loadButton);
-            gcCheckAtBottom(atBottom);
-        }
-    }
-    $node.append($container);
+// Inspect only the first message URL, matching the existing media-loading policy
+function addMessageMedia($message) {
+    const urls = extractUrls($message.find(".gcMessage").text());
+    if (urls.length === 0) return;
+    const url = urls[0];
+    let type;
+    if (imageUrlRegex.test(url)) type = "img";
+    else if (audioUrlRegex.test(url)) type = "audio";
+    else if (videoUrlRegex.test(url)) type = "video";
+    else return;
+
+    const sender = $message.find(".gcUserName").text();
+    let autoLoad = gcAutoLoadMedia === "all";
+    if (gcAutoLoadMedia === "friends") autoLoad = sender === selfName || socialTab.isFriend(sender);
+    renderMessageMedia($message, type, url, autoLoad);
 }
 
-// Return form data for litterbox
-function litterboxFormData(file) {
-    const formData = new FormData();
-    formData.append("fileToUpload", file);
-    formData.append("reqtype", "fileupload");
-    formData.append("time", litterboxUploadTime);
-    return formData;
+// Replace a message's media with either a load button or its native media element
+function renderMessageMedia($message, type, url, loaded) {
+    const atBottom = isScrolledToBottom(gameChat.$chatMessageContainer, 100);
+    const label = { img: "Image", audio: "Audio", video: "Video" }[type];
+    $message.find(".cpMediaContainer").remove();
+    const $container = $("<div>", { class: "cpMediaContainer" });
+    if (!loaded) {
+        const $loadButton = $("<button>", { class: "btn cpLoadMediaButton", text: "Load " + label })
+            .on("click", () => renderMessageMedia($message, type, url, true));
+        $container.append($loadButton);
+        restoreChatScroll(atBottom);
+        $message.append($container);
+        return;
+    }
+
+    const $media = $("<" + type + ">", { class: "cpLoaded" + label, src: url });
+    if (type !== "img") $media.prop("controls", true);
+    if (type === "img") $media.on("load", () => restoreChatScroll(atBottom));
+    else if (type === "video") $media.on("canplay", () => restoreChatScroll(atBottom));
+    else restoreChatScroll(atBottom);
+
+    const $closeButton = $("<button>", { class: "btn cpCloseMediaButton" })
+        .append(`<i class="fa fa-close" aria-hidden="true"></i>`)
+        .on("click", () => renderMessageMedia($message, type, url, false))
+        .hide();
+    $container.append($media, $closeButton);
+    $container.hover(() => $closeButton.show(), () => $closeButton.hide());
+    $message.append($container);
 }
 
-// Upload file to litterbox on event in game chat
-function gcUploadEvent(event) {
-    if (!fileUploadToLitterbox) return;
-    $gcInput.popover("hide");
-    const file = event.originalEvent.clipboardData?.files?.[0] ?? event.originalEvent.dataTransfer?.files?.[0];
+// Retain the chat position captured before media changed its message's height
+function restoreChatScroll(atBottom) {
+    if (atBottom) scrollToBottom(gameChat.$chatMessageContainer);
+}
+
+// Show upload feedback only for drag events while file uploads are enabled
+function bindChatUploadEvents() {
+    $chatInput.popover({
+        container: "#gcChatContent",
+        placement: "top",
+        trigger: "manual",
+        content: ""
+    });
+    $chatInput.on("dragenter", () => {
+        if (!fileUploadToLitterbox) return;
+        showUploadMessage("Upload to litterbox");
+    });
+    $chatInput.on("dragleave", () => {
+        if (fileUploadToLitterbox) $chatInput.popover("hide");
+    });
+    $chatInput.on("drop paste", handleChatUpload);
+}
+
+// Update the existing chat-input popover without creating another feedback element
+function showUploadMessage(message) {
+    $chatInput.data("bs.popover").options.content = message;
+    $chatInput.popover("show");
+}
+
+// Consume only file-bearing paste and drop events, keeping normal text input intact
+function getUploadFile(event) {
+    const { clipboardData, dataTransfer } = event.originalEvent;
+    const file = clipboardData?.files?.[0] ?? dataTransfer?.files?.[0];
     if (!file) return;
     event.preventDefault();
     event.stopPropagation();
-    $gcInput.data("bs.popover").options.content = "Uploading to litterbox...";
-    $gcInput.popover("show");
-    fetch(litterboxUrl, { method: "POST", body: litterboxFormData(file) })
-        .then(res => {
-            if (!res.ok) {
-                throw new Error(`Litterbox upload failed (${res.status})`);
-            }
-            return res.text();
-        })
-        .then(data => {
-            $gcInput.popover("hide");
-            $gcInput.val((index, value) => value + data);
-        })
-        .catch(res => {
-            $gcInput.popover("hide");
-            gameChat.systemMessage("ChatPlus Error: litterbox upload failed");
-            console.log(res);
-        });
+    return file;
 }
 
-// Upload file to litterbox on event in dm
-function dmUploadEvent(event, $node) {
+// Share request construction and HTTP validation between chat and DM uploads
+async function uploadFile(file) {
+    const body = new FormData();
+    body.append("fileToUpload", file);
+    body.append("reqtype", "fileupload");
+    body.append("time", litterboxUploadTime);
+    const response = await fetch(litterboxUrl, { method: "POST", body });
+    if (!response.ok) throw new Error(`Litterbox upload failed (${response.status})`);
+    return response.text();
+}
+
+// Upload the first attached file with chat-specific progress and failure feedback
+async function handleChatUpload(event) {
     if (!fileUploadToLitterbox) return;
-    const file = event.originalEvent.clipboardData?.files?.[0] ?? event.originalEvent.dataTransfer?.files?.[0];
+    $chatInput.popover("hide");
+    const file = getUploadFile(event);
     if (!file) return;
-    event.preventDefault();
-    event.stopPropagation();
-    fetch(litterboxUrl, { method: "POST", body: litterboxFormData(file) })
-        .then(res => {
-            if (!res.ok) {
-                throw new Error(`Litterbox upload failed (${res.status})`);
-            }
-            return res.text();
-        })
-        .then(data => {
-            $node.find("textarea").val((index, value) => value + data);
-        })
-        .catch(res => {
-            console.log(res);
-        });
+    showUploadMessage("Uploading to litterbox...");
+    try {
+        const url = await uploadFile(file);
+        $chatInput.popover("hide");
+        $chatInput.val((index, value) => value + url);
+    }
+    catch (error) {
+        $chatInput.popover("hide");
+        gameChat.systemMessage("ChatPlus Error: litterbox upload failed");
+        console.log(error);
+    }
 }
 
-// Get formatted timestamp
+// Append the uploaded URL to the DM that received the paste or drop event
+async function handleDirectMessageUpload(event, $chat) {
+    if (!fileUploadToLitterbox) return;
+    const file = getUploadFile(event);
+    if (!file) return;
+    try {
+        const url = await uploadFile(file);
+        $chat.find("textarea").val((index, value) => value + url);
+    }
+    catch (error) {
+        console.log(error);
+    }
+}
+
+// Complete emoji shortcodes in the answer box without taking over anime suggestions
+class AnswerInputEmoteSelector {
+    constructor($input, selector) {
+        this.$input = $input;
+        this.items = [];
+        this.displayed = false;
+        this.currentWord = null;
+        this.defaultKeyHandler = EmoteSelectorInputWrapper.prototype.CUSTOM_KEY_HANDLER;
+        $.contextMenu({
+            selector,
+            trigger: "none",
+            className: "",
+            position: menu => {
+                const { left, top } = this.$input.offset();
+                menu.$menu.css({ width: 280, top: top - 10, left, transform: "translateY(-100%)" });
+            },
+            build: () => ({ items: this.buildMenuItems() }),
+            events: {
+                show: () => {
+                    this.displayed = true;
+                    setTimeout(() => {
+                        $(document).off("keydown.contextMenu")
+                            .on("keydown.contextMenu", this.handleKeydown.bind(this));
+                    }, 1);
+                },
+                hide: () => { this.displayed = false; }
+            },
+            animation: { duration: 0, show: "slideDown", hide: "slideUp" }
+        });
+    }
+
+    buildMenuItems() {
+        const items = {};
+        for (const { name, src } of this.items) {
+            const $image = $("<img>", { class: "amqEmoji", sizes: "30px", src });
+            items[name] = {
+                name,
+                className: "context-menu-item emoteSelectorItem",
+                icon: (menu, $item) => { $item.prepend($image); },
+                callback: () => this.insertEmoji(name)
+            };
+        }
+        return items;
+    }
+
+    insertEmoji(shortcode) {
+        const input = this.$input[0];
+        const text = this.$input.val();
+        const cursor = input.selectionStart;
+        const previousSpace = text.lastIndexOf(" ", cursor - 1);
+        const previousColon = text.lastIndexOf(":", cursor - 1);
+        const wordStart = previousSpace > previousColon ? previousSpace + 1 : previousColon;
+        const nextSpace = text.indexOf(" ", cursor);
+        const begin = Math.max(wordStart, 0);
+        const end = nextSpace < 0 ? text.length : nextSpace;
+        const emoji = translateShortcodeToUnicode(shortcode).text;
+        let updatedText = text.slice(0, begin) + emoji + text.slice(end);
+        const maxLength = parseInt(this.$input.attr("maxlength"));
+        if (updatedText.length > maxLength) updatedText = updatedText.slice(0, maxLength);
+        this.$input.val(updatedText);
+        const nextCursor = Math.min(begin + emoji.length, updatedText.length);
+        input.selectionStart = nextCursor;
+        input.selectionEnd = nextCursor;
+    }
+
+    handleKeypress() {
+        if (options.disableEmojis) return;
+        const word = emoteSelector.getCurrentWord(this.$input);
+        let entries = [];
+        if (emoteSelector.EMOJI_REGEX.test(word)) {
+            entries = emoteSelector.getEmojiMatches(word).map(shortcode => {
+                const emoji = translateShortcodeToUnicode(shortcode).text;
+                const src = $(twemoji.parse(emoji)).attr("src");
+                return { name: shortcode, src };
+            });
+        }
+        this.items = entries.slice(0, 10);
+        if (entries.length === 0) this.hide();
+        else if (this.currentWord !== word) this.display();
+        this.currentWord = word;
+    }
+
+    handleKeydown(...args) {
+        const dropdown = quiz.answerInput.typingInput.autoCompleteController.awesomepleteInstance.ul;
+        if (!dropdown.hasAttribute("hidden")) return;
+        this.defaultKeyHandler.apply(this, args);
+    }
+
+    display() {
+        if (this.displayed) this.$input.contextMenu("hide");
+        this.$input.contextMenu();
+        this.displayed = true;
+    }
+
+    hide() {
+        if (this.displayed) this.$input.contextMenu("hide");
+    }
+}
+
+// Attach answer suggestions and shortcode conversion to the existing game inputs
+function setupAnswerInputEmojis() {
+    if (fetchEmojiList) loadEmojiCatalogue();
+    const $answerInput = $("#qpAnswerInput");
+    $("#qpAnswerInput, #mhRoomNameInput, #hostCustomQuizRoomName").on("input", convertText);
+    const selector = new AnswerInputEmoteSelector($answerInput, "#qpAnswerInput");
+    $answerInput.on("keyup", () => selector.handleKeypress());
+}
+
+// Load the extra catalogue once during startup when the setting is enabled
+async function loadEmojiCatalogue() {
+    try {
+        const response = await fetch(emojiCatalogueUrl);
+        const catalogue = await response.json();
+        populateEmojiMaps(catalogue);
+    }
+    catch (error) {
+        console.error("AMQ ChatPlus: failed to load JoyPixels list ", error);
+    }
+}
+
+// Format the shared timestamp with the selected precision
 function getTimestamp() {
     const date = new Date();
     const hours = String(date.getHours()).padStart(2, "0");
     const minutes = String(date.getMinutes()).padStart(2, "0");
     const time = hours + ":" + minutes;
-    if (timestampFormat === "HH:MM:SS") {
-        const seconds = String(date.getSeconds()).padStart(2, "0");
-        return time + ":" + seconds;
-    }
-    return time;
+    if (timestampFormat !== "HH:MM:SS") return time;
+    const seconds = String(date.getSeconds()).padStart(2, "0");
+    return time + ":" + seconds;
 }
 
-// Convert any shortcodes present in the field to unicode as the user types
+// Wait for the input update before replacing any emoji shortcodes
 function convertText(event) {
-    if (!convertShortcodes) return;
-    if (!event.target.value.includes(":")) return;
+    if (!convertShortcodes || !event.target.value.includes(":")) return;
     setTimeout(() => {
         event.target.value = translateShortcodeToUnicode(event.target.value).text;
     }, 0);
 }
 
-// Used to remove skin tone variants in emojis
-function hasSkinTone(codePoints) {
-    return codePoints.some(cp => skinModifiers.includes(cp));
+// Exclude catalogue variants that duplicate the base skin, hair, or gender entry
+function isEmojiVariant(codePoints) {
+    if (codePoints.some(codePoint => skinModifiers.includes(codePoint))) return true;
+    if (codePoints.some(codePoint => hairModifiers.includes(codePoint))) return true;
+    if (!codePoints.includes(0x200D)) return false;
+    return codePoints.some(codePoint => genderModifiers.includes(codePoint));
 }
 
-// Used to remove hair variants in emojis
-function hasHair(codePoints) {
-    return codePoints.some(cp => hairModifiers.includes(cp));
-}
-
-// Used to remove gendered variants in emojis
-function hasGender(codePoints) {
-    if (!codePoints.includes(0x200D)) return false; //must have zero width joiner
-    return codePoints.some(cp => genderModifiers.includes(cp));
-}
-
-// Merge the JoyPixels catalogue into the global shortcode maps
+// Add primary JoyPixels shortcodes without replacing AMQ's existing mappings
 function populateEmojiMaps(catalogue) {
-    for (const data of Object.values(catalogue)) {
-        const codePoints = data.code_points.fully_qualified.split("-").map(cp => parseInt(cp, 16));
-        if (!hasSkinTone(codePoints) && !hasHair(codePoints) && !hasGender(codePoints)) {
-            /* this section adds too many emoji aliases, not needed
-            const names = [data.shortname].concat(data.shortname_alternates || []);
-            for (const name of names) {
-                if (!EMOJI_SHORTCODE_MAP.hasOwnProperty(name)) {
-                    EMOJI_SHORTCODE_MAP[name] = codePoints;
-                    EMOJI_SHORTCODE_LIST.push(name);
-                }
-            };*/
-            if (!EMOJI_SHORTCODE_MAP.hasOwnProperty(data.shortname)) {
-                EMOJI_SHORTCODE_MAP[data.shortname] = codePoints;
-                EMOJI_SHORTCODE_LIST.push(data.shortname);
-            }
-            const emoji = String.fromCodePoint(...codePoints);
-            if (!EMOJI_TO_NAME_MAP.hasOwnProperty(emoji)) {
-                EMOJI_TO_NAME_MAP[emoji] = data.shortname;
-            }
+    for (const entry of Object.values(catalogue)) {
+        const codePoints = entry.code_points.fully_qualified.split("-").map(codePoint => parseInt(codePoint, 16));
+        if (isEmojiVariant(codePoints)) continue;
+        const shortcode = entry.shortname;
+        if (!Object.hasOwn(EMOJI_SHORTCODE_MAP, shortcode)) {
+            EMOJI_SHORTCODE_MAP[shortcode] = codePoints;
+            EMOJI_SHORTCODE_LIST.push(shortcode);
         }
+        const emoji = String.fromCodePoint(...codePoints);
+        if (!Object.hasOwn(EMOJI_TO_NAME_MAP, emoji)) EMOJI_TO_NAME_MAP[emoji] = shortcode;
     }
 }
 
@@ -1189,58 +1192,224 @@ function saveSettings() {
     }));
 }
 
-// Apply styles
+// Reapply current palettes and memberships without rebuilding chat messages
+function refreshHighlightColors() {
+    applyStyles();
+    let selector = ".cpDmUsername";
+    if (ncColor) selector += ", .nexusCoopChatName";
+    $(selector).each(function () {
+        const $name = $(this);
+        const playerName = $name.text().slice(0, -1);
+        $name.removeClass(removePlayerColorClasses).addClass(getPlayerColorClasses(playerName));
+    });
+}
+
+// Remove only the relationship and group classes managed by Chat Plus
+function removePlayerColorClasses(index, className) {
+    return className.split(/\s+/)
+        .filter(name => /^(self|friend|customColor\d+)$/.test(name))
+        .join(" ");
+}
+
+// Refresh player lookups and compose settings, layout, media, and highlight styles
 function applyStyles() {
     const hfSettings = loadHighlightSettings();
-    const selfColor = hfSettings.smColorSelfColor;
-    const friendColor = hfSettings.smColorFriendColor;
-    const customColors = hfSettings.customColors;
-    customColorMap = {};
-    customColors.forEach((item, index) => {
-        for (let player of item.players) {
-            customColorMap[player.toLowerCase()] = index;
+    customColorMap = Object.create(null);
+    for (const [index, group] of hfSettings.customColors.entries()) {
+        for (const player of group.players) customColorMap[player.toLowerCase()] = index;
+    }
+    const styles = [createBaseStyles(), createChatLayoutStyles(), createMediaStyles()];
+    if (dmColor) styles.push(createNameColorStyles(".cpDmUsername", hfSettings));
+    if (ncColor) styles.push(createNameColorStyles(".nexusCoopChatName", hfSettings));
+    let style = document.getElementById("chatPlusStyle");
+    if (!style) {
+        style = document.createElement("style");
+        style.id = "chatPlusStyle";
+        document.head.appendChild(style);
+    }
+    style.textContent = styles.join("\n").trim();
+}
+
+// Share the same palette rules between direct messages and Nexus names
+function createNameColorStyles(selector, hfSettings) {
+    const rules = [/*css*/`
+        ${selector}.self {
+            color: ${hfSettings.smColorSelfColor};
         }
+        ${selector}.friend {
+            color: ${hfSettings.smColorFriendColor};
+        }
+    `];
+    hfSettings.customColors.forEach((group, index) => {
+        if (!group.enabled) return;
+        rules.push(/*css*/`
+            ${selector}.customColor${index} {
+                color: ${group.color};
+            }
+        `);
     });
-    let css = /*css*/ `
-        #smChatPlusSettings span, #smChatPlusSettings .customCheckbox {
-            vertical-align: middle;
+    return rules.join("\n");
+}
+
+// Keep the settings and message decoration CSS separate from adjustable dimensions
+function createBaseStyles() {
+    return /*css*/`
+        #settingsGraphicContainer .cpGraphicsSettings {
+            padding-top: 10px;
         }
-        #smChatPlusSettings input.form-control {
-            height: initial;
-            color: black;
-            display: inline-block;
-            padding: 2px 4px;
+        #cpSettingsTitle {
+            margin: 0;
+            padding: 0;
+            font-size: 16px;
+            font-weight: bold;
+            text-align: center;
+            cursor: pointer;
         }
-        .gcTimestamp {
-            opacity: 0.5;
+        #cpSettingsContent {
+            margin: 0;
+            padding: 5px 0 0;
         }
-        .dmTimestamp {
-            opacity: 0.5;
+        #cpSettings #cpInfoTab {
+            width: 45px;
         }
-        .ncTimestamp {
-            opacity: 0.5;
+        #cpInfoContainer h4 {
+            margin: 0 0 5px;
         }
-        .dmUsername {
+        #cpSettings .tabSection {
+            padding-top: 5px;
+        }
+        #cpSettings .cpSettingsGrid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 18px 24px;
+        }
+        #cpSettings .cpSettingsStack {
+            display: grid;
+            align-content: start;
+            gap: 18px;
+        }
+        #cpSettings .cpSettingsGroup,
+        #cpSettings .cpSettingsFields {
+            display: grid;
+            align-content: start;
+            gap: 10px;
+            min-width: 0;
+        }
+        #cpSettings .cpSettingsGroup > h4 {
+            margin: 0;
+            font-size: 14px;
             font-weight: bold;
         }
+        #cpSettings .cpSettingsOptions {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 10px 24px;
+        }
+        #cpSettings .cpSettingsRow {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 6px 10px;
+        }
+        #cpSettings .cpSettingsRow > label {
+            margin: 0;
+            font-weight: normal;
+        }
+        #cpSettings .cpSettingsCheckbox {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        #cpSettings .cpSettingsCheckbox > label {
+            margin: 0;
+            font-weight: normal;
+            cursor: pointer;
+        }
+        #cpSettings .customCheckbox {
+            flex: none;
+        }
+        #cpSettings .form-control {
+            height: 28px;
+            color: black;
+            padding: 2px 6px;
+        }
+        #cpSettings input.form-control {
+            width: 78px;
+            display: inline-block;
+        }
+        #cpSettings select.form-control {
+            width: auto;
+        }
+        #cpSettings .cpSettingsTable {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        #cpSettings .cpSettingsTable th,
+        #cpSettings .cpSettingsTable td {
+            padding: 3px 8px;
+            text-align: center;
+            vertical-align: middle;
+        }
+        #cpSettings .cpSettingsTable th {
+            font-weight: bold;
+        }
+        #cpSettings .cpSettingsTable th:first-child {
+            padding-left: 0;
+            text-align: left;
+        }
+        #cpSettings .cpSettingsTable th:last-child,
+        #cpSettings .cpSettingsTable td:last-child {
+            padding-right: 0;
+        }
+        #cpSettings .cpDisplayOptions {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px 20px;
+            margin-top: 12px;
+        }
+        .cpChatTimestamp {
+            opacity: 0.5;
+        }
+        .cpDmTimestamp {
+            opacity: 0.5;
+        }
+        .cpNexusTimestamp {
+            opacity: 0.5;
+        }
+        .cpDmUsername {
+            font-weight: bold;
+        }
+    `;
+}
+
+// Calculate chat-window and bottom-bar dimensions from the persisted preferences
+function createChatLayoutStyles() {
+    const xpWidth = reformatBottomBar ? xpBarWidth + "px" : "240px";
+    let chatWidth = "calc(50% - 275px)";
+    if (reformatBottomBar) chatWidth = `calc(100% - 85px - ${xpBarFromRight}px - ${xpBarWidth}px)`;
+    let css = /*css*/`
         #chatContainer {
-            width: ${reformatBottomBar ? "calc(100% - 85px - " + xpBarFromRight + "px - " + xpBarWidth + "px)" : "calc(50% - 275px)"};
+            width: ${chatWidth};
             height: ${300 + dmHeightExtension}px;
         }
         #activeChatScrollContainer {
             margin-top: ${255 + dmHeightExtension}px;
         }
         #xpOuterContainer {
-            width: ${reformatBottomBar ? xpBarWidth + "px" : "240px"};
+            width: ${xpWidth};
             margin: ${reformatBottomBar ? 0 : "auto"};
             left: ${reformatBottomBar ? "auto" : 0};
             right: ${reformatBottomBar ? xpBarFromRight + "px" : 0};
         }
         #xpBarOuter {
-            width: ${reformatBottomBar ? xpBarWidth + "px" : "240px"};
+            width: ${xpWidth};
         }
         #currencyContainer {
-            left: ${reformatBottomBar ? xpBarWidth + "px" : "240px"};
+            left: ${xpWidth};
         }
         .chatBoxContainer {
             height: ${200 + dmHeightExtension}px;
@@ -1257,10 +1426,22 @@ function applyStyles() {
         .gcInputContainer .textAreaContainer {
             width: ${gifSearch ? "calc(100% - 145px)" : "calc(100% - 120px)"};
         }
-        .gcLoadMediaContainer {
+    `;
+    if (reformatBottomBar) css += /*css*/`
+        #loadBalanceStatusContainer {
+            left: ${loadBalancerFromLeft}px;
+        }
+    `;
+    return css;
+}
+
+// Keep media rendering and GIF-picker styling together
+function createMediaStyles() {
+    return /*css*/`
+        .cpMediaContainer {
             margin: 5px 0 3px 0;
         }
-        button.gcLoadMediaButton {
+        button.cpLoadMediaButton {
             background: #6D6D6D;
             border: none;
             color: #d9d9d9;
@@ -1268,23 +1449,23 @@ function applyStyles() {
             margin: auto;
             padding: 3px 6px;
         }
-        button.gcLoadMediaButton:hover {
+        button.cpLoadMediaButton:hover {
             color: #d9d9d9;
             opacity: .7;
         }
-        img.gcLoadedImage {
+        img.cpLoadedImage {
             display: block;
             margin: auto;
             max-width: 70%;
             max-height: 200px;
         }
-        audio.gcLoadedAudio {
+        audio.cpLoadedAudio {
             display: block;
             margin: auto;
             width: 80%;
             height: 35px;
         }
-        video.gcLoadedVideo {
+        video.cpLoadedVideo {
             display: block;
             margin: auto;
             max-width: 70%;
@@ -1293,7 +1474,7 @@ function applyStyles() {
         #gcEmojiPickerOuterContainer {
             right: ${gifSearch ? "111px" : "86px"};
         }
-        #gcGifSearchOuterContainer {
+        #cpGifButtonContainer {
             position: absolute;
             top: 35px;
             right: ${gifSearch ? "111px" : "86px"};
@@ -1313,22 +1494,25 @@ function applyStyles() {
             background-color: rgba(0, 0, 0, 0.5);
             z-index: 20;
         }
-        #tenorSearchInput {
+        #cpGifSearchInput {
             color: black;
             width: 100%;
         }
-        #tenorGifContainer {
+        #cpGifResults {
             height: ${gifSearchHeight - 27}px;
             padding: 2px 0;
             position: absolute;
         }
-        img.tenorGif {
+        #cpGifResults .cpGifNotice {
+            margin: 8px;
+        }
+        img.cpGifThumbnail {
             height: 70px;
             margin: 2px;
             border-radius: 5px;
             cursor: pointer;
         }
-        button.gcCloseMedia {
+        button.cpCloseMediaButton {
             background: #6D6D6D;
             border: none;
             color: #d9d9d9;
@@ -1339,64 +1523,11 @@ function applyStyles() {
             top: 0;
             right: 0;
         }
-        button.gcCloseMedia:hover {
+        button.cpCloseMediaButton:hover {
             color: #d9d9d9;
             opacity: .7;
         }
     `;
-    if (reformatBottomBar) css += `
-        #loadBalanceStatusContainer {
-            left: ${loadBalancerFromLeft}px;
-        }
-    `;
-    if (dmColor) {
-        css += `
-            .dmUsername.self {
-                color: ${selfColor};
-            }
-            .dmUsername.friend {
-                color: ${friendColor};
-            }
-        `;
-        if (showCustomColors) {
-            customColors.forEach((item, index) => {
-                css += `
-                    .dmUsername.customColor${index} {
-                        color: ${item.color};
-                    }
-                `;
-            });
-        }
-    }
-    if (ncColor) {
-        css += `
-            .nexusCoopChatName.self {
-                color: ${selfColor};
-            }
-            .nexusCoopChatName.friend {
-                color: ${friendColor};
-            }
-        `;
-        if (showCustomColors) {
-            customColors.forEach((item, index) => {
-                css += `
-                    .nexusCoopChatName.customColor${index} {
-                        color: ${item.color};
-                    }
-                `;
-            });
-        }
-    }
-    let style = document.getElementById("chatPlusStyle");
-    if (style) {
-        style.textContent = css.trim();
-    }
-    else {
-        style = document.createElement("style");
-        style.id = "chatPlusStyle";
-        style.textContent = css.trim();
-        document.head.appendChild(style);
-    }
 }
 
 startScript();
