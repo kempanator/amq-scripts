@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.113
+// @version      0.114
 // @description  Play a simulated AMQ solo or multiplayer quiz with a custom song list
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -45,16 +45,12 @@ if (typeof Listener === "undefined") return;
 
 // === State, protocol, scheduling, initialization ===
 
-const saveData = validateLocalStorage("customSongListGame");
 const apiBase = "https://anisongdb.com/api/";
 const hostDict = { 1: "eudist.animemusicquiz.com", 2: "nawdist.animemusicquiz.com", 3: "naedist.animemusicquiz.com" };
-let CSLButtonCSS = saveData.CSLButtonCSS || "calc(25% - 250px)";
-let showCSLMessages = saveData.showCSLMessages ?? true;
-const savedAnswerEntries = Object.entries(saveData.replacedAnswers || {})
-    .filter(([, value]) => typeof value === "string");
-let replacedAnswers = Object.assign(Object.create(null), Object.fromEntries(savedAnswerEntries));
-let malClientId = saveData.malClientId ?? "";
-let debug = Boolean(saveData.debug);
+let CSLButtonCSS;
+let showCSLMessages;
+let replacedAnswers;
+let malClientId;
 let songListTableView = 0; //0: song + artist, 1: anime + song type + vintage, 2: video/audio links
 let songListTableSort = { mode: "", ascending: true } //modes: songName, artist, difficulty, anime, songType, vintage, mp3, 480, 720
 let songList = [];
@@ -72,18 +68,12 @@ let searchController;
 let searchRequest = 0;
 let cslController;
 let hotkeyController;
-let hotKeys;
 
 const hotkeyActions = {
     cslgWindow: {
         label: "Open This Window",
         run: () => {
-            if ($("#cslgSettingsModal").is(":visible")) {
-                $("#cslgSettingsModal").modal("hide");
-            }
-            else {
-                openSettingsModal();
-            }
+            $("#cslgSettingsModal").is(":visible") ? closeSettingsModal() : openSettingsModal();
         }
     },
     start: {
@@ -140,9 +130,12 @@ const hotkeyActions = {
 
 // Centralize the limits of the chat transport and quiz lifecycle
 const CSL = Object.freeze({
-    prefix: "§CSL!",
+    prefix: "§CSL",
     frameLength: 150,
-    maxFragments: 512,
+    maxFragments: 128,
+    maxSession: 2 ** 20 - 1,
+    maxMessageId: 2 ** 20 - 1,
+    maxRound: 2 ** 14 - 1,
     maxPlayers: 64,
     maxBytes: 32768,
     maxAssemblies: 64,
@@ -158,7 +151,7 @@ const CSL = Object.freeze({
     announcementDelay: 500
 });
 
-// Give chat message codes readable names without changing their wire format
+// Give chat message codes readable names
 const CSL_MESSAGE = Object.freeze({
     BEGIN: "B",
     PREPARE: "U",
@@ -182,6 +175,9 @@ const CSL_MESSAGE = Object.freeze({
     SKIP: "S"
 });
 
+// Keep this order fixed because its indexes identify message types on the wire
+const CSL_WIRE_TYPES = "BUDPLKAJVZRFTEXHQYNS";
+
 // Manual lobby prompts and their replies
 const CSL_LOBBY_COMMAND = Object.freeze({
     AUTOCOMPLETE: {
@@ -197,7 +193,41 @@ const CSL_LOBBY_COMMAND = Object.freeze({
 // Avoid repeating verbose field names for every player in chat results and snapshots
 const CSL_PLAYER_FIELDS = ["id", "name", "score", "correctGuesses", "reviveScore", "eliminated", "connected", "activeFrom", "correct", "answer", "time"];
 
-// Initialize once AMQ finishes loading, or immediately when it is already ready
+// Keep positional wire records separate from the descriptive objects used by the game
+const CSL_CONFIG_FIELDS = ["totalSongs", "guessTime", "extraGuessTime", "scoreType", "lives", "fastSkip", "fullSongRange", "quizId", "startTime"];
+const CSL_MEDIA_FIELDS = ["audio", "video480", "video720", "sample"];
+const CSL_SONG_FIELDS = [
+    "animeRomajiName", "animeEnglishName", "altAnimeNames", "altAnimeNamesAnswers",
+    "songArtist", "artistInfo", "arrangerInfo", "composerInfo", "songName",
+    "songType", "songTypeNumber", "songDifficulty", "animeType", "animeVintage",
+    "annId", "malId", "kitsuId", "aniListId", "animeTags", "animeGenre",
+    "rebroadcast", "dub", "annSongId", "audio", "video480", "video720"
+];
+const CSL_MESSAGE_FIELDS = {
+    [CSL_MESSAGE.BEGIN]: ["config", "roster"],
+    [CSL_MESSAGE.PREPARE]: CSL_MEDIA_FIELDS,
+    [CSL_MESSAGE.READY]: ["ok"],
+    [CSL_MESSAGE.PLAY]: ["q"],
+    [CSL_MESSAGE.LOCK]: ["q"],
+    [CSL_MESSAGE.COLLECT]: ["q", "commits"],
+    [CSL_MESSAGE.COMMIT]: ["revision", "hash"],
+    [CSL_MESSAGE.COMMIT_RECEIPT]: ["to", "revision"],
+    [CSL_MESSAGE.REVEAL]: ["revision", "answer", "secret"],
+    [CSL_MESSAGE.REVEAL_RECEIPT]: ["to", "revision"],
+    [CSL_MESSAGE.RESULT]: ["q", "players", "song", "finished"],
+    [CSL_MESSAGE.FINAL]: ["q", "ranks"],
+    [CSL_MESSAGE.PAUSE]: ["q", "paused"],
+    [CSL_MESSAGE.CONNECTION]: ["q", "name", "connected"],
+    [CSL_MESSAGE.STOP]: ["q"],
+    [CSL_MESSAGE.ANNOUNCE]: ["q", "phase"],
+    [CSL_MESSAGE.SYNC]: ["nonce"],
+    [CSL_MESSAGE.SNAPSHOT]: ["to", "nonce", "config", "players", "q", "phase", "media", "result", "commits", "paused", "ranks"],
+    [CSL_MESSAGE.REPAIR]: ["to", "id", "missing"],
+    [CSL_MESSAGE.SKIP]: ["phase"]
+};
+const chatCodec = createChatCodec();
+
+// Initialize once AMQ finishes loading
 function startScript() {
     initializeState();
     const loadingScreen = document.querySelector("#loadingScreen");
@@ -213,19 +243,24 @@ function startScript() {
     observer.observe(loadingScreen, { attributes: true, attributeFilter: ["class"] });
 }
 
-// Prepare runtime state and early hooks before waiting for the page
+// Restore preferences and create runtime state before startup
 function initializeState() {
+    const settings = loadSettings();
+    showCSLMessages = settings.showCSLMessages;
+    malClientId = settings.malClientId;
+    CSLButtonCSS = settings.CSLButtonCSS;
+    replacedAnswers = settings.replacedAnswers;
     hotkeyController = new HotkeyController({
         actions: hotkeyActions,
-        savedBindings: saveData.hotKeys,
+        savedBindings: settings.hotKeys,
         onChange: saveSettings
     });
-    hotKeys = hotkeyController.bindings;
     cslController = new CslController();
 }
 
 // Build the editor and attach the custom quiz runtime once AMQ is ready
 function setup() {
+    window.addEventListener("amq:elodie-style-changed", applyStyles);
     cslController.install();
     createCslSettingsModal();
     bindCslTabs();
@@ -246,21 +281,74 @@ function cslNow() {
     return performance.now();
 }
 
-// Compact repeated player records while keeping decoded state descriptive
-function cslPack(type, value) {
-    if (![CSL_MESSAGE.RESULT, CSL_MESSAGE.SNAPSHOT].includes(type)) return value;
-    return { ...value, players: value.players.map(player => CSL_PLAYER_FIELDS.map(field => player[field] ?? null)) };
+// Serialize a known record without repeating its field names
+function cslPackRecord(fields, value) {
+    return fields.map(field => value[field] ?? null);
 }
 
-// Expand player records at the protocol boundary before validation or scoring
+// Restore only records with the expected number of fields
+function cslUnpackRecord(fields, row) {
+    if (!Array.isArray(row) || row.length !== fields.length) return null;
+    return Object.fromEntries(fields.map((field, index) => [field, row[index]]));
+}
+
+// Compact chat records without changing the objects consumed by session logic
+function cslPack(type, value) {
+    const packed = { ...value };
+    if (packed.config) packed.config = cslPackRecord(CSL_CONFIG_FIELDS, packed.config);
+    if (packed.roster) packed.roster = packed.roster.map(player => [player.id, player.name]);
+    if (packed.players) packed.players = packed.players.map(player => cslPackRecord(CSL_PLAYER_FIELDS, player));
+    if (packed.song) packed.song = cslPackRecord(CSL_SONG_FIELDS, packed.song);
+    if (packed.ranks) packed.ranks = packed.ranks.map(rank => [rank.id, rank.place]);
+    if (packed.media) packed.media = packed.media.map(([round, media]) => [round, cslPackRecord(CSL_MEDIA_FIELDS, media)]);
+    if (packed.result) packed.result = [cslPackRecord(CSL_SONG_FIELDS, packed.result.song), packed.result.finished];
+    if (type === CSL_MESSAGE.READY) return packed.ok ? 1 : 0;
+    const fields = CSL_MESSAGE_FIELDS[type];
+    if (fields.length === 1) return packed[fields[0]];
+    return cslPackRecord(fields, packed);
+}
+
+// Expand wire records before discovery, validation, scoring, or AMQ presentation
 function cslUnpack(type, value) {
-    if (![CSL_MESSAGE.RESULT, CSL_MESSAGE.SNAPSHOT].includes(type)) return value;
-    if (!value || !Array.isArray(value.players) || !value.players.every(Array.isArray)) return value;
-    const players = value.players.map(row => {
-        const fields = CSL_PLAYER_FIELDS.map((field, index) => [field, row[index]]);
-        return Object.fromEntries(fields);
-    });
-    return { ...value, players };
+    const fields = CSL_MESSAGE_FIELDS[type];
+    if (!fields) return null;
+    if (type === CSL_MESSAGE.READY) return value === 0 || value === 1 ? { ok: value === 1 } : null;
+    const unpacked = fields.length === 1 ? { [fields[0]]: value } : cslUnpackRecord(fields, value);
+    if (!unpacked) return null;
+    if (unpacked.config !== undefined) unpacked.config = cslUnpackRecord(CSL_CONFIG_FIELDS, unpacked.config);
+    const records = [
+        ["roster", ["id", "name"]],
+        ["players", CSL_PLAYER_FIELDS],
+        ["ranks", ["id", "place"]]
+    ];
+    for (const [field, recordFields] of records) {
+        if (unpacked[field] === undefined || unpacked[field] === null) continue;
+        if (!Array.isArray(unpacked[field])) return null;
+        unpacked[field] = unpacked[field].map(row => cslUnpackRecord(recordFields, row));
+        if (unpacked[field].includes(null)) return null;
+    }
+    if (unpacked.song !== undefined) unpacked.song = cslUnpackRecord(CSL_SONG_FIELDS, unpacked.song);
+    if (unpacked.media !== undefined) {
+        if (!Array.isArray(unpacked.media)) return null;
+        const media = [];
+        for (const row of unpacked.media) {
+            if (!Array.isArray(row) || row.length !== 2) return null;
+            const item = cslUnpackRecord(CSL_MEDIA_FIELDS, row[1]);
+            if (!item) return null;
+            media.push([row[0], item]);
+        }
+        unpacked.media = media;
+    }
+    if (type === CSL_MESSAGE.SNAPSHOT) {
+        if (unpacked.result === null) delete unpacked.result;
+        else {
+            unpacked.result = cslUnpackRecord(["song", "finished"], unpacked.result);
+            if (!unpacked.result) return null;
+            unpacked.result.song = cslUnpackRecord(CSL_SONG_FIELDS, unpacked.result.song);
+        }
+        if (unpacked.commits === null) delete unpacked.commits;
+    }
+    return unpacked;
 }
 
 // Clone plain records before they cross editor, session, or network boundaries
@@ -268,19 +356,209 @@ function cslClone(value) {
     return JSON.parse(JSON.stringify(value));
 }
 
-// Encode Unicode JSON without relying on Latin-1 btoa input
+/*
+Chat encoding: bytes are read most-significant bit first into 15-bit symbols.
+A final 1-7 bits uses the ending alphabet; 8-14 bits uses the primary alphabet.
+Final symbols are padded with zero bits. Empty input has no symbols.
+The fixed range order is part of the format; do not select characters at runtime.
+*/
+
+// Own the chat encoding's alphabet, byte buffers, and fixed-width integers
+function createChatCodec() {
+    const bitsPerSymbol = 15;
+    const endingBits = 7;
+    const primarySize = 32768;
+    const ranges = [
+        [0x4E00, 0x9FFF], [0x3400, 0x4DBF], [0xA000, 0xA48C],
+        [0x1401, 0x166D], [0x166F, 0x167F], [0x2190, 0x2199],
+        [0x219C, 0x21AD], [0x21AF, 0x21CC], [0x21D0, 0x2203],
+        [0x2205, 0x2208], [0x220A, 0x220B], [0x220D, 0x2223],
+        [0x2225, 0x2225], [0x2227, 0x222B], [0x222E, 0x222E],
+        [0x2231, 0x2240], [0x2242, 0x2243], [0x2245, 0x2246],
+        [0x2248, 0x2248], [0x224A, 0x225F], [0x2261, 0x2261],
+        [0x2263, 0x226C], [0x2272, 0x2273], [0x2276, 0x2277],
+        [0x227A, 0x227F], [0x2282, 0x2283], [0x2286, 0x2287],
+        [0x228A, 0x22AB], [0x22B0, 0x22DF], [0x22E4, 0x22E9],
+        [0x22EE, 0x2307], [0x230C, 0x2328], [0x232B, 0x2429],
+        [0x2440, 0x244A], [0x24EB, 0x2767], [0x2776, 0x27C4],
+        [0x27C7, 0x27E5], [0x27F0, 0x27FF], [0x2801, 0x2982],
+        [0x2999, 0x29D7], [0x29DC, 0x29FB], [0x29FE, 0x2A0B],
+        [0x2A0D, 0x2A73], [0x2A77, 0x2ADB], [0x2ADD, 0x2B73],
+        [0x2B76, 0x2BFF], [0x18B0, 0x18F5], [0x13A0, 0x13F5],
+        [0xAB70, 0xABBF], [0x3105, 0x312F], [0x31A0, 0x31BF],
+        [0x10D0, 0x10FA], [0x10FD, 0x10FF], [0x1C90, 0x1CBA],
+        [0x1CBD, 0x1CBF], [0x0250, 0x02AF], [0x0531, 0x0556],
+        [0x0560, 0x0586], [0x0588, 0x0588], [0x0402, 0x0402],
+        [0x0404, 0x0406], [0x0408, 0x040B], [0x040F, 0x0418],
+        [0x041A, 0x0438], [0x043A, 0x044F], [0x0452, 0x0452],
+        [0x0454, 0x0456], [0x0458, 0x045B], [0x045F, 0x0475],
+        [0x0478, 0x0482], [0x048A, 0x04C0], [0x04C3, 0x04CF],
+        [0x04D4, 0x04D5], [0x04D8, 0x04D9], [0x04E0, 0x04E1],
+        [0x04E8, 0x04E9], [0x04F6, 0x04F7], [0x04FA, 0x052F],
+        [0x1200, 0x1248], [0x124A, 0x124D], [0x1250, 0x1256],
+        [0x1258, 0x1258], [0x125A, 0x125D], [0x1260, 0x1288],
+        [0x128A, 0x128D], [0x1290, 0x12B0], [0x12B2, 0x12B5],
+        [0x12B8, 0x12BE], [0x12C0, 0x12C0], [0x12C2, 0x12C5],
+        [0x12C8, 0x12D6], [0x12D8, 0x1310], [0x1312, 0x1315],
+        [0x1318, 0x134D]
+    ];
+    const invalidSymbol = 0xFFFF;
+    const reverseLookup = new Uint16Array(65536).fill(invalidSymbol);
+    const characters = [];
+    for (const [first, last] of ranges) {
+        for (let codePoint = first; codePoint <= last; codePoint++) {
+            reverseLookup[codePoint] = characters.length;
+            characters.push(String.fromCharCode(codePoint));
+        }
+    }
+    const primaryAlphabet = characters.slice(0, primarySize);
+    const endingAlphabet = characters.slice(primarySize);
+
+    return {
+        encode(bytes) {
+            let output = "";
+            let buffer = 0;
+            let bufferBits = 0;
+            for (const byte of bytes) {
+                buffer = buffer * 256 + byte;
+                bufferBits += 8;
+                if (bufferBits < bitsPerSymbol) continue;
+
+                bufferBits -= bitsPerSymbol;
+                const divisor = 2 ** bufferBits;
+                const symbolValue = Math.floor(buffer / divisor);
+                output += primaryAlphabet[symbolValue];
+                buffer %= divisor;
+            }
+            if (bufferBits === 0) return output;
+
+            const useEnding = bufferBits <= endingBits;
+            const symbolBits = useEnding ? endingBits : bitsPerSymbol;
+            const finalAlphabet = useEnding ? endingAlphabet : primaryAlphabet;
+            const symbolValue = buffer * 2 ** (symbolBits - bufferBits);
+            return output + finalAlphabet[symbolValue];
+        },
+
+        decode(text, maxBytes = Infinity) {
+            if (text.length > Math.ceil(maxBytes * 8 / bitsPerSymbol)) throw new Error("Decoded data is too large");
+            if (text.length === 0) return new Uint8Array(0);
+
+            const lastValue = reverseLookup[text.charCodeAt(text.length - 1)];
+            if (lastValue === invalidSymbol) throw new Error("Invalid encoded character");
+            const finalBits = lastValue >= primarySize ? endingBits : bitsPerSymbol;
+            const totalBits = (text.length - 1) * bitsPerSymbol + finalBits;
+            const byteLength = Math.floor(totalBits / 8);
+            if (text.length !== Math.ceil(byteLength * 8 / bitsPerSymbol)) throw new Error("Invalid encoded ending length");
+            if (byteLength > maxBytes) throw new Error("Decoded data is too large");
+
+            const bytes = new Uint8Array(byteLength);
+            let buffer = 0;
+            let bufferBits = 0;
+            let bytesWritten = 0;
+            for (let index = 0; index < text.length; index++) {
+                const lookupValue = reverseLookup[text.charCodeAt(index)];
+                if (lookupValue === invalidSymbol) throw new Error("Invalid encoded character");
+
+                const isEnding = lookupValue >= primarySize;
+                if (isEnding && index !== text.length - 1) throw new Error("Invalid encoded ending position");
+                const symbolBits = isEnding ? endingBits : bitsPerSymbol;
+                const symbolValue = isEnding ? lookupValue - primarySize : lookupValue;
+                buffer = buffer * 2 ** symbolBits + symbolValue;
+                bufferBits += symbolBits;
+
+                while (bufferBits >= 8) {
+                    bufferBits -= 8;
+                    const divisor = 2 ** bufferBits;
+                    bytes[bytesWritten++] = Math.floor(buffer / divisor);
+                    buffer %= divisor;
+                }
+            }
+            if (buffer !== 0) throw new Error("Invalid encoded padding");
+            return bytes;
+        },
+
+        encodeInteger(integer, width) {
+            const invalidValue = !Number.isSafeInteger(integer) || integer < 0;
+            const invalidWidth = !Number.isInteger(width) || width < 1;
+            if (invalidValue || invalidWidth || integer >= primarySize ** width) throw new Error("Invalid encoding integer or width");
+
+            const digits = new Array(width);
+            for (let index = width - 1; index >= 0; index--) {
+                digits[index] = primaryAlphabet[integer % primarySize];
+                integer = Math.floor(integer / primarySize);
+            }
+            return digits.join("");
+        },
+
+        decodeInteger(text) {
+            if (text.length === 0) return null;
+            let integer = 0;
+            for (const character of text) {
+                const digit = reverseLookup[character.charCodeAt(0)];
+                if (digit >= primarySize) return null;
+                integer = integer * primarySize + digit;
+                if (!Number.isSafeInteger(integer)) return null;
+            }
+            return integer;
+        },
+
+        isCharacter(character) {
+            if (typeof character !== "string" || character.length !== 1) return false;
+            return reverseLookup[character.charCodeAt(0)] !== invalidSymbol;
+        }
+    };
+}
+
+// Encode Unicode JSON within the existing decoded-byte limit
 function cslEncode(value) {
     const bytes = new TextEncoder().encode(JSON.stringify(value));
     if (bytes.length > CSL.maxBytes) throw new Error("CSL message is too large");
-    return btoa(Array.from(bytes, byte => String.fromCharCode(byte)).join(""))
-        .replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
+    return chatCodec.encode(bytes);
 }
 
 // Decode and bound an assembled JSON message before interpreting its contents
 function cslDecode(text) {
-    const bytes = Uint8Array.from(atob(text.replaceAll("-", "+").replaceAll("_", "/")), char => char.charCodeAt(0));
-    if (bytes.length > CSL.maxBytes) throw new Error("CSL message is too large");
+    const bytes = chatCodec.decode(text, CSL.maxBytes);
     return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+}
+
+// Pack a 60-bit header as two exact 30-bit integers without losing numeric precision
+function cslFrameHeader(session, id, round, type, fragmented) {
+    const typeIndex = CSL_WIRE_TYPES.indexOf(type);
+    if (typeIndex < 0) throw new Error("Invalid CSL message type");
+    if (!Number.isInteger(id) || id < 1 || id > CSL.maxMessageId) throw new Error("Invalid CSL message ID");
+    if (!Number.isInteger(round) || round < 0 || round > CSL.maxRound) throw new Error("Invalid CSL round");
+    const bytes = atob(session.replaceAll("-", "+").replaceAll("_", "/"));
+    const sessionValue = bytes.charCodeAt(0) * 65536 + bytes.charCodeAt(1) * 256 + bytes.charCodeAt(2);
+    // Split the round across the spare 10 and 4 bits beside the session and message IDs
+    const sessionWord = sessionValue * 1024 + Math.floor(round / 16);
+    const messageWord = id * 1024 + (round % 16) * 64 + typeIndex * 2 + Number(fragmented);
+    return CSL.prefix + chatCodec.encodeInteger(sessionWord, 2) + chatCodec.encodeInteger(messageWord, 2);
+}
+
+// Parse 8-character single-frame or 9-character fragmented headers before assembly
+function cslParseFrame(text) {
+    if (typeof text !== "string" || text.length > CSL.frameLength || !text.startsWith(CSL.prefix)) return null;
+    if (text.length <= 8) return null;
+    const sessionWord = chatCodec.decodeInteger(text.slice(4, 6));
+    const messageWord = chatCodec.decodeInteger(text.slice(6, 8));
+    if (sessionWord === null || messageWord === null) return null;
+    const session = cslSessionId(Math.floor(sessionWord / 1024));
+    const id = Math.floor(messageWord / 1024);
+    const round = (sessionWord % 1024) * 16 + Math.floor(messageWord / 64) % 16;
+    const type = CSL_WIRE_TYPES[Math.floor(messageWord / 2) % 32];
+    const fragmented = Boolean(messageWord % 2);
+    if (id < 1 || !type) return null;
+    const headerLength = fragmented ? 9 : 8;
+    if (text.length <= headerLength) return null;
+    const fragmentInfo = fragmented ? chatCodec.decodeInteger(text.slice(8, 9)) : 0;
+    if (fragmentInfo === null) return null;
+    const index = fragmented ? fragmentInfo % 128 : 0;
+    const count = fragmented ? Math.floor(fragmentInfo / 128) + 1 : 1;
+    if (count < (fragmented ? 2 : 1) || count > CSL.maxFragments || index >= count) return null;
+    const fragment = text.slice(headerLength);
+    for (const character of fragment) if (!chatCodec.isCharacter(character)) return null;
+    return { session, id, round, type, index, count, fragment };
 }
 
 // Generate hexadecimal recovery nonces and answer secrets with the browser RNG
@@ -288,9 +566,10 @@ function cslRandom(bytes = 6) {
     return Array.from(crypto.getRandomValues(new Uint8Array(bytes)), byte => byte.toString(16).padStart(2, "0")).join("");
 }
 
-// Encode three random bytes as a four-character base64url session identifier
-function cslSessionId() {
-    return btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(3)))).replaceAll("+", "-").replaceAll("/", "_");
+// Format a 20-bit session as four base64url characters, generating one when omitted
+function cslSessionId(value = crypto.getRandomValues(new Uint32Array(1))[0] & CSL.maxSession) {
+    const bytes = [value >>> 16, (value >>> 8) & 255, value & 255];
+    return btoa(String.fromCharCode(...bytes)).replaceAll("+", "-").replaceAll("/", "_");
 }
 
 // Bind an answer commitment to its exact session, round, revision, and secret
@@ -399,7 +678,7 @@ function cslValidConfig(value) {
     if (!value) return value;
     if (![1, 4].includes(value.scoreType)) return false;
     if (!Number.isInteger(value.lives) || value.lives < 1 || value.lives > 5) return false;
-    if (!Number.isInteger(value.totalSongs) || value.totalSongs < 1 || value.totalSongs > 10000) return false;
+    if (!Number.isInteger(value.totalSongs) || value.totalSongs < 1 || value.totalSongs > CSL.maxRound) return false;
     if (!Number.isInteger(value.guessTime) || value.guessTime < 1 || value.guessTime > 99) return false;
     if (!Number.isInteger(value.extraGuessTime) || value.extraGuessTime < 0 || value.extraGuessTime > 15) return false;
     if (typeof value.fastSkip !== "boolean" || typeof value.fullSongRange !== "boolean") return false;
@@ -861,36 +1140,36 @@ function createCslSettingsModal() {
             <div class="modal-dialog" role="document">
                 <div class="modal-content">
                     <div class="modal-header">
-                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <button type="button" class="close" data-dismiss="modal">
                             <span aria-hidden="true">×</span>
                         </button>
                         <h4 class="modal-title">Custom Song List Game</h4>
-                        <div class="tabContainer">
-                            <div id="cslgSongListTab" class="tab clickAble selected">
-                                <h5>Song List</h5>
-                            </div>
-                            <div id="cslgQuizSettingsTab" class="tab clickAble">
-                                <h5>Settings</h5>
-                            </div>
-                            <div id="cslgMergeTab" class="tab clickAble">
-                                <h5>Merge</h5>
-                            </div>
-                            <div id="cslgAnswerTab" class="tab clickAble">
-                                <h5>Answers</h5>
-                            </div>
-                            <div id="cslgHotkeyTab" class="tab clickAble">
-                                <h5>Hotkey</h5>
-                            </div>
-                            <div id="cslgListImportTab" class="tab clickAble">
-                                <h5>List Import</h5>
-                            </div>
-                            <div id="cslgInfoTab" class="tab clickAble">
-                                <h5><i class="fa fa-info-circle" aria-hidden="true"></i></h5>
-                            </div>
+                        <div id="cslgTabContainer" class="tabContainer">
+                            <button type="button" id="cslgSongListTab" class="tab clickAble selected" data-tab="cslgSongList">
+                                <span>Song List</span>
+                            </button>
+                            <button type="button" id="cslgQuizSettingsTab" class="tab clickAble" data-tab="cslgQuizSettings">
+                                <span>Settings</span>
+                            </button>
+                            <button type="button" id="cslgMergeTab" class="tab clickAble" data-tab="cslgMerge">
+                                <span>Merge</span>
+                            </button>
+                            <button type="button" id="cslgAnswerTab" class="tab clickAble" data-tab="cslgAnswer">
+                                <span>Answers</span>
+                            </button>
+                            <button type="button" id="cslgHotkeyTab" class="tab clickAble" data-tab="cslgHotkey">
+                                <span>Hotkey</span>
+                            </button>
+                            <button type="button" id="cslgListImportTab" class="tab clickAble" data-tab="cslgListImport">
+                                <span>List Import</span>
+                            </button>
+                            <button type="button" id="cslgInfoTab" class="tab clickAble" data-tab="cslgInfo">
+                                <span><i class="fa fa-info-circle" aria-hidden="true"></i></span>
+                            </button>
                         </div>
                     </div>
                     <div class="modal-body">
-                        <div id="cslgSongListContainer" class="tabSection">
+                        <div id="cslgSongListContainer" class="tabSection" data-tab="cslgSongList">
                             <div id="cslgSongListTopRow">
                                 <label class="cslgField cslgModeField">
                                     <span class="sr-only">Mode</span>
@@ -901,13 +1180,13 @@ function createCslSettingsModal() {
                                         <option>Filter List</option>
                                     </select>
                                 </label>
-                                <div class="cslgActions" role="group" aria-label="Song list actions">
+                                <div class="cslgActions" role="group">
                                     <button id="cslgMergeAllButton" class="btn btn-default" type="button"><i class="fa fa-plus" aria-hidden="true"></i><span class="sr-only">Add all to merged</span></button>
                                     <button id="cslgClearSongListButton" class="btn btn-default" type="button"><i class="fa fa-trash" aria-hidden="true"></i><span class="sr-only">Clear song list</span></button>
                                     <button id="cslgTransferSongListButton" class="btn btn-default" type="button"><i class="fa fa-exchange" aria-hidden="true"></i><span class="sr-only">Transfer merged songs</span></button>
                                     <button id="cslgTableModeButton" class="btn btn-default" type="button"><i class="fa fa-table" aria-hidden="true"></i><span class="sr-only">Change table view</span></button>
                                 </div>
-                                <div class="cslgCounts" aria-live="polite">
+                                <div class="cslgCounts">
                                     <span id="cslgSongListCount">Songs: 0</span>
                                     <span id="cslgMergedSongListCount">Merged: 0</span>
                                 </div>
@@ -915,7 +1194,7 @@ function createCslSettingsModal() {
                             <div id="cslgAnisongdbSearchRow">
                                 <div class="cslgToolbar">
                                     <div class="cslgField cslgSearchModeField">
-                                        <select aria-label="Search by" id="cslgAnisongdbModeSelect" class="form-control">
+                                        <select id="cslgAnisongdbModeSelect" class="form-control">
                                             <option>Anime</option>
                                             <option>Artist</option>
                                             <option>Song</option>
@@ -928,11 +1207,11 @@ function createCslSettingsModal() {
                                         </select>
                                     </div>
                                     <div class="cslgField cslgGrow">
-                                        <input aria-label="Search" id="cslgAnisongdbQueryInput" class="form-control" type="text">
+                                        <input id="cslgAnisongdbQueryInput" class="form-control" type="text">
                                     </div>
                                     <div class="cslgActions">
                                         <button id="cslgAnisongdbSearchButtonGo" class="btn btn-default" type="button">Go</button>
-                                        <button id="cslgAnisongdbFilterDropdownButton" class="btn btn-default" type="button" aria-expanded="false" aria-controls="cslgAnisongdbFilterOptions">Filters <i class="fa fa-caret-down" aria-hidden="true"></i></button>
+                                        <button id="cslgAnisongdbFilterDropdownButton" class="btn btn-default" type="button">Filters <i class="fa fa-caret-down" aria-hidden="true"></i></button>
                                     </div>
                                 </div>
                                 <div id="cslgAnisongdbFilterOptions" style="display: none;">
@@ -970,7 +1249,7 @@ function createCslSettingsModal() {
                                         </div>
                                     </div>
                                     <div class="cslgFormRow">
-                                        <div class="cslgRowTitle">Creators</div>
+                                        <div class="cslgRowTitle">Credits</div>
                                         <div class="cslgCreatorFilters">
                                             <label class="cslgCheckbox"><input id="cslgAnisongdbArrangementCheckbox" type="checkbox" checked> Arrangements</label>
                                             <label class="cslgLimitField"><span>Max other people</span><input id="cslgAnisongdbMaxOtherPeopleInput" class="form-control input-sm" type="text" inputmode="numeric" maxlength="2"></label>
@@ -984,18 +1263,18 @@ function createCslSettingsModal() {
                                 <input id="cslgFileUpload" type="file" accept=".json">
                             </div>
                             <div id="cslgPreviousGameRow" class="cslgToolbar">
-                                <div class="cslgField cslgGrow"><select aria-label="Previous game" id="cslgPreviousGameSelect" class="form-control"></select></div>
+                                <div class="cslgField cslgGrow"><select id="cslgPreviousGameSelect" class="form-control"></select></div>
                                 <button id="cslgPreviousGameButtonGo" class="btn btn-default" type="button">Go</button>
                             </div>
                             <div id="cslgFilterListRow" class="cslgToolbar">
-                                <select aria-label="Action" id="cslgFilterModeSelect" class="form-control"><option>Keep</option><option>Remove</option></select>
-                                <select aria-label="Filter by" id="cslgFilterKeySelect" class="form-control">
+                                <select id="cslgFilterModeSelect" class="form-control"><option>Keep</option><option>Remove</option></select>
+                                <select id="cslgFilterKeySelect" class="form-control">
                                     <option>Anime</option><option>Artist</option><option>Song Name</option>
                                     <option>Song Type</option><option>Anime Type</option><option>Difficulty</option>
                                     <option>Vintage</option><option>Rebroadcast</option><option>Dub</option>
                                     <option>Correct</option><option>Incorrect</option>
                                 </select>
-                                <input aria-label="Value" id="cslgFilterListInput" class="form-control" type="text">
+                                <input id="cslgFilterListInput" class="form-control" type="text">
                                 <div class="cslgActions">
                                     <button id="cslgFilterListButtonGo" class="btn btn-default" type="button">Go</button>
                                     <label class="cslgCheckbox"><input id="cslgFilterListCaseCheckbox" type="checkbox"> Case sensitive</label>
@@ -1018,7 +1297,7 @@ function createCslSettingsModal() {
                                 <div id="cslgSongListWarning"></div>
                             </div>
                         </div>
-                        <div id="cslgQuizSettingsContainer" class="tabSection">
+                        <div id="cslgQuizSettingsContainer" class="tabSection" data-tab="cslgQuizSettings">
                             <div class="cslgFormRow">
                                 <div class="cslgRowTitle">Quiz</div>
                                 <div class="cslgFields cslgQuizFields">
@@ -1120,10 +1399,10 @@ function createCslSettingsModal() {
                                 </div>
                             </div>
                         </div>
-                        <div id="cslgAnswerContainer" class="tabSection">
+                        <div id="cslgAnswerContainer" class="tabSection" data-tab="cslgAnswer">
                             <div class="cslgToolbar">
-                                <div class="cslgField"><input aria-label="Old answer" id="cslgOldAnswerInput" class="form-control" type="text" placeholder="Old answer"></div>
-                                <div class="cslgField"><input aria-label="New answer" id="cslgNewAnswerInput" class="form-control" type="text" placeholder="New answer"></div>
+                                <div class="cslgField"><input id="cslgOldAnswerInput" class="form-control" type="text" placeholder="Old answer"></div>
+                                <div class="cslgField"><input id="cslgNewAnswerInput" class="form-control" type="text" placeholder="New answer"></div>
                                 <button id="cslgAnswerButtonAdd" class="btn btn-default" type="button">Add</button>
                             </div>
                             <div id="cslgAnswerText" class="cslgStatus">No list loaded</div>
@@ -1142,7 +1421,7 @@ function createCslSettingsModal() {
                             </div>
                             <p class="help-block">Use this window to replace invalid answers from your imported song list with valid answers from AMQ's autocomplete.</p>
                         </div>
-                        <div id="cslgMergeContainer" class="tabSection">
+                        <div id="cslgMergeContainer" class="tabSection" data-tab="cslgMerge">
                             <h4 class="cslgSectionHeading">Merge song lists</h4>
                             <div class="cslgToolbar">
                                 <div class="cslgGrow cslgStatus">
@@ -1171,7 +1450,7 @@ function createCslSettingsModal() {
                             </div>
                             <p class="help-block hidden">1. Load some songs into the table in the song list tab<br>2. Come back to this tab<br>3. Click "merge" to add everything from that list to a new combined list<br>4. Repeat steps 1-3 as many times as you want<br>5. Click "download" to download the new json file<br>6. Upload the file in the song list tab and play</p>
                         </div>
-                        <div id="cslgHotkeyContainer" class="tabSection">
+                        <div id="cslgHotkeyContainer" class="tabSection" data-tab="cslgHotkey">
                             <table id="cslgHotkeyTable">
                                 <thead>
                                     <tr>
@@ -1183,13 +1462,13 @@ function createCslSettingsModal() {
                                 </tbody>
                             </table>
                         </div>
-                        <div id="cslgListImportContainer" class="tabSection">
+                        <div id="cslgListImportContainer" class="tabSection" data-tab="cslgListImport">
                             <h4 class="cslgSectionHeading">Import list from username</h4>
                             <div class="cslgToolbar">
                                 <div class="cslgField">
-                                    <select aria-label="List service" id="cslgListImportSelect" class="form-control"><option>myanimelist</option><option>anilist</option></select>
+                                    <select id="cslgListImportSelect" class="form-control"><option>myanimelist</option><option>anilist</option></select>
                                 </div>
-                                <div class="cslgField"><input aria-label="Username" id="cslgListImportUsernameInput" class="form-control" type="text" placeholder="username"></div>
+                                <div class="cslgField"><input id="cslgListImportUsernameInput" class="form-control" type="text" placeholder="username"></div>
                                 <button id="cslgListImportStartButton" class="btn btn-default" type="button">Go</button>
                             </div>
                             <div class="cslgCheckGroup cslgBlock">
@@ -1199,13 +1478,13 @@ function createCslSettingsModal() {
                                 <label class="cslgCheckbox"><input id="cslgListImportDroppedCheckbox" type="checkbox" checked> Dropped</label>
                                 <label class="cslgCheckbox"><input id="cslgListImportPlanningCheckbox" type="checkbox" checked> Planning</label>
                             </div>
-                            <h4 id="cslgListImportText" class="cslgStatus" aria-live="polite"></h4>
+                            <h4 id="cslgListImportText" class="cslgStatus"></h4>
                             <div id="cslgListImportActionContainer" class="cslgActions cslgBlock" style="display: none;">
                                 <button id="cslgListImportMoveButton" class="btn btn-default" type="button">Move to song list</button>
                                 <button id="cslgListImportDownloadButton" class="btn btn-default" type="button">Download</button>
                             </div>
                         </div>
-                        <div id="cslgInfoContainer" class="tabSection">
+                        <div id="cslgInfoContainer" class="tabSection" data-tab="cslgInfo">
                             <h4 class="cslgSectionHeading">Script info</h4>
                             <div>Created by: kempanator</div>
                             <div>Version: ${GM_info.script.version}</div>
@@ -1241,12 +1520,9 @@ function createCslSettingsModal() {
 
 // Connect tab selection to the existing modal sections
 function bindCslTabs() {
-    const tabs = ["cslgSongList", "cslgQuizSettings", "cslgAnswer", "cslgMerge", "cslgHotkey", "cslgListImport", "cslgInfo"];
-    for (const tab of tabs) {
-        $(`#${tab}Tab`).on("click", () => {
-            switchTab(tab);
-        });
-    }
+    $("#cslgTabContainer").on("click", ".tab[data-tab]", event => {
+        switchTab(event.currentTarget.dataset.tab);
+    });
     switchTab("cslgSongList");
 }
 
@@ -1302,9 +1578,8 @@ function bindSongListControls() {
             anisongdbDataSearch();
         }
     });
-    // Keep the filter disclosure and its accessible state together
+    // Keep the filter panel and its disclosure icon in sync
     $("#cslgAnisongdbFilterDropdownButton").on("click", function () {
-        $(this).attr("aria-expanded", $(this).attr("aria-expanded") !== "true");
         $(this).find("i").toggleClass("fa-caret-down fa-caret-up");
         $("#cslgAnisongdbFilterOptions").stop(true, true).slideToggle(150);
     });
@@ -1412,7 +1687,7 @@ function bindAutocompleteControl() {
             messageDisplayer.displayMessage("Autocomplete", "For multiplayer, just start the quiz normally and immediately lobby");
             return;
         }
-        $("#cslgSettingsModal").modal("hide");
+        closeSettingsModal();
         socket.sendCommand({ type: "lobby", command: "start game" });
         const autocompleteListener = new Listener("get all song names", () => {
             autocompleteListener.unbindListener();
@@ -1688,7 +1963,7 @@ function validateStart() {
     try {
         const plan = selected.map(createCslQuizSong);
         cslController.start(config, plan);
-        $("#cslgSettingsModal").modal("hide");
+        closeSettingsModal();
     }
     catch (error) {
         messageDisplayer.displayMessage("Unable to start", error.message);
@@ -1757,6 +2032,11 @@ function createCslQuizSong(song) {
     return snapshot;
 }
 
+// Reveal only metadata consumed by AMQ, retaining its duplicate names and links
+function createCslResultSong(song) {
+    return Object.fromEntries(CSL_SONG_FIELDS.map(field => [field, song[field]]));
+}
+
 // Get start point value (0-100)
 function getStartPoint() {
     return Math.floor(Math.random() * (startPointRange[1] - startPointRange[0] + 1)) + startPointRange[0];
@@ -1819,6 +2099,11 @@ function openSettingsModal() {
         loadPreviousGameOptions();
     }
     $("#cslgSettingsModal").modal("show");
+}
+
+// Close custom song list settings modal
+function closeSettingsModal() {
+    $("#cslgSettingsModal").modal("hide");
 }
 
 // Load previous game options in song list window
@@ -2329,13 +2614,13 @@ function createCslSongFilter(key, text, caseSensitive) {
     }
 }
 
-// Reset all tabs and switch to the inputted tab
-function switchTab(tab) {
-    const $w = $("#cslgSettingsModal");
-    $w.find(".tab").removeClass("selected");
-    $w.find(".tabSection").hide();
-    $w.find(`#${tab}Tab`).addClass("selected");
-    $w.find(`#${tab}Container`).show();
+// Select a tab and show its matching section
+function switchTab(tabKey) {
+    const $tabRoot = $("#cslgSettingsModal");
+    $tabRoot.find(".tab").removeClass("selected");
+    $tabRoot.find(".tabSection").hide();
+    $tabRoot.find(`.tab[data-tab="${tabKey}"]`).addClass("selected");
+    $tabRoot.find(`.tabSection[data-tab="${tabKey}"]`).show();
 }
 
 // === Media and AMQ song metadata ===
@@ -2592,16 +2877,46 @@ function downloadListJson(list, fileName) {
     setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
-// Validate json data in local storage
-function validateLocalStorage(item) {
+// Read a JSON object from localStorage, returning an empty object if invalid
+function readStorageObject(key) {
+    let value;
     try {
-        const json = JSON.parse(localStorage.getItem(item));
-        if (!json || typeof json !== "object") return {};
-        return json;
+        value = JSON.parse(localStorage.getItem(key));
     }
     catch {
         return {};
     }
+    if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+    return value;
+}
+
+// Load validated preferences without changing runtime state
+function loadSettings() {
+    const settings = {
+        showCSLMessages: true,
+        malClientId: "",
+        CSLButtonCSS: "calc(25% - 250px)",
+        replacedAnswers: Object.create(null),
+    };
+    const savedSettings = readStorageObject("customSongListGame");
+
+    if (typeof savedSettings.showCSLMessages === "boolean") {
+        settings.showCSLMessages = savedSettings.showCSLMessages;
+    }
+    if (typeof savedSettings.malClientId === "string") {
+        settings.malClientId = savedSettings.malClientId;
+    }
+    if (typeof savedSettings.CSLButtonCSS === "string" && savedSettings.CSLButtonCSS) {
+        settings.CSLButtonCSS = savedSettings.CSLButtonCSS;
+    }
+    const savedAnswers = savedSettings.replacedAnswers;
+    if (savedAnswers && typeof savedAnswers === "object" && !Array.isArray(savedAnswers)) {
+        for (const [answer, replacement] of Object.entries(savedAnswers)) {
+            if (typeof replacement === "string") settings.replacedAnswers[answer] = replacement;
+        }
+    }
+    settings.hotKeys = savedSettings.hotKeys;
+    return settings;
 }
 
 // Save settings
@@ -2610,8 +2925,7 @@ function saveSettings() {
         replacedAnswers,
         showCSLMessages,
         CSLButtonCSS,
-        debug,
-        hotKeys,
+        hotKeys: hotkeyController.bindings,
         malClientId
     }));
 }
@@ -2620,6 +2934,18 @@ function saveSettings() {
 function applyStyles() {
     const tableHighlightColor = getComputedStyle(document.documentElement).getPropertyValue("--accentColorContrast") || "#4497ea";
     let css = /*css*/ `
+        #cslgSettingsModal .tabContainer > button.tab {
+            background: transparent;
+            border: 0;
+            padding-left: 0;
+        }
+        #cslgSettingsModal .tabContainer > button.tab:first-child {
+            padding-left: 20px;
+        }
+        #cslgSettingsModal .tabContainer > button.tab > span {
+            display: block;
+            margin: 0 5px;
+        }
         #lnCustomSongListButton {
             right: ${CSLButtonCSS};
             width: 80px;
@@ -2933,7 +3259,6 @@ function applyStyles() {
             border: 0;
             background: transparent;
             box-shadow: none;
-            color: inherit;
             cursor: pointer;
         }
         #cslgHotkeyTable button.hk-clear:hover {
@@ -3089,7 +3414,6 @@ class HotkeyController {
         for (const [action, editor] of this.editors) {
             const text = this.formatBinding(this.bindings[action]);
             editor.button.textContent = text || "—";
-            editor.button.setAttribute("aria-label", this.actions[action].label + " shortcut: " + (text || "unbound"));
             editor.button.classList.remove("recording");
             editor.button.classList.toggle("unset", !this.bindings[action].key);
             editor.clear.hidden = !this.bindings[action].key;
@@ -3173,7 +3497,6 @@ class HotkeyController {
             const clear = document.createElement("button");
             clear.type = "button";
             clear.className = "hk-clear";
-            clear.setAttribute("aria-label", "Clear " + definition.label + " shortcut");
             clear.title = "Clear shortcut";
             clear.addEventListener("click", () => this.commitBinding(action, HotkeyController.normalizeBinding()));
 
@@ -3234,29 +3557,27 @@ class CslTransport {
         this.tick();
     }
 
-    // Fill each frame using its actual header size, recalculating if the count grows
+    // Fill chat frames with fixed-width headers and omit fragment fields when unnecessary
     frames(session, id, round, type, value) {
-        const encoded = cslEncode(value);
-        const prefix = `${CSL.prefix}${session}.${id}.${round.toString(36)}.${type}.`;
-        let count = 1;
-        while (true) {
-            const frames = [];
-            for (let offset = 0; offset < encoded.length;) {
-                if (frames.length >= CSL.maxFragments) throw new Error("Too many CSL fragments");
-                const header = `${prefix}${frames.length.toString(36)}.${count.toString(36)}.`;
-                const fragment = encoded.slice(offset, offset + CSL.frameLength - header.length);
-                frames.push(header + fragment);
-                offset += fragment.length;
-            }
-            if (frames.length === count) return frames;
-            count = frames.length;
+        const encoded = cslEncode(cslPack(type, value));
+        const singleHeader = cslFrameHeader(session, id, round, type, false);
+        if (singleHeader.length + encoded.length <= CSL.frameLength) return [singleHeader + encoded];
+        const prefix = cslFrameHeader(session, id, round, type, true);
+        const capacity = CSL.frameLength - prefix.length - 1;
+        const count = Math.ceil(encoded.length / capacity);
+        if (count > CSL.maxFragments) throw new Error("Too many CSL fragments");
+        const frames = [];
+        for (let index = 0; index < count; index++) {
+            const header = prefix + chatCodec.encodeInteger((count - 1) * 128 + index, 1);
+            frames.push(header + encoded.slice(index * capacity, (index + 1) * capacity));
         }
+        return frames;
     }
 
     // Queue one message atomically and retain its fragments for bounded repair
     send(session, round, type, value, priority = 2, done = () => { }, replaceKey = "") {
         if (this.scope.closed || !this.canSend({ session, type })) return;
-        const id = (++this.serial).toString(36);
+        const id = ++this.serial;
         const frames = this.frames(session, id, round, type, value);
         if (replaceKey) this.queue = this.queue.filter(item => item.replaceKey !== replaceKey);
         if (this.queue.length + frames.length > 2048) throw new Error("CSL chat queue is full");
@@ -3296,15 +3617,12 @@ class CslTransport {
 
     // Validate headers before allocating buffers or accepting any message payload
     receive(text, sender) {
-        if (typeof text !== "string" || text.length > CSL.frameLength || typeof sender !== "string") return;
-        const match = /^§CSL!([A-Za-z0-9_-]{4})\.([a-z0-9]{1,6})\.([a-z0-9]{1,4})\.([A-Z])\.([a-z0-9]{1,2})\.([a-z0-9]{1,2})\.([A-Za-z0-9_-]+)$/.exec(text);
-        if (!match) return;
-        const [, session, id, roundText, type, indexText, countText, fragment] = match;
-        const round = parseInt(roundText, 36);
-        const index = parseInt(indexText, 36);
-        const count = parseInt(countText, 36);
+        if (typeof sender !== "string") return;
+        const parsed = cslParseFrame(text);
+        if (!parsed) return;
+        const { session, id, round, type, index, count, fragment } = parsed;
         const envelope = { session, id, round, type, sender };
-        if (count < 1 || count > CSL.maxFragments || index >= count || !this.allow(envelope)) return;
+        if (!this.allow(envelope)) return;
         const key = `${session}:${sender}:${id}`;
         if (this.completed.has(key)) return;
         let entry = this.incoming.get(key);
@@ -3330,7 +3648,8 @@ class CslTransport {
         this.completed.set(key, this.now());
         try {
             const encoded = Array.from({ length: count }, (_, part) => entry.parts.get(part)).join("");
-            const value = cslDecode(encoded);
+            const value = cslUnpack(type, cslDecode(encoded));
+            if (!value) return;
             if (type === CSL_MESSAGE.REPAIR) this.repair(session, value);
             else this.receiveMessage(envelope, value);
         }
@@ -3469,7 +3788,7 @@ class CslSession {
     send(type, value, round = this.round, priority = 1, done = () => { }, replaceKey = "") {
         if (this.scope.closed) return;
         try {
-            return this.emit(this.id, round, type, this.solo ? value : cslPack(type, value), priority, done, replaceKey);
+            return this.emit(this.id, round, type, value, priority, done, replaceKey);
         }
         catch (error) {
             this.hooks.warning(error.message);
@@ -3654,7 +3973,7 @@ class CslSession {
         if (missing.length) this.hooks.warning(`Missing answer reveals: ${missing.join(", ")}`);
         const song = this.plan[this.round - 1];
         const players = cslScore(this.players, this.answers, song, this.config, this.round, this.roundParticipants);
-        const { acceptedAnswers, sample, ...publicSong } = song;
+        const publicSong = createCslResultSong(song);
         const living = players.filter(player => player.connected && player.score > 0);
         const lastSong = this.round === this.config.totalSongs;
         const livesFinished = this.config.scoreType === 4
@@ -3848,7 +4167,6 @@ class CslSession {
 
     // Apply validated host decisions or participant requests exactly once
     receive(envelope, value) {
-        value = cslUnpack(envelope.type, value);
         if (this.scope.closed || envelope.session !== this.id || !value || typeof value !== "object") return;
         const { sender, type, round } = envelope;
         const fromHost = sender === this.host;
@@ -4207,7 +4525,7 @@ class CslController {
         this.session = null;
         this.discovery = null;
         this.adapter = new CslAmqAdapter(this);
-        this.ended = new Set();
+        this.lastEndedSession = null;
         this.syncNonce = "";
         this.lastSyncSent = -Infinity;
         this.joiningAsPlayer = false;
@@ -4241,6 +4559,7 @@ class CslController {
         this.listen("Game Chat Message", message => this.chat(message));
         for (const event of ["Join Game", "Spectate Game", "Host Game", "Host Custom Game"]) this.listen(event, data => {
             if (data.error) return;
+            if (this.roomId !== data.gameId) this.lastEndedSession = null;
             this.dispose();
             this.roomId = data.gameId;
         });
@@ -4249,6 +4568,7 @@ class CslController {
         });
         this.listen("Game Starting", () => { if (!this.synthetic) this.dispose(); });
         this.listen("Host Promotion", data => {
+            this.lastEndedSession = null;
             this.discovery = null;
             if (!this.session) return;
             lobby.hostName = data.newHost;
@@ -4392,6 +4712,17 @@ class CslController {
         }, true);
     }
 
+    // Reject the most recently ended session only within its room and host
+    isEndedSession(id, host = lobby.hostName) {
+        const ended = this.lastEndedSession;
+        return Boolean(ended && ended.id === id && ended.roomId === this.roomId && ended.host === host);
+    }
+
+    // Replace the single retired-session record without retiring temporary departures
+    rememberEndedSession(id, host = lobby.hostName) {
+        this.lastEndedSession = { id, host, roomId: this.roomId };
+    }
+
     // Identify only a live session announced by the current room's current host
     sessionId() {
         if (this.roomId !== lobby.gameId || !cslSupportedRoom()) return "";
@@ -4400,7 +4731,7 @@ class CslController {
             return this.session.id;
         }
         const discovery = this.discovery;
-        if (!discovery || discovery.host !== lobby.hostName || this.ended.has(discovery.id)) return "";
+        if (!discovery || discovery.host !== lobby.hostName || this.isEndedSession(discovery.id)) return "";
         return cslNow() - discovery.time <= CSL.cacheTime ? discovery.id : "";
     }
 
@@ -4447,7 +4778,7 @@ class CslController {
             || gameChat.spectators.some(player => player.name === sender);
         if (!roomSender) return false;
         if (type === CSL_MESSAGE.SYNC) return this.session?.isHost && session === this.session.id;
-        if (!this.session && lobby.inLobby && sender === lobby.hostName && !this.ended.has(session)) {
+        if (!this.session && lobby.inLobby && sender === lobby.hostName && !this.isEndedSession(session)) {
             const discoveryTypes = [
                 CSL_MESSAGE.ANNOUNCE, CSL_MESSAGE.PREPARE, CSL_MESSAGE.PLAY, CSL_MESSAGE.LOCK,
                 CSL_MESSAGE.COLLECT, CSL_MESSAGE.RESULT, CSL_MESSAGE.FINAL, CSL_MESSAGE.PAUSE, CSL_MESSAGE.CONNECTION
@@ -4455,7 +4786,7 @@ class CslController {
             if (discoveryTypes.includes(type)) return true;
         }
         if (type === CSL_MESSAGE.SNAPSHOT) return session === this.sessionId() && sender === lobby.hostName && Boolean(this.syncNonce);
-        if (type === CSL_MESSAGE.BEGIN) return !this.session && lobby.inLobby && sender === lobby.hostName && !this.ended.has(session);
+        if (type === CSL_MESSAGE.BEGIN) return !this.session && lobby.inLobby && sender === lobby.hostName && !this.isEndedSession(session);
         if (!this.session && [CSL_MESSAGE.REPAIR, CSL_MESSAGE.STOP].includes(type)) return session === this.sessionId() && sender === lobby.hostName;
         if (session !== this.session?.id) return false;
         const hostTypes = [
@@ -4477,7 +4808,8 @@ class CslController {
             socket.sendCommand({ type: "lobby", command: "game chat message", data: { msg: lobbyCommand.reply(), teamMessage: false } });
         }
         else {
-            if (typeof message.message !== "string" || !message.message.startsWith(CSL.prefix)) return;
+            if (typeof message.message !== "string") return;
+            if (!message.message.startsWith(CSL.prefix)) return;
             this.transport.receive(message.message, message.sender);
         }
         if (!showCSLMessages) this.roomScope.after(0, () => {
@@ -4539,7 +4871,6 @@ class CslController {
     // Validate lobby announcements and nonce-bound recovery before creating a session
     receive(envelope, value) {
         if (!this.allow(envelope)) return;
-        value = cslUnpack(envelope.type, value);
         if (!value || typeof value !== "object") return;
         const { type, sender, session, round } = envelope;
         if (type === CSL_MESSAGE.ANNOUNCE && !this.validDiscovery(envelope, value)) return;
@@ -4555,8 +4886,7 @@ class CslController {
         }
         if (type === CSL_MESSAGE.STOP && !this.session) {
             if (Number.isSafeInteger(value.q) && value.q >= 0) {
-                this.ended.add(session);
-                if (this.ended.size > 64) this.ended.delete(this.ended.values().next().value);
+                this.rememberEndedSession(session, sender);
                 this.dispose();
             }
             return;
@@ -4648,7 +4978,7 @@ class CslController {
 
     // Recognize host gameplay packets before requesting a fully validated snapshot
     validDiscovery({ type, round }, value) {
-        if (!Number.isInteger(round) || round < 0 || round > 10000) return false;
+        if (!Number.isInteger(round) || round < 0 || round > CSL.maxRound) return false;
         if (type === CSL_MESSAGE.PREPARE) return round > 0 && cslValidMedia(value);
         if (!Number.isSafeInteger(value.q) || value.q < 0) return false;
         if (type === CSL_MESSAGE.ANNOUNCE) return ["starting", "buffering", "guessing", "locking", "collecting", "revealing", "finished"].includes(value.phase);
@@ -4717,8 +5047,7 @@ class CslController {
     // Retire a completed or aborted session before returning to the real lobby
     end() {
         if (!this.session) return;
-        this.ended.add(this.session.id);
-        if (this.ended.size > 64) this.ended.delete(this.ended.values().next().value);
+        this.rememberEndedSession(this.session.id, this.session.host);
         this.dispose();
         this.adapter.end();
     }
