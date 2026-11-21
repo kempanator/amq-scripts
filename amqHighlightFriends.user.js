@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Highlight Friends
 // @namespace    https://github.com/kempanator
-// @version      2.5
+// @version      2.6
 // @description  Apply colors to player names and add an answer summary table
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -26,7 +26,6 @@ New Features:
 if (typeof Listener === "undefined") return;
 
 const largeRooms = ["Ranked", "Themed", "Jam", "Event", "event"]; // gamemodes for friend view
-const colorClassRegex = /(isSelf|isFriend|isBlocked|customColor\d+)/g;
 let smColorSelfColor;
 let smColorSelfShadow;
 let smColorFriendColor;
@@ -57,17 +56,14 @@ let answerTimes = {}; // { gamePlayerId: ms }
 let latestPlayerAnswers = {}; // { gamePlayerId: answerText }
 let playerSummaryWindow;
 let $playerSummaryTable;
-let $playerSummarySettings;
 let playerSummaryRows = [];
 let playerSummaryRowCache = new Map();
-let playerSummarySettingsOpen = false;
 let summaryTimeUnit;
 let summaryAnswerAppendTime;
 let summaryColumns;
 let customColors;
 let customColorMap = Object.create(null);
 let hotkeyController;
-let hotKeys;
 let colorStyleElement;
 let colorRefreshTimeoutId = null;
 let customColorDraft = null;
@@ -156,7 +152,6 @@ function initializeState() {
         savedBindings: settings.hotKeys,
         onChange: saveSettings
     });
-    hotKeys = hotkeyController.bindings;
     rebuildCustomColorMap();
 }
 
@@ -209,7 +204,7 @@ function installHooks() {
         entries.forEach((entry, index) => {
             if (!entry.name) return;
             const $row = $rows.eq(index).attr("data-hf-player-name", entry.name);
-            applyLeaderboardClasses($row, entry.name);
+            applyLeaderboardColors($row, entry.name);
         });
         return result;
     };
@@ -255,10 +250,17 @@ function bindGameEvents() {
             latestPlayerAnswers[answer.gamePlayerId] = answer.answer;
         }
     }).bindListener();
-    new Listener("answer results", handleAnswerResults).bindListener();
-    new Listener("new friend", handleRelationshipChange).bindListener();
-    new Listener("friend removed", handleRelationshipChange).bindListener();
-    new Listener("friend name change", handleFriendNameChange).bindListener();
+    new Listener("answer results", scheduleSummarySnapshot).bindListener();
+    listenAfterClient("new friend", handleRelationshipChange);
+    listenAfterClient("friend removed", handleRelationshipChange);
+    listenAfterClient("friend name change", handleFriendNameChange);
+}
+
+// Run after AMQ's synchronous listeners have finished handling this event
+function listenAfterClient(eventName, handler) {
+    new Listener(eventName, data => {
+        queueMicrotask(() => handler(data));
+    }).bindListener();
 }
 
 // Use the same summary setup when joining as a player or spectator
@@ -267,17 +269,16 @@ function handleGameJoin(data) {
     tableFriendsOnly = largeRooms.includes(data.settings.gameMode);
     answerTimes = {};
     latestPlayerAnswers = {};
-    summarySnapshot = createSummarySnapshot(data.quizState, answerTimes, latestPlayerAnswers);
-    renderSummaryTable();
+    scheduleSummarySnapshot(data.quizState);
 }
 
 // Start the summary with the room's default player filter
 function handleGameStart(data) {
+    if (data.showSelection === quiz.SHOW_SELECTION_IDS.LOOTING) return;
     tableFriendsOnly = largeRooms.includes(data.gameMode);
     answerTimes = {};
     latestPlayerAnswers = {};
-    summarySnapshot = createSummarySnapshot(data, answerTimes, latestPlayerAnswers);
-    renderSummaryTable();
+    scheduleSummarySnapshot(data);
 }
 
 // Store answer times in milliseconds for formatting and numeric sorting
@@ -290,21 +291,22 @@ function recordAnswerTimes(groups) {
     }
 }
 
-// Let the client finish creating late-join avatars before reading their display data
-function handleAnswerResults(data) {
+// Let native join, start, and result handlers finish creating players before capture
+function scheduleSummarySnapshot(data) {
     const times = { ...answerTimes };
     const answers = { ...latestPlayerAnswers };
-    setTimeout(() => {
+    queueMicrotask(() => {
+        if (!quiz.inQuiz) return;
         if (data.lateJoinPlayers) scheduleColorRefresh();
         summarySnapshot = createSummarySnapshot(data, times, answers);
         renderSummaryTable();
-    }, 0);
+    });
 }
 
 // Reconcile relationship colors and the friend filter after the native listener runs
 function handleRelationshipChange() {
     scheduleColorRefresh();
-    setTimeout(renderSummaryTable, 0);
+    renderSummaryTable();
 }
 
 // Keep custom groups and the summary aligned with a friend's new name
@@ -317,11 +319,9 @@ function handleFriendNameChange(data) {
     for (const player of summarySnapshot) {
         if (player.name.toLowerCase() === oldName) player.name = data.newName;
     }
-    setTimeout(() => {
-        commitCustomColorChanges();
-        renderCustomColorRows();
-        renderSummaryTable();
-    }, 0);
+    commitCustomColorChanges();
+    renderCustomColorRows();
+    renderSummaryTable();
 }
 
 // Reuse one window toggle for the quiz menu and hotkey
@@ -343,7 +343,7 @@ function toggleCustomColors() {
     colorExistingChatNames();
 }
 
-// Create the summary table and controls while retaining AMQWindow's title element
+// Create the summary table while retaining AMQWindow's title element
 function createSummaryWindow() {
     playerSummaryWindow = new AMQWindow({
         id: "hfSummaryWindow",
@@ -370,9 +370,6 @@ function createSummaryWindow() {
             <button type="button" class="hfIconButton" data-action="filter" title="Toggle friend summary">
                 <i class="fa fa-table" aria-hidden="true"></i>
             </button>
-            <button type="button" class="hfIconButton" data-action="settings" title="Toggle settings">
-                <i class="fa fa-cog" aria-hidden="true"></i>
-            </button>
             <button type="button" class="hfIconButton hfCloseButton" data-action="close" title="Close">
                 <i class="fa fa-times" aria-hidden="true"></i>
             </button>
@@ -392,29 +389,7 @@ function createSummaryWindow() {
             text: column.label
         }));
     }
-    $playerSummarySettings = $(/*html*/`
-        <div id="hfSummarySettings">
-            <h3>Time Unit</h3>
-            <div class="hfSettingsRow">
-                <select id="hfSummaryTimeUnitSelect">
-                    <option value="seconds">Seconds</option>
-                    <option value="milliseconds">Milliseconds</option>
-                </select>
-                <label class="hfCheckbox">
-                    <input id="hfSummaryAppendTimeCheckbox" type="checkbox">
-                    <span>Append Time to Answer</span>
-                </label>
-            </div>
-            <h3>Column Visibility</h3>
-            <div class="hfCheckboxRow" id="hfSummaryColumns"></div>
-        </div>
-    `).hide();
-    for (const column of summaryColumnDefinitions) {
-        $playerSummarySettings.find("#hfSummaryColumns").append(
-            createCheckboxControl("hfSummaryColumn" + column.key, column.label, { "data-column": column.key })
-        );
-    }
-    playerSummaryWindow.panels[0].panel.append($playerSummaryTable, $playerSummarySettings);
+    playerSummaryWindow.panels[0].panel.append($playerSummaryTable);
 }
 
 // Bind stable containers so row rendering never needs to install more click handlers
@@ -428,11 +403,6 @@ function bindWindowEvents() {
                 tableFriendsOnly = !tableFriendsOnly;
                 renderSummaryTable();
                 break;
-            case "settings":
-                playerSummarySettingsOpen = !playerSummarySettingsOpen;
-                $playerSummaryTable.toggle(!playerSummarySettingsOpen);
-                $playerSummarySettings.toggle(playerSummarySettingsOpen);
-                break;
         }
     });
     $playerSummaryTable.on("click", "th[data-sort]", event => {
@@ -442,32 +412,9 @@ function bindWindowEvents() {
         const box = $(event.currentTarget).data("summary").box;
         if (box) selectAvatarGroup(box);
     });
-    $("#hfSummaryTimeUnitSelect").on("change", function () {
-        summaryTimeUnit = this.value;
-        saveSettings();
-        renderSummaryTable();
-    });
-    $("#hfSummaryAppendTimeCheckbox").on("change", function () {
-        summaryAnswerAppendTime = this.checked;
-        saveSettings();
-        renderSummaryTable();
-    });
-    $("#hfSummaryColumns").on("change", "input", function () {
-        summaryColumns[this.dataset.column] = this.checked;
-        saveSettings();
-        updateSummaryColumnVisibility();
-    });
 }
 
-// Keep native checkbox markup consistent across graphics and summary settings
-function createCheckboxControl(id, label, attributes = {}) {
-    return $("<label>", { class: "hfCheckbox" }).append(
-        $("<input>", { type: "checkbox", id, ...attributes }),
-        $("<span>", { text: label })
-    );
-}
-
-// Use AMQ's checkbox control for graphics settings and editor fields
+// Use AMQ's checkbox control throughout settings and editor fields
 function createGameCheckbox(id, label, attributes = {}) {
     const $box = $("<div>", { class: "customCheckbox" }).append(
         $("<input>", { type: "checkbox", id, ...attributes }),
@@ -490,6 +437,7 @@ function createGraphicsSettings() {
                     <div id="hfSettingsTabs" class="tabContainer">
                         <div id="hfAppearanceTab" class="tab clickAble" data-tab="hfAppearance"><h5>Appearance</h5></div>
                         <div id="hfCustomColorsTab" class="tab clickAble" data-tab="hfCustomColors"><h5>Custom colors</h5></div>
+                        <div id="hfSummaryTab" class="tab clickAble" data-tab="hfSummary"><h5>Summary</h5></div>
                         <div id="hfHotkeysTab" class="tab clickAble" data-tab="hfHotkeys"><h5>Hotkeys</h5></div>
                         <div id="hfInfoTab" class="tab clickAble right" data-tab="hfInfo">
                             <h5><i class="fa fa-info-circle" aria-hidden="true"></i></h5>
@@ -550,7 +498,18 @@ function createGraphicsSettings() {
                             <p id="hfNoCustomColors" class="hfSettingsHint">No custom colors yet.</p>
                         </div>
                         <form id="hfCustomColorEditor">
-                            <h4 id="hfCustomColorEditorTitle"></h4>
+                            <div class="hfCustomColorHeader">
+                                <h4 id="hfCustomColorEditorTitle"></h4>
+                                <div id="hfCustomColorOrder">
+                                    <span id="hfCustomColorPosition"></span>
+                                    <button type="button" id="hfCustomColorMoveUpButton" class="btn btn-default btn-sm" data-action="move-color-up" title="Move this group up">
+                                        <i class="fa fa-caret-up" aria-hidden="true"></i>
+                                    </button>
+                                    <button type="button" id="hfCustomColorMoveDownButton" class="btn btn-default btn-sm" data-action="move-color-down" title="Move this group down">
+                                        <i class="fa fa-caret-down" aria-hidden="true"></i>
+                                    </button>
+                                </div>
+                            </div>
                             <div class="hfCustomColorFields">
                                 <div class="form-group hfCustomNameField">
                                     <label for="hfCustomNameInput">Group name</label>
@@ -579,6 +538,23 @@ function createGraphicsSettings() {
                                 </div>
                             </div>
                         </form>
+                    </div>
+                    <div id="hfSummarySettings" class="tabSection" data-tab="hfSummary">
+                        <div class="row">
+                            <div class="col-sm-4 form-group">
+                                <label for="hfSummaryTimeUnitSelect">Time unit</label>
+                                <select id="hfSummaryTimeUnitSelect" class="form-control">
+                                    <option value="seconds">Seconds</option>
+                                    <option value="milliseconds">Milliseconds</option>
+                                </select>
+                            </div>
+                            <div class="col-sm-8">
+                                <div class="hfSectionLabel">Answers</div>
+                                <div id="hfSummaryAnswerOptions" class="hfCheckboxRow"></div>
+                            </div>
+                        </div>
+                        <div class="hfSectionLabel">Visible columns</div>
+                        <div id="hfSummaryColumns" class="hfCheckboxRow"></div>
                     </div>
                     <div id="hfHotkeysContainer" class="tabSection" data-tab="hfHotkeys">
                         <table id="hfHotkeyTable">
@@ -611,6 +587,14 @@ function createGraphicsSettings() {
     }
     for (const [value, label] of Object.entries(chatRewardGlowModes)) {
         $("#hfChatRewardGlowMode").append($("<option>", { value, text: label }));
+    }
+    $("#hfSummaryAnswerOptions").append(
+        createGameCheckbox("hfSummaryAppendTimeCheckbox", "Append time to answers")
+    );
+    for (const column of summaryColumnDefinitions) {
+        $("#hfSummaryColumns").append(
+            createGameCheckbox("hfSummaryColumn" + column.key, column.label, { "data-column": column.key })
+        );
     }
     const targets = [
         ["smColorScorebox", "Scoreboard", "hfScoreboardCheckbox"],
@@ -662,7 +646,7 @@ function switchTab(tabKey) {
     $tabRoot.find(`.tabSection[data-tab="${tabKey}"]`).show();
 }
 
-// Apply appearance and group toggles immediately; save group details through the editor
+// Apply preferences immediately and save custom group details through the editor
 function bindSettingsEvents() {
     $("#hfSettingsTitle").on("click", event => {
         $(event.currentTarget).find("i").toggleClass("fa-caret-down fa-caret-right");
@@ -700,6 +684,12 @@ function bindSettingsEvents() {
             case "delete-color":
                 deleteCustomColor();
                 break;
+            case "move-color-up":
+                moveCustomColorGroup(-1);
+                break;
+            case "move-color-down":
+                moveCustomColorGroup(1);
+                break;
         }
     });
     $("#hfCustomColorEditor").on("submit", event => {
@@ -711,6 +701,21 @@ function bindSettingsEvents() {
         customColors[index].enabled = this.checked;
         commitColorStyleChanges();
         colorExistingChatNames();
+    });
+    $("#hfSummaryTimeUnitSelect").on("change", function () {
+        summaryTimeUnit = this.value;
+        saveSettings();
+        renderSummaryTable();
+    });
+    $("#hfSummaryAppendTimeCheckbox").on("change", function () {
+        summaryAnswerAppendTime = this.checked;
+        saveSettings();
+        renderSummaryTable();
+    });
+    $("#hfSummaryColumns").on("change", "input", function () {
+        summaryColumns[this.dataset.column] = this.checked;
+        saveSettings();
+        updateSummaryColumnVisibility();
     });
 }
 
@@ -785,13 +790,76 @@ async function resetColors() {
 
 // Add the summary entry point to AMQ's quiz toolbar
 function createMenuButton() {
-    $("#qpOptionContainer").width((index, width) => width + 35)
-        .children("div").append(
-            $("<div>", { id: "hfSummaryButton", class: "clickAble qpOption" })
-                .append(/*html*/`<i class="fa fa-users qpMenuItem" aria-hidden="true"></i>`)
-                .on("click", toggleSummaryWindow)
-                .popover({ placement: "bottom", content: "Player Summary", trigger: "hover" })
-        );
+    addQuizBarButton({
+        id: "hfSummaryButton",
+        label: "Player Summary",
+        icon: "fa-users",
+        onClick: toggleSummaryWindow
+    });
+}
+
+// Mount one quiz toolbar button and retain AMQ's native layout and reorder hooks
+function addQuizBarButton({ id, label, icon, onClick }) {
+    if (document.getElementById(id)) return;
+    const $row = $("#qpOptionContainer > div");
+    installQuizBarLayout($row);
+
+    const $icon = icon.trimStart().startsWith("<") ? $(icon) : $("<i>", { class: `fa ${icon}` });
+    $icon.addClass("qpMenuItem").attr("aria-hidden", "true");
+    const $button = $("<button>", { id, type: "button", class: "clickAble qpOption amqScriptQuizBarButton" })
+        .append($icon, $("<span>", { class: "sr-only", text: label }))
+        .on("click", onClick)
+        .popover({ content: label, trigger: "hover", placement: "bottom", container: "#gameContainer" });
+    $row.append($button);
+}
+
+// Share one stylesheet and track only the added width owned by script buttons
+function installQuizBarLayout($row) {
+    const row = $row[0];
+    if (row.hasAttribute("data-amq-script-quiz-bar")) return;
+    row.setAttribute("data-amq-script-quiz-bar", "");
+
+    const slotWidth = 35;
+    const buttonGap = 5;
+    if (!document.getElementById("amqScriptQuizBarStyle")) {
+        const style = document.createElement("style");
+        style.id = "amqScriptQuizBarStyle";
+        style.textContent = /*css*/`
+            #qpOptionContainer .amqScriptQuizBarButton {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: ${slotWidth - buttonGap}px;
+                height: 100%;
+                margin: 0 ${buttonGap}px 0 0;
+                padding: 0;
+                border: 0;
+                background: transparent;
+                color: inherit;
+            }
+            #qpOptionContainer .amqScriptQuizBarButton:hover {
+                opacity: 0.7;
+            }
+            #qpOptionContainer .amqScriptQuizBarButton .qpMenuItem {
+                margin-top: 0;
+            }
+            #qpOptionContainer .amqScriptQuizBarButton svg {
+                width: 100%;
+                height: 20px;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    const $bar = $row.parent();
+    let appliedWidth = 0;
+    const observer = new MutationObserver(() => {
+        const addedWidth = $row.children(".amqScriptQuizBarButton").length * slotWidth;
+        if (addedWidth === appliedWidth) return;
+        $bar.width((index, width) => width + addedWidth - appliedWidth);
+        appliedWidth = addedWidth;
+    });
+    observer.observe(row, { childList: true });
 }
 
 // Register the script and its settings location in AMQ's installed-script menu
@@ -1017,16 +1085,36 @@ function createColorSwatch(color) {
 // Copy saved values into a draft so editing cannot change active colors
 function openCustomColorEditor(index = null) {
     const saved = index === null ? createCustomColorGroup() : customColors[index];
-    customColorDraft = { index, group: { ...saved, players: [...saved.players] } };
+    customColorDraft = { index, position: index, group: { ...saved, players: [...saved.players] } };
     $("#hfCustomColorEditorTitle").text(index === null ? "Add custom color" : "Edit custom color");
     $("#hfCustomNameInput").val(customColorDraft.group.name);
     $("#hfCustomPlayersInput").val(customColorDraft.group.players.join(" "));
     $("#hfCustomColorInput").val(customColorDraft.group.color);
     $("#hfCustomShadowInput").val(customColorDraft.group.shadow);
     $("#hfDeleteCustomColorButton").toggle(index !== null);
+    updateCustomColorOrderControls();
     $("#hfCustomColorList").hide();
     $("#hfCustomColorEditor").show();
     $("#hfCustomNameInput").trigger("focus");
+}
+
+// Show the draft position and disable moves beyond either end of the list
+function updateCustomColorOrderControls() {
+    const position = customColorDraft.position;
+    $("#hfCustomColorOrder").toggle(position !== null);
+    if (position === null) return;
+    $("#hfCustomColorPosition").text(`${position + 1} / ${customColors.length}`);
+    $("#hfCustomColorMoveUpButton").prop("disabled", position === 0);
+    $("#hfCustomColorMoveDownButton").prop("disabled", position === customColors.length - 1);
+}
+
+// Stage an order change without updating saved groups or active colors
+function moveCustomColorGroup(direction) {
+    const position = customColorDraft.position;
+    const targetPosition = position + direction;
+    if (position === null || targetPosition < 0 || targetPosition >= customColors.length) return;
+    customColorDraft.position = targetPosition;
+    updateCustomColorOrderControls();
 }
 
 // Discard the draft and return to the group list
@@ -1036,7 +1124,7 @@ function closeCustomColorEditor() {
     $("#hfCustomColorList").show();
 }
 
-// Commit edited values once and rebuild membership only when the player list changes
+// Commit edited values and order together, refreshing membership when either changes
 function saveCustomColor() {
     const index = customColorDraft.index;
     const previous = index === null ? null : customColors[index];
@@ -1050,9 +1138,13 @@ function saveCustomColor() {
     const membershipChanged = previous === null
         || previous.players.length !== group.players.length
         || previous.players.some((name, playerIndex) => name !== group.players[playerIndex]);
+    const orderChanged = index !== customColorDraft.position;
     if (index === null) customColors.push(group);
-    else customColors[index] = group;
-    if (membershipChanged) {
+    else {
+        customColors.splice(index, 1);
+        customColors.splice(customColorDraft.position, 0, group);
+    }
+    if (membershipChanged || orderChanged) {
         commitCustomColorChanges();
     }
     else {
@@ -1078,29 +1170,20 @@ function getRelationshipClass(name) {
     return "";
 }
 
-// Look up only explicit group members, including names that match object prototype keys
-function getCustomColorClass(name) {
-    const key = name.toLowerCase();
-    return Object.hasOwn(customColorMap, key) ? "customColor" + customColorMap[key] : "";
-}
-
-// Remove only the classes owned by this script
-function removePlayerColorClasses(index, className) {
-    return (className.match(colorClassRegex) || []).join(" ");
-}
-
 // Apply relationship and custom membership independently so custom CSS keeps priority
-function applyPlayerClasses($element, name, relationship = getRelationshipClass(name)) {
-    $element.removeClass(removePlayerColorClasses)
-        .addClass(relationship).addClass(getCustomColorClass(name));
+function applyPlayerColors($element, name, relationship = getRelationshipClass(name)) {
+    $element.removeClass("isSelf isFriend isBlocked")
+        .addClass(relationship)
+        .attr("data-hf-color-group", customColorMap[name.toLowerCase()] ?? null);
 }
 
 // Apply leaderboard-specific relationship names without replacing native rendering
-function applyLeaderboardClasses($element, name) {
+function applyLeaderboardColors($element, name) {
     const classNames = { isSelf: "self", isFriend: "friend", isBlocked: "blocked" };
     const relationship = classNames[getRelationshipClass(name)] ?? "";
-    $element.removeClass("self friend blocked").removeClass(removePlayerColorClasses)
-        .addClass(relationship).addClass(getCustomColorClass(name));
+    $element.removeClass("self friend blocked isSelf isFriend isBlocked")
+        .addClass(relationship)
+        .attr("data-hf-color-group", customColorMap[name.toLowerCase()] ?? null);
 }
 
 // Color scoreboard entries after the client has created them
@@ -1109,7 +1192,7 @@ function colorScorebox() {
     for (const [playerId, entry] of Object.entries(quiz.scoreboard.playerEntries)) {
         const name = quiz.players[playerId]?._name ?? "";
         const relationship = entry.isSelf ? "isSelf" : getRelationshipClass(name);
-        applyPlayerClasses(entry.$entry, name, relationship);
+        applyPlayerColors(entry.$entry, name, relationship);
     }
 }
 
@@ -1117,7 +1200,7 @@ function colorScorebox() {
 function colorQuizPlayers() {
     if (!quiz.inQuiz) return;
     for (const player of Object.values(quiz.players)) {
-        applyPlayerClasses(player.avatarSlot.$body, player._name);
+        applyPlayerColors(player.avatarSlot.$body, player._name);
     }
 }
 
@@ -1125,7 +1208,7 @@ function colorQuizPlayers() {
 function colorLobbyPlayers() {
     if (!lobby.inLobby) return;
     for (const player of Object.values(lobby.players)) {
-        applyPlayerClasses(player.lobbySlot.$LOBBY_SLOT, player._name);
+        applyPlayerColors(player.lobbySlot.$LOBBY_SLOT, player._name);
     }
 }
 
@@ -1141,7 +1224,7 @@ function colorSpectators() {
     $(".gcSpectatorItem").each(function () {
         const $row = $(this);
         const name = $row.find("h3").text();
-        applyPlayerClasses($row, name, getRelationshipClass(getRelationshipName(name)));
+        applyPlayerColors($row, name, getRelationshipClass(getRelationshipName(name)));
     });
 }
 
@@ -1182,7 +1265,7 @@ function applyChatClasses($username, name) {
         case "plain":
             break;
     }
-    applyPlayerClasses($username, name);
+    applyPlayerColors($username, name);
     $username.toggleClass(effects.color, keepRewardColor)
         .toggleClass(effects.glow, chatRewardGlowMode === "keep")
         .toggleClass("hfChatHighlight", useHighlight);
@@ -1200,7 +1283,7 @@ function colorExistingChatNames() {
 // Recolor leaderboard entries without rebuilding the native lists
 function colorExistingLeaderboardNames() {
     $(".lbmBoardEntry[data-hf-player-name]").each(function () {
-        applyLeaderboardClasses($(this), this.getAttribute("data-hf-player-name"));
+        applyLeaderboardColors($(this), this.getAttribute("data-hf-player-name"));
     });
 }
 
@@ -1210,7 +1293,7 @@ function scheduleColorRefresh() {
     colorRefreshTimeoutId = setTimeout(refreshColors, 0);
 }
 
-// Reconcile membership classes without rebuilding any game-owned elements
+// Reconcile relationship classes and group attributes without rebuilding game elements
 function refreshColors() {
     clearTimeout(colorRefreshTimeoutId);
     colorRefreshTimeoutId = null;
@@ -1609,7 +1692,7 @@ function getSettingsData() {
         chatNameColorMode,
         chatRewardGlowMode,
         customColors,
-        hotKeys,
+        hotKeys: hotkeyController.bindings,
         summaryColumns,
         summaryTimeUnit,
         summaryAnswerAppendTime
@@ -1692,41 +1775,8 @@ function applyStyles() {
         #hfSummaryTable .incorrectGuess {
             background-color: rgba(255, 0, 0, 0.07);
         }
-        #hfSummarySettings h3 {
-            margin: 0 0 8px;
-            font-size: 14px;
-            font-weight: bold;
-        }
-        #hfSummaryWindow .hfSettingsRow,
-        #hfSummaryWindow .hfCheckboxRow {
-            display: flex;
-            flex-wrap: wrap;
-            align-items: center;
-            gap: 10px;
-        }
-        #hfSummaryWindow .hfSettingsRow {
-            margin-bottom: 20px;
-        }
-        #hfSummaryWindow .hfCheckbox {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            margin: 0;
-            font-weight: normal;
-            cursor: pointer;
-        }
-        #hfSummaryWindow input[type="checkbox"] {
-            width: 15px;
-            height: 15px;
-            margin: 0;
-        }
-        #hfSummaryTimeUnitSelect {
-            color: black;
-        }
-        #hfSummaryButton {
-            width: 30px;
-            height: 100%;
-            margin-right: 5px;
+        #hfSummaryAnswerOptions {
+            min-height: 34px;
         }
         #settingsGraphicContainer .hfGraphicsSettings {
             padding-top: 10px;
@@ -1861,6 +1911,29 @@ function applyStyles() {
         #hfSettings .hfColorValue {
             font-family: monospace;
         }
+        #hfCustomColorEditor .hfCustomColorHeader {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        #hfCustomColorEditorTitle {
+            margin: 0;
+        }
+        #hfCustomColorOrder {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            white-space: nowrap;
+        }
+        #hfCustomColorPosition {
+            font-variant-numeric: tabular-nums;
+        }
+        #hfCustomColorOrder button {
+            font-size: 16px;
+            padding: 0 7px;
+        }
         #hfCustomColorEditor .hfCustomColorFields {
             display: flex;
             gap: 15px;
@@ -1923,45 +1996,45 @@ function updateHighlightStyles() {
     ];
     for (const group of relationships) {
         if (!group.enabled) continue;
-        rules.push(createPlayerColorRules(group.className, group.color, group.shadow, group.leaderboardClass));
+        rules.push(createPlayerColorRules("." + group.className, group.color, group.shadow, "." + group.leaderboardClass));
     }
     customColors.forEach((group, index) => {
         if (!group.enabled) return;
-        rules.push(createPlayerColorRules("customColor" + index, group.color, group.shadow));
+        rules.push(createPlayerColorRules(`[data-hf-color-group="${index}"]`, group.color, group.shadow));
     });
     colorStyleElement.textContent = rules.join("\n");
 }
 
 // Generate one set of selectors for both relationship and custom palettes
-function createPlayerColorRules(className, color, shadow, leaderboardClass = className) {
+function createPlayerColorRules(selector, color, shadow, leaderboardSelector = selector) {
     const rules = [];
     if (smColorScorebox) rules.push(`
-        .qpStandingItem.${className} .qpsPlayerName {
+        .qpStandingItem${selector} .qpsPlayerName {
             color: ${color};
             text-shadow: 0 0 10px ${shadow};
         }
     `);
     if (smColorName) rules.push(`
-        .lobbyAvatar.${className} .lobbyAvatarNameContainerInner > h2,
-        .qpAvatarContainerOuter.${className} .qpAvatarName {
+        .lobbyAvatar${selector} .lobbyAvatarNameContainerInner > h2,
+        .qpAvatarContainerOuter${selector} .qpAvatarName {
             color: ${color};
         }
     `);
     if (smColorLevel) rules.push(`
-        .qpAvatarContainerOuter.${className} .qpAvatarLevel { color: ${color}; }
+        .qpAvatarContainerOuter${selector} .qpAvatarLevel { color: ${color}; }
     `);
     if (smColorPoint) rules.push(`
-        .qpAvatarContainerOuter.${className} .qpAvatarScore { color: ${color}; }
+        .qpAvatarContainerOuter${selector} .qpAvatarScore { color: ${color}; }
     `);
     if (smColorChat) rules.push(`
-        #gcMessageContainer .gcUserName.hfChatHighlight.${className},
-        #gcPinnedMessageContainer .gcUserName.hfChatHighlight.${className},
-        .gcSpectatorItem.${className} h3 {
+        #gcMessageContainer .gcUserName.hfChatHighlight${selector},
+        #gcPinnedMessageContainer .gcUserName.hfChatHighlight${selector},
+        .gcSpectatorItem${selector} h3 {
             color: ${color};
         }
     `);
     if (smColorLeaderboard) rules.push(`
-        li.lbmBoardEntry.${leaderboardClass} .lmbEntryText { color: ${color}; }
+        li.lbmBoardEntry${leaderboardSelector} .lmbEntryText { color: ${color}; }
     `);
     return rules.join("\n");
 }
