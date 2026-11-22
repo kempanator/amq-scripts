@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.179
+// @version      0.180
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -117,6 +117,8 @@ OTHER
 /logout                   log out
 /relog                    log out, log in, and auto join the room you were in
 /alerts [type]            toggle alerts
+/noafkkick                prevent disconnects and host removal for being idle
+/animatedavatars [on|off] toggle avatar animations or show static poses
 /version                  check the version of this script
 /commands [on|off]        turn this script on or off
 */
@@ -124,7 +126,7 @@ OTHER
 "use strict";
 // Handle automatic login separately from game initialization
 if (document.querySelector("#loginPage")) {
-    handleCommandLogin();
+    confirmRelogLogin();
     return;
 }
 if (typeof Listener === "undefined") return;
@@ -179,6 +181,11 @@ let loopVideo;
 let malClientId;
 let muteReplay;
 let muteSubmit;
+let noAfkKick;
+let animatedAvatars;
+const avatarApps = new Set();
+let originalSpineUpdate;
+let originalSpineRender;
 let playerDetection;
 let printLoot;
 let reorder;
@@ -212,10 +219,20 @@ let selfColor;
 let friendColor;
 let blockedColor;
 let customColors;
-let customColorMap;
+let customColorGroupIndex = new Map();
 let alerts;
 let commandPersist;
-let hotKeys;
+let hotkeyController;
+let incomingDMRegistry;
+let incomingDMRouter;
+let forceAllRegistry;
+let forceAllRouter;
+let activeCommandViews;
+let reorderEditors;
+let reorderDrag;
+let reorderRefreshTimer;
+let reorderRefreshPending;
+let helpText;
 
 // Hotkey actions, defaults, and display order
 const hotkeyActions = {
@@ -332,6 +349,8 @@ const commandSettings = {
     loopVideo: { get: () => loopVideo },
     muteReplay: { get: () => muteReplay },
     muteSubmit: { get: () => muteSubmit },
+    noAfkKick: { get: () => noAfkKick },
+    animatedAvatars: { get: () => animatedAvatars },
     videoBlur: { get: () => videoBlur },
     videoCrop: { get: () => videoCrop },
     videoScale: { get: () => videoScale },
@@ -548,6 +567,22 @@ const commandControls = {
         },
         status: () => `mute after answer submit ${muteSubmit ? "enabled" : "disabled"}`,
     },
+    noAfkKick: {
+        enabled: () => noAfkKick,
+        set(value) {
+            noAfkKick = value;
+        },
+        status: () => `no AFK kick ${noAfkKick ? "enabled" : "disabled"}`,
+        afterChange: applyNoAfkKick,
+    },
+    animatedAvatars: {
+        enabled: () => animatedAvatars,
+        set(value) {
+            animatedAvatars = value;
+        },
+        status: () => `animated avatars ${animatedAvatars ? "enabled" : "disabled"}`,
+        afterChange: applyAvatarAnimationPreference,
+    },
     muteReplay: {
         enabled: () => Boolean(muteReplay),
         set(value) {
@@ -661,31 +696,31 @@ const rollOperations = [
         usage: mode,
         run(context) {
             if (context.args.length !== 1) return context.reply("Use one player-selection option.", true);
-            const names = commandPlayerCandidates(mode);
+            const names = getPlayerCandidates(mode);
             context.reply(names.length ? randomItem(names) : `no ${label}`);
         },
     })),
     {
         aliases: ["pt", "playerteam", "playerteams", "warlord", "warlords"], usage: "playerteam [count]",
-        run: context => rollCommandExistingTeams(context, "playerteam"),
+        run: context => rollExistingTeams(context, "playerteam"),
     },
     {
         aliases: ["relay", "relays"], usage: "relay",
-        run: context => rollCommandExistingTeams(context, "relay"),
+        run: context => rollExistingTeams(context, "relay"),
     },
     {
         aliases: ["team", "teams"], usage: "team [size]",
         run(context) {
             const { args, reply } = context;
             const players = getPlayerList();
-            const size = parseCommandInteger(args[1], 1, players.length);
+            const size = parseBoundedInteger(args[1], 1, players.length);
             if (
                 args.length !== 2
                 || Number.isNaN(size)
             ) {
                 return reply("Use a team size from 1 to the number of players.", true);
             }
-            return replyCommandRollLines(context, buildRandomRollTeamLines(players, size), 200);
+            return queueRollReplies(context, buildRandomRollTeamLines(players, size), 200);
         },
     },
     ...["genre", "tag"].map(mode => ({
@@ -693,7 +728,7 @@ const rollOperations = [
         run(context) {
             const { args, reply } = context;
             const names = Object.values(mode === "genre" ? idTranslator.genreNames : idTranslator.tagNames);
-            const count = parseCommandInteger(args[1] ?? 1, 1, names.length);
+            const count = parseBoundedInteger(args[1] ?? 1, 1, names.length);
             if (
                 args.length > 2
                 || Number.isNaN(count)
@@ -776,12 +811,12 @@ const countOperations = [
     {
         aliases: ["online friend", "online friends"],
         usage: "online friends",
-        read: () => countCommandFriends(true)
+        read: () => countFriendsByPresence(true)
     },
     {
         aliases: ["offline friend", "offline friends"],
         usage: "offline friends",
-        read: () => countCommandFriends(false)
+        read: () => countFriendsByPresence(false)
     },
     {
         aliases: ["friend", "friends"],
@@ -873,7 +908,7 @@ const videoOperations = [
         aliases: ["replay", "r"], usage: "replay [seconds]", player: true,
         run(context, player) {
             const { args, argsLower, reply } = context;
-            const start = args.length === 1 ? undefined : parseCommandNumber(argsLower[1], 0);
+            const start = args.length === 1 ? undefined : parseBoundedNumber(argsLower[1], 0);
             if (
                 args.length > 2
                 || (args.length > 1 && Number.isNaN(start))
@@ -913,7 +948,7 @@ const videoOperations = [
                 videoSpeed = [];
                 return reply("song playback speed set to default", true);
             }
-            const speeds = args.slice(1).map(value => parseCommandNumber(value, 0.0625, 16));
+            const speeds = args.slice(1).map(value => parseBoundedNumber(value, 0.0625, 16));
             if (speeds.length > 2 || speeds.some(Number.isNaN) || (speeds.length === 2 && speeds[0] > speeds[1])) {
                 return reply("Use one speed or an ordered pair between 0.0625 and 16.", true);
             }
@@ -935,7 +970,7 @@ const videoOperations = [
                 reply("Blur mode: blur override disabled", true);
             }
             else if (args.length === 2) {
-                const value = parseCommandInteger(argsLower[1]);
+                const value = parseBoundedInteger(argsLower[1]);
                 if (
                     Number.isNaN(value)
                     || value < 0
@@ -959,7 +994,7 @@ const videoOperations = [
                 reply("Tiny video mode: hole size reset to default", true);
             }
             else if (args.length === 2) {
-                const value = parseCommandNumber(argsLower[1]);
+                const value = parseBoundedNumber(argsLower[1]);
                 if (
                     Number.isNaN(value)
                     || value <= 0
@@ -984,7 +1019,7 @@ const videoOperations = [
                 reply("Tiny video mode: scale reset to default (2.5x)", true);
             }
             else if (args.length === 2) {
-                const value = parseCommandNumber(argsLower[1]);
+                const value = parseBoundedNumber(argsLower[1]);
                 if (
                     Number.isNaN(value)
                     || value <= 0
@@ -1007,7 +1042,7 @@ const videoOperations = [
     {
         aliases: ["length", "len", "duration"],
         usage: "length",
-        read: player => formatCommandVideoTime(player.$player[0].duration)
+        read: player => formatPlaybackTime(player.$player[0].duration)
     },
     {
         aliases: ["link", "url", "src"],
@@ -1029,7 +1064,7 @@ const videoOperations = [
         usage: "info",
         read(player) {
             const video = player.$player[0];
-            return `${getVideoHostLabel(player.currentVideoUrl)} ${player.resolution || "mp3"} ${formatCommandVideoTime(video.currentTime)} / ${formatCommandVideoTime(video.duration)}`;
+            return `${getVideoHostLabel(player.currentVideoUrl)} ${player.resolution || "mp3"} ${formatPlaybackTime(video.currentTime)} / ${formatPlaybackTime(video.duration)}`;
         },
     },
 ];
@@ -1107,12 +1142,12 @@ const commandRegistry = [
             if (args.length > 2) return reply("Use [player or team number] [lower or upper].", true);
             let team = getTeamNumber(selfName);
             let mode = argsLower[1];
-            if (args.length === 1 && commandAlias(nameFormatAliases, argsLower[0])) mode = argsLower[0];
-            else if (args.length) team = isPlayer(args[0]) ? getTeamNumber(args[0]) : parseCommandInteger(args[0]);
+            if (args.length === 1 && getOptionByAlias(nameFormatAliases, argsLower[0])) mode = argsLower[0];
+            else if (args.length) team = isPlayer(args[0]) ? getTeamNumber(args[0]) : parseBoundedInteger(args[0]);
             if (!Number.isInteger(team)) return reply("player or team not found", true);
             if (
                 mode !== undefined
-                && !commandAlias(nameFormatAliases, mode)
+                && !getOptionByAlias(nameFormatAliases, mode)
             ) {
                 return reply("Use lower or upper formatting.", true);
             }
@@ -1154,15 +1189,15 @@ const commandRegistry = [
         run(context) {
             const { args, argsLower, argsText, reply } = context;
             if (!args.length) return lobby.shuffleTeams();
-            const mode = commandAlias(playerModeAliases, argsLower[0]);
+            const mode = getOptionByAlias(playerModeAliases, argsLower[0]);
             let names;
             if (["player", "spectator", "teammate"].includes(mode) && !argsText.includes(",")) {
                 if (args.length > (mode === "teammate" ? 2 : 1)) {
                     return reply("Use players, spectators, teammates [team number], or comma-separated choices.", true);
                 }
-                const team = args.length === 2 ? parseCommandInteger(args[1]) : getTeamNumber(selfName);
+                const team = args.length === 2 ? parseBoundedInteger(args[1]) : getTeamNumber(selfName);
                 if (mode === "teammate" && !Number.isInteger(team)) return reply("invalid team number", true);
-                names = commandPlayerCandidates(mode, team);
+                names = getPlayerCandidates(mode, team);
             }
             else names = argsText.split(",").map(value => value.trim()).filter(Boolean);
             if (!names.length) return reply("no candidates to shuffle", true);
@@ -1186,7 +1221,7 @@ const commandRegistry = [
         run(context) {
             if (context.args.length !== 1) return context.reply("Use one room size of at least 2.", true);
             const { argsLower } = context;
-            const option = parseCommandInteger(argsLower[0], 2);
+            const option = parseBoundedInteger(argsLower[0], 2);
             if (Number.isNaN(option)) return context.reply("invalid number", true);
             return changeGameSettings({ roomSize: option });
         },
@@ -1204,7 +1239,7 @@ const commandRegistry = [
                 return changeGameSettings({ showSelection: 2 });
             }
             else if (args.length === 1) {
-                const inventorySize = parseCommandInteger(argsLower[0], 1);
+                const inventorySize = parseBoundedInteger(argsLower[0], 1);
                 if (Number.isNaN(inventorySize)) return context.reply("invalid number", true);
                 return changeGameSettings(settings => {
                     settings.showSelection = 2;
@@ -1214,9 +1249,9 @@ const commandRegistry = [
                 });
             }
             else if (args.length === 2) {
-                const inventorySize = parseCommandInteger(argsLower[0], 1);
+                const inventorySize = parseBoundedInteger(argsLower[0], 1);
                 if (Number.isNaN(inventorySize)) return context.reply("invalid number", true);
-                const lootingTime = parseCommandInteger(argsLower[1], 1);
+                const lootingTime = parseBoundedInteger(argsLower[1], 1);
                 if (Number.isNaN(lootingTime)) return context.reply("invalid number", true);
                 return changeGameSettings(settings => {
                     settings.showSelection = 2;
@@ -1236,7 +1271,7 @@ const commandRegistry = [
         run(context) {
             const { args, argsLower, reply } = context;
             if (args.length === 1) {
-                const flags = parseCommandFlags(argsLower[0], songTypeAliases, "oei");
+                const flags = parseAliasOrFlags(argsLower[0], songTypeAliases, "oei");
                 if (flags === undefined) {
                     return reply("Use openings, endings, inserts, all, or a combination of o/e/i.", true);
                 }
@@ -1246,8 +1281,8 @@ const commandRegistry = [
                     return { songType: settings.songType };
                 });
             }
-            const option = commandAlias(songTypeCountAliases, argsLower[0]);
-            const count = parseCommandInteger(args[1], 0);
+            const option = getOptionByAlias(songTypeCountAliases, argsLower[0]);
+            const count = parseBoundedInteger(args[1], 0);
             if (args.length !== 2 || option === undefined || Number.isNaN(count)) {
                 return reply("Use a song type and a nonnegative count, or a song-type selection.", true);
             }
@@ -1298,8 +1333,8 @@ const commandRegistry = [
         aliases: ["songselection", "selection"],
         description: "Configure random, watched, and unwatched song selection.",
         run(context) {
-            const option = commandAlias(selectionAliases, context.argsLower[0]);
-            const count = parseCommandInteger(context.args[1], 0);
+            const option = getOptionByAlias(selectionAliases, context.argsLower[0]);
+            const count = parseBoundedInteger(context.args[1], 0);
             if (
                 context.args.length !== 2
                 || option === undefined
@@ -1349,7 +1384,7 @@ const commandRegistry = [
         description: "Change start sample point.",
         usage: ["/sample [start|medium|end]", "/sample [percentage or low-high]"],
         run(context) {
-            const named = commandAlias(sampleAliases, context.optionsText);
+            const named = getOptionByAlias(sampleAliases, context.optionsText);
             const values = named === undefined ? parseIntegerRange(context.optionsText, 0, 100) : undefined;
             if (
                 named === undefined
@@ -1372,7 +1407,7 @@ const commandRegistry = [
         run(context) {
             if (context.args.length !== 1) return context.reply("Use one life count from 1–5.", true);
             const { argsLower, reply } = context;
-            const option = parseCommandInteger(argsLower[0]);
+            const option = parseBoundedInteger(argsLower[0]);
             if (
                 !Number.isInteger(option)
                 || option < 1
@@ -1390,7 +1425,7 @@ const commandRegistry = [
         run(context) {
             const { args, reply } = context;
             if (!args.length) return changeGameSettings({ scoreType: quiz.SCORE_TYPE_IDS.BOSS });
-            const values = args.map(value => parseCommandInteger(value, 0));
+            const values = args.map(value => parseBoundedInteger(value, 0));
             if (
                 args.length !== 3
                 || values.some(Number.isNaN)
@@ -1420,7 +1455,7 @@ const commandRegistry = [
         run(context) {
             if (context.args.length !== 1) return context.reply("Use one positive team size.", true);
             const { argsLower, reply } = context;
-            const option = parseCommandInteger(argsLower[0], 1);
+            const option = parseBoundedInteger(argsLower[0], 1);
             if (Number.isNaN(option)) return reply("invalid number", true);
             return changeGameSettings({ teamSize: option });
         },
@@ -1432,7 +1467,7 @@ const commandRegistry = [
         run(context) {
             if (context.args.length !== 1) return context.reply("Use one positive song count.", true);
             const { argsLower, reply } = context;
-            const option = parseCommandInteger(argsLower[0], 1);
+            const option = parseBoundedInteger(argsLower[0], 1);
             if (Number.isNaN(option)) return reply("invalid number", true);
             return changeGameSettings({ numberOfSongs: option });
         },
@@ -1442,7 +1477,7 @@ const commandRegistry = [
         description: "Change difficulty.",
         usage: ["/dif [easy|medium|hard|emh]", "/dif [percentage or low-high]"],
         run(context) {
-            const flags = parseCommandFlags(context.optionsText, difficultyAliases, "emh");
+            const flags = parseAliasOrFlags(context.optionsText, difficultyAliases, "emh");
             const values = flags === undefined ? parseIntegerRange(context.optionsText, 0, 100) : undefined;
             if (
                 flags === undefined
@@ -1482,8 +1517,8 @@ const commandRegistry = [
         description: "Change season filter (winter, spring, summer, fall).",
         usage: ["/season [text]"],
         run(context) {
-            const parts = context.args.length ? parseCommandEndpoints(context.optionsText) : ["winter", "fall"];
-            const values = parts?.map(value => commandAlias(seasonValues, value));
+            const parts = context.args.length ? parseRangeEndpoints(context.optionsText) : ["winter", "fall"];
+            const values = parts?.map(value => getOptionByAlias(seasonValues, value));
             if (
                 !values
                 || values.some(value => value === undefined)
@@ -1509,8 +1544,8 @@ const commandRegistry = [
             if (!match) {
                 return context.reply("Use season year, optionally followed by a second season year.", true);
             }
-            const seasons = [commandAlias(seasonValues, match[1]), commandAlias(seasonValues, match[3] ?? match[1])];
-            const years = [parseCommandInteger(match[2], 0), parseCommandInteger(match[4] ?? match[2], 0)];
+            const seasons = [getOptionByAlias(seasonValues, match[1]), getOptionByAlias(seasonValues, match[3] ?? match[1])];
+            const years = [parseBoundedInteger(match[2], 0), parseBoundedInteger(match[4] ?? match[2], 0)];
             if (
                 seasons.some(value => value === undefined)
                 || years.some(Number.isNaN)
@@ -1535,7 +1570,7 @@ const commandRegistry = [
         description: "Change genre.",
         usage: ["/genre [text]"],
         run(context) {
-            const matches = context.args.length ? resolveCommandLookupList(context, idTranslator.genreNames) : [];
+            const matches = context.args.length ? resolveNameOrIdList(context, idTranslator.genreNames) : [];
             if (!matches) return;
             return changeGameSettings({ genre: matches.map(result => ({ id: String(result.id), state: 1 })) });
         },
@@ -1545,7 +1580,7 @@ const commandRegistry = [
         description: "Change tags.",
         usage: ["/tag [text]"],
         run(context) {
-            const matches = context.args.length ? resolveCommandLookupList(context, idTranslator.tagNames) : [];
+            const matches = context.args.length ? resolveNameOrIdList(context, idTranslator.tagNames) : [];
             if (!matches) return;
             return changeGameSettings({ tags: matches.map(result => ({ id: String(result.id), state: 1 })) });
         },
@@ -1585,7 +1620,7 @@ const commandRegistry = [
         description: "Vote skip on current song.",
         usage: ["/skip"],
         run(context) {
-            voteCommandSkip();
+            voteToSkip();
         },
     },
     {
@@ -1618,6 +1653,34 @@ const commandRegistry = [
         },
     },
     {
+        aliases: ["noafkkick"],
+        description: "Prevent disconnects and host removal for being idle.",
+        usage: ["/noafkkick"],
+        controlName: "noAfkKick",
+        control: commandControls.noAfkKick,
+        run(context) {
+            applyCommandControl("noAfkKick", !noAfkKick, context);
+        },
+    },
+    {
+        aliases: ["animatedavatars"],
+        description: "Enable avatar animations or display static poses.",
+        usage: ["/animatedavatars", "/animatedavatars [on|off]"],
+        controlName: "animatedAvatars",
+        control: commandControls.animatedAvatars,
+        run(context) {
+            const { args, argsLower, reply } = context;
+            let enabled = !animatedAvatars;
+            if (args.length) {
+                if (args.length !== 1 || !["on", "off"].includes(argsLower[0])) {
+                    return reply("Use /animatedavatars [on|off].", true);
+                }
+                enabled = argsLower[0] === "on";
+            }
+            applyCommandControl("animatedAvatars", enabled, context);
+        },
+    },
+    {
         aliases: ["avs", "asv", "autoskip", "autovoteskip"],
         description: "Automatically vote to skip based on time, correct answer, or team valid answer.",
         usage: ["/autoskip", "/autoskip [seconds]", "/autoskip valid"],
@@ -1625,7 +1688,7 @@ const commandRegistry = [
         control: commandControls.autoVoteSkip,
         run(context) {
             const { args, optionsText, reply } = context;
-            const mode = commandAlias(autoSkipAliases, optionsText);
+            const mode = getOptionByAlias(autoSkipAliases, optionsText);
             if (args.length === 0) {
                 applyCommandControl("autoVoteSkip", autoVoteSkip.length ? [] : [0], context, () => `auto vote skip ${autoVoteSkip.length ? "enabled" : "disabled"}`);
             }
@@ -1648,7 +1711,7 @@ const commandRegistry = [
                 reply(`auto vote skip replay phase ${option ? "enabled" : "disabled"}`, true);
             }
             else {
-                const time = parseCommandTimes(optionsText);
+                const time = parseTimeListMs(optionsText);
                 if (
                     !time
                     || (time.length === 2 && time[0] === time[1])
@@ -1751,7 +1814,7 @@ const commandRegistry = [
         controlName: "autoMute",
         control: commandControls.autoMute,
         run(context) {
-            return runAutoMuteCommand(context, "mute");
+            return handleAutoMuteArgs(context, "mute");
         },
     },
     {
@@ -1759,7 +1822,7 @@ const commandRegistry = [
         description: "Unmute after a fixed delay or a random delay within a range. No arguments disable the shared mute automation.",
         usage: ["/autounmute [seconds or low-high]"],
         run(context) {
-            return runAutoMuteCommand(context, "unmute");
+            return handleAutoMuteArgs(context, "unmute");
         },
     },
     {
@@ -1767,7 +1830,7 @@ const commandRegistry = [
         description: "Toggle mute at each time in a list of at least two distinct times. No arguments disable the shared mute automation.",
         usage: ["/automutetoggle [seconds, seconds, ...]"],
         run(context) {
-            return runAutoMuteCommand(context, "toggle");
+            return handleAutoMuteArgs(context, "toggle");
         },
     },
     {
@@ -1775,7 +1838,7 @@ const commandRegistry = [
         description: "Mute for a fixed duration at a random point in the song. No arguments disable the shared mute automation.",
         usage: ["/automuterandom [duration]"],
         run(context) {
-            return runAutoMuteCommand(context, "randomMute");
+            return handleAutoMuteArgs(context, "randomMute");
         },
     },
     {
@@ -1783,7 +1846,7 @@ const commandRegistry = [
         description: "Unmute for a fixed duration at a random point in the song. No arguments disable the shared mute automation.",
         usage: ["/autounmuterandom [duration]"],
         run(context) {
-            return runAutoMuteCommand(context, "randomUnmute");
+            return handleAutoMuteArgs(context, "randomUnmute");
         },
     },
     {
@@ -1917,7 +1980,7 @@ const commandRegistry = [
                 }
             }
             else {
-                const room = parseCommandRoom(context);
+                const room = parseRoomJoinArgs(context);
                 if (!room) return reply("Use a positive room ID followed by an optional password.", true);
                 const { id, password } = room;
                 autoJoinRoom = { id: id, password: password || "" };
@@ -1994,7 +2057,7 @@ const commandRegistry = [
                 autoDownloadSong = [];
                 return reply("auto download song disabled", true);
             }
-            const formats = commandOptionList(optionsText);
+            const formats = parseOptionList(optionsText);
             if (
                 !formats.length
                 || formats.some(value => !["720", "480", "mp3", "video"].includes(value))
@@ -2011,12 +2074,12 @@ const commandRegistry = [
         usage: ["/autodownloadjson [text]"],
         run(context) {
             const { args, optionsText, reply } = context;
-            const enabled = commandAlias(downloadBooleanAliases, optionsText);
+            const enabled = getOptionByAlias(downloadBooleanAliases, optionsText);
             if (!args.length || enabled !== undefined) {
                 autoDownloadJson = enabled ? ["all"] : [];
                 return reply(`auto download json ${enabled ? "enabled" : "disabled"}`, true);
             }
-            const modes = commandOptionList(optionsText);
+            const modes = parseOptionList(optionsText);
             if (
                 !modes.length
                 || modes.some(value => !["solo", "ranked", "tour"].includes(value))
@@ -2054,7 +2117,7 @@ const commandRegistry = [
             }
             if (args.length !== 1) return reply("Use one nonnegative countdown in seconds.", true);
             if (!lobby.inLobby) return;
-            const seconds = parseCommandInteger(args[0], 0, Math.floor(MAX_COMMAND_DELAY / 1000));
+            const seconds = parseBoundedInteger(args[0], 0, Math.floor(MAX_COMMAND_DELAY / 1000));
             if (Number.isNaN(seconds)) return reply("invalid number", true);
             if (!lobby.isHost) return reply("countdown failed: not host", true);
             startCountdown(seconds, context);
@@ -2065,7 +2128,7 @@ const commandRegistry = [
         description: "Ready/unready in lobby.",
         usage: ["/ready"],
         run(context) {
-            toggleCommandReady();
+            toggleLobbyReady();
         },
     },
     {
@@ -2085,13 +2148,13 @@ const commandRegistry = [
         run(context) {
             const { args, optionsText, reply } = context;
             if (args.length === 0) {
-                const name = resolveCommandTarget(context, { dm: true });
+                const name = resolvePlayerArgument(context, { dm: true });
                 if (name !== undefined) {
                     socket.sendCommand({ type: "social", command: "invite to game", data: { target: name } });
                 }
             }
             else {
-                const list = commandOptionList(optionsText);
+                const list = parseOptionList(optionsText);
                 if (!list.length) return reply("Specify at least one player to invite.", true);
                 list.forEach((name, i) => {
                     setTimeout(() => {
@@ -2108,12 +2171,12 @@ const commandRegistry = [
         run(context) {
             if (!lobby.inLobby && !quiz.inQuiz) return;
             if (context.args.length) {
-                const name = resolveCommandRoomTarget(context);
+                const name = resolveRoomPlayerArgument(context);
                 if (name !== undefined) lobby.changeToSpectator(name);
                 return;
             }
             if (quiz.inQuiz) {
-                if (!quiz.isSpectator) toggleTemporaryCommandSwitch(context, "spectator");
+                if (!quiz.isSpectator) toggleOneTimeAutoSwitch(context, "spectator");
                 return;
             }
             lobby.changeToSpectator(selfName);
@@ -2126,7 +2189,7 @@ const commandRegistry = [
         run(context) {
             if (context.args.length) {
                 if (inRoom()) return;
-                const room = parseCommandRoom(context);
+                const room = parseRoomJoinArgs(context);
                 if (!room) {
                     return context.reply("Use a positive room ID followed by an optional password.", true);
                 }
@@ -2137,7 +2200,7 @@ const commandRegistry = [
             if (quiz.lateJoinButton.$body.is(":visible")) {
                 socket.sendCommand({ type: "quiz", command: "late join game" });
             }
-            else toggleTemporaryCommandSwitch(context, "player");
+            else toggleOneTimeAutoSwitch(context, "player");
         },
     },
     {
@@ -2153,8 +2216,8 @@ const commandRegistry = [
         description: "Promote player to host.",
         usage: ["/host [name]"],
         run(context) {
-            const name = resolveCommandRoomTarget(context, { dm: true });
-            if (name !== undefined) promoteCommandHost(name);
+            const name = resolveRoomPlayerArgument(context, { dm: true });
+            if (name !== undefined) transferRoomHost(name);
         },
     },
     {
@@ -2162,7 +2225,7 @@ const commandRegistry = [
         description: "Kick player.",
         usage: ["/kick [name]"],
         run(context) {
-            const name = resolveCommandRoomTarget(context);
+            const name = resolveRoomPlayerArgument(context);
             if (name === undefined) return;
             if (lobby.inLobby || quiz.inQuiz || battleRoyal.inView) {
                 socket.sendCommand({ type: "lobby", command: "kick player", data: { playerName: name } });
@@ -2189,7 +2252,7 @@ const commandRegistry = [
             const { args, argsLower, reply } = context;
             if (args.length > 1) return reply("Use one volume from 0–100, mute, or unmute.", true);
             if (args.length === 0) {
-                reply(commandVolumeText());
+                reply(formatVolumeStatus());
             }
             else if (["m", "mute"].includes(argsLower[0])) {
                 volumeController.setMuted(true);
@@ -2200,7 +2263,7 @@ const commandRegistry = [
                 volumeController.adjustVolume();
             }
             else {
-                const option = parseCommandNumber(argsLower[0], 0, 100) / 100;
+                const option = parseBoundedNumber(argsLower[0], 0, 100) / 100;
                 if (Number.isNaN(option)) return reply("Volume must be a number from 0–100.", true);
                 volumeController.volume = option;
                 volumeController.setMuted(false);
@@ -2352,7 +2415,7 @@ const commandRegistry = [
         description: "Show or change your social status.",
         run(context) {
             const { args, argsText, reply } = context;
-            if (!args.length) return reply(commandStatusText());
+            if (!args.length) return reply(getSocialStatusText());
             const status = parseSocialStatus(argsText);
             if (status) socialTab.socialStatus.changeSocialStatus(socialTab.socialStatus.STATUS_IDS[status]);
             else reply("Options: online, away, do not disturb, offline", true);
@@ -2373,7 +2436,7 @@ const commandRegistry = [
         aliases: ["friend"],
         description: "Send a friend request.",
         run(context) {
-            const name = resolveCommandTarget(context, { dm: true });
+            const name = resolvePlayerArgument(context, { dm: true });
             if (name !== undefined) socialTab.sendFriendRequest(name);
         },
     },
@@ -2381,7 +2444,7 @@ const commandRegistry = [
         aliases: ["unfriend"],
         description: "Remove a friend.",
         run(context) {
-            const name = resolveCommandTarget(context, { dm: true });
+            const name = resolvePlayerArgument(context, { dm: true });
             if (name === undefined) return;
             socket.sendCommand({ type: "social", command: "remove friend", data: { target: name } });
             socialTab.removeFriend(name);
@@ -2391,7 +2454,7 @@ const commandRegistry = [
         aliases: ["block"],
         description: "Block a player.",
         run(context) {
-            const name = resolveCommandTarget(context);
+            const name = resolvePlayerArgument(context);
             if (name !== undefined) socialTab.blockPlayer(name);
         },
     },
@@ -2399,7 +2462,7 @@ const commandRegistry = [
         aliases: ["unblock"],
         description: "Unblock a player.",
         run(context) {
-            const name = resolveCommandTarget(context);
+            const name = resolvePlayerArgument(context);
             if (name !== undefined) socialTab.unblockPlayer(name);
         },
     },
@@ -2472,7 +2535,7 @@ const commandRegistry = [
                 return rejoinRoom(100);
             }
             else if (args.length === 1) {
-                const time = parseCommandDelay(argsLower[0]);
+                const time = parseDelayMs(argsLower[0]);
                 if (Number.isNaN(time)) return reply("invalid time", true);
                 return rejoinRoom(time);
             }
@@ -2505,7 +2568,7 @@ const commandRegistry = [
             if (context.args.length !== 1) return context.reply("Use one positive alien count.", true);
             const { argsLower, reply } = context;
             if (!inRoom()) return;
-            const alienCount = parseCommandInteger(argsLower[0]);
+            const alienCount = parseBoundedInteger(argsLower[0]);
             if (Number.isNaN(alienCount) || alienCount < 1) return reply("invalid number", true);
             const players = getPlayerList();
             if (players.length < alienCount) return reply("not enough people");
@@ -2603,7 +2666,7 @@ const commandRegistry = [
         aliases: ["onlinefriends"],
         description: "List online friends.",
         async run(context) {
-            const status = await requestCommandFriendStatus();
+            const status = await fetchFriendPresence();
             context.reply(status.online.join(", "));
         },
     },
@@ -2622,7 +2685,7 @@ const commandRegistry = [
         description: "Show invisible friends.",
         usage: ["/invisible"],
         async run(context) {
-            const status = await requestCommandFriendStatus();
+            const status = await fetchFriendPresence();
             context.reply(status.invisible.length ? status.invisible.join(", ") : "no invisible friends detected");
         },
     },
@@ -2670,7 +2733,7 @@ const commandRegistry = [
             if (list.length >= 2) {
                 reply("Voting started, to vote type /vote #");
                 reply(`to stop vote type ${commandPrefix}stopvote`, true);
-                startCommandVote(list, type);
+                startChatPoll(list, type);
                 Object.entries(voteOptions).forEach(([id, label]) => reply(`${id}: ${label}`));
             }
             else {
@@ -2696,7 +2759,7 @@ const commandRegistry = [
             else {
                 reply("no votes");
             }
-            resetCommandVote();
+            resetChatPoll();
         },
     },
     {
@@ -2853,7 +2916,7 @@ const commandRegistry = [
             const key = persistSettingNames.get(argsLower[0]);
             if (key === undefined) return;
             if (args.length === 1) return reply(String(commandPersist[key]));
-            const value = commandAlias(persistBooleanAliases, argsLower[1]);
+            const value = getOptionByAlias(persistBooleanAliases, argsLower[1]);
             if (value === undefined) return reply("Use true/false, on/off, yes/no, or 1/0.", true);
             commandPersist[key] = value;
             reply(`${key} persist set to ${value}`);
@@ -2932,15 +2995,16 @@ const commandRegistry = [
             const { argsLower, reply } = context;
             if (!Object.hasOwn(chatColorKeys, argsLower[0])) return;
             const key = chatColorKeys[argsLower[0]];
-            const data = JSON.parse(localStorage.getItem("highlightFriendsSettings"));
-            if (data) reply(data[key]);
+            const savedSettings = readStorageObject("highlightFriendsSettings");
+            const color = savedSettings[key];
+            if (typeof color === "string") reply(color);
         },
     },
     {
         aliases: ["genreid"],
         description: "Look up a genre name by ID.",
         run(context) {
-            const matches = resolveCommandLookupList(context, idTranslator.genreNames);
+            const matches = resolveNameOrIdList(context, idTranslator.genreNames);
             if (matches) context.reply(matches.map(result => `${result.name}: ${result.id}`).join(", "));
         },
     },
@@ -2948,7 +3012,7 @@ const commandRegistry = [
         aliases: ["tagid"],
         description: "Look up a tag name by ID.",
         run(context) {
-            const matches = resolveCommandLookupList(context, idTranslator.tagNames);
+            const matches = resolveNameOrIdList(context, idTranslator.tagNames);
             if (matches) context.reply(matches.map(result => `${result.name}: ${result.id}`).join(", "));
         },
     },
@@ -2956,14 +3020,14 @@ const commandRegistry = [
         aliases: ["artistid"],
         description: "Look up a song artist by ID.",
         run(context) {
-            return replyCommandArtistHover(context, "artist");
+            return replyWithArtistOrGroupName(context, "artist");
         },
     },
     {
         aliases: ["groupid"],
         description: "Look up a song group by ID.",
         run(context) {
-            return replyCommandArtistHover(context, "group");
+            return replyWithArtistOrGroupName(context, "group");
         },
     },
     {
@@ -2972,9 +3036,9 @@ const commandRegistry = [
         async run(context) {
             if (context.args.length !== 1) return context.reply("Use one positive ANN anime ID.", true);
             const { args } = context;
-            const id = parseCommandInteger(args[0], 1);
+            const id = parseBoundedInteger(args[0], 1);
             if (Number.isNaN(id)) return context.reply("invalid number", true);
-            console.log(await requestCommand("get anime extended info", {
+            console.log(await requestSocketResponse("get anime extended info", {
                 type: "library", command: "get anime extended info", data: { annId: id },
             }));
         },
@@ -2985,9 +3049,9 @@ const commandRegistry = [
         async run(context) {
             if (context.args.length !== 1) return context.reply("Use one positive ANN song ID.", true);
             const { args } = context;
-            const id = parseCommandInteger(args[0], 1);
+            const id = parseBoundedInteger(args[0], 1);
             if (Number.isNaN(id)) return context.reply("invalid number", true);
-            console.log(await requestCommand("get song extended info", {
+            console.log(await requestSocketResponse("get song extended info", {
                 type: "library", command: "get song extended info", data: { annSongId: id, includeFileNames: true },
             }));
         },
@@ -2999,7 +3063,7 @@ const commandRegistry = [
         async run(context) {
             const { args, argsLower, reply } = context;
             if (!args.length) return reply(animeListHelp, true);
-            const action = commandAlias(animeListActionAliases, argsLower[0]);
+            const action = getOptionByAlias(animeListActionAliases, argsLower[0]);
             if (action !== undefined) {
                 if (args.length !== 1) return reply(animeListHelp, true);
                 if (action === "status") {
@@ -3012,7 +3076,7 @@ const commandRegistry = [
                 await removeAllLists();
                 return reply("all lists cleared", true);
             }
-            const update = parseCommandAnimeList(context);
+            const update = parseAnimeListArgs(context);
             if (!update) return;
             await updateAnimeList(update.key, update.username, update.states);
             reply(`${animeListProviders[update.key].label} set to ${update.username}`, true);
@@ -3038,7 +3102,7 @@ const commandRegistry = [
         aliases: ["dq", "daily", "dailies", "dailyquest", "dailyquests"],
         description: "Configure settings and auto throw for daily quests.",
         async run(context) {
-            const quest = selectCommandDailyQuest(context);
+            const quest = selectDailyQuest(context);
             if (!quest || await quest.apply() === false) return;
             questAutoThrow(context, quest.anime);
         },
@@ -3052,7 +3116,7 @@ const commandRegistry = [
                 reply("Usage: find anime in dqMap by genre", true);
             }
             else {
-                const matches = resolveCommandLookupList(context, idTranslator.genreNames);
+                const matches = resolveNameOrIdList(context, idTranslator.genreNames);
                 if (!matches) return;
                 const genreList = matches.map(result => ({ genre: result.name, id: result.id }));
                 let foundAnime = [];
@@ -3133,7 +3197,7 @@ const commandRegistry = [
                 return changeGameSettings(settings);
             }
 
-            const animeId = parseCommandInteger(args[0], 1);
+            const animeId = parseBoundedInteger(args[0], 1);
             if (Number.isNaN(animeId)) return reply("invalid anilist id", true);
             const room = captureGameSettingsRoom();
             const anime = await getAnimeFromAnilistId(animeId);
@@ -3168,7 +3232,7 @@ const commandRegistry = [
         async run(context) {
             if (context.args.length !== 1) return context.reply("Use one positive AniList ID.", true);
             const { args, reply } = context;
-            const id = parseCommandInteger(args[0], 1);
+            const id = parseBoundedInteger(args[0], 1);
             if (Number.isNaN(id)) return reply("invalid anilist id", true);
             const data = await getAnimeFromAnilistId(id);
             if (!data) return reply("invalid anilist id", true);
@@ -3224,11 +3288,11 @@ const commandRegistry = [
             }
             else if (args.length === 1) {
                 if (argsLower[0] === "start") {
-                    startCommandAudio();
+                    playCustomAudio();
                     if (!sourceNode) reply("no prepared audio for this song", true);
                 }
                 else if (argsLower[0] === "stop") {
-                    stopCommandAudio();
+                    stopCustomAudio();
                 }
             }
         },
@@ -3257,7 +3321,7 @@ const commandRegistry = [
                 reply("pitch shift disabled", true);
             }
             else if (args.length === 1) {
-                const option = parseCommandNumber(argsLower[0]);
+                const option = parseBoundedNumber(argsLower[0]);
                 if (
                     !Number.isFinite(Math.fround(option))
                     || Math.fround(option) <= 0
@@ -3272,21 +3336,132 @@ const commandRegistry = [
 ];
 const commandRouter = new Map(commandRegistry.flatMap(entry => entry.aliases.map(alias => [alias, entry])));
 
-let hotkeyController;
-let incomingDMRegistry;
-let incomingDMRouter;
-let forceAllRegistry;
-let forceAllRouter;
-let activeCommandViews;
-let reorderEditors;
-let reorderDrag;
-let reorderRefreshTimer;
-let reorderRefreshPending;
-let helpText;
-
-// Prepare runtime state and early hooks before waiting for the page
+// Restore preferences and create runtime state before startup
 function initializeState() {
-    storedSettingSchema = {
+    storedSettingSchema = createStoredSettingSchema();
+    saveData = loadSettings();
+    autoAcceptInvite = cloneInitialSetting("autoAcceptInvite");
+    autoCopy = cloneInitialSetting("autoCopy");
+    autoDownloadSong = cloneInitialSetting("autoDownloadSong");
+    autoDownloadJson = cloneInitialSetting("autoDownloadJson");
+    autoHint = cloneInitialSetting("autoHint");
+    autoHost = cloneInitialSetting("autoHost");
+    autoInvite = cloneInitialSetting("autoInvite");
+    autoJoinRoom = cloneInitialSetting("autoJoinRoom");
+    autoKey = cloneInitialSetting("autoKey");
+    autoMute = cloneInitialSetting("autoMute");
+    autoPause = cloneInitialSetting("autoPause");
+    autoReady = cloneInitialSetting("autoReady");
+    autoShareAnswer = cloneInitialSetting("autoShareAnswer");
+    autoStart = createAutoStartState(cloneInitialSetting("autoStart"));
+    autoStatus = cloneInitialSetting("autoStatus");
+    autoSwitch = cloneInitialSetting("autoSwitch");
+    autoThrow = cloneInitialSetting("autoThrow");
+    autoVoteLobby = cloneInitialSetting("autoVoteLobby");
+    autoVoteSkip = cloneInitialSetting("autoVoteSkip");
+    backgroundURL = cloneInitialSetting("backgroundURL");
+    commandPrefix = cloneInitialSetting("commandPrefix");
+    commands = cloneInitialSetting("commands");
+    continueSample = cloneInitialSetting("continueSample");
+    coopPaste = cloneInitialSetting("coopPaste");
+    dropdown = cloneInitialSetting("dropdown");
+    dropdownInSpec = cloneInitialSetting("dropdownInSpec");
+    enableAllProfileButtons = cloneInitialSetting("enableAllProfileButtons");
+    hidePlayers = cloneInitialSetting("hidePlayers");
+    lastUsedVersion = cloneInitialSetting("lastUsedVersion");
+    loopVideo = cloneInitialSetting("loopVideo");
+    malClientId = cloneInitialSetting("malClientId");
+    muteReplay = cloneInitialSetting("muteReplay");
+    muteSubmit = cloneInitialSetting("muteSubmit");
+    noAfkKick = cloneInitialSetting("noAfkKick");
+    animatedAvatars = cloneInitialSetting("animatedAvatars");
+    playerDetection = cloneInitialSetting("playerDetection");
+    printLoot = cloneInitialSetting("printLoot");
+    reorder = cloneInitialSetting("reorder");
+    selfDM = cloneInitialSetting("selfDM");
+    videoBlur = cloneInitialSetting("videoBlur");
+    videoCrop = cloneInitialSetting("videoCrop");
+    videoScale = cloneInitialSetting("videoScale");
+    videoSpeed = cloneInitialSetting("videoSpeed");
+    alerts = cloneInitialSetting("alerts");
+    commandPersist = cloneInitialSetting("commandPersist");
+    persistSettingNames = new Map(Object.keys(commandPersist).map(name => [name.toLowerCase(), name]));
+    hotkeyController = new HotkeyController({
+        actions: hotkeyActions,
+        savedBindings: cloneInitialSetting("hotKeys"),
+        onChange: saveSettings
+    });
+    incomingDMRegistry = createIncomingDMRegistry();
+    incomingDMRouter = new Map(incomingDMRegistry.flatMap(entry => entry.aliases.map(alias => [alias, entry])));
+    forceAllRegistry = createForceAllRegistry();
+    forceAllRouter = new Map(forceAllRegistry.flatMap(entry => entry.aliases.map(alias => [alias, entry])));
+    activeCommandViews = new Map();
+    reorderEditors = createReorderEditors();
+    reorderDrag = null;
+    reorderRefreshTimer = null;
+    reorderRefreshPending = false;
+    helpText = getCommandHelpText();
+}
+
+// === Startup and game event binding ===
+
+// Confirm the translated already-online prompt once when relog requests automatic login
+function confirmRelogLogin() {
+    const savedSettings = readStorageObject("megaCommands");
+    const loginState = savedSettings.autoJoinRoom;
+    if (!isStoredRecord(loginState) || loginState.autoLogIn !== true) return;
+
+    localizationHandler.addOnSetupDoneCallback(() => {
+        const observer = new MutationObserver(confirmLogin);
+        function confirmLogin() {
+            if (!Swal.isVisible()) return;
+            const title = localizationHandler.translate("login_page.popout_messages.already_online.title");
+            if (Swal.getTitle().textContent !== title) return;
+            observer.disconnect();
+            Swal.clickConfirm();
+        }
+        observer.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ["class", "style"] });
+        confirmLogin();
+    });
+}
+
+// Initialize once AMQ finishes loading
+function startScript() {
+    initializeState();
+    installHooks();
+    const loadingScreen = document.querySelector("#loadingScreen");
+    if (loadingScreen.classList.contains("hidden")) {
+        setup();
+        return;
+    }
+    const observer = new MutationObserver(() => {
+        if (!loadingScreen.classList.contains("hidden")) return;
+        observer.disconnect();
+        setup();
+    });
+    observer.observe(loadingScreen, { attributes: true, attributeFilter: ["class"] });
+}
+
+// Initialize features and UI before performing startup room navigation
+function setup() {
+    setupAudioControls();
+    applySettingsChanges();
+    applyStartupPreferences();
+    bindVideoEndEvents();
+    setupHotkeys();
+    installRoomActionHooks();
+    bindGameListeners();
+    bindQuizUiEvents();
+    observeProfileButtons();
+    createCommandWindow();
+    window.addEventListener("amq:highlight-friends-changed", refreshHighlightColors);
+    registerScriptInfo();
+    joinStartupRoom();
+}
+
+// Define stored-setting defaults and decoders
+function createStoredSettingSchema() {
+    return {
         autoAcceptInvite: {
             default: "",
             decode: decodeSavedAutoAcceptInvite,
@@ -3419,9 +3594,17 @@ function initializeState() {
             default: false,
             decode: decodeSavedBoolean,
         },
+        noAfkKick: {
+            default: false,
+            decode: decodeSavedBoolean,
+        },
         playerDetection: {
             default: { invisible: false, players: [] },
             decode: decodeSavedPlayerDetection,
+        },
+        animatedAvatars: {
+            default: true,
+            decode: decodeSavedBoolean,
         },
         printLoot: {
             default: false,
@@ -3495,6 +3678,8 @@ function initializeState() {
                 loopVideo: true,
                 muteReplay: true,
                 muteSubmit: true,
+                noAfkKick: true,
+                animatedAvatars: true,
                 videoBlur: false,
                 videoCrop: false,
                 videoScale: false,
@@ -3507,65 +3692,17 @@ function initializeState() {
             decode: HotkeyController.normalizeBindings,
         },
     };
-    saveData = readCommandSettings();
-    autoAcceptInvite = restoreCommandSetting("autoAcceptInvite");
-    autoCopy = restoreCommandSetting("autoCopy");
-    autoDownloadSong = restoreCommandSetting("autoDownloadSong");
-    autoDownloadJson = restoreCommandSetting("autoDownloadJson");
-    autoHint = restoreCommandSetting("autoHint");
-    autoHost = restoreCommandSetting("autoHost");
-    autoInvite = restoreCommandSetting("autoInvite");
-    autoJoinRoom = restoreCommandSetting("autoJoinRoom");
-    autoKey = restoreCommandSetting("autoKey");
-    autoMute = restoreCommandSetting("autoMute");
-    autoPause = restoreCommandSetting("autoPause");
-    autoReady = restoreCommandSetting("autoReady");
-    autoShareAnswer = restoreCommandSetting("autoShareAnswer");
-    autoStart = createAutoStartState(restoreCommandSetting("autoStart"));
-    autoStatus = restoreCommandSetting("autoStatus");
-    autoSwitch = restoreCommandSetting("autoSwitch");
-    autoThrow = restoreCommandSetting("autoThrow");
-    autoVoteLobby = restoreCommandSetting("autoVoteLobby");
-    autoVoteSkip = restoreCommandSetting("autoVoteSkip");
-    backgroundURL = restoreCommandSetting("backgroundURL");
-    commandPrefix = restoreCommandSetting("commandPrefix");
-    commands = restoreCommandSetting("commands");
-    continueSample = restoreCommandSetting("continueSample");
-    coopPaste = restoreCommandSetting("coopPaste");
-    dropdown = restoreCommandSetting("dropdown");
-    dropdownInSpec = restoreCommandSetting("dropdownInSpec");
-    enableAllProfileButtons = restoreCommandSetting("enableAllProfileButtons");
-    hidePlayers = restoreCommandSetting("hidePlayers");
-    lastUsedVersion = restoreCommandSetting("lastUsedVersion");
-    loopVideo = restoreCommandSetting("loopVideo");
-    malClientId = restoreCommandSetting("malClientId");
-    muteReplay = restoreCommandSetting("muteReplay");
-    muteSubmit = restoreCommandSetting("muteSubmit");
-    playerDetection = restoreCommandSetting("playerDetection");
-    printLoot = restoreCommandSetting("printLoot");
-    reorder = restoreCommandSetting("reorder");
-    selfDM = restoreCommandSetting("selfDM");
-    videoBlur = restoreCommandSetting("videoBlur");
-    videoCrop = restoreCommandSetting("videoCrop");
-    videoScale = restoreCommandSetting("videoScale");
-    videoSpeed = restoreCommandSetting("videoSpeed");
-    alerts = restoreCommandSetting("alerts");
-    commandPersist = restoreCommandSetting("commandPersist");
-    hotKeys = restoreCommandSetting("hotKeys");
-    persistSettingNames = new Map(Object.keys(commandPersist).map(name => [name.toLowerCase(), name]));
-    hotkeyController = new HotkeyController({
-        actions: hotkeyActions,
-        savedBindings: hotKeys,
-        onChange: saveSettings
-    });
-    hotKeys = hotkeyController.bindings;
-    incomingDMRegistry = [
+}
+
+// Define incoming direct-message commands
+function createIncomingDMRegistry() {
+    return [
         {
             aliases: ["forceready", "fr"],
             description: "Toggle ready in the current lobby.",
             friendOnly: true,
             run(context) {
-                toggleCommandReady();
+                toggleLobbyReady();
             },
         },
         {
@@ -3609,7 +3746,7 @@ function initializeState() {
                 const members = lobby.inLobby ? getEveryoneInRoom() : Object.keys(nexusCoopChat.playerMap);
                 const target = (args[0] || sender).toLowerCase();
                 const name = members.find(member => member.toLowerCase() === target);
-                if (name) promoteCommandHost(name);
+                if (name) transferRoomHost(name);
             },
         },
         {
@@ -3617,14 +3754,14 @@ function initializeState() {
             description: "List enabled automatic functions.",
             friendOnly: true,
             run(context) {
-                return replyCommandLines(context, getEnabledAutomationSummaries());
+                return replyInSequence(context, getEnabledAutomationSummaries());
             },
         },
         {
             aliases: ["forceversion", "fver", "fv"],
             description: "Show this script's version or look up another installed script.",
             run(context) {
-                context.reply(commandVersionText(context));
+                context.reply(getRequestedVersion(context));
             },
         },
         {
@@ -3638,14 +3775,14 @@ function initializeState() {
             aliases: ["forcestatus", "fs"],
             description: "Show the current social status.",
             run(context) {
-                context.reply(commandStatusText(true));
+                context.reply(getSocialStatusText(true));
             },
         },
         {
             aliases: ["forcevolume", "forcevol", "fvol"],
             description: "Show the current volume.",
             run(context) {
-                context.reply(commandVolumeText());
+                context.reply(formatVolumeStatus());
             },
         },
         {
@@ -3655,7 +3792,7 @@ function initializeState() {
                 if (context.args.length !== 1) return;
                 const room = Object.values(roomBrowser.activeRooms).find(room =>
                     room.getPlayersInGame().some(name => name.toLowerCase() === context.argsLower[0]));
-                return replyCommandRoom(context, room);
+                return replyWithRoomDetails(context, room);
             },
         },
         {
@@ -3665,18 +3802,21 @@ function initializeState() {
                 if (context.args.length !== 1) return;
                 const id = context.args[0];
                 const room = Object.hasOwn(roomBrowser.activeRooms, id) ? roomBrowser.activeRooms[id] : undefined;
-                return replyCommandRoom(context, room);
+                return replyWithRoomDetails(context, room);
             },
         },
     ];
-    incomingDMRouter = new Map(incomingDMRegistry.flatMap(entry => entry.aliases.map(alias => [alias, entry])));
-    forceAllRegistry = [
+}
+
+// Define commands available through force-all requests
+function createForceAllRegistry() {
+    return [
         {
             aliases: ["ver", "version"],
             description: "Show this script's version or look up another installed script.",
             acceptsArguments: true,
             run(context) {
-                context.reply(commandVersionText(context));
+                context.reply(getRequestedVersion(context));
             },
         },
         {
@@ -3701,14 +3841,14 @@ function initializeState() {
             aliases: ["status"],
             description: "Show the current social status.",
             run(context) {
-                context.reply(commandStatusText());
+                context.reply(getSocialStatusText());
             },
         },
         {
             aliases: ["volume"],
             description: "Show the current volume.",
             run(context) {
-                context.reply(commandVolumeText());
+                context.reply(formatVolumeStatus());
             },
         },
         {
@@ -3722,7 +3862,7 @@ function initializeState() {
             aliases: ["speed"],
             description: "Show the configured playback speed.",
             run(context) {
-                context.reply(commandSpeedText());
+                context.reply(formatPlaybackSpeed());
             },
         },
         {
@@ -3743,7 +3883,7 @@ function initializeState() {
             aliases: ["skip"],
             description: "Vote to skip the current song.",
             run(context) {
-                voteCommandSkip();
+                voteToSkip();
             },
         },
         {
@@ -3761,9 +3901,11 @@ function initializeState() {
             },
         },
     ];
-    forceAllRouter = new Map(forceAllRegistry.flatMap(entry => entry.aliases.map(alias => [alias, entry])));
-    activeCommandViews = new Map();
-    reorderEditors = {
+}
+
+// Define reorder-editor metadata and independent editor state
+function createReorderEditors() {
+    return {
         quizBar: {
             container: "#qpOptionContainer > div",
             listId: "mcOrderQuizBarList",
@@ -3787,10 +3929,11 @@ function initializeState() {
             keys: new WeakMap()
         },
     };
-    reorderDrag = null;
-    reorderRefreshTimer = null;
-    reorderRefreshPending = false;
-    helpText = `
+}
+
+// Provide the command help text without mixing it into initialization
+function getCommandHelpText() {
+    return `
 GAME SETTINGS
 /size [2-40]              change room size
 /type [oei]               change song types
@@ -3882,62 +4025,11 @@ OTHER
 /logout                   log out
 /relog                    log out, log in, and auto join the room you were in
 /alerts [type]            toggle alerts
+/noafkkick                prevent disconnects and host removal for being idle
+/animatedavatars [on|off] toggle avatar animations or show static poses
 /version                  check the version of this script
 /commands [on|off]        turn this script on or off
 `;
-}
-
-// === Startup and game event binding ===
-
-// Confirm the translated already-online prompt once when relog requests automatic login
-function handleCommandLogin() {
-    const loginState = validateLocalStorage("megaCommands").autoJoinRoom;
-    if (!isStoredRecord(loginState) || loginState.autoLogIn !== true) return;
-
-    localizationHandler.addOnSetupDoneCallback(() => {
-        const observer = new MutationObserver(confirmLogin);
-        function confirmLogin() {
-            if (!Swal.isVisible()) return;
-            const title = localizationHandler.translate("login_page.popout_messages.already_online.title");
-            if (Swal.getTitle().textContent !== title) return;
-            observer.disconnect();
-            Swal.clickConfirm();
-        }
-        observer.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ["class", "style"] });
-        confirmLogin();
-    });
-}
-
-// Initialize once AMQ finishes loading
-function startScript() {
-    initializeState();
-    installCommandHooks();
-    const loadingScreen = document.querySelector("#loadingScreen");
-    if (loadingScreen.classList.contains("hidden")) {
-        setup();
-        return;
-    }
-    const observer = new MutationObserver(() => {
-        if (!loadingScreen.classList.contains("hidden")) return;
-        observer.disconnect();
-        setup();
-    });
-    observer.observe(loadingScreen, { attributes: true, attributeFilter: ["class"] });
-}
-
-// Initialize features and UI before performing startup room navigation
-function setup() {
-    setupCommandAudio();
-    commitCommandSettings();
-    applyStartupPreferences();
-    bindPlaybackEvents();
-    setupHotkeys();
-    setupCommandLifecycle();
-    bindGameListeners();
-    bindCommandInputs();
-    createCommandWindow();
-    registerScriptInfo();
-    joinStartupRoom();
 }
 
 // === Stored setting normalization and persistence ===
@@ -3948,7 +4040,7 @@ function isStoredRecord(value) {
 }
 
 // Validate saved timer arrays before any listener or UI reads their contents
-function validSavedCommandTimes(value, limit = 2, increasing = false) {
+function validSavedTimerList(value, limit = 2, increasing = false) {
     return Array.isArray(value) && value.length <= limit && value.every(time => Number.isInteger(time) && time >= 0 && time <= MAX_COMMAND_DELAY)
         && (value.length !== 2 || !increasing || value[0] < value[1]);
 }
@@ -4009,12 +4101,12 @@ function decodeSavedAutoMute(value, fallback) {
     if (!isStoredRecord(value)) return;
     const result = { ...fallback, ...value };
     if (
-        !validSavedCommandTimes(result.mute, 2, true)
-        || !validSavedCommandTimes(result.unmute, 2, true)
+        !validSavedTimerList(result.mute, 2, true)
+        || !validSavedTimerList(result.unmute, 2, true)
     ) {
         return;
     }
-    if (!validSavedCommandTimes(result.toggle, Infinity)) return;
+    if (!validSavedTimerList(result.toggle, Infinity)) return;
     for (const key of ["randomMute", "randomUnmute"]) {
         if (
             result[key] !== null
@@ -4035,7 +4127,7 @@ function decodeSavedAutoMute(value, fallback) {
 function decodeSavedAutoThrow(value, fallback) {
     if (!isStoredRecord(value)) return;
     const { time, text, multichoice } = { ...fallback, ...value };
-    if (!validSavedCommandTimes(time) || (time.length === 2 && time[0] > time[1])) return;
+    if (!validSavedTimerList(time) || (time.length === 2 && time[0] > time[1])) return;
     if (text !== null && (typeof text !== "string" || !text.trim())) return;
     if (multichoice !== null && ![1, 2, 3, 4, "random"].includes(multichoice)) return;
     if (text && multichoice) return;
@@ -4084,7 +4176,7 @@ function decodeSavedVideoSpeed(value) {
 // Decode an answer-triggered skip mode or an ordered timer list
 function decodeSavedAutoVoteSkip(value) {
     if (["valid", "correct"].includes(value)) return value;
-    if (validSavedCommandTimes(value, 2, true)) return [...value];
+    if (validSavedTimerList(value, 2, true)) return [...value];
 }
 
 // Decode player detection flags and names independently
@@ -4209,7 +4301,7 @@ function decodeSavedAlerts(value, fallback) {
 }
 
 // Normalize a complete startup snapshot or only the settings present in a save/import
-function decodeCommandSettings(value, complete = true) {
+function decodeSavedSettings(value, complete = true) {
     if (!isStoredRecord(value)) value = {};
     const result = {};
     for (const [name, rule] of Object.entries(storedSettingSchema)) {
@@ -4220,29 +4312,37 @@ function decodeCommandSettings(value, complete = true) {
 }
 
 // Report a storage failure once until a subsequent write succeeds
-function reportCommandStorageError(action, error) {
+function reportStorageError(action, error) {
     const message = action + ": " + (error.message || String(error));
     if (message === lastCommandStorageError) return;
     lastCommandStorageError = message;
     console.error("Mega Commands could not " + action + ".", error);
 }
 
-// Read saved settings and silently recover malformed values
-function readCommandSettings() {
+// Read a JSON object from localStorage, returning an empty object if invalid
+function readStorageObject(key) {
     let value;
     try {
-        const text = localStorage.getItem("megaCommands");
-        value = text === null ? {} : JSON.parse(text);
+        value = JSON.parse(localStorage.getItem(key));
     }
-    catch (error) {
-        reportCommandStorageError("read saved settings", error);
-        value = {};
+    catch {
+        return {};
     }
-    return decodeCommandSettings(value);
+    if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+    return value;
+}
+
+// Read saved settings and silently recover malformed values
+function loadSettings() {
+    const settings = decodeSavedSettings({});
+    const savedSettings = readStorageObject("megaCommands");
+    const validatedSettings = decodeSavedSettings(savedSettings, false);
+    Object.assign(settings, validatedSettings);
+    return settings;
 }
 
 // Return an independent copy of a setting already decoded by the storage schema
-function restoreCommandSetting(name) {
+function cloneInitialSetting(name) {
     return structuredClone(saveData[name]);
 }
 
@@ -4257,7 +4357,7 @@ function prepareLocalStorageImport(value) {
         let parsed;
         try { parsed = JSON.parse(text); }
         catch { throw new Error("Invalid Mega Commands JSON."); }
-        const settings = decodeCommandSettings(parsed, false);
+        const settings = decodeSavedSettings(parsed, false);
         return [key, JSON.stringify(settings)];
     });
 }
@@ -4279,16 +4379,42 @@ function importLocalStorageEntries(value) {
     return entries.length;
 }
 
-// Validate json data in local storage
-function validateLocalStorage(item) {
-    try {
-        const json = JSON.parse(localStorage.getItem(item));
-        if (!json || typeof json !== "object" || Array.isArray(json)) return {};
-        return json;
+// Load the Highlight Friends preferences used by this script
+function loadHighlightSettings() {
+    const settings = {
+        smColorSelfColor: "#80c7ff",
+        smColorFriendColor: "#80ff80",
+        smColorBlockedColor: "#ff8080",
+        customColors: []
+    };
+    const savedSettings = readStorageObject("highlightFriendsSettings");
+
+    for (const key of [
+        "smColorSelfColor", "smColorFriendColor", "smColorBlockedColor"
+    ]) {
+        if (typeof savedSettings[key] === "string") settings[key] = savedSettings[key];
     }
-    catch {
-        return {};
+    settings.customColors = normalizeCustomColors(savedSettings.customColors);
+    return settings;
+}
+
+// Normalize saved color groups before building player lookups or CSS
+function normalizeCustomColors(value) {
+    if (!Array.isArray(value)) return [];
+    const colors = [];
+    for (const group of value) {
+        if (!group || typeof group !== "object" || Array.isArray(group)) continue;
+        const players = Array.isArray(group.players)
+            ? group.players.filter(player => typeof player === "string")
+            : [];
+        colors.push({
+            enabled: typeof group.enabled === "boolean" ? group.enabled : true,
+            color: typeof group.color === "string" ? group.color : "#80c7ff",
+            shadow: typeof group.shadow === "string" ? group.shadow : "#228dff",
+            players
+        });
     }
+    return colors;
 }
 
 // Save settings
@@ -4301,7 +4427,7 @@ function saveSettings() {
         settings.commandPersist = commandPersist;
         settings.commandPrefix = commandPrefix;
         settings.enableAllProfileButtons = enableAllProfileButtons;
-        settings.hotKeys = hotKeys;
+        settings.hotKeys = hotkeyController.bindings;
         settings.lastUsedVersion = GM_info.script.version;
         settings.malClientId = malClientId;
         settings.playerDetection = playerDetection;
@@ -4313,7 +4439,7 @@ function saveSettings() {
                 settings[name] = definition.serialize ? definition.serialize() : definition.get();
             }
         }
-        const decoded = decodeCommandSettings(settings, false);
+        const decoded = decodeSavedSettings(settings, false);
         const json = JSON.stringify(decoded);
         if (json === lastSavedCommandSettings) {
             lastCommandStorageError = null;
@@ -4325,7 +4451,7 @@ function saveSettings() {
         return true;
     }
     catch (error) {
-        reportCommandStorageError("save settings", error);
+        reportStorageError("save settings", error);
         return false;
     }
 }
@@ -4341,25 +4467,31 @@ function exportLocalStorage() {
     const second = String(date.getSeconds()).padStart(2, 0);
     const storage = { ...localStorage };
     delete storage["__paypal_storage__"];
-    const blob = new Blob([JSON.stringify(storage)], { type: "application/json" });
-    const objectUrl = URL.createObjectURL(blob);
     const fileName = `amq local storage export - ${selfName} ${year}-${month}-${day} ${hour}.${minute}.${second}.json`;
+    downloadJson(storage, fileName);
+}
+
+// Download JSON and release the temporary link and object URL
+function downloadJson(data, fileName, indent = 0) {
+    const json = JSON.stringify(data, null, indent);
+    const blob = new Blob([json], { type: "application/json" });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
     try {
-        const a = document.createElement("a");
-        a.href = objectUrl;
-        a.download = fileName;
-        a.style.display = "none";
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
+        link.href = url;
+        link.download = fileName;
+        link.hidden = true;
+        document.body.appendChild(link);
+        link.click();
     }
     finally {
-        setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 0);
     }
 }
 
 // Describe enabled automations from their shared controls or non-window feature metadata
-function commandSettingSummary(name) {
+function getSettingSummary(name) {
     const control = commandControls[name];
     if (control) {
         if (!control.enabled()) return;
@@ -4370,7 +4502,7 @@ function commandSettingSummary(name) {
 }
 
 // Persist changes from commands/UI once and invalidate only the affected runtime work
-function commitCommandSettings() {
+function applySettingsChanges() {
     const current = {};
     for (const [name, definition] of Object.entries(commandSettings)) {
         const value = definition.serialize ? definition.serialize() : definition.get();
@@ -4381,7 +4513,7 @@ function commitCommandSettings() {
     const changedNames = Object.keys(current).filter(name => !previous || current[name] !== previous[name]);
     if (previous) {
         for (const name of changedNames) {
-            handleCommandSettingChange(name);
+            handleSettingChange(name);
         }
     }
     committedCommandSettings = current;
@@ -4389,28 +4521,28 @@ function commitCommandSettings() {
 }
 
 // Release only the timers, mute claims, or audio work owned by a changed setting
-function handleCommandSettingChange(name) {
+function handleSettingChange(name) {
     if (["autoThrow", "autoVoteSkip", "autoMute"].includes(name)) cancelSongTimers(name);
-    if (name === "autoMute") clearCommandMuteReason("autoMute");
-    if (name === "muteSubmit" && !muteSubmit) clearCommandMuteReason("submit");
+    if (name === "autoMute") clearMuteReason("autoMute");
+    if (name === "muteSubmit" && !muteSubmit) clearMuteReason("submit");
     if (name === "muteReplay") {
         if (muteReplay && songAutomation?.phase === "replay") {
-            setCommandMuteReason("replay", true);
+            setMuteReason("replay", true);
         }
         else {
-            clearCommandMuteReason("replay");
+            clearMuteReason("replay");
         }
     }
     if (name === "acReverse" || name === "acPlaybackRate") {
         if (!acReverse && !acPlaybackRate) commandAudioRequests.clear();
-        syncCommandAudio();
+        syncCustomAudio();
     }
 }
 
 // === Song automation and audio ===
 
 // Sample a continuous range for playback rates without rounding outside its bounds
-function randomCommandNumber(low, high = low) {
+function randomNumberInRange(low, high = low) {
     return low === high ? low : low + Math.random() * (high - low);
 }
 
@@ -4441,7 +4573,7 @@ function scheduleSongTask(feature, callback, delay, phase = "guess", playerOnly 
 }
 
 // Resolve mute claims; a scheduled unmute temporarily overrides the saved manual mute choice
-function commandMuteState() {
+function getEffectiveMuteState() {
     const reasons = [...commandMuteReasons.values()];
     const unmuteWindow = commandMuteReasons.get("autoMute")?.muted === false;
     const automationMuted = reasons.some(reason => reason.muted);
@@ -4451,9 +4583,9 @@ function commandMuteState() {
 }
 
 // Apply independent mute reasons while preserving the user's own volume and mute choice
-function applyCommandMute() {
+function applyMuteState() {
     if (!commandAudioReady) return;
-    const { muted, locked } = commandMuteState();
+    const { muted, locked } = getEffectiveMuteState();
     volumeController.muted = muted;
     $("#qpVolume").toggleClass("disabled", locked);
     if (commandAudioGain) commandAudioGain.gain.value = muted ? 0 : Number(volumeController.volume);
@@ -4461,19 +4593,19 @@ function applyCommandMute() {
 }
 
 // Change one automation's mute/lock claim without clearing another feature's claim
-function setCommandMuteReason(name, muted, lock = false) {
+function setMuteReason(name, muted, lock = false) {
     commandMuteReasons.set(name, { muted, lock });
-    applyCommandMute();
+    applyMuteState();
 }
 
 // Release a feature's temporary mute and volume-control lock
-function clearCommandMuteReason(name) {
+function clearMuteReason(name) {
     commandMuteReasons.delete(name);
-    applyCommandMute();
+    applyMuteState();
 }
 
 // Observe manual mute/volume changes and route custom audio through the same volume choice
-function setupCommandAudio() {
+function setupAudioControls() {
     commandUserMuted = Boolean(volumeController.muted);
     commandAudioReady = true;
     const setMuted = volumeController.setMuted;
@@ -4481,7 +4613,7 @@ function setupCommandAudio() {
         commandUserMuted = Boolean(muted);
         if (commandMuteReasons.get("autoMute")?.muted === false) commandMuteReasons.delete("autoMute");
         const result = setMuted.call(this, muted);
-        applyCommandMute();
+        applyMuteState();
         return result;
     };
     const adjustVolume = volumeController.adjustVolume;
@@ -4489,14 +4621,14 @@ function setupCommandAudio() {
         const result = adjustVolume.apply(this, args);
         if (sourceNode) quizVideoController.setVolume(0);
         if (commandAudioGain) {
-            commandAudioGain.gain.value = commandMuteState().muted ? 0 : Number(this.volume);
+            commandAudioGain.gain.value = getEffectiveMuteState().muted ? 0 : Number(this.volume);
         }
         return result;
     };
 }
 
 // Stop and disconnect the current one-shot source, then restore native audio routing
-function stopCommandAudio() {
+function stopCustomAudio() {
     commandAudioResumeToken = null;
     const node = sourceNode;
     sourceNode = null;
@@ -4506,27 +4638,27 @@ function stopCommandAudio() {
         node.stop();
         node.disconnect();
     }
-    applyCommandMute();
+    applyMuteState();
 }
 
 // Discard room-owned work so neither timers nor pending decoded audio can enter another room
-function resetCommandRoom() {
+function resetRoomAutomation() {
     commandRoomGeneration++;
     cancelSongTimers();
     songAutomation = null;
     commandMuteReasons.clear();
-    stopCommandAudio();
+    stopCustomAudio();
     audioBuffers = {};
     commandAudioRequests.clear();
 }
 
 // Prepare audio under a captured room/song identity and ignore replaced or obsolete requests
-async function prepareCommandAudio(data) {
+async function prepareNextSongAudio(data) {
     if (!acReverse && !acPlaybackRate) return;
     const generation = commandRoomGeneration;
     const number = quiz.infoContainer.currentSongNumber + 1;
     const token = {};
-    const url = formatURL(data.videoInfo.videoMap?.catbox?.[0]);
+    const url = resolveSongMediaUrl(data.videoInfo.videoMap?.catbox?.[0]);
     if (!url) return;
     commandAudioRequests.set(number, token);
     try {
@@ -4548,7 +4680,7 @@ async function prepareCommandAudio(data) {
         }
         if (songAutomation && number < songAutomation.number) return;
         audioBuffers[number] = { startPoint: data.startPoint, playLength: data.playLength, buffer };
-        if (songAutomation?.number === number) startCommandAudio();
+        if (songAutomation?.number === number) playCustomAudio();
     }
     catch (error) {
         if (
@@ -4564,8 +4696,8 @@ async function prepareCommandAudio(data) {
 }
 
 // Play a cached song at the current elapsed position, retaining the original buffer for toggles
-function startCommandAudio() {
-    stopCommandAudio();
+function playCustomAudio() {
+    stopCustomAudio();
     const song = songAutomation;
     if (!song || !quiz.inQuiz || (!acReverse && !acPlaybackRate)) return;
     const entry = audioBuffers[song.number];
@@ -4581,7 +4713,7 @@ function startCommandAudio() {
                 && songAutomation === song
                 && audioContext.state === "running"
             ) {
-                startCommandAudio();
+                playCustomAudio();
             }
         }).catch(error => {
             if (commandAudioResumeToken === token) commandAudioResumeToken = null;
@@ -4613,7 +4745,7 @@ function startCommandAudio() {
         if (sourceNode !== node) return;
         sourceNode = null;
         commandAudioPlayback = null;
-        applyCommandMute();
+        applyMuteState();
     };
     try { node.start(0, offset); }
     catch (error) {
@@ -4625,46 +4757,46 @@ function startCommandAudio() {
     sourceNode = node;
     commandAudioPlayback = { reversed: acReverse };
     audioContext.resume().catch(error => {
-        if (sourceNode === node) stopCommandAudio();
+        if (sourceNode === node) stopCustomAudio();
         console.error("Audio resume failed", error);
     });
-    applyCommandMute();
+    applyMuteState();
 }
 
 // Reconcile reverse/pitch changes without restarting a source merely to change its rate
-function syncCommandAudio() {
-    if (!acReverse && !acPlaybackRate) return stopCommandAudio();
+function syncCustomAudio() {
+    if (!acReverse && !acPlaybackRate) return stopCustomAudio();
     if (sourceNode && commandAudioPlayback.reversed === acReverse) sourceNode.playbackRate.value = acPlaybackRate || 1;
-    else startCommandAudio();
+    else playCustomAudio();
 }
 
 // Schedule the current mute mode, clamping oversized random windows to the whole guess phase
 function startSongMute() {
     cancelSongTimers("autoMute");
-    clearCommandMuteReason("autoMute");
+    clearMuteReason("autoMute");
     if (autoMute.mute.length || autoMute.unmute.length) {
         const unmute = autoMute.unmute.length > 0;
-        setCommandMuteReason("autoMute", unmute, unmute);
-        scheduleSongTask("autoMute", () => setCommandMuteReason("autoMute", !unmute, !unmute), randomIntInc(...(unmute ? autoMute.unmute : autoMute.mute)));
+        setMuteReason("autoMute", unmute, unmute);
+        scheduleSongTask("autoMute", () => setMuteReason("autoMute", !unmute, !unmute), randomIntInc(...(unmute ? autoMute.unmute : autoMute.mute)));
     }
     else if (autoMute.toggle.length) {
-        setCommandMuteReason("autoMute", false, true);
-        autoMute.toggle.forEach((time, index) => scheduleSongTask("autoMute", () => setCommandMuteReason("autoMute", index % 2 === 0, true), time));
+        setMuteReason("autoMute", false, true);
+        autoMute.toggle.forEach((time, index) => scheduleSongTask("autoMute", () => setMuteReason("autoMute", index % 2 === 0, true), time));
     }
     else if (autoMute.randomMute || autoMute.randomUnmute) {
         const unmute = Boolean(autoMute.randomUnmute);
         const length = songAutomation.length;
         const duration = Math.min(length, autoMute.randomMute || autoMute.randomUnmute);
         const start = Math.floor(Math.random() * Math.max(0, length - duration));
-        setCommandMuteReason("autoMute", unmute, unmute);
-        if (start === 0) setCommandMuteReason("autoMute", !unmute, !unmute);
-        else scheduleSongTask("autoMute", () => setCommandMuteReason("autoMute", !unmute, !unmute), start);
-        scheduleSongTask("autoMute", () => setCommandMuteReason("autoMute", unmute, unmute), start + duration);
+        setMuteReason("autoMute", unmute, unmute);
+        if (start === 0) setMuteReason("autoMute", !unmute, !unmute);
+        else scheduleSongTask("autoMute", () => setMuteReason("autoMute", !unmute, !unmute), start);
+        scheduleSongTask("autoMute", () => setMuteReason("autoMute", unmute, unmute), start + duration);
     }
 }
 
 // Start a fresh song scope and snapshot automatic answer/skip choices before scheduling them
-function startCommandSong(data) {
+function startSongAutomation(data) {
     cancelSongTimers();
     commandMuteReasons.clear();
     songAutomation = {
@@ -4676,7 +4808,7 @@ function startCommandSong(data) {
     for (const number of Object.keys(audioBuffers)) {
         if (Number(number) < data.songNumber) delete audioBuffers[number];
     }
-    startCommandAudio();
+    playCustomAudio();
     if (autoHint && quiz.hintGameMode) {
         socket.sendCommand({ type: "quiz", command: "use hint", data: { hintId: autoHint } });
     }
@@ -4698,49 +4830,49 @@ function startCommandSong(data) {
         }, randomIntInc(...autoVoteSkip), "guess", true);
     }
     startSongMute();
-    applyCommandMute();
+    applyMuteState();
 }
 
 // End guessing without letting delayed answer/mute work escape into replay
-function finishCommandGuess() {
+function finishGuessAutomation() {
     cancelSongTimers();
     if (songAutomation) songAutomation.phase = "replay";
-    clearCommandMuteReason("autoMute");
+    clearMuteReason("autoMute");
 }
 
-// Run a deferred room action only if navigation has not invalidated its original room
-function scheduleCommandRoomAction(action, delay = 0) {
+// Run a delayed room action only while its original room is current
+function scheduleRoomAction(action, delay) {
     const generation = commandRoomGeneration;
     return setTimeout(() => { if (generation === commandRoomGeneration) action(); }, delay);
 }
 
 // Share successful join/spectate initialization while retaining their distinct log labels
-function handleCommandRoomEntry(data, action) {
+function handleRoomEntry(data, action) {
     if (data.error) {
         autoJoinRoom = false;
         saveSettings();
         return;
     }
-    if (data.inLobby) {
+    if (lobby.inLobby) {
         for (const name of ["autoReady", "autoStart", "autoPause", "autoHost", "autoInvite", "autoAcceptInvite"]) {
-            const text = commandSettingSummary(name);
+            const text = getSettingSummary(name);
             if (text) sendSystemMessage(text);
         }
-        if (autoSwitch.mode) scheduleCommandRoomAction(checkAutoSwitch, 100);
+        if (autoSwitch.mode) scheduleRoomAction(checkAutoSwitch, 100);
     }
-    if (hidePlayers) scheduleCommandRoomAction(() => {
+    if (hidePlayers) {
         if (lobby.inLobby) lobbyHidePlayers();
         else if (quiz.inQuiz) quizHidePlayers();
-    });
+    }
 }
 
 // === Command argument parsing and lookup ===
 
 // Resolve exact IDs/names or a unique partial name, preserving ambiguity for caller feedback
-function resolveCommandLookup(names, text) {
+function resolveNameOrId(names, text) {
     const query = text.trim().toLowerCase().replace(/\s+/g, " ");
     if (!query) return { state: "unknown", query };
-    const id = parseCommandInteger(query, 1);
+    const id = parseBoundedInteger(query, 1);
     if (!Number.isNaN(id)) return Object.hasOwn(names, id)
         ? { state: "resolved", id, name: names[id] }
         : { state: "unknown", query };
@@ -4754,9 +4886,9 @@ function resolveCommandLookup(names, text) {
 }
 
 // Validate a whole lookup list before applying filters or performing a daily-quest action
-function resolveCommandLookupList(context, names) {
+function resolveNameOrIdList(context, names) {
     const queries = context.argsText.split(",").map(value => value.trim()).filter(Boolean);
-    const results = queries.map(query => resolveCommandLookup(names, query));
+    const results = queries.map(query => resolveNameOrId(names, query));
     const invalid = results.filter(result => result.state !== "resolved");
     if (!queries.length || invalid.length) {
         context.reply(invalid.length ? invalid.map(result => `${result.state}: ${result.query}`).join(", ") : "Specify at least one name or ID.", true);
@@ -4771,7 +4903,7 @@ function validCommandPrefix(value) {
 }
 
 // Parse a complete finite number within the supplied bounds, or return NaN
-function parseCommandNumber(value, min = -Infinity, max = Infinity) {
+function parseBoundedNumber(value, min = -Infinity, max = Infinity) {
     const text = String(value ?? "").trim();
     if (typeof value !== "number" && !/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(text)) return NaN;
     const number = Number(value);
@@ -4779,38 +4911,38 @@ function parseCommandNumber(value, min = -Infinity, max = Infinity) {
 }
 
 // Parse a complete safe integer within the supplied bounds, or return NaN
-function parseCommandInteger(value, min = -Number.MAX_SAFE_INTEGER, max = Number.MAX_SAFE_INTEGER) {
+function parseBoundedInteger(value, min = -Number.MAX_SAFE_INTEGER, max = Number.MAX_SAFE_INTEGER) {
     if (!/^[+-]?\d+$/.test(String(value ?? "").trim())) return NaN;
-    const number = parseCommandNumber(value, min, max);
+    const number = parseBoundedNumber(value, min, max);
     return Number.isSafeInteger(number) ? number : NaN;
 }
 
 // Convert valid seconds to milliseconds within the browser timer limit
-function parseCommandDelay(value, min = 0) {
-    const seconds = parseCommandNumber(value, min, MAX_COMMAND_DELAY / 1000);
+function parseDelayMs(value, min = 0) {
+    const seconds = parseBoundedNumber(value, min, MAX_COMMAND_DELAY / 1000);
     return Number.isNaN(seconds) ? NaN : Math.floor(seconds * 1000);
 }
 
 // Parse and validate a time, an ordered range, or a list of times
-function parseCommandTimes(text, limit = 2, { range = true, min = 0 } = {}) {
+function parseTimeListMs(text, limit = 2, { range = true, min = 0 } = {}) {
     const parts = text.trim().split(/\s*(?:,|-|\s+)\s*/);
     if (parts.length > limit) return;
-    const times = parts.map(value => parseCommandDelay(value, min));
+    const times = parts.map(value => parseDelayMs(value, min));
     if (times.some(Number.isNaN) || (range && times.length === 2 && times[0] > times[1])) return;
     return times;
 }
 
 // Read one value or two endpoints separated by whitespace, a comma, or a dash
-function parseCommandEndpoints(text) {
+function parseRangeEndpoints(text) {
     const match = /^([^\s,-]+)(?:(?:\s*[-,]\s*|\s+)([^\s,-]+))?$/.exec(text.trim());
     return match ? match.slice(1).filter(value => value !== undefined) : undefined;
 }
 
 // Validate a single integer or an ascending integer range without loose separators
 function parseIntegerRange(text, min = 0, max = Number.MAX_SAFE_INTEGER) {
-    const parts = parseCommandEndpoints(text);
+    const parts = parseRangeEndpoints(text);
     if (!parts) return;
-    const values = parts.map(value => parseCommandInteger(value, min, max));
+    const values = parts.map(value => parseBoundedInteger(value, min, max));
     if (values.some(Number.isNaN) || (values.length === 2 && values[0] > values[1])) return;
     return values;
 }
@@ -4818,7 +4950,7 @@ function parseIntegerRange(text, min = 0, max = Number.MAX_SAFE_INTEGER) {
 // Resolve the one-bound or two-bound numeric form shared by both roll commands
 function parseRollBounds(args) {
     if (args.length < 1 || args.length > 2) return;
-    const values = args.map(value => parseCommandInteger(value));
+    const values = args.map(value => parseBoundedInteger(value));
     if (values.some(Number.isNaN)) return;
     const [low, high] = values.length === 1 ? [1, values[0]] : values;
     if (low > high || !Number.isSafeInteger(high - low + 1)) return;
@@ -4826,38 +4958,38 @@ function parseRollBounds(args) {
 }
 
 // Preserve the original text after a requested number of whitespace-delimited arguments
-function commandArgumentTail(text, count = 1) {
+function getRemainingArgsText(text, count = 1) {
     for (let index = 0; index < count; index++) text = text.replace(/^\S+(?:\s+|$)/, "");
     return text;
 }
 
 // Read a positive room ID and preserve the optional password exactly after its separator
-function parseCommandRoom(context) {
-    const id = parseCommandInteger(context.args[0], 1);
+function parseRoomJoinArgs(context) {
+    const id = parseBoundedInteger(context.args[0], 1);
     if (Number.isNaN(id)) return;
     return { id, password: context.argumentTail(1) };
 }
 
 // Normalize and deduplicate comma- or whitespace-separated option lists
-function commandOptionList(text) {
+function parseOptionList(text) {
     return [...new Set(text.toLowerCase().split(/[\s,]+/).filter(Boolean))];
 }
 
 // Resolve a complete named option without accepting inherited object properties
-function commandAlias(aliases, text) {
+function getOptionByAlias(aliases, text) {
     return Object.hasOwn(aliases, text) ? aliases[text] : undefined;
 }
 
 // Parse a named mode or the validated compact letters used by checkbox commands
-function parseCommandFlags(text, aliases, letters) {
-    const named = commandAlias(aliases, text);
+function parseAliasOrFlags(text, aliases, letters) {
+    const named = getOptionByAlias(aliases, text);
     if (named !== undefined) return named;
     return text && [...text].every(letter => letters.includes(letter)) ? text : undefined;
 }
 
 // Parse multichoice answers consistently in chat and the active-command window
 function parseMultichoiceAnswer(text) {
-    return commandAlias(multichoiceValues, text.trim().toLowerCase());
+    return getOptionByAlias(multichoiceValues, text.trim().toLowerCase());
 }
 
 // Separate timing from a literal answer while keeping numeric words in timed text intact
@@ -4874,7 +5006,7 @@ function parseTimedAnswer(context, choice) {
         timing = `${args[0]} ${args[1]}`;
         answer = args[2];
     }
-    const time = parseCommandTimes(timing);
+    const time = parseTimeListMs(timing);
     if (!time || !answer.trim()) return;
     return { time, answer: choice ? answer.trim() : answer };
 }
@@ -4885,13 +5017,13 @@ function parseAutoMuteOptions(mode, text) {
     if (!text.trim()) return value;
 
     if (mode === "randomMute" || mode === "randomUnmute") {
-        const duration = parseCommandDelay(text, 0.001);
+        const duration = parseDelayMs(text, 0.001);
         if (Number.isNaN(duration)) return;
         value[mode] = duration;
         return value;
     }
     if (mode === "toggle") {
-        const times = parseCommandTimes(text, Infinity, { range: false });
+        const times = parseTimeListMs(text, Infinity, { range: false });
         if (!times) return;
         const distinctTimes = [...new Set(times)].sort((left, right) => left - right);
         if (distinctTimes.length < 2) return;
@@ -4899,7 +5031,7 @@ function parseAutoMuteOptions(mode, text) {
         return value;
     }
     if (mode !== "mute" && mode !== "unmute") return;
-    const times = parseCommandTimes(text);
+    const times = parseTimeListMs(text);
     if (!times) return;
     if (times.length === 2 && times[0] === times[1]) return;
     value[mode] = times;
@@ -4907,7 +5039,7 @@ function parseAutoMuteOptions(mode, text) {
 }
 
 // Apply a mute command only after its complete timing input has been validated
-function runAutoMuteCommand(context, mode) {
+function handleAutoMuteArgs(context, mode) {
     const value = parseAutoMuteOptions(mode, context.argsText);
     if (!value) return context.reply(commandControls.autoMute.invalid, true);
     return applyCommandControl("autoMute", value, context);
@@ -4937,7 +5069,7 @@ async function fetchProviderAnimeList(provider, username) {
 }
 
 // Select a player collection for roll and shuffle without changing its original array
-function commandPlayerCandidates(mode, team = getTeamNumber(selfName)) {
+function getPlayerCandidates(mode, team = getTeamNumber(selfName)) {
     if (mode === "player") return getPlayerList();
     if (mode === "otherplayer") return getPlayerList().filter(name => name !== selfName);
     if (mode === "spectator") return getSpectatorList();
@@ -4947,9 +5079,9 @@ function commandPlayerCandidates(mode, team = getTeamNumber(selfName)) {
 
 // Validate the auto-start delay and finite or unlimited repeat count
 function parseAutoStartOptions(delayText, remainingText, minimumRemaining = 0) {
-    const delay = parseCommandDelay(delayText === "" ? "0" : delayText);
+    const delay = parseDelayMs(delayText === "" ? "0" : delayText);
     const text = String(remainingText ?? "").trim().toLowerCase();
-    const remaining = ["infinity", "inf", "∞", "null", ""].includes(text) ? null : parseCommandInteger(text, minimumRemaining);
+    const remaining = ["infinity", "inf", "∞", "null", ""].includes(text) ? null : parseBoundedInteger(text, minimumRemaining);
     if (Number.isNaN(delay) || Number.isNaN(remaining)) return;
     return { delay, remaining };
 }
@@ -4973,7 +5105,7 @@ function cancelAutoStart() {
 function consumeAutoStart() {
     if (autoStart.remaining !== null) autoStart.remaining--;
     saveSettings();
-    refreshActiveCommandRows("autoStart", false);
+    refreshActiveRows("autoStart", false);
 }
 
 // Cancel pending rejoin timers and release their waiting operations
@@ -5009,8 +5141,8 @@ function runRejoinAction(operation, action) {
 }
 
 // Invalidate pending room actions when the active view changes
-function handleCommandNavigation(view) {
-    resetCommandRoom();
+function handleRoomNavigation(view) {
+    resetRoomAutomation();
     invalidateGameSettings();
     cancelAutoStart();
     if (rejoinOperation?.expectedView === view) {
@@ -5020,8 +5152,8 @@ function handleCommandNavigation(view) {
     cancelRejoin();
 }
 
-// Cancel pending room actions when navigation, hosting, or room state changes
-function setupCommandLifecycle() {
+// Cancel room automation before native navigation and host actions
+function installRoomActionHooks() {
     for (const [owner, methods] of [
         [roomBrowser, ["fireJoinLobby", "fireSpectateGame", "host"]],
         [hostModal, ["displayHostSolo"]],
@@ -5033,7 +5165,7 @@ function setupCommandLifecycle() {
             const original = owner[name];
             if (typeof original !== "function") continue;
             owner[name] = function (...args) {
-                resetCommandRoom();
+                resetRoomAutomation();
                 invalidateGameSettings();
                 cancelRejoin();
                 cancelAutoStart();
@@ -5041,28 +5173,6 @@ function setupCommandLifecycle() {
             };
         }
     }
-    for (const event of ["Game Starting", "game closed"]) {
-        new Listener(event, () => {
-            resetCommandRoom();
-            invalidateGameSettings();
-            cancelAutoStart();
-        }).bindListener();
-    }
-    for (const event of ["Join Game", "Spectate Game"]) {
-        new Listener(event, data => {
-            if (data.error) return;
-            resetCommandRoom();
-            invalidateGameSettings();
-            cancelRejoin();
-            cancelAutoStart();
-            checkAutoStart();
-        }).bindListener();
-    }
-    new Listener("Host Promotion", () => {
-        invalidateGameSettings();
-        cancelAutoStart();
-        checkAutoStart();
-    }).bindListener();
 }
 
 // === Command controls and task scheduling ===
@@ -5098,7 +5208,7 @@ function getAutoVoteSkipStatus() {
 }
 
 // Serialize operations by key and let later work proceed after a failure
-function queueCommandTask(key, operation) {
+function queueTaskByKey(key, operation) {
     const previous = commandTasks.get(key) || Promise.resolve();
     const task = previous.catch(() => { }).then(operation);
     commandTasks.set(key, task);
@@ -5112,8 +5222,8 @@ function queueCommandTask(key, operation) {
 
 // Send requests one at a time per response event, with timeout and cancellation cleanup
 // A synchronous command callback returns false when no request was sent
-function requestCommand(event, command, { accept = () => true, timeout = 10000, signal } = {}) {
-    return queueCommandTask("socket:" + event, () => new Promise((resolve, reject) => {
+function requestSocketResponse(event, command, { accept = () => true, timeout = 10000, signal } = {}) {
+    return queueTaskByKey("socket:" + event, () => new Promise((resolve, reject) => {
         let listener;
         let timer;
         let finished = false;
@@ -5151,14 +5261,14 @@ function requestCommand(event, command, { accept = () => true, timeout = 10000, 
 
 // Request your current game invite and ignore invites from other players
 function requestOwnGameInvite() {
-    return requestCommand("game invite", {
+    return requestSocketResponse("game invite", {
         type: "social", command: "invite to game", data: { target: selfName },
     }, { accept: data => data.sender === selfName });
 }
 
 // Fetch the online player list through the managed socket request lifecycle
 function requestOnlineUsers() {
-    return requestCommand("all online users", { type: "social", command: "get online users" });
+    return requestSocketResponse("all online users", { type: "social", command: "get online users" });
 }
 
 // Resolve status aliases, including multiword names, to a client status key
@@ -5177,7 +5287,7 @@ function buildExistingRollTeamLines(teams, count) {
 }
 
 // Validate an existing-team roll, then queue its results at the mode's usual interval
-function rollCommandExistingTeams(context, mode) {
+function rollExistingTeams(context, mode) {
     const { args, reply } = context;
     const relay = mode === "relay";
     if (args.length > (relay ? 1 : 2)) return reply("Use playerteam [count] or relay.", true);
@@ -5185,13 +5295,13 @@ function rollCommandExistingTeams(context, mode) {
     if (!teams.length) return reply("no teams", true);
     const teamMode = quiz.inQuiz ? quiz.teamMode : lobby.settings.teamSize > 1;
     if (!teamMode) return reply("team size must be greater than 1", true);
-    const count = parseCommandInteger(args[1] ?? 1, 1);
+    const count = parseBoundedInteger(args[1] ?? 1, 1);
     if (Number.isNaN(count)) return reply("Use a positive player count.", true);
     if (!relay && teams.some(([, names]) => names.length < count)) {
         return reply("Every team must contain at least that many players.", true);
     }
     const lines = buildExistingRollTeamLines(teams, relay ? undefined : count);
-    return replyCommandRollLines(context, lines, relay ? 100 : 200);
+    return queueRollReplies(context, lines, relay ? 100 : 200);
 }
 
 // Shuffle a copy of the player list into numbered teams of the requested size
@@ -5205,7 +5315,7 @@ function buildRandomRollTeamLines(players, size) {
 }
 
 // Match a friend snapshot to the server's online names while preserving display order
-async function requestCommandFriendStatus() {
+async function fetchFriendPresence() {
     const friends = getAllFriends();
     const offlineFriends = Object.keys(socialTab.offlineFriends);
     const friendSet = new Set(friends);
@@ -5220,19 +5330,19 @@ async function requestCommandFriendStatus() {
 }
 
 // Count friends using the same snapshot and online membership as the listing commands
-async function countCommandFriends(online) {
-    const status = await requestCommandFriendStatus();
+async function countFriendsByPresence(online) {
+    const status = await fetchFriendPresence();
     return online ? status.total - status.offline.length : status.offline.length;
 }
 
 // Format a rounded playback time without losing the carry into the next minute
-function formatCommandVideoTime(seconds) {
+function formatPlaybackTime(seconds) {
     const total = Math.round(seconds);
     return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
 }
 
 // Validate the provider, single username, and optional status flags before changing any lists
-function parseCommandAnimeList(context) {
+function parseAnimeListArgs(context) {
     const { args, argsLower, reply } = context;
     const key = animeListProviderAliases.get(argsLower[0]);
     if (key === undefined) {
@@ -5254,7 +5364,7 @@ function parseCommandAnimeList(context) {
 // Update one anime-list provider and its input after the server accepts the change
 async function setAnimeListProvider(key, username) {
     const provider = animeListProviders[key];
-    const data = await requestCommand("anime list update result", {
+    const data = await requestSocketResponse("anime list update result", {
         type: "library", command: "update anime list", data: { newUsername: username, listType: provider.listType },
     });
     if (!data.success) throw new Error(`${provider.label} list update failed`);
@@ -5272,7 +5382,7 @@ async function clearAnimeListProviders(keys) {
 // Set the new list successfully before clearing other providers and changing statuses
 function updateAnimeList(key, username, states, clear = Object.keys(animeListProviders).filter(other => other !== key)) {
     if (!Object.hasOwn(animeListProviders, key)) return Promise.reject(new Error("invalid list type"));
-    return queueCommandTask("anime list transaction", async () => {
+    return queueTaskByKey("anime list transaction", async () => {
         await setAnimeListProvider(key, username);
         if (states) setAnimeListStatuses(states);
         try { await clearAnimeListProviders(clear); }
@@ -5317,17 +5427,17 @@ function startCountdown(seconds, context) {
 
 // Apply optional lowercase or uppercase formatting to a list of names
 function formatNameList(list, mode) {
-    if (commandAlias(nameFormatAliases, mode) === "lower") return list.map(name => name.toLowerCase());
-    if (commandAlias(nameFormatAliases, mode) === "upper") return list.map(name => name.toUpperCase());
+    if (getOptionByAlias(nameFormatAliases, mode) === "lower") return list.map(name => name.toLowerCase());
+    if (getOptionByAlias(nameFormatAliases, mode) === "upper") return list.map(name => name.toUpperCase());
     return list;
 }
 
 // Validate an artist/group ID and reply with the name returned by the shared hover endpoint
-async function replyCommandArtistHover(context, kind) {
+async function replyWithArtistOrGroupName(context, kind) {
     if (context.args.length !== 1) return context.reply(`Use one positive ${kind} ID.`, true);
-    const id = parseCommandInteger(context.args[0], 1);
+    const id = parseBoundedInteger(context.args[0], 1);
     if (Number.isNaN(id)) return context.reply("invalid number", true);
-    const data = await requestCommand("artist hover information", {
+    const data = await requestSocketResponse("artist hover information", {
         type: "library", command: "artist hover information", data: { [`${kind}Id`]: id },
     }, { timeout: 2000 });
     context.reply(data.hoverInfo.name);
@@ -5348,9 +5458,9 @@ function questAutoThrow(context, anime) {
 }
 
 // Select a daily-quest anime and prepare its settings update without applying it yet
-function selectCommandDailyQuest(context) {
+function selectDailyQuest(context) {
     const { args, argsLower, reply } = context;
-    const mode = commandAlias(dailyQuestAliases, argsLower[0]);
+    const mode = getOptionByAlias(dailyQuestAliases, argsLower[0]);
     if (!args.length) {
         reply("Use detect, random count, kutd, op, ed, in, or comma-separated genres.", true);
         return;
@@ -5359,14 +5469,14 @@ function selectCommandDailyQuest(context) {
         reply("Use one quest option, or random followed by a positive genre count.", true);
         return;
     }
-    if (mode === "detect") return detectCommandDailyQuest(context);
+    if (mode === "detect") return detectDailyQuest(context);
     if (mode === "random") {
-        const count = parseCommandInteger(argsLower[1], 1, Object.keys(idTranslator.genreNames).length);
+        const count = parseBoundedInteger(argsLower[1], 1, Object.keys(idTranslator.genreNames).length);
         if (Number.isNaN(count)) {
             reply("invalid number", true);
             return;
         }
-        const ids = shuffleArray(Object.keys(idTranslator.genreNames).map(id => parseCommandInteger(id))).slice(0, count);
+        const ids = shuffleArray(Object.keys(idTranslator.genreNames).map(id => parseBoundedInteger(id))).slice(0, count);
         reply(`Genre: ${ids.map(id => idTranslator.genreNames[id]).join(", ")}`, true);
         const anime = findAnimeMatchingAllGenres(ids);
         if (!anime) {
@@ -5384,7 +5494,7 @@ function selectCommandDailyQuest(context) {
     if (["OP", "ED", "IN"].includes(mode)) {
         return { anime: dqTypeMap[mode], apply: () => matchSettingsToType(mode) };
     }
-    const matches = resolveCommandLookupList(context, idTranslator.genreNames);
+    const matches = resolveNameOrIdList(context, idTranslator.genreNames);
     if (!matches) return;
     const anime = findAnimeMatchingAllGenres(matches.map(result => result.id));
     if (!anime) {
@@ -5396,7 +5506,7 @@ function selectCommandDailyQuest(context) {
 }
 
 // Prefer incomplete genre quests, then fall back to the first incomplete song-type quest
-function detectCommandDailyQuest(context) {
+function detectDailyQuest(context) {
     const { reply } = context;
     const genreIdsByName = {};
     for (const [id, name] of Object.entries(idTranslator.genreNames)) {
@@ -5443,7 +5553,7 @@ async function executeCommand(entry, context) {
         console.error(`Command ${context.command} failed`, error);
         context.reply(`Command failed: ${error.message || error}`, true);
     }
-    finally { commitCommandSettings(); }
+    finally { applySettingsChanges(); }
 }
 
 // Build parsed arguments and reply helpers for chat, hotkeys, and remote commands
@@ -5459,7 +5569,7 @@ function createCommandContext(messageText, type, target, source = "chat", { pref
     return {
         messageText, command, args, argsLower, argsText, optionsText, type, target, source, sender,
         // Preserve literal bodies such as passwords and direct messages after positional arguments
-        argumentTail: (count = 1) => commandArgumentTail(argsText, count),
+        argumentTail: (count = 1) => getRemainingArgsText(argsText, count),
         // Preserve the original debug command's local context
         content: messageText.toLowerCase(), split: [token.toLowerCase(), ...argsLower],
         reply: (message, system = false) => source === "hotkey"
@@ -5499,25 +5609,25 @@ async function parseCommand(messageText, type, target) {
 
 // Actions shared by personal commands and remote handlers
 // Toggle ready only when you are a player in an eligible lobby
-function toggleCommandReady() {
+function toggleLobbyReady() {
     if (lobby.inLobby && !lobby.isHost && !lobby.isSpectator && !isQuizOfTheDay()) {
         lobby.fireMainButtonEvent();
     }
 }
 
 // Vote to skip only during a quiz and when a vote has not already been sent
-function voteCommandSkip() {
+function voteToSkip() {
     if (quiz.inQuiz && !quiz.skipController._toggled) quiz.skipClicked();
 }
 
 // Resolve one explicit username, with DM fallback only for commands that opt into it
-function resolveCommandTarget(context, { dm = false } = {}) {
+function resolvePlayerArgument(context, { dm = false } = {}) {
     if (context.args.length === 1) return resolvePlayerNameCase(context.argsLower[0]);
     if (!context.args.length && dm && context.type === "dm") return context.target;
 }
 
 // Resolve an unambiguous room name or an opted-in DM target that is already in the room
-function resolveCommandRoomTarget(context, { dm = false } = {}) {
+function resolveRoomPlayerArgument(context, { dm = false } = {}) {
     if (context.args.length === 1) {
         const name = resolveRoomPlayerName(context.argsLower[0]);
         if (isInYourRoom(name)) return resolvePlayerNameCase(name);
@@ -5534,7 +5644,7 @@ function resolveCommandRoomTarget(context, { dm = false } = {}) {
 }
 
 // Toggle the single-use lobby switch shared by join and spectate during a quiz
-function toggleTemporaryCommandSwitch(context, mode) {
+function toggleOneTimeAutoSwitch(context, mode) {
     const enabled = !autoSwitch.temp;
     autoSwitch.mode = enabled ? mode : "";
     autoSwitch.temp = enabled;
@@ -5542,7 +5652,7 @@ function toggleTemporaryCommandSwitch(context, mode) {
 }
 
 // Send a host transfer through the current lobby or Nexus action
-function promoteCommandHost(name) {
+function transferRoomHost(name) {
     if (lobby.inLobby || quiz.inQuiz || battleRoyal.inView) {
         lobby.promoteHost(name);
     }
@@ -5552,29 +5662,29 @@ function promoteCommandHost(name) {
 }
 
 // Format the current mute state or volume percentage
-function commandVolumeText() {
+function formatVolumeStatus() {
     return volumeController.muted ? "🔇" : `🔉 ${Math.round(volumeController.volume * 100)}%`;
 }
 
 // Return this script's version or look up a named installed script
-function commandVersionText(context) {
+function getRequestedVersion(context) {
     return context.args.length ? getScriptVersion(context.optionsText) : GM_info.script.version;
 }
 
 // Format the current social status in its full or abbreviated form
-function commandStatusText(short = false) {
+function getSocialStatusText(short = false) {
     return short ? socialStatusMap[socialTab.socialStatus.currentStatus] : socialTab.socialStatus.getSocialStatusInfo();
 }
 
 // Describe the configured default, fixed, or random playback speed
-function commandSpeedText() {
+function formatPlaybackSpeed() {
     if (videoSpeed.length === 0) return "speed: default";
     if (videoSpeed.length === 1) return `speed: ${videoSpeed[0]}x`;
     return `speed: random ${videoSpeed[0]}x - ${videoSpeed[1]}x`;
 }
 
 // Send replies in sequence with an optional first delay and spacing
-async function replyCommandLines(context, lines, delay = 0, interval = 200) {
+async function replyInSequence(context, lines, delay = 0, interval = 200) {
     for (const [index, line] of lines.entries()) {
         const wait = index === 0 ? delay : interval;
         if (wait > 0) await new Promise(resolve => setTimeout(resolve, wait));
@@ -5583,18 +5693,18 @@ async function replyCommandLines(context, lines, delay = 0, interval = 200) {
 }
 
 // Keep each roll's prepared team output together when commands overlap in one destination
-function replyCommandRollLines(context, lines, interval) {
+function queueRollReplies(context, lines, interval) {
     const key = JSON.stringify(["roll replies", context.type, context.target]);
-    return queueCommandTask(key, () => replyCommandLines(context, lines, interval, interval));
+    return queueTaskByKey(key, () => replyInSequence(context, lines, interval, interval));
 }
 
 // Send paced room details or explain why the room cannot be found
-function replyCommandRoom(context, room) {
+function replyWithRoomDetails(context, room) {
     const lines = room ? [
         `${room._private ? "private" : "public"} room ${room.id}: ${room.settings.roomName}`,
         `host: ${room.host}, players: ${room._numberOfPlayers}, spectators: ${room._numberOfSpectators}`,
     ] : [Object.keys(roomBrowser.activeRooms).length ? "not found" : "room list unavailable"];
-    return replyCommandLines(context, lines, 100);
+    return replyInSequence(context, lines, 100);
 }
 
 // Remote DM commands always use '/', independently of the personal command prefix
@@ -5625,7 +5735,7 @@ function normalizeVoteLabel(text) {
 }
 
 // Clear the poll options, ballots, label lookup, and channel
-function resetCommandVote() {
+function resetChatPoll() {
     voteOptions = Object.create(null);
     votes = Object.create(null);
     voteLabels.clear();
@@ -5633,8 +5743,8 @@ function resetCommandVote() {
 }
 
 // Create a poll and mark duplicate labels as requiring a numeric option ID
-function startCommandVote(list, type) {
-    resetCommandVote();
+function startChatPoll(list, type) {
+    resetChatPoll();
     voteChannel = type;
     list.forEach((label, index) => {
         const id = String(index + 1);
@@ -5702,35 +5812,50 @@ function sendMessage(content, type, target, sys) {
     }
 }
 
-// Get the color code that the player's name should be in the highlight friends script
-function getPlayerColor(name) {
-    const lower = name.toLowerCase();
-    if (customColorMap.hasOwnProperty(lower)) return customColorMap[lower];
-    if (name === selfName) return selfColor;
-    if (socialTab.isFriend(name)) return friendColor;
-    if (socialTab.isBlocked(name)) return blockedColor;
+// Index the last matching group for each player, including disabled groups
+function buildCustomColorGroupIndex(groups) {
+    const groupIndex = new Map();
+    for (const [index, group] of groups.entries()) {
+        for (const player of group.players) {
+            groupIndex.set(player.toLowerCase(), index);
+        }
+    }
+    return groupIndex;
+}
+
+// Identify the player's relationship in display priority order
+function getPlayerRelationship(name) {
+    if (name === selfName) return "self";
+    if (socialTab.isFriend(name)) return "friend";
+    if (socialTab.isBlocked(name)) return "blocked";
     return "";
 }
 
-// Load color variables from the highlight friends script
-function refreshColors() {
-    const hfData = validateLocalStorage("highlightFriendsSettings");
-    selfColor = hfData.smColorSelfColor ?? "#80c7ff";
-    friendColor = hfData.smColorFriendColor ?? "#80ff80";
-    blockedColor = hfData.smColorBlockedColor ?? "#ff8080";
-    customColors = hfData.customColors ?? [];
-    customColorMap = {};
-    for (const item of customColors) {
-        for (const player of item.players) {
-            customColorMap[player] = item.color;
-        }
+// Use the winning enabled group before falling back to relationship colors
+function getPlayerColor(name) {
+    const group = customColors[customColorGroupIndex.get(name.toLowerCase())];
+    if (group?.enabled) return group.color;
+    switch (getPlayerRelationship(name)) {
+        case "self": return selfColor;
+        case "friend": return friendColor;
+        case "blocked": return blockedColor;
+        default: return "";
     }
 }
 
+// Reload name colors; later disabled groups fall back to relationship colors
+function refreshHighlightColors() {
+    const hfSettings = loadHighlightSettings();
+    selfColor = hfSettings.smColorSelfColor;
+    friendColor = hfSettings.smColorFriendColor;
+    blockedColor = hfSettings.smColorBlockedColor;
+    customColors = hfSettings.customColors;
+    customColorGroupIndex = buildCustomColorGroupIndex(customColors);
+}
+
 // Set command status buttons to enabled or disabled
-function toggleCommandButton($element, enabled) {
+function renderActiveToggle($element, enabled) {
     $element.toggleClass("mcActiveButtonEnabled", Boolean(enabled))
-        .attr("aria-pressed", String(Boolean(enabled)))
         .text(enabled ? "On" : "Off");
 }
 
@@ -5786,16 +5911,16 @@ function getAutoMuteStatus() {
 function applyCommandControl(name, value, context, message) {
     const control = commandControls[name];
     control.set(value);
-    commitCommandSettings();
+    applySettingsChanges();
     context.reply(typeof message === "function" ? message() : message ?? control.status(), true);
     control.afterChange?.();
-    refreshActiveCommandRows(name, context.source !== "ui");
+    refreshActiveRows(name, context.source !== "ui");
 }
 
 // Read and validate timing input from an active-command control
-function readCommandTimes($input, limit = 2, options) {
+function readTimeInputMs($input, limit = 2, options) {
     const value = $input.val().trim();
-    return parseCommandTimes(value || "0", limit, options);
+    return parseTimeListMs(value || "0", limit, options);
 }
 
 // === Command window and Active-tab controls ===
@@ -5803,17 +5928,14 @@ function readCommandTimes($input, limit = 2, options) {
 // Build the command window, bind its controls, and apply its styles
 function createCommandWindow() {
     $("#gameContainer").append($(commandWindowTemplate()));
+    $("#mcSettingsModal").on("hide.bs.modal", event => hideHoverHelp($(event.currentTarget)));
 
-    $("#mcDocumentationTab").on("click", () => { switchTab("mcDocumentation"); });
-    $("#mcActiveTab").on("click", () => { switchTab("mcActive"); });
-    $("#mcHotkeyTab").on("click", () => { switchTab("mcHotkey"); });
-    $("#mcAlertsTab").on("click", () => { switchTab("mcAlerts"); });
-    $("#mcOrderTab").on("click", () => { switchTab("mcOrder"); });
-    $("#mcStorageTab").on("click", () => { createLocalStorageList(); switchTab("mcStorage"); });
-    $("#mcInfoTab").on("click", () => { switchTab("mcInfo"); });
+    $("#mcTabContainer").on("click", ".tab[data-tab]", event => {
+        switchTab(event.currentTarget.dataset.tab);
+    });
     switchTab("mcDocumentation");
 
-    createActiveCommandWindow();
+    buildActiveTab();
 
     hotkeyController.renderTable(document.querySelector("#mcHotkeyTable tbody"));
 
@@ -5832,7 +5954,7 @@ function createCommandWindow() {
         { action: "newVersion", title: "New Version", id: "mcAlertNewVersion", popout: true, chat: false, console: true },
     ]);
 
-    bindCommandStorageControls();
+    bindStorageControls();
 
     $("#mcCommandPrefixInput").val(commandPrefix).on("change", function () {
         const option = $(this).val().trim();
@@ -5869,7 +5991,7 @@ function createCommandWindow() {
     }));
     setupReorderWindow();
 
-    refreshColors();
+    refreshHighlightColors();
     applyStyles();
 }
 
@@ -5880,40 +6002,40 @@ function commandWindowTemplate() {
             <div class="modal-dialog" role="document" style="width: 800px">
                 <div class="modal-content">
                     <div class="modal-header" style="padding: 3px 0 0 0">
-                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <button type="button" class="close" data-dismiss="modal">
                             <span aria-hidden="true">×</span>
                         </button>
                         <h4 class="modal-title">Mega Commands</h4>
-                        <div class="tabContainer">
-                            <div id="mcDocumentationTab" class="tab clickAble">
-                                <h5>Commands</h5>
-                            </div>
-                            <div id="mcActiveTab" class="tab clickAble selected">
-                                <h5>Active</h5>
-                            </div>
-                            <div id="mcHotkeyTab" class="tab clickAble">
-                                <h5>Hotkey</h5>
-                            </div>
-                            <div id="mcAlertsTab" class="tab clickAble">
-                                <h5>Alerts</h5>
-                            </div>
-                            <div id="mcOrderTab" class="tab clickAble">
-                                <h5>Order</h5>
-                            </div>
-                            <div id="mcStorageTab" class="tab clickAble">
-                                <h5>Storage</h5>
-                            </div>
-                            <div id="mcInfoTab" class="tab clickAble" style="width: 45px; margin-right: -10px; padding-right: 8px; float: right;">
-                                <h5><i class="fa fa-info-circle" aria-hidden="true"></i></h5>
-                            </div>
+                        <div id="mcTabContainer" class="tabContainer">
+                            <button type="button" id="mcDocumentationTab" class="tab clickAble" data-tab="mcDocumentation">
+                                <span>Commands</span>
+                            </button>
+                            <button type="button" id="mcActiveTab" class="tab clickAble selected" data-tab="mcActive">
+                                <span>Active</span>
+                            </button>
+                            <button type="button" id="mcHotkeyTab" class="tab clickAble" data-tab="mcHotkey">
+                                <span>Hotkey</span>
+                            </button>
+                            <button type="button" id="mcAlertsTab" class="tab clickAble" data-tab="mcAlerts">
+                                <span>Alerts</span>
+                            </button>
+                            <button type="button" id="mcOrderTab" class="tab clickAble" data-tab="mcOrder">
+                                <span>Order</span>
+                            </button>
+                            <button type="button" id="mcStorageTab" class="tab clickAble" data-tab="mcStorage">
+                                <span>Storage</span>
+                            </button>
+                            <button type="button" id="mcInfoTab" class="tab clickAble" style="width: 45px; margin-right: -10px; padding-right: 8px; float: right;" data-tab="mcInfo">
+                                <span><i class="fa fa-info-circle" aria-hidden="true"></i></span>
+                            </button>
                         </div>
                     </div>
                     <div class="modal-body" style="overflow-y: auto; max-height: calc(100vh - 150px);">
-                        <div id="mcDocumentationContainer" class="tabSection" style="height: 500px; margin-top: 10px;">
+                        <div id="mcDocumentationContainer" class="tabSection" data-tab="mcDocumentation" style="height: 500px; margin-top: 10px;">
                             <pre>${helpText}</pre>
                         </div>
-                        <div id="mcActiveContainer" class="tabSection" style="margin: 10px 0;"></div>
-                        <div id="mcHotkeyContainer" class="tabSection">
+                        <div id="mcActiveContainer" class="tabSection" data-tab="mcActive" style="margin: 10px 0;"></div>
+                        <div id="mcHotkeyContainer" class="tabSection" data-tab="mcHotkey">
                             <table id="mcHotkeyTable">
                                 <thead>
                                     <tr>
@@ -5925,7 +6047,7 @@ function commandWindowTemplate() {
                                 </tbody>
                             </table>
                         </div>
-                        <div id="mcAlertsContainer" class="tabSection" style="margin: 10px 0;">
+                        <div id="mcAlertsContainer" class="tabSection" data-tab="mcAlerts" style="margin: 10px 0;">
                             <table id="mcAlertsTable">
                                 <thead>
                                     <tr>
@@ -5939,9 +6061,9 @@ function commandWindowTemplate() {
                                 </tbody>
                             </table>
                         </div>
-                        <div id="mcOrderContainer" class="tabSection">
+                        <div id="mcOrderContainer" class="tabSection" data-tab="mcOrder">
                             <div class="mcOrderEditors">
-                                <section class="mcOrderPanel" aria-labelledby="mcOrderQuizBarTitle">
+                                <section class="mcOrderPanel">
                                     <h4 id="mcOrderQuizBarTitle">Quiz bar</h4>
                                     <div class="mcOrderToolbar">
                                         <div class="mcOrderToggle">
@@ -5951,9 +6073,9 @@ function commandWindowTemplate() {
                                         <button type="button" id="mcOrderQuizBarRefreshButton" class="mcOrderAction" title="Find new options and reapply the current order">Refresh</button>
                                         <button type="button" id="mcOrderQuizBarResetButton" class="mcOrderAction" title="Clear the saved order and restore the default order">Reset</button>
                                     </div>
-                                    <ul id="mcOrderQuizBarList" class="mcOrderList" aria-label="Quiz bar order"></ul>
+                                    <ul id="mcOrderQuizBarList" class="mcOrderList"></ul>
                                 </section>
-                                <section class="mcOrderPanel" aria-labelledby="mcOrderGearMenuTitle">
+                                <section class="mcOrderPanel">
                                     <h4 id="mcOrderGearMenuTitle">Gear menu</h4>
                                     <div class="mcOrderToolbar">
                                         <div class="mcOrderToggle">
@@ -5963,18 +6085,18 @@ function commandWindowTemplate() {
                                         <button type="button" id="mcOrderGearMenuRefreshButton" class="mcOrderAction" title="Find new menu entries and reapply the current order">Refresh</button>
                                         <button type="button" id="mcOrderGearMenuResetButton" class="mcOrderAction" title="Clear the saved order and restore the default order">Reset</button>
                                     </div>
-                                    <ul id="mcOrderGearMenuList" class="mcOrderList" aria-label="Gear menu order"></ul>
+                                    <ul id="mcOrderGearMenuList" class="mcOrderList"></ul>
                                 </section>
                             </div>
                             <p class="mcOrderHelp">Drag the items around to the desired order. Buttons added by other scripts are included automatically.</p>
                         </div>
-                        <div id="mcStorageContainer" class="tabSection" style="margin: 10px 0;">
+                        <div id="mcStorageContainer" class="tabSection" data-tab="mcStorage" style="margin: 10px 0;">
                             <h4 class="text-center">Local Storage</h4>
                             <div style="margin: 10px 0"><button id="mcLocalStorageImportButton" style="color: black; margin-right: 10px;">Import</button><button id="mcLocalStorageExportButton" style="color: black; margin-right: 10px;">Export</button><button id="mcLocalStorageClearButton" style="color: black;">Clear</button></div>
-                            <input id="mcLocalStorageImportFile" type="file" accept=".json" aria-hidden="true" tabindex="-1" style="display: none;">
+                            <input id="mcLocalStorageImportFile" type="file" accept=".json" tabindex="-1" style="display: none;">
                             <ul id="mcStorageList"></ul>
                         </div>
-                        <div id="mcInfoContainer" class="tabSection" style="text-align: center; margin: 20px 0;">
+                        <div id="mcInfoContainer" class="tabSection" data-tab="mcInfo" style="text-align: center; margin: 20px 0;">
                             <h4>Script Info</h4>
                             <div>Created by: kempanator</div>
                             <div>Version: ${GM_info.script.version}</div>
@@ -5998,7 +6120,7 @@ function commandWindowTemplate() {
 }
 
 // Keep storage import, export, deletion, and confirmation behavior in one place
-function bindCommandStorageControls() {
+function bindStorageControls() {
     $("#mcLocalStorageImportFile").on("change", async function () {
         const file = this.files?.[0];
         this.value = "";
@@ -6046,7 +6168,7 @@ function bindCommandStorageControls() {
 }
 
 // Define the complete Active-tab layout and row order separately from command behavior
-function activeCommandWindowTemplate() {
+function activeTabTemplate() {
     return /*html*/`
         <div class="mcActiveRow" data-control="autoReady">
             <button id="mcAutoReadyButton" type="button" class="mcActiveButton"></button>
@@ -6179,6 +6301,18 @@ function activeCommandWindowTemplate() {
             <span class="mcActiveTitle">Loop Video</span>
         </div>
 
+        <div class="mcActiveRow" data-control="noAfkKick">
+            <button id="mcNoAfkKickButton" type="button" class="mcActiveButton"></button>
+            <i id="mcNoAfkKickInfo" class="fa fa-info-circle mcActiveInfo" aria-hidden="true"></i>
+            <span class="mcActiveTitle">No AFK Kick</span>
+        </div>
+
+        <div class="mcActiveRow" data-control="animatedAvatars">
+            <button id="mcAnimatedAvatarsButton" type="button" class="mcActiveButton"></button>
+            <i id="mcAnimatedAvatarsInfo" class="fa fa-info-circle mcActiveInfo" aria-hidden="true"></i>
+            <span class="mcActiveTitle">Animated Avatars</span>
+        </div>
+
         <div class="mcActiveRow" data-control="dropdown">
             <button id="mcDropDownButton" type="button" class="mcActiveButton"></button>
             <i id="mcDropDownInfo" class="fa fa-info-circle mcActiveInfo" aria-hidden="true"></i>
@@ -6188,31 +6322,31 @@ function activeCommandWindowTemplate() {
 }
 
 // Cache a row's inputs and bind its UI-only reading, rendering, and select-change behavior
-function createActiveCommandAdapter(name, $row) {
+function createActiveRowAdapter(name, $row) {
     switch (name) {
         case "autoStart":
-            return createAutoStartCommandAdapter($row);
+            return createAutoStartAdapter($row);
         case "autoAcceptInvite":
-            return createAutoAcceptInviteCommandAdapter($row);
+            return createAutoAcceptInviteAdapter($row);
         case "autoStatus":
-            return createAutoStatusCommandAdapter($row);
+            return createAutoStatusAdapter($row);
         case "autoThrow":
-            return createAutoThrowCommandAdapter($row);
+            return createAutoThrowAdapter($row);
         case "autoCopy":
-            return createPlayerCommandAdapter($row, "#mcAutoCopyInput", () => autoCopy);
+            return createPlayerInputAdapter($row, "#mcAutoCopyInput", () => autoCopy);
         case "autoHost":
-            return createPlayerCommandAdapter($row, "#mcAutoHostInput", () => autoHost);
+            return createPlayerInputAdapter($row, "#mcAutoHostInput", () => autoHost);
         case "autoVoteSkip":
-            return createAutoVoteSkipCommandAdapter($row);
+            return createAutoVoteSkipAdapter($row);
         case "autoMute":
-            return createAutoMuteCommandAdapter($row);
+            return createAutoMuteAdapter($row);
         default:
             return {};
     }
 }
 
 // Use the same delay and repeat-count validation as the Auto Start command
-function createAutoStartCommandAdapter($row) {
+function createAutoStartAdapter($row) {
     const $delay = $row.find("#mcAutoStartDelayInput");
     const $remaining = $row.find("#mcAutoStartRemainingInput");
     return {
@@ -6229,7 +6363,7 @@ function createAutoStartCommandAdapter($row) {
 }
 
 // Keep the selected invite policy and its player-list input in sync
-function createAutoAcceptInviteCommandAdapter($row) {
+function createAutoAcceptInviteAdapter($row) {
     const $mode = $row.find("#mcAutoAcceptInviteSelect");
     const $players = $row.find("#mcAutoAcceptInviteInput");
     $mode.on("change", () => {
@@ -6269,7 +6403,7 @@ function createAutoAcceptInviteCommandAdapter($row) {
 }
 
 // Render social status choices using the saved command value
-function createAutoStatusCommandAdapter($row) {
+function createAutoStatusAdapter($row) {
     const $status = $row.find("#mcAutoStatusSelect");
     return {
         read(enabled) {
@@ -6290,7 +6424,7 @@ function createAutoStatusCommandAdapter($row) {
 }
 
 // Switch between text and multiple-choice answers without changing their validation
-function createAutoThrowCommandAdapter($row) {
+function createAutoThrowAdapter($row) {
     const $mode = $row.find("#mcAutoThrowSelect");
     const $time = $row.find("#mcAutoThrowTimeInput");
     const $answer = $row.find("#mcAutoThrowTextInput");
@@ -6308,7 +6442,7 @@ function createAutoThrowCommandAdapter($row) {
             if (enabled) return { time: [], text: null, multichoice: null };
             const text = $answer.val();
             if (!text) return;
-            const time = readCommandTimes($time);
+            const time = readTimeInputMs($time);
             if (!time) return;
             if ($mode.val() === "text") return { time, text, multichoice: null };
             const multichoice = parseMultichoiceAnswer(text);
@@ -6325,7 +6459,7 @@ function createAutoThrowCommandAdapter($row) {
 }
 
 // Show a delay input only when vote skipping is time based
-function createAutoVoteSkipCommandAdapter($row) {
+function createAutoVoteSkipAdapter($row) {
     const $mode = $row.find("#mcAutoVoteSkipSelect");
     const $time = $row.find("#mcAutoVoteSkipTimeInput");
     $mode.on("change", () => {
@@ -6343,9 +6477,9 @@ function createAutoVoteSkipCommandAdapter($row) {
             const option = $mode.val();
             if (option !== "time") {
                 $time.val("");
-                return commandAlias(autoSkipAliases, option);
+                return getOptionByAlias(autoSkipAliases, option);
             }
-            const times = readCommandTimes($time);
+            const times = readTimeInputMs($time);
             if (times && (times.length !== 2 || times[0] !== times[1])) return times;
         },
         render() {
@@ -6366,7 +6500,7 @@ function createAutoVoteSkipCommandAdapter($row) {
 }
 
 // Keep each exclusive mute mode paired with its existing time-input syntax
-function createAutoMuteCommandAdapter($row) {
+function createAutoMuteAdapter($row) {
     const $mode = $row.find("#mcAutoMuteSelect");
     const $time = $row.find("#mcAutoMuteTimeInput");
     $mode.on("change", () => { configureAutoMuteTimeInput($time, $mode.val()); });
@@ -6422,7 +6556,7 @@ function configureAutoMuteTimeInput($time, mode) {
 }
 
 // Share player-name input behavior while reading the current feature value at render time
-function createPlayerCommandAdapter($row, selector, getValue) {
+function createPlayerInputAdapter($row, selector, getValue) {
     const $player = $row.find(selector);
     return {
         read(enabled) {
@@ -6436,11 +6570,41 @@ function createPlayerCommandAdapter($row, selector, getValue) {
     };
 }
 
+// Show hints on hover and dismiss them before a click can act on the UI
+function addHoverHelp($controls, options = {}) {
+    return $controls.popover({
+        placement: "bottom",
+        container: "#gameContainer",
+        animation: false,
+        ...options,
+        trigger: "hover"
+    }).each(function () {
+        const $control = $(this);
+        // Use Bootstrap's hover exit to cancel any delayed show as well.
+        const dismiss = () => $control.triggerHandler("mouseleave.popover");
+        $control.on("mouseenter.amqHoverHelp", () => {
+            $control.attr("data-amq-hover-help-active", "");
+            document.addEventListener("click", dismiss, true);
+        });
+        $control.on("hide.bs.popover.amqHoverHelp", () => {
+            $control.removeAttr("data-amq-hover-help-active");
+            document.removeEventListener("click", dismiss, true);
+        });
+    });
+}
+
+// Dismiss active hints before their container is hidden
+function hideHoverHelp($container) {
+    $container.find("[data-amq-hover-help-active]").each(function () {
+        $(this).triggerHandler("mouseleave.popover");
+    });
+}
+
 // Rebuild the layout and its cached adapters, cleaning up popovers owned by the previous rows
-function createActiveCommandWindow() {
+function buildActiveTab() {
     for (const view of activeCommandViews.values()) view.$info.popover("destroy");
     activeCommandViews.clear();
-    const $container = $("#mcActiveContainer").html(activeCommandWindowTemplate());
+    const $container = $("#mcActiveContainer").html(activeTabTemplate());
     const context = { source: "ui", reply: message => sendSystemMessage(message) };
     for (const row of $container.children(".mcActiveRow")) {
         const $row = $(row);
@@ -6450,9 +6614,9 @@ function createActiveCommandWindow() {
         const $button = $row.children(".mcActiveButton");
         const $info = $row.children(".mcActiveInfo");
         const title = $row.children(".mcActiveTitle").text();
-        const adapter = createActiveCommandAdapter(name, $row);
+        const adapter = createActiveRowAdapter(name, $row);
         activeCommandViews.set(name, { $button, $info, ...adapter });
-        $info.popover({ content: control.description || entry.description, trigger: "hover", placement: "bottom", container: "body" });
+        addHoverHelp($info, { content: control.description || entry.description, container: "body" });
         $button.on("click", () => {
             const enabled = Boolean(control.enabled());
             const value = adapter.read ? adapter.read(enabled) : !enabled;
@@ -6460,16 +6624,16 @@ function createActiveCommandWindow() {
             else context.reply(`Invalid ${title.toLowerCase()} options. ${adapter.invalid || "Check the input values."}`);
         });
     }
-    refreshActiveCommandRows();
+    refreshActiveRows();
 }
 
 // Refresh cached views after state changes, preserving input drafts for UI-originated updates
-function refreshActiveCommandRows(name, renderInputs = true) {
+function refreshActiveRows(name, renderInputs = true) {
     const names = name ? [name] : activeCommandViews.keys();
     for (const key of names) {
         const view = activeCommandViews.get(key);
         if (!view) continue;
-        toggleCommandButton(view.$button, commandControls[key].enabled());
+        renderActiveToggle(view.$button, commandControls[key].enabled());
         if (renderInputs) view.render?.();
     }
 }
@@ -6714,7 +6878,6 @@ function createReorderQuizIcon(element) {
     }
     const wrapper = document.createElement("span");
     wrapper.className = "mcOrderIcon";
-    wrapper.setAttribute("aria-hidden", "true");
     wrapper.append(icon);
     return wrapper;
 }
@@ -6733,11 +6896,9 @@ function renderReorderEditor(name) {
         handle.type = "button";
         handle.className = "mcOrderHandle";
         handle.title = "Drag to move";
-        handle.setAttribute("aria-label", `Drag to move ${item.label}`);
         handle.textContent = "≡";
         const position = document.createElement("span");
         position.className = "mcOrderPosition";
-        position.setAttribute("aria-hidden", "true");
         const label = document.createElement("span");
         label.className = "mcOrderLabel";
         label.textContent = item.label;
@@ -6819,10 +6980,9 @@ function finishReorderDrag(commit) {
     }
 }
 
-// Bind one editor's settings and native drag controls once, independently of row rendering
-function bindReorderEditor(name) {
+// Bind one reorder editor's checkbox and toolbar controls
+function bindReorderEditorControls(name) {
     const editor = reorderEditors[name];
-    const list = document.getElementById(editor.listId);
     document.getElementById(editor.checkboxId).addEventListener("change", event => {
         reorder[name] = event.target.checked;
         saveSettings();
@@ -6834,6 +6994,11 @@ function bindReorderEditor(name) {
         refreshReorderWindow();
     });
     document.getElementById(editor.prefix + "RefreshButton").addEventListener("click", refreshReorderWindow);
+    bindReorderDragEvents(name, document.getElementById(editor.listId));
+}
+
+// Handle dragging and dropping rows in one reorder editor
+function bindReorderDragEvents(name, list) {
     list.addEventListener("dragstart", event => {
         const row = event.target.closest(".mcOrderItem");
         if (!row) { event.preventDefault(); return; }
@@ -6871,7 +7036,7 @@ function setupReorderWindow() {
     for (const [name, editor] of Object.entries(reorderEditors)) {
         editor.observer = new MutationObserver(scheduleReorderRefresh);
         if (name === "quizBar") editor.layoutObserver = new ResizeObserver(positionReorderQualityMenu);
-        bindReorderEditor(name);
+        bindReorderEditorControls(name);
     }
     refreshReorderWindow();
     $("#mcOrderTab").on("click.mcReorder", refreshReorderWindow);
@@ -6901,13 +7066,14 @@ function createLocalStorageList() {
     $("#mcStorageContainer > h4").text(`Local Storage (${list.length} item${list.length === 1 ? "" : "s"}) - ${totalBytes.toLocaleString()} bytes`);
 }
 
-// Reset all tabs and switch to the inputted tab
-function switchTab(tab) {
-    const $w = $("#mcSettingsModal");
-    $w.find(".tab").removeClass("selected");
-    $w.find(".tabSection").hide();
-    $w.find(`#${tab}Tab`).addClass("selected");
-    $w.find(`#${tab}Container`).show();
+// Select a tab and show its matching section
+function switchTab(tabKey) {
+    const $tabRoot = $("#mcSettingsModal");
+    $tabRoot.find(".tab").removeClass("selected");
+    $tabRoot.find(".tabSection").hide();
+    $tabRoot.find(`.tab[data-tab="${tabKey}"]`).addClass("selected");
+    $tabRoot.find(`.tabSection[data-tab="${tabKey}"]`).show();
+    if (tabKey === "mcStorage") createLocalStorageList();
 }
 
 // Return true if you are in a solo lobby or quiz
@@ -7206,7 +7372,7 @@ async function changeGameSettings(update, room = captureGameSettingsRoom()) {
     if (!isGameSettingsRoomCurrent(room)) return false;
     const patch = typeof update === "function" ? null : JSON.parse(JSON.stringify(update));
     try {
-        return await queueCommandTask("game settings", async () => {
+        return await queueTaskByKey("game settings", async () => {
             if (!isGameSettingsRoomCurrent(room)) return false;
             // Native room-setting responses defer their form updates by one timer turn
             // Enter the next operation after those updates, then apply and commit together
@@ -7235,7 +7401,7 @@ async function changeGameSettings(update, room = captureGameSettingsRoom()) {
                 hostModal.updateSetting(key, value);
             }
             if (!isGameSettingsRoomCurrent(room)) return false;
-            await requestCommand("Room Settings Changed", submitGameSettings, {
+            await requestSocketResponse("Room Settings Changed", submitGameSettings, {
                 signal: room.signal,
                 accept: () => isGameSettingsRoomCurrent(room),
             });
@@ -7266,13 +7432,13 @@ function resolveRoomPlayerName(text) {
 
 // Input text or id, return genre that matches the closest
 function resolveGenre(text) {
-    const result = resolveCommandLookup(idTranslator.genreNames, text);
+    const result = resolveNameOrId(idTranslator.genreNames, text);
     return { genre: result.name || text, id: result.state === "resolved" ? result.id : null, state: result.state };
 }
 
 // Input text or id, return tag that matches the closest
 function resolveTag(text) {
-    const result = resolveCommandLookup(idTranslator.tagNames, text);
+    const result = resolveNameOrId(idTranslator.tagNames, text);
     return { tag: result.name || text, id: result.state === "resolved" ? result.id : null, state: result.state };
 }
 
@@ -7294,11 +7460,6 @@ function resolveScriptName(text) {
         return list[0];
     }
     //return list.length === 1 ? list[0] : text;
-}
-
-// Input full song type text, return shortened version
-function shortenSongType(type) {
-    return type.replace("Opening ", "OP").replace("Ending ", "ED").replace("Insert Song", "IN");
 }
 
 // Return string of checkbox statuses for anime lists
@@ -7399,7 +7560,7 @@ function checkAutoSwitch() {
             if (autoSwitch.temp) {
                 autoSwitch.mode = "";
                 autoSwitch.temp = false;
-                commitCommandSettings();
+                applySettingsChanges();
             }
             socket.sendCommand({ type: "lobby", command: "change to player" });
         }
@@ -7407,7 +7568,7 @@ function checkAutoSwitch() {
             if (autoSwitch.temp) {
                 autoSwitch.mode = "";
                 autoSwitch.temp = false;
-                commitCommandSettings();
+                applySettingsChanges();
             }
             lobby.changeToSpectator(selfName);
         }
@@ -7424,7 +7585,7 @@ function checkAutoHost() {
         return;
     }
     const name = autoHost === "*" ? getRandomOtherPlayer() : resolvePlayerNameCase(autoHost);
-    if (name && name !== selfName && isInYourRoom(name)) promoteCommandHost(name);
+    if (name && name !== selfName && isInYourRoom(name)) transferRoomHost(name);
 }
 
 // Check conditions for auto accepting a game invite
@@ -7543,7 +7704,7 @@ async function relog() {
         if (nexus.inCoopLobby) {
             destination.type = "nexus coop";
             if (Object.keys(nexusCoopChat.playerMap).length > 1) {
-                destination.id = parseCommandInteger($("#ncdwPartySetupLobbyIdText").text(), 1);
+                destination.id = parseBoundedInteger($("#ncdwPartySetupLobbyIdText").text(), 1);
             }
         }
     }
@@ -7591,7 +7752,7 @@ function getTimeStamp() {
 
 // Return list of every auto function that is enabled
 function getEnabledAutomationSummaries() {
-    return Object.keys(commandSettings).filter(name => name.startsWith("auto") || name === "coopPaste").map(commandSettingSummary).filter(Boolean);
+    return Object.keys(commandSettings).filter(name => name.startsWith("auto") || name === "coopPaste").map(getSettingSummary).filter(Boolean);
 }
 
 // Get the version of any script that uses joseph's script info
@@ -7637,18 +7798,142 @@ function calc(input) {
     else return "ERROR";
 }
 
-// Install navigation, autocomplete, and replay overrides before client setup
-function installCommandHooks() {
+// Wrap Spine avatars once, keeping AMQ's normal behavior when animations are enabled
+function setupAvatarAnimations() {
+    originalSpineUpdate = SpineApp.prototype.update;
+    originalSpineRender = SpineApp.prototype.render;
+
+    SpineApp.prototype.update = function (canvas, delta) {
+        if (animatedAvatars) return originalSpineUpdate.call(this, canvas, delta);
+    };
+
+    SpineApp.prototype.render = function (canvas) {
+        avatarApps.add(this);
+        if (!animatedAvatars) return redrawStaticAvatar(this);
+        return originalSpineRender.call(this, canvas);
+    };
+
+    const originalSetAnimation = SpineApp.prototype.setAnimation;
+    SpineApp.prototype.setAnimation = function (...args) {
+        if (!animatedAvatars && this.animationState) this.animationState.clearTrack(0);
+        const result = originalSetAnimation.apply(this, args);
+        if (!animatedAvatars) redrawStaticAvatar(this);
+        return result;
+    };
+
+    const originalUpdatePose = SpineAnimation.prototype.updatePose;
+    SpineAnimation.prototype.updatePose = function (poseId) {
+        if (animatedAvatars) return originalUpdatePose.call(this, poseId);
+        this.poseId = poseId;
+        this.transitionFinishedHandler = null;
+        this.$container.removeClass("fadeOut");
+        this.spineApp.startAnimationQueue = [];
+        this.spineApp.setAnimation(this.getPoseName(poseId), true);
+    };
+
+    const originalPlay = SpineAnimation.prototype.play;
+    SpineAnimation.prototype.play = function (...args) {
+        const result = originalPlay.apply(this, args);
+        if (!animatedAvatars && this.buildStarted) redrawStaticAvatar(this.spineApp);
+        return result;
+    };
+
+    for (const method of ["updateSizes", "showOptionElement", "hideOptionElement"]) {
+        const original = SpineAnimation.prototype[method];
+        SpineAnimation.prototype[method] = function (...args) {
+            const result = original.apply(this, args);
+            if (!animatedAvatars && this.buildStarted) redrawStaticAvatar(this.spineApp);
+            return result;
+        };
+    }
+
+    const originalDestroy = SpineAnimation.prototype.destroy;
+    SpineAnimation.prototype.destroy = function (...args) {
+        avatarApps.delete(this.spineApp);
+        return originalDestroy.apply(this, args);
+    };
+}
+
+// Render the final pose once, leaving loading and AMQ-paused avatars to their native lifecycle
+function redrawStaticAvatar(app) {
+    if (!app.animationState || app.paused) return;
+    avatarApps.add(app);
+    const queuedPose = app.animationState.getCurrent(0)?.next;
+    if (queuedPose) {
+        app.animationState.clearTrack(0);
+        app.animationState.setAnimation(0, queuedPose.animation.name, queuedPose.loop);
+    }
+    originalSpineUpdate.call(app, app.canvas, 0);
+    originalSpineRender.call(app, app.canvas);
+    app.canvas.stopLoop();
+}
+
+// Resume only active avatars and discard elapsed frozen time before restarting their loops
+function applyAvatarAnimationPreference() {
+    for (const app of avatarApps) {
+        if (app.paused) continue;
+        if (animatedAvatars) {
+            app.canvas.time.update();
+            app.canvas.startLoop();
+        } else {
+            redrawStaticAvatar(app);
+        }
+    }
+}
+
+// Wrap the client AFK timers so protection can be toggled without replacing their behavior
+function setupNoAfkKick() {
+    const originalSetupAfkTimeout = afkKicker.setupAfkTimeout;
+    afkKicker.setupAfkTimeout = function (...args) {
+        if (noAfkKick) return;
+        return originalSetupAfkTimeout.apply(this, args);
+    };
+
+    const originalSetupHostTimeout = afkKicker.setupHostTimeout;
+    afkKicker.setupHostTimeout = function (...args) {
+        if (noAfkKick) return;
+        return originalSetupHostTimeout.apply(this, args);
+    };
+    applyNoAfkKick();
+}
+
+// Cancel AFK kick timers and warnings, or restart normal timers when protection is disabled
+function applyNoAfkKick() {
+    if (noAfkKick) {
+        // AMQ owns this timer; Tampermonkey's clearTimeout only cancels userscript timers
+        unsafeWindow.clearTimeout(afkKicker.afkWarningTimeout);
+        afkKicker.afkWarningTimeout = null;
+        afkKicker.clearHostTimeout();
+
+        // Confirm an existing AFK warning to clear its separate countdown
+        if (document.querySelector("#afkLogoutWarningTime, #afkHostWarningTime")) {
+            Swal.clickConfirm();
+        }
+        return;
+    }
+
+    afkKicker.setupAfkTimeout();
+    if (lobby.inLobby && lobby.isHost) {
+        afkKicker.setupHostTimeout();
+    }
+}
+
+// Install avatar, AFK, navigation, autocomplete, and replay hooks before client setup
+function installHooks() {
+    setupNoAfkKick();
+    setupAvatarAnimations();
+
     // Override changeView function for auto ready
     const oldChangeView = ViewChanger.prototype.changeView;
     ViewChanger.prototype.changeView = function () {
-        handleCommandNavigation(arguments[0]);
+        handleRoomNavigation(arguments[0]);
         const result = oldChangeView.apply(this, arguments);
         if (arguments[0] === "lobby") {
-            setTimeout(() => {
+            queueMicrotask(() => {
+                if (!lobby.inLobby) return;
                 checkAutoReady();
                 checkAutoStart();
-            }, 1);
+            });
         }
         return result;
     };
@@ -7747,27 +8032,27 @@ function quizUnhidePlayers() {
 
 // Remove anilist
 function removeAnilist() {
-    return queueCommandTask("anime list transaction", () => clearAnimeListProviders(["a"]));
+    return queueTaskByKey("anime list transaction", () => clearAnimeListProviders(["a"]));
 }
 
 // Remove myaniemlist
 function removeMyanimelist() {
-    return queueCommandTask("anime list transaction", () => clearAnimeListProviders(["m"]));
+    return queueTaskByKey("anime list transaction", () => clearAnimeListProviders(["m"]));
 }
 
 // Remove kitsu
 function removeKitsu() {
-    return queueCommandTask("anime list transaction", () => clearAnimeListProviders(["k"]));
+    return queueTaskByKey("anime list transaction", () => clearAnimeListProviders(["k"]));
 }
 
 // Remove animeoshi
 function removeAnimeoshi() {
-    return queueCommandTask("anime list transaction", () => clearAnimeListProviders(["o"]));
+    return queueTaskByKey("anime list transaction", () => clearAnimeListProviders(["o"]));
 }
 
 // Remove all lists
 function removeAllLists() {
-    return queueCommandTask("anime list transaction", () => clearAnimeListProviders(Object.keys(animeListProviders)));
+    return queueTaskByKey("anime list transaction", () => clearAnimeListProviders(Object.keys(animeListProviders)));
 }
 
 // Set the status of the Anime Lists checkbox and send the command to the server
@@ -8023,11 +8308,41 @@ async function getMALAnimeList(username) {
     return [...entries.values()];
 }
 
-// Format song url, handle bad data
-function formatURL(url) {
-    if (!url) return "";
-    if (url.startsWith("http")) return url;
-    return videoResolver.formatUrl(url);
+// Prefer Catbox and use Openings.moe when that quality is missing
+function getSongMediaTarget(videoTargetMap, quality) {
+    for (const host of ["catbox", "openingsmoe"]) {
+        const target = videoTargetMap?.[host]?.[quality];
+        if (typeof target === "string" && target.trim()) {
+            return target.trim();
+        }
+    }
+    return null;
+}
+
+// Resolve AMQ filenames through the game's video resolver
+function resolveSongMediaUrl(target) {
+    if (!target) return "";
+    if (/^https?:\/\//i.test(target)) return target;
+    return videoResolver.formatUrl(target);
+}
+
+// Download one best available video or the exact qualities selected by the command
+function downloadResultSongMedia(videoTargetMap) {
+    if (autoDownloadSong.includes("video")) {
+        const target = getSongMediaTarget(videoTargetMap, 720) ?? getSongMediaTarget(videoTargetMap, 480);
+        downloadSong(resolveSongMediaUrl(target));
+    }
+    else {
+        for (const quality of [720, 480]) {
+            if (!autoDownloadSong.includes(String(quality))) continue;
+            const target = getSongMediaTarget(videoTargetMap, quality);
+            downloadSong(resolveSongMediaUrl(target));
+        }
+    }
+    if (autoDownloadSong.includes("mp3")) {
+        const target = getSongMediaTarget(videoTargetMap, 0);
+        downloadSong(resolveSongMediaUrl(target));
+    }
 }
 
 // Input audio url, return array buffer data
@@ -8138,7 +8453,7 @@ function applyStartupPreferences() {
 }
 
 // Loop finished videos while respecting the current loop setting
-function bindPlaybackEvents() {
+function bindVideoEndEvents() {
     for (const videoPlayer of quizVideoController.moePlayers) {
         videoPlayer.player.on("ended", () => {
             if (loopVideo) {
@@ -8149,19 +8464,55 @@ function bindPlaybackEvents() {
     }
 }
 
-// Connect game and social events to command features
+// Bind a game event, optionally waiting for AMQ's synchronous handlers to finish
+function bindGameListener(eventName, handler, { afterClient = false } = {}) {
+    const callback = afterClient
+        ? data => queueMicrotask(() => handler(data))
+        : handler;
+
+    new Listener(eventName, callback).bindListener();
+}
+
+// Connect the AMQ event groups in startup order
 function bindGameListeners() {
-    bindCommandChatListeners();
-    bindCommandRoomListeners();
-    bindCommandQuizListeners();
-    bindCommandSocialListeners();
-    bindCommandNexusListeners();
-    bindCommandNotificationListeners();
+    bindRoomLifecycleListeners();
+    bindChatListeners();
+    bindRoomListeners();
+    bindQuizListeners();
+    bindSocialListeners();
+    bindAutocompleteListeners();
+    bindNotificationListeners();
+}
+
+// Invalidate pending room work before room and quiz listeners run
+function bindRoomLifecycleListeners() {
+    for (const event of ["Game Starting", "game closed"]) {
+        bindGameListener(event, () => {
+            resetRoomAutomation();
+            invalidateGameSettings();
+            cancelAutoStart();
+        });
+    }
+    for (const event of ["Join Game", "Spectate Game"]) {
+        bindGameListener(event, data => {
+            if (data.error) return;
+            resetRoomAutomation();
+            invalidateGameSettings();
+            cancelRejoin();
+            cancelAutoStart();
+            checkAutoStart();
+        });
+    }
+    bindGameListener("Host Promotion", () => {
+        invalidateGameSettings();
+        cancelAutoStart();
+        checkAutoStart();
+    });
 }
 
 // Route chat commands independently of optional console logging
-function bindCommandChatListeners() {
-    new Listener("game chat update", (data) => {
+function bindChatListeners() {
+    bindGameListener("game chat update", (data) => {
         for (const message of data.messages) {
             if (alerts.chat.console) {
                 const color = getPlayerColor(message.sender);
@@ -8179,121 +8530,139 @@ function bindCommandChatListeners() {
                 }
             }
         }
-    }).bindListener();
+    });
 
-    new Listener("Game Chat Message", (data) => {
+    bindGameListener("Game Chat Message", (data) => {
         if (alerts.chat.console) {
             console.log(`${getTimeStamp()} 💬 ${data.sender}${data.modMessage ? "Ⓜ️" : ""}: ${data.message}`);
         }
         routeChatCommand(data.message, data.sender, data.teamMessage ? "teamchat" : "chat");
-    }).bindListener();
+    });
 
-    new Listener("chat message", (data) => {
+    bindGameListener("chat message", (data) => {
         if (alerts.dm.console) {
             console.log(`${getTimeStamp()} 📩 from ${data.sender}${data.modMessage ? "Ⓜ️" : ""}: ${data.message}`);
         }
         parseIncomingDM(data.message, data.sender);
-    }).bindListener();
+    });
 
-    new Listener("chat message response", (data) => {
+    bindGameListener("chat message response", (data) => {
         if (alerts.dm.console) {
             console.log(`${getTimeStamp()} 📩 to ${data.target}: ${data.msg}`);
         }
         if (data.msg.trimStart().startsWith(commandPrefix)) {
             parseCommand(data.msg, "dm", data.target);
         }
-    }).bindListener();
+    });
 
-    new Listener("nexus coop chat message", (data) => {
+    bindGameListener("nexus coop chat message", (data) => {
         if (alerts.chat.console) {
             console.log(`${getTimeStamp()} 💬 ${data.sender}: ${data.message}`);
         }
         routeChatCommand(data.message, data.sender, "nexus");
-    }).bindListener();
+    });
 }
 
-// Respond to room membership, settings, and host changes
-function bindCommandRoomListeners() {
-    new Listener("New Rooms", (data) => {
-        for (const room of data.standard) {
-            const players = [...room.allPlayers.players, ...room.allPlayers.spectators].map((player) => player.name);
-            if (playerDetection.invisible) {
-                const list = players.filter(p => socialTab.offlineFriends.hasOwnProperty(p));
-                if (list.length) {
-                    popoutMessage(`${list.join(", ")} (invisible)`, `Room ${room.id}: ${room.settings.roomName}`);
-                }
-            }
-            if (playerDetection.players.length) {
-                for (const player of playerDetection.players) {
-                    if (players.includes(player)) {
-                        popoutMessage(player, `Room ${room.id}: ${room.settings.roomName}`);
-                    }
-                }
-            }
-        }
-    }).bindListener();
+// Handle room changes and update host automation in AMQ and Nexus rooms
+function bindRoomListeners() {
+    bindGameListener("New Rooms", handleNewRooms);
 
-    new Listener("Join Game", data => {
-        handleCommandRoomEntry(data, "Join");
-    }).bindListener();
+    bindGameListener("Join Game", data => {
+        handleRoomEntry(data, "Join");
+    }, { afterClient: true });
 
-    new Listener("Spectate Game", data => {
-        handleCommandRoomEntry(data, "Spectate");
-    }).bindListener();
+    bindGameListener("Spectate Game", data => {
+        handleRoomEntry(data, "Spectate");
+    }, { afterClient: true });
 
-    new Listener("New Player", (data) => {
-        scheduleCommandRoomAction(() => { checkAutoHost() }, 0);
-        if (hidePlayers) setTimeout(() => { lobbyHidePlayers() }, 0);
-    }).bindListener();
+    bindGameListener("New Player", () => {
+        checkAutoHost();
+        if (hidePlayers && lobby.inLobby) lobbyHidePlayers();
+    }, { afterClient: true });
 
-    new Listener("New Spectator", (data) => {
-        scheduleCommandRoomAction(() => { checkAutoHost() }, 0);
-    }).bindListener();
+    bindGameListener("New Spectator", checkAutoHost, { afterClient: true });
 
-    new Listener("Player Left", (change) => {
-        checkAutoPause(change);
-    }).bindListener();
+    bindGameListener("Player Left", checkAutoPause, { afterClient: true });
 
-    new Listener("Player Ready Change", (data) => {
+    bindGameListener("Player Ready Change", (data) => {
         checkAutoStart();
-    }).bindListener();
+    });
 
-    new Listener("Room Settings Changed", (data) => {
+    bindGameListener("Room Settings Changed", () => {
         cancelAutoStart();
         checkAutoStart();
-        setTimeout(() => { checkAutoReady() }, 0);
-    }).bindListener();
+        checkAutoReady();
+    }, { afterClient: true });
 
-    new Listener("Player Changed To Spectator", (data) => {
+    bindGameListener("Player Changed To Spectator", (data) => {
         if (data.playerDescription.name === selfName) {
             for (const feature of ["autoThrow", "autoVoteSkip", "resultSkip"]) cancelSongTimers(feature);
-            setTimeout(() => { checkAutoSwitch() }, 0);
+            queueMicrotask(checkAutoSwitch);
         }
-    }).bindListener();
+    });
 
-    new Listener("Spectator Change To Player", (data) => {
+    bindGameListener("Spectator Change To Player", data => {
         if (data.name === selfName) {
-            setTimeout(() => {
-                checkAutoReady();
-                checkAutoStart();
-                checkAutoSwitch();
-            }, 0);
-        }
-        if (hidePlayers) setTimeout(() => { lobbyHidePlayers() }, 0);
-    }).bindListener();
-
-    new Listener("Host Promotion", (data) => {
-        scheduleCommandRoomAction(() => {
-            checkAutoHost();
             checkAutoReady();
-            if (hidePlayers) lobbyHidePlayers();
-        }, 0);
-    }).bindListener();
+            checkAutoStart();
+            checkAutoSwitch();
+        }
+        if (hidePlayers && lobby.inLobby) lobbyHidePlayers();
+    }, { afterClient: true });
+
+    bindGameListener("Host Promotion", () => {
+        checkAutoHost();
+        checkAutoReady();
+        if (hidePlayers && lobby.inLobby) lobbyHidePlayers();
+    }, { afterClient: true });
+
+    // Recheck auto host after Nexus updates the party roster or host
+    bindGameListener("nexus lobby host change", checkAutoHost, { afterClient: true });
+    bindGameListener("new nexus player", checkAutoHost, { afterClient: true });
+    bindGameListener("nexus player leave", checkAutoHost, { afterClient: true });
+}
+
+// Check the room list for configured player and room alerts
+function handleNewRooms(data) {
+    for (const room of data.standard) {
+        const players = [...room.allPlayers.players, ...room.allPlayers.spectators].map((player) => player.name);
+        if (playerDetection.invisible) {
+            const list = players.filter(p => socialTab.offlineFriends.hasOwnProperty(p));
+            if (list.length) {
+                popoutMessage(`${list.join(", ")} (invisible)`, `Room ${room.id}: ${room.settings.roomName}`);
+            }
+        }
+        if (playerDetection.players.length) {
+            for (const player of playerDetection.players) {
+                if (players.includes(player)) {
+                    popoutMessage(player, `Room ${room.id}: ${room.settings.roomName}`);
+                }
+            }
+        }
+    }
+}
+
+// Hide players once the native quiz and its avatar slots are present
+function applyQuizPlayerVisibility() {
+    if (hidePlayers && quiz.inQuiz) quizHidePlayers();
+}
+
+// Check the current identity after AMQ has added any late joiners
+function handlePostAnswerResults(data) {
+    if (!quiz.inQuiz) return;
+    if (data.lateJoinPlayers?.length) applyQuizPlayerVisibility();
+    if (autoVoteSkip !== "correct") return;
+    const player = data.players.find(result => result.gamePlayerId === quiz.ownGamePlayerId);
+    if (player?.correct) {
+        scheduleSongTask("resultSkip", () => {
+            if (autoVoteSkip === "correct" && !quiz.skipController._toggled) quiz.skipClicked();
+        }, 1, "replay", true);
+    }
 }
 
 // Keep song automation and quiz transitions in the same lifecycle order
-function bindCommandQuizListeners() {
-    new Listener("Game Starting", (data) => {
+function bindQuizListeners() {
+    bindGameListener("Game Starting", (data) => {
         for (const name of [
             "autoVoteSkip",
             "autoKey",
@@ -8309,54 +8678,37 @@ function bindCommandQuizListeners() {
             "autoShareAnswer",
             "coopPaste",
         ]) {
-            const text = commandSettingSummary(name);
+            const text = getSettingSummary(name);
             if (text) sendSystemMessage(text);
         }
-        if (hidePlayers) setTimeout(() => { quizHidePlayers() }, 0);
-    }).bindListener();
+    });
+    bindGameListener("Game Starting", applyQuizPlayerVisibility, { afterClient: true });
 
-    new Listener("quiz ready", (data) => {
+    bindGameListener("quiz ready", (data) => {
         if (alerts.quizStart.console) {
             const mode = lobby.settings?.gameMode ?? quiz.gameMode;
             const songs = data.numberOfSongs;
             const players = Object.keys(quiz.players).length;
             console.log(`${getTimeStamp()} ${mode} Quiz Starting - ${songs} songs, ${players} player${players === 1 ? "" : "s"}`);
         }
-    }).bindListener();
+    });
 
-    new Listener("battle royal phase over", (data) => {
+    bindGameListener("battle royal phase over", (data) => {
         if (printLoot && !battleRoyal.isSpectator) {
             const cc = battleRoyal.collectionController;
             const lootNames = cc.entries.map((entry) => entry.$entry.text().slice(2));
             sendSystemMessage(`Loot: ${cc.entries.length}/${cc.size}`, lootNames.join("<br>"));
         }
-    }).bindListener();
+    });
+    bindGameListener("battle royal phase over", applyQuizPlayerVisibility, { afterClient: true });
 
-    new Listener("quiz next video info", data => {
-        prepareCommandAudio(data);
-    }).bindListener();
+    bindGameListener("quiz next video info", data => {
+        prepareNextSongAudio(data);
+    });
 
-    new Listener("play next song", (data) => {
-        if (videoSpeed.length) {
-            const speed = randomCommandNumber(...videoSpeed);
-            for (const videoPlayer of quizVideoController.moePlayers) {
-                if (!videoPlayer.encrypted) {
-                    videoPlayer.playbackRate = speed;
-                }
-            }
-        }
-        startCommandSong(data);
-        if (dropdownInSpec && quiz.isSpectator) {
-            scheduleSongTask("dropdown", () => {
-                if (!animeListLower.length) {
-                    quiz.answerInput.typingInput.autoCompleteController.updateList();
-                }
-                quiz.answerInput.typingInput.$input.removeAttr("disabled").val("");
-            }, 1);
-        }
-    }).bindListener();
+    bindGameListener("play next song", handleNextSong);
 
-    new Listener("team member answer", (data) => {
+    bindGameListener("team member answer", (data) => {
         if (autoCopy && autoCopy === quiz.players[data.gamePlayerId]._name.toLowerCase()) {
             const currentText = quiz.answerInput.typingInput.$input.val();
             quiz.answerInput.setNewAnswer(data.answer);
@@ -8365,10 +8717,10 @@ function bindCommandQuizListeners() {
         if (autoVoteSkip === "valid" && !quiz.skipController._toggled && data.answer.length > 1 && animeListLower.includes(data.answer.toLowerCase())) {
             quiz.skipClicked();
         }
-    }).bindListener();
+    });
 
-    new Listener("guess phase over", (data) => {
-        finishCommandGuess();
+    bindGameListener("guess phase over", (data) => {
+        finishGuessAutomation();
         if (dropdownInSpec && quiz.isSpectator) {
             scheduleSongTask("dropdown", () => {
                 if (!animeListLower.length) {
@@ -8377,40 +8729,18 @@ function bindCommandQuizListeners() {
                 quiz.answerInput.typingInput.$input.removeAttr("disabled");
             }, 1, "replay");
         }
-    }).bindListener();
+    });
 
-    new Listener("answer results", (data) => {
-        finishCommandGuess();
-        if (muteReplay) setCommandMuteReason("replay", true);
-        if (autoVoteSkip === "correct") {
-            const player = data.players.find((x) => x.gamePlayerId === quiz.ownGamePlayerId);
-            if (player?.correct) {
-                scheduleSongTask("resultSkip", () => { if (autoVoteSkip === "correct" && !quiz.skipController._toggled) quiz.skipClicked(); }, 1, "replay", true);
-            }
-        }
-        if (autoDownloadSong.length) {
-            if (autoDownloadSong.includes("video")) {
-                downloadSong(formatURL(data.songInfo.videoTargetMap.catbox?.[720] || data.songInfo.videoTargetMap.catbox?.[480]));
-            }
-            else {
-                if (autoDownloadSong.includes("720")) {
-                    downloadSong(formatURL(data.songInfo.videoTargetMap.catbox?.[720]));
-                }
-                if (autoDownloadSong.includes("480")) {
-                    downloadSong(formatURL(data.songInfo.videoTargetMap.catbox?.[480]));
-                }
-            }
-            if (autoDownloadSong.includes("mp3")) {
-                downloadSong(formatURL(data.songInfo.videoTargetMap.catbox?.[0]));
-            }
-        }
-    }).bindListener();
+    bindGameListener("answer results", (data) => {
+        finishGuessAutomation();
+        if (muteReplay) setMuteReason("replay", true);
+        if (autoDownloadSong.length) downloadResultSongMedia(data.songInfo.videoTargetMap);
+    });
 
-    new Listener("player late join", (data) => {
-        if (hidePlayers) setTimeout(() => { quizHidePlayers() }, 0);
-    }).bindListener();
+    bindGameListener("answer results", handlePostAnswerResults, { afterClient: true });
+    bindGameListener("player late join", applyQuizPlayerVisibility, { afterClient: true });
 
-    new Listener("player hidden", (data) => {
+    bindGameListener("player hidden", (data) => {
         if (alerts.hiddenPlayers.popout) {
             popoutMessage("Player Hidden", data.name);
         }
@@ -8420,18 +8750,18 @@ function bindCommandQuizListeners() {
         if (alerts.hiddenPlayers.console) {
             console.log(`${getTimeStamp()} 🚫 player hidden: ${data.name}`);
         }
-    }).bindListener();
+    });
 
-    new Listener("return lobby vote start", (data) => {
+    bindGameListener("return lobby vote start", (data) => {
         if (autoVoteLobby) {
             setTimeout(() => {
                 quiz.returnVoteController.buttonSelected(quiz.returnVoteController.$VOTE_YES_BUTTON);
                 quiz.returnVoteController.vote(true);
             }, 100);
         }
-    }).bindListener();
+    });
 
-    new Listener("return lobby vote result", (data) => {
+    bindGameListener("return lobby vote result", (data) => {
         if (data.passed) {
             if (autoDownloadJson.includes("all") ||
                 (autoDownloadJson.includes("solo") && quiz.soloMode) ||
@@ -8444,55 +8774,78 @@ function bindCommandQuizListeners() {
                 }, 100);
             }
         }
-    }).bindListener();
+    });
 
-    new Listener("quiz end result", (data) => {
-        if (alerts.quizEnd.console) {
-            let text = `${getTimeStamp()} ${quiz.gameMode} Quiz End Result:`;
-            const sortedEntries = Object.values(quiz.scoreboard.playerEntries).sort((a, b) => b.currentScore - a.currentScore);
-            for (const entry of sortedEntries) {
-                text += `\n${entry.name}: ${entry.currentScore}`;
+    bindGameListener("quiz end result", handleQuizEndResult);
+
+    bindGameListener("quiz over", resetRoomAutomation);
+    bindGameListener("quiz over", () => {
+        if (!lobby.inLobby) return;
+        checkAutoHost();
+        checkAutoSwitch();
+        if (hidePlayers) lobbyHidePlayers();
+    }, { afterClient: true });
+}
+
+// Apply playback speed and start automation for the new song
+function handleNextSong(data) {
+    if (videoSpeed.length) {
+        const speed = randomNumberInRange(...videoSpeed);
+        for (const videoPlayer of quizVideoController.moePlayers) {
+            if (!videoPlayer.encrypted) {
+                videoPlayer.playbackRate = speed;
             }
-            console.log(text);
         }
-        if (autoDownloadJson.includes("all") ||
-            (autoDownloadJson.includes("solo") && quiz.soloMode) ||
-            (autoDownloadJson.includes("ranked") && isQuizOfTheDay()) ||
-            (autoDownloadJson.includes("tour") && hostModal.$roomName.val().toLowerCase().includes("tour"))) {
-            $("#shHistoryTab").trigger("click");
-            setTimeout(() => {
-                const $title = $(".shGameTitleInner").first();
-                popoutMessage("Auto Download JSON", $title.text().trim());
-                $title.find(".shGameDownloadIcon").trigger("click");
-            }, 100);
-        }
-    }).bindListener();
+    }
+    startSongAutomation(data);
+    if (dropdownInSpec && quiz.isSpectator) {
+        scheduleSongTask("dropdown", () => {
+            if (!animeListLower.length) {
+                quiz.answerInput.typingInput.autoCompleteController.updateList();
+            }
+            quiz.answerInput.typingInput.$input.removeAttr("disabled").val("");
+        }, 1);
+    }
+}
 
-    new Listener("quiz over", (data) => {
-        resetCommandRoom();
-        scheduleCommandRoomAction(() => {
-            checkAutoHost();
-            checkAutoSwitch();
-            if (hidePlayers) lobbyHidePlayers();
-        }, 0);
-    }).bindListener();
+// Log the final scores and download results when configured
+function handleQuizEndResult(data) {
+    if (alerts.quizEnd.console) {
+        let text = `${getTimeStamp()} ${quiz.gameMode} Quiz End Result:`;
+        const sortedEntries = Object.values(quiz.scoreboard.playerEntries).sort((a, b) => b.currentScore - a.currentScore);
+        for (const entry of sortedEntries) {
+            text += `\n${entry.name}: ${entry.currentScore}`;
+        }
+        console.log(text);
+    }
+    if (autoDownloadJson.includes("all") ||
+        (autoDownloadJson.includes("solo") && quiz.soloMode) ||
+        (autoDownloadJson.includes("ranked") && isQuizOfTheDay()) ||
+        (autoDownloadJson.includes("tour") && hostModal.$roomName.val().toLowerCase().includes("tour"))) {
+        $("#shHistoryTab").trigger("click");
+        setTimeout(() => {
+            const $title = $(".shGameTitleInner").first();
+            popoutMessage("Auto Download JSON", $title.text().trim());
+            $title.find(".shGameDownloadIcon").trigger("click");
+        }, 100);
+    }
 }
 
 // Handle invites and friend changes using the current automation preferences
-function bindCommandSocialListeners() {
-    new Listener("game invite", (data) => {
+function bindSocialListeners() {
+    bindGameListener("game invite", (data) => {
         if (autoAcceptInvite && !inRoom() && checkAutoInvite(data.sender)) {
             roomBrowser.fireSpectateGame(data.gameId, undefined, true);
         }
-    }).bindListener();
+    });
 
-    new Listener("nexus game invite", (data) => {
+    bindGameListener("nexus game invite", (data) => {
         if (autoAcceptInvite && !inRoom() && checkAutoInvite(data.sender)) {
             socket.sendCommand({ type: "nexus", command: "join dungeon lobby", data: { lobbyId: data.lobbyId } });
         }
-    }).bindListener();
+    });
 
-    new Listener("friend state change", (data) => {
+    bindGameListener("friend state change", (data) => {
         if (alerts.onlineFriends.popout && data.online) {
             popoutMessage(`${data.name} online`, "");
         }
@@ -8501,7 +8854,7 @@ function bindCommandSocialListeners() {
         }
         if (data.online && autoInvite === data.name.toLowerCase() && inRoom() && !isInYourRoom(autoInvite) && !isSoloMode() && !isQuizOfTheDay()) {
             sendSystemMessage(`${data.name} online: auto inviting`);
-            scheduleCommandRoomAction(() => {
+            scheduleRoomAction(() => {
                 if (
                     autoInvite === data.name.toLowerCase()
                     && Object.hasOwn(socialTab.onlineFriends, data.name)
@@ -8526,9 +8879,9 @@ function bindCommandSocialListeners() {
         else if (alerts.offlineFriends.console && !data.online) {
             console.log(`${getTimeStamp()} 🔴 ${data.name} offline`);
         }
-    }).bindListener();
+    });
 
-    new Listener("friend name change", (data) => {
+    bindGameListener("friend name change", (data) => {
         if (alerts.nameChange.popout) {
             popoutMessage("friend name change", `${data.oldName} => ${data.newName}`);
         }
@@ -8538,31 +8891,16 @@ function bindCommandSocialListeners() {
         if (alerts.nameChange.console) {
             console.log(`${getTimeStamp()} friend name change: ${data.oldName} => ${data.newName}`);
         }
-    }).bindListener();
+    });
 }
 
-// Recheck Nexus host automation when the co-op party changes
-function bindCommandNexusListeners() {
-    new Listener("nexus lobby host change", (data) => {
-        scheduleCommandRoomAction(() => { checkAutoHost() }, 0);
-    }).bindListener();
-
-    new Listener("new nexus player", (data) => {
-        scheduleCommandRoomAction(() => { checkAutoHost() }, 0);
-    }).bindListener();
-
-    new Listener("nexus player leave", (data) => {
-        scheduleCommandRoomAction(() => { checkAutoHost() }, 0);
-    }).bindListener();
-}
-
-// Maintain autocomplete names and deliver configured server notifications
-function bindCommandNotificationListeners() {
-    new Listener("get all song names", (data) => {
+// Keep the lowercase autocomplete cache up to date
+function bindAutocompleteListeners() {
+    bindGameListener("get all song names", (data) => {
         animeListLower = data.names.map(x => x.toLowerCase());
-    }).bindListener();
+    });
 
-    new Listener("update all song names", (data) => {
+    bindGameListener("update all song names", (data) => {
         if (data.deleted.length) {
             const deletedLower = data.deleted.map(x => x.toLowerCase());
             animeListLower = animeListLower.filter(name => !deletedLower.includes(name));
@@ -8571,9 +8909,12 @@ function bindCommandNotificationListeners() {
             const newLower = data.new.map(x => x.toLowerCase());
             animeListLower.push(...newLower);
         }
-    }).bindListener();
+    });
+}
 
-    new Listener("popout message", (data) => {
+// Deliver configured server notices and donation alerts
+function bindNotificationListeners() {
+    bindGameListener("popout message", (data) => {
         if (data.header?.key?.includes("quiz_of_the_day")) {
             if (alerts.rankedStarting.console) {
                 const header = localizationHandler.translate(data.header.key, data.header.data, true);
@@ -8581,21 +8922,21 @@ function bindCommandNotificationListeners() {
                 console.log(`${getTimeStamp()} 📢 ${header}   ${message}`);
             }
         }
-    }).bindListener();
+    });
 
-    new Listener("new donation", (data) => {
+    bindGameListener("new donation", (data) => {
         if (alerts.donation.console) {
             console.log(`${getTimeStamp()} 📢 ${data.donation.username} donated $${data.donation.amount} for ${data.donation.avatarName}`);
         }
-    }).bindListener();
+    });
 
-    new Listener("server restart", (data) => {
+    bindGameListener("server restart", (data) => {
         if (alerts.serverStatus.console) {
             console.log(`${getTimeStamp()} 📢 ${data.msg}`);
         }
-    }).bindListener();
+    });
 
-    new Listener("server state change", (data) => {
+    bindGameListener("server state change", (data) => {
         if (alerts.serverStatus.chat) {
             sendSystemMessage(`Server Status: ${data.name} ${data.online ? "online" : "offline"}`);
         }
@@ -8605,11 +8946,11 @@ function bindCommandNotificationListeners() {
         if (alerts.serverStatus.console) {
             console.log(`${getTimeStamp()} Server Status: ${data.name} ${data.online ? "online" : "offline"}`);
         }
-    }).bindListener();
+    });
 }
 
-// Connect answer inputs, loot popovers, and profile button behavior
-function bindCommandInputs() {
+// Bind quiz answer inputs and the battle royale loot shortcut
+function bindQuizUiEvents() {
     // Monitor the answer input box
     $("#qpAnswerInput").on("input", (event) => {
         if (autoKey) {
@@ -8624,7 +8965,7 @@ function bindCommandInputs() {
         }
     }).on("keypress", (event) => {
         if (event.key === "Enter") {
-            if (muteSubmit) setCommandMuteReason("submit", true);
+            if (muteSubmit) setMuteReason("submit", true);
             if (coopPaste && !isQuizOfTheDay()) {
                 sendMessage(coopPrefix + event.target.value, "chat");
             }
@@ -8637,7 +8978,7 @@ function bindCommandInputs() {
     // Monitor the multiple choice container
     $("#qpMultipleChoiceContainer").on("click", (event) => {
         if (event.target.classList.contains("qpMultipleChoiceEntryText")) {
-            if (muteSubmit) setCommandMuteReason("submit", true);
+            if (muteSubmit) setMuteReason("submit", true);
             if (coopPaste && !isQuizOfTheDay()) {
                 sendMessage(coopPrefix + event.target.textContent, "chat");
             }
@@ -8653,8 +8994,10 @@ function bindCommandInputs() {
             $("#brMapContent .brMapObject").popover($(".popover").length ? "hide" : "show");
         }
     });
+}
 
-    // Enable all buttons in player profile
+// Enable profile footer buttons when AMQ updates the profile panel
+function observeProfileButtons() {
     new MutationObserver(function () {
         if (enableAllProfileButtons) {
             $("#playerProfileLayer .ppFooterOptionIcon").removeClass("disabled");
@@ -8666,19 +9009,39 @@ function bindCommandInputs() {
 function joinStartupRoom() {
     const destination = autoJoinRoom;
     if (!destination) return;
-    joinSavedCommandRoom(destination);
+    if (destination.rejoin) {
+        confirmStartupRejoin(destination);
+        return;
+    }
+    openSavedDestination(destination);
     if (destination.temp) {
         autoJoinRoom = false;
         saveSettings();
     }
 }
 
-// Dispatch a saved destination after the room listeners and UI are ready
-function joinSavedCommandRoom(destination) {
-    if (destination.rejoin) {
-        $(".swal2-container button.swal2-confirm").click();
-        return;
+// Wait for the matching rejoin prompt before accepting and clearing one-time navigation.
+function confirmStartupRejoin(destination) {
+    const nexusGame = destination.type === "nexus solo" || destination.type === "nexus coop";
+    const titleKey = nexusGame ? "nexus.rejoin_prompt.title" : "quiz.rejoin_prompt.title";
+    const observer = new MutationObserver(confirmRejoin);
+    function confirmRejoin() {
+        if (!Swal.isVisible()) return;
+        const title = localizationHandler.translate(titleKey);
+        if (Swal.getTitle().textContent !== title) return;
+        observer.disconnect();
+        if (destination.temp) {
+            autoJoinRoom = false;
+            saveSettings();
+        }
+        Swal.clickConfirm();
     }
+    observer.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ["class", "style"] });
+    confirmRejoin();
+}
+
+// Dispatch a saved destination after the room listeners and UI are ready
+function openSavedDestination(destination) {
     switch (destination.type) {
         case "solo":
             hostModal.changeSettings(destination.settings);
@@ -8835,7 +9198,6 @@ class HotkeyController {
         for (const [action, editor] of this.editors) {
             const text = this.formatBinding(this.bindings[action]);
             editor.button.textContent = text || "—";
-            editor.button.setAttribute("aria-label", this.actions[action].label + " shortcut: " + (text || "unbound"));
             editor.button.classList.remove("recording");
             editor.button.classList.toggle("unset", !this.bindings[action].key);
             editor.clear.hidden = !this.bindings[action].key;
@@ -8919,7 +9281,6 @@ class HotkeyController {
             const clear = document.createElement("button");
             clear.type = "button";
             clear.className = "hk-clear";
-            clear.setAttribute("aria-label", "Clear " + definition.label + " shortcut");
             clear.title = "Clear shortcut";
             clear.addEventListener("click", () => this.commitBinding(action, HotkeyController.normalizeBinding()));
 
@@ -8969,6 +9330,18 @@ function registerScriptInfo() {
 // Apply styles
 function applyStyles() {
     let css = /*css*/ `
+        #mcSettingsModal .tabContainer > button.tab {
+            background: transparent;
+            border: 0;
+            padding-left: 0;
+        }
+        #mcSettingsModal .tabContainer > button.tab:first-child {
+            padding-left: 20px;
+        }
+        #mcSettingsModal .tabContainer > button.tab > span {
+            display: block;
+            margin: 0 5px;
+        }
         #mcActiveContainer {
             display: flex;
             flex-direction: column;
@@ -9050,7 +9423,6 @@ function applyStyles() {
             border: 0;
             background: transparent;
             box-shadow: none;
-            color: inherit;
             cursor: pointer;
         }
         #mcHotkeyTable button.hk-clear:hover {
@@ -9164,7 +9536,6 @@ function applyStyles() {
             align-items: center;
             gap: 6px;
             min-height: 26px;
-            padding: 0 4px;
         }
         .mcOrderHandle {
             box-sizing: border-box;
