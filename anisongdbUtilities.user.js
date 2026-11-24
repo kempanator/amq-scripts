@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Anisongdb Utilities
 // @namespace    https://github.com/kempanator
-// @version      0.20
+// @version      0.21
 // @description  some extra functions for anisongdb.com
 // @author       kempanator
 // @match        https://anisongdb.com/*
@@ -12,17 +12,42 @@
 
 /*
 Features:
-- Press a hotkey to download json file / step songs
+- Press a hotkey to download JSON, step through songs, or cycle themes
 - Change accent color
 */
 
 "use strict";
-const saveData = validateLocalStorage("anisongdbUtilities");
-let accentColor = normalizeHexColor(saveData.accentColor);
-let hotKeys = {
-    downloadJson: loadHotkey("downloadJson", "B", true, false, false),
-    prevSong: loadHotkey("prevSong"),
-    nextSong: loadHotkey("nextSong")
+
+let accentColor;
+let searchServices;
+let utilitySettings;
+let utilitiesTabCleanup;
+let artistCountColumnCleanup = null;
+let copySongArtistColumnCleanup = null;
+let hotkeyController;
+
+const hotkeyActions = {
+    downloadJson: {
+        label: "Download JSON",
+        defaultBinding: { key: "B", ctrl: true, alt: false, shift: false },
+        enabled: () => Boolean(searchServices),
+        run: () => searchServices.workspace.downloadJson()
+    },
+    prevSong: {
+        label: "Previous Song",
+        enabled: () => Boolean(searchServices),
+        run: () => searchServices.playback.previous()
+    },
+    nextSong: {
+        label: "Next Song",
+        enabled: () => Boolean(searchServices),
+        run: () => searchServices.playback.next()
+    },
+    cycleTheme: {
+        label: "Cycle Theme",
+        enabled: () => Boolean(window.AnisongDB?.theme),
+        run: () => window.AnisongDB.theme.cycle()
+    }
 };
 
 const TEST_SEARCHES = {
@@ -86,70 +111,57 @@ const TEST_SEARCHES = {
     }
 };
 
-const ARTIST_COUNT_COLUMN_STORAGE_KEY = "utilitiesArtistCountColumn";
-const COPY_SONG_ARTIST_COLUMN_STORAGE_KEY = "utilitiesCopySongArtistColumn";
+// Start keyboard handling on every route and track the Search page separately
+function startScript() {
+    initializeState();
+    applyStyles();
+    hotkeyController.start();
+    window.addEventListener("anisongdb:search-change", syncSearchUtilities);
+    syncSearchUtilities();
+}
 
-let downloadJsonButton;
-let api;
-let artistCountColumnCleanup = null;
-let copySongArtistColumnCleanup = null;
+// Restore preferences and create runtime state before startup
+function initializeState() {
+    const settings = loadSettings();
+    accentColor = settings.accentColor;
+    hotkeyController = new HotkeyController({
+        actions: hotkeyActions,
+        savedBindings: settings.hotKeys,
+        onChange: saveSettings
+    });
+}
 
-applyStyles();
+// Release registrations when leaving Search and rebuild them with each new Search instance
+function syncSearchUtilities() {
+    const services = window.AnisongDB?.services;
+    if (services === searchServices) return;
 
-const loadInterval = setInterval(() => {
-    if (window.AnisongDB) {
-        clearInterval(loadInterval);
-        setup();
-    }
-}, 200);
+    utilitiesTabCleanup?.();
+    utilitiesTabCleanup = undefined;
+    syncArtistCountColumn(false);
+    syncCopySongArtistColumn(false);
+    utilitySettings = undefined;
+    searchServices = services;
+    if (searchServices) setup();
+}
 
-// Begin setup after AnisongDB API is ready
+// Register the settings tab and columns with the current Search page
 function setup() {
-    api = window.AnisongDB;
-    downloadJsonButton = document.querySelector("#search-download-json");
+    utilitySettings = searchServices.storage.record({
+        key: "anisongdb-utilities",
+        label: "AnisongDB Utilities",
+        policy: "settings",
+        defaults: defaultUtilitySettings,
+        parse: parseUtilitySettings
+    });
 
-    api.services.settingsTabs.registerTab({
+    utilitiesTabCleanup = searchServices.settingsTabs.registerTab({
         id: "utilities",
         label: "Utilities",
         render: renderSettingsTab
     });
-    syncArtistCountColumn(isUtilityColumnEnabled(ARTIST_COUNT_COLUMN_STORAGE_KEY));
-    syncCopySongArtistColumn(isUtilityColumnEnabled(COPY_SONG_ARTIST_COLUMN_STORAGE_KEY));
-
-    // Define hotkey actions
-    const hotkeyActions = {
-        downloadJson: () => {
-            downloadJsonButton.click();
-        },
-        prevSong: () => {
-            api.services.playback.previous();
-        },
-        nextSong: () => {
-            api.services.playback.next();
-        }
-    };
-
-    // Keyboard events
-    document.addEventListener("keydown", (event) => {
-        const key = event.key.toUpperCase();
-        const ctrl = event.ctrlKey;
-        const alt = event.altKey;
-        const shift = event.shiftKey;
-        const match = (b) => {
-            if (!b.key) return false;
-            if (key !== b.key) return false;
-            if (ctrl !== b.ctrl) return false;
-            if (alt !== b.alt) return false;
-            if (shift !== b.shift) return false;
-            return true;
-        }
-        for (const [action, bind] of Object.entries(hotKeys)) {
-            if (match(bind)) {
-                event.preventDefault();
-                hotkeyActions[action]();
-            }
-        }
-    });
+    syncArtistCountColumn(isUtilityColumnEnabled("artistCountColumn"));
+    syncCopySongArtistColumn(isUtilityColumnEnabled("copySongArtistColumn"));
 }
 
 // Build settings tab contents inside AnisongDB's settings dialog
@@ -169,7 +181,7 @@ function renderSettingsTab(panel) {
         <section class="au-section">
             <h3>Test Searches</h3>
             <div class="au-test-search-row">
-                <select id="auTestSearchSelect" class="app-select" aria-label="Test search">
+                <select id="auTestSearchSelect" class="app-select">
                     <option value="no-links">Songs with no links</option>
                     <option value="video-no-audio">Songs with video but no audio</option>
                     <option value="no-difficulty">Songs with no difficulty</option>
@@ -208,21 +220,27 @@ function renderSettingsTab(panel) {
     const copySongArtistColumnCheckbox = root.querySelector("#auCopySongArtistColumn");
     const accentColorPicker = root.querySelector("#auAccentColorPicker");
     const accentColorClear = root.querySelector("#auAccentColorClear");
-    artistCountColumnCheckbox.checked = isUtilityColumnEnabled(ARTIST_COUNT_COLUMN_STORAGE_KEY);
-    copySongArtistColumnCheckbox.checked = isUtilityColumnEnabled(COPY_SONG_ARTIST_COLUMN_STORAGE_KEY);
+    artistCountColumnCheckbox.checked = isUtilityColumnEnabled("artistCountColumn");
+    copySongArtistColumnCheckbox.checked = isUtilityColumnEnabled("copySongArtistColumn");
     artistCountColumnCheckbox.onchange = () => {
-        api.services.storage.update({ [ARTIST_COUNT_COLUMN_STORAGE_KEY]: artistCountColumnCheckbox.checked });
+        utilitySettings.update((current) => ({
+            ...current,
+            artistCountColumn: artistCountColumnCheckbox.checked
+        }));
         syncArtistCountColumn(artistCountColumnCheckbox.checked);
     };
     copySongArtistColumnCheckbox.onchange = () => {
-        api.services.storage.update({ [COPY_SONG_ARTIST_COLUMN_STORAGE_KEY]: copySongArtistColumnCheckbox.checked });
+        utilitySettings.update((current) => ({
+            ...current,
+            copySongArtistColumn: copySongArtistColumnCheckbox.checked
+        }));
         syncCopySongArtistColumn(copySongArtistColumnCheckbox.checked);
     };
     testSearchButton.onclick = () => {
         const command = TEST_SEARCHES[testSearchSelect.value];
         if (!command) return;
-        api.services.searches.runSearch(command);
-        api.services.modals.close();
+        searchServices.searches.runSearch(command);
+        searchServices.modals.close();
     };
     if (accentColor) accentColorPicker.value = accentColor;
     accentColorPicker.oninput = (event) => {
@@ -236,25 +254,45 @@ function renderSettingsTab(panel) {
         applyStyles();
         saveSettings();
     };
-    createHotkeyTable(root.querySelector("#auHotkeyTable tbody"), [
-        { action: "downloadJson", title: "Download JSON" },
-        { action: "prevSong", title: "Previous Song" },
-        { action: "nextSong", title: "Next Song" },
-    ]);
+    hotkeyController.renderTable(root.querySelector("#auHotkeyTable tbody"));
 
     return () => {
-        root.querySelectorAll("input.hk-input.recording").forEach((input) => input.blur());
+        hotkeyController.cancelRecording();
     };
 }
 
-function isUtilityColumnEnabled(storageKey) {
-    return api.services.storage.get(storageKey) !== false;
+function defaultUtilitySettings() {
+    return {
+        artistCountColumn: true,
+        copySongArtistColumn: true
+    };
+}
+
+function parseUtilitySettings(value) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+        throw new Error("Expected an object.");
+    }
+    const keys = ["artistCountColumn", "copySongArtistColumn"];
+    if (Object.keys(value).length !== keys.length || keys.some((key) => !Object.hasOwn(value, key))) {
+        throw new Error("Unexpected or missing fields.");
+    }
+    if (typeof value.artistCountColumn !== "boolean" || typeof value.copySongArtistColumn !== "boolean") {
+        throw new Error("Expected a boolean.");
+    }
+    return {
+        artistCountColumn: value.artistCountColumn,
+        copySongArtistColumn: value.copySongArtistColumn
+    };
+}
+
+function isUtilityColumnEnabled(field) {
+    return utilitySettings.value()[field] !== false;
 }
 
 function syncArtistCountColumn(enabled) {
     if (enabled) {
         if (artistCountColumnCleanup) return;
-        artistCountColumnCleanup = api.services.table.registerColumn({
+        artistCountColumnCleanup = searchServices.table.registerColumn({
             id: "artist-count",
             header: "Artist Count",
             defaultVisible: false,
@@ -272,10 +310,10 @@ function syncArtistCountColumn(enabled) {
 function syncCopySongArtistColumn(enabled) {
     if (enabled) {
         if (copySongArtistColumnCleanup) return;
-        copySongArtistColumnCleanup = api.services.table.registerColumn({
+        copySongArtistColumnCleanup = searchServices.table.registerColumn({
             id: "copy-song-artist",
             header: "Copy",
-            visibilityLabel: "Copy \"Song\" by Artist",
+            visibilityLabel: "Copy Song/Artist",
             defaultVisible: false,
             centered: true,
             renderCell: renderCopySongArtistCell
@@ -292,7 +330,6 @@ function renderCopySongArtistCell(container, { song }) {
     button.type = "button";
     button.className = "app-icon-button";
     button.title = text;
-    button.setAttribute("aria-label", `Copy ${text}`);
     button.innerHTML = "<i class=\"fa fa-clone\" aria-hidden=\"true\"></i>";
     const onClick = (event) => {
         event.preventDefault();
@@ -304,109 +341,6 @@ function renderCopySongArtistCell(container, { song }) {
     return () => button.removeEventListener("click", onClick);
 }
 
-// Load hotkey from local storage, input optional default values
-function loadHotkey(action, key = "", ctrl = false, alt = false, shift = false) {
-    const item = saveData.hotKeys?.[action];
-    return {
-        key: (item?.key ?? key).toUpperCase(),
-        ctrl: item?.ctrl ?? item?.ctrlKey ?? ctrl,
-        alt: item?.alt ?? item?.altKey ?? alt,
-        shift: item?.shift ?? item?.shiftKey ?? shift
-    }
-}
-
-// Create hotkey rows and add to table
-function createHotkeyTable(tbody, data) {
-    if (!tbody) return;
-    data.forEach(({ action, title }) => {
-        const input = document.createElement("input");
-        input.type = "text";
-        input.className = "hk-input";
-        input.readOnly = true;
-        input.dataset.action = action;
-        input.value = bindingToText(hotKeys[action]);
-        input.addEventListener("click", startHotkeyRecord);
-        const tr = document.createElement("tr");
-        const td1 = document.createElement("td");
-        const td2 = document.createElement("td");
-        td1.textContent = title;
-        td2.append(input);
-        tr.append(td1, td2);
-        tbody.append(tr);
-    });
-}
-
-// Begin hotkey capture on click
-function startHotkeyRecord(event) {
-    const input = event.currentTarget;
-    if (input.classList.contains("recording")) return;
-    const action = input.dataset.action;
-    const capture = e => {
-        e.preventDefault();
-        e.stopImmediatePropagation();
-        if (!e.key || ["Shift", "Control", "Alt", "Meta"].includes(e.key)) return;
-        if ((["Delete", "Backspace", "Escape"].includes(e.key)) && !e.ctrlKey && !e.altKey && !e.shiftKey && !e.metaKey) {
-            hotKeys[action] = {
-                key: "",
-                ctrl: false,
-                alt: false,
-                shift: false
-            };
-        }
-        else {
-            hotKeys[action] = {
-                key: e.key.toUpperCase(),
-                ctrl: e.ctrlKey,
-                alt: e.altKey,
-                shift: e.shiftKey
-            };
-        }
-        saveSettings();
-        finish();
-    };
-    const finish = () => {
-        document.removeEventListener("keydown", capture, true);
-        input.classList.remove("recording");
-        input.value = bindingToText(hotKeys[action]);
-        input.removeEventListener("blur", finish);
-    };
-    document.addEventListener("keydown", capture, true);
-    input.classList.add("recording");
-    input.value = "Press keys…";
-    input.addEventListener("blur", finish);
-}
-
-// Input hotKeys[action] and convert the data to a string for the input field
-function bindingToText(b) {
-    if (!b) return "";
-    const keys = [];
-    if (b.ctrl) keys.push("CTRL");
-    if (b.alt) keys.push("ALT");
-    if (b.shift) keys.push("SHIFT");
-    if (b.key) keys.push(b.key === " " ? "SPACE" : b.key);
-    return keys.join(" + ");
-}
-
-// Validate json data in local storage
-function validateLocalStorage(item) {
-    try {
-        const json = JSON.parse(localStorage.getItem(item));
-        if (!json || typeof json !== "object") return {};
-        return json;
-    }
-    catch {
-        return {};
-    }
-}
-
-// Save settings
-function saveSettings() {
-    localStorage.setItem("anisongdbUtilities", JSON.stringify({
-        hotKeys,
-        accentColor
-    }));
-}
-
 function normalizeHexColor(color) {
     if (!color) return null;
     if (/^#[0-9a-f]{6}$/i.test(color)) return color.toLowerCase();
@@ -415,6 +349,258 @@ function normalizeHexColor(color) {
         return "#" + match.slice(1).map(n => parseInt(n, 10).toString(16).padStart(2, "0")).join("");
     }
     return null;
+}
+
+// Manage hotkey bindings, recording, and settings editor
+class HotkeyController {
+    static bindingTypes = { key: "string", ctrl: "boolean", alt: "boolean", shift: "boolean" };
+
+    static normalizeKey(key) {
+        const uppercase = key.toUpperCase();
+        if ([...key].length === 1 && [...uppercase].length !== 1) return key;
+        return uppercase;
+    }
+
+    // Keep valid fields and silently replace invalid values with defaults
+    static normalizeBinding(value, fallback = { key: "", ctrl: false, alt: false, shift: false }) {
+        if (!value || typeof value !== "object" || Array.isArray(value)) {
+            return { ...fallback };
+        }
+
+        const binding = {};
+        for (const [field, type] of Object.entries(HotkeyController.bindingTypes)) {
+            const savedValue = value[field];
+            if (typeof savedValue !== type) {
+                binding[field] = fallback[field];
+                continue;
+            }
+            binding[field] = field === "key" ? HotkeyController.normalizeKey(savedValue) : savedValue;
+        }
+        return binding;
+    }
+
+    // Restore known actions and discard unrecognized saved entries
+    static normalizeBindings(value, defaults) {
+        const bindings = {};
+        if (!value || typeof value !== "object" || Array.isArray(value)) {
+            value = {};
+        }
+        for (const [action, fallback] of Object.entries(defaults)) {
+            bindings[action] = HotkeyController.normalizeBinding(value[action], fallback);
+        }
+        return bindings;
+    }
+
+    static getDefaults(actions) {
+        const defaults = {};
+        for (const [action, definition] of Object.entries(actions)) {
+            defaults[action] = HotkeyController.normalizeBinding(definition.defaultBinding);
+        }
+        return defaults;
+    }
+
+    constructor({ actions, savedBindings, onChange }) {
+        this.actions = actions;
+        this.entries = Object.entries(actions);
+        this.onChange = onChange;
+        this.defaults = HotkeyController.getDefaults(actions);
+        this.editors = new Map();
+        this.recording = null;
+
+        this.bindings = HotkeyController.normalizeBindings(savedBindings, this.defaults);
+    }
+
+    formatBinding(binding) {
+        if (!binding.key) return "";
+        const parts = [];
+        if (binding.ctrl) parts.push("CTRL");
+        if (binding.alt) parts.push("ALT");
+        if (binding.shift) parts.push("SHIFT");
+        parts.push(binding.key === " " ? "SPACE" : binding.key);
+        return parts.join(" + ");
+    }
+
+    isSupportedEvent(event) {
+        if (!event.key || event.metaKey || event.isComposing || event.getModifierState("AltGraph")) return false;
+        const key = HotkeyController.normalizeKey(event.key);
+        return !["SHIFT", "CONTROL", "ALT", "META", "ALTGRAPH", "DEAD", "PROCESS", "UNIDENTIFIED"].includes(key);
+    }
+
+    start() {
+        document.addEventListener("keydown", this.handleKeydown);
+    }
+
+    destroy() {
+        this.cancelRecording();
+        document.removeEventListener("keydown", this.handleKeydown);
+        this.editors.clear();
+    }
+
+    setBindings(value) {
+        const imported = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+        this.stopRecording();
+
+        for (const [action] of this.entries) {
+            this.bindings[action] = Object.hasOwn(imported, action)
+                ? HotkeyController.normalizeBinding(imported[action])
+                : { ...this.defaults[action] };
+        }
+        this.refreshEditors();
+    }
+
+    handleKeydown = event => {
+        if (this.recording || !this.isSupportedEvent(event)) return;
+        const key = HotkeyController.normalizeKey(event.key);
+
+        // All matches intentionally run, including while typing and on repeated keydowns
+        for (const [action, definition] of this.entries) {
+            const binding = this.bindings[action];
+            if (!binding.key || binding.key !== key) continue;
+            if (binding.ctrl !== event.ctrlKey) continue;
+            if (binding.alt !== event.altKey) continue;
+            if (binding.shift !== event.shiftKey) continue;
+            if (definition.enabled && !definition.enabled()) continue;
+
+            event.preventDefault();
+            definition.run();
+        }
+    };
+
+    refreshEditors() {
+        for (const [action, editor] of this.editors) {
+            const text = this.formatBinding(this.bindings[action]);
+            editor.button.textContent = text || "—";
+            editor.button.classList.remove("recording");
+            editor.button.classList.toggle("unset", !this.bindings[action].key);
+            editor.clear.hidden = !this.bindings[action].key;
+        }
+    }
+
+    stopRecording() {
+        if (!this.recording) return false;
+        document.removeEventListener("keydown", this.captureKeydown, true);
+        this.recording.button.removeEventListener("blur", this.cancelRecording);
+        window.removeEventListener("blur", this.cancelRecording);
+        this.recording = null;
+        return true;
+    }
+
+    cancelRecording = () => {
+        if (this.stopRecording()) this.refreshEditors();
+    };
+
+    commitBinding(action, binding) {
+        this.stopRecording();
+        this.bindings[action] = binding;
+        this.refreshEditors();
+        this.onChange();
+    }
+
+    captureKeydown = event => {
+        event.stopImmediatePropagation();
+        if (event.isComposing) return;
+        event.preventDefault();
+
+        const unmodified = !event.ctrlKey && !event.altKey && !event.shiftKey && !event.metaKey;
+        if (unmodified && event.key === "Escape") {
+            this.cancelRecording();
+            return;
+        }
+        if (unmodified && ["Delete", "Backspace"].includes(event.key)) {
+            this.commitBinding(this.recording.action, HotkeyController.normalizeBinding());
+            return;
+        }
+        if (!this.isSupportedEvent(event)) return;
+
+        this.commitBinding(this.recording.action, {
+            key: HotkeyController.normalizeKey(event.key),
+            ctrl: event.ctrlKey,
+            alt: event.altKey,
+            shift: event.shiftKey
+        });
+    };
+
+    startRecording(action) {
+        this.cancelRecording();
+        const editor = this.editors.get(action);
+        this.recording = { action, button: editor.button };
+        editor.button.focus();
+        editor.button.classList.remove("unset");
+        editor.button.classList.add("recording");
+        editor.button.textContent = "Press keys…";
+        editor.button.addEventListener("blur", this.cancelRecording);
+        window.addEventListener("blur", this.cancelRecording);
+        document.addEventListener("keydown", this.captureKeydown, true);
+    }
+
+    renderTable(tbody) {
+        this.stopRecording();
+        this.editors.clear();
+        tbody.replaceChildren();
+
+        for (const [action, definition] of this.entries) {
+            const row = document.createElement("tr");
+            const label = document.createElement("td");
+            label.textContent = definition.label;
+            const controls = document.createElement("td");
+
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = "hk-input";
+            button.dataset.hotkeyAction = action;
+            button.addEventListener("click", () => this.startRecording(action));
+
+            const clear = document.createElement("button");
+            clear.type = "button";
+            clear.className = "hk-clear";
+            clear.title = "Clear shortcut";
+            clear.addEventListener("click", () => this.commitBinding(action, HotkeyController.normalizeBinding()));
+
+            const icon = document.createElement("i");
+            icon.className = "fa fa-trash";
+            icon.setAttribute("aria-hidden", "true");
+            clear.append(icon);
+
+            controls.append(button, clear);
+            row.append(label, controls);
+            tbody.append(row);
+            this.editors.set(action, { button, clear });
+        }
+        this.refreshEditors();
+    }
+}
+
+// Read a JSON object from localStorage, returning an empty object if invalid
+function readStorageObject(key) {
+    let value;
+    try {
+        value = JSON.parse(localStorage.getItem(key));
+    }
+    catch {
+        return {};
+    }
+    if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+    return value;
+}
+
+// Load validated preferences without changing runtime state
+function loadSettings() {
+    const settings = {
+        accentColor: null,
+    };
+    const savedSettings = readStorageObject("anisongdbUtilities");
+
+    settings.accentColor = normalizeHexColor(savedSettings.accentColor);
+    settings.hotKeys = savedSettings.hotKeys;
+    return settings;
+}
+
+// Save settings
+function saveSettings() {
+    localStorage.setItem("anisongdbUtilities", JSON.stringify({
+        hotKeys: hotkeyController.bindings,
+        accentColor
+    }));
 }
 
 // Apply styles
@@ -487,18 +673,31 @@ function applyStyles() {
         #auHotkeyTable td {
             padding: 2px 20px 2px 0;
         }
-        #auHotkeyTable input.hk-input {
+        #auHotkeyTable button.hk-clear {
+            margin-left: 6px;
+            padding: 0;
+            border: 0;
+            background: transparent;
+            box-shadow: none;
+            cursor: pointer;
+        }
+        #auHotkeyTable button.hk-clear:hover {
+            opacity: 0.7;
+        }
+        #auHotkeyTable button.hk-input {
             box-sizing: border-box;
             width: 200px;
             min-height: 30px;
             padding: 4px 8px;
             border: 1px solid var(--border, #7e7e7e);
             background: var(--surface-2, transparent);
-            color: var(--text);
             cursor: pointer;
             user-select: none;
         }
-        #auHotkeyTable input.hk-input.recording {
+        #auHotkeyTable button.hk-input.unset {
+            color: gray;
+        }
+        #auHotkeyTable button.hk-input.recording {
             border-color: var(--accent);
             box-shadow: 0 0 0 2px var(--accent-glow);
         }
@@ -511,3 +710,5 @@ function applyStyles() {
     }
     style.textContent = css.trim();
 }
+
+startScript();
