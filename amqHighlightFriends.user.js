@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Highlight Friends
 // @namespace    https://github.com/kempanator
-// @version      2.6
+// @version      2.7
 // @description  Apply colors to player names and add an answer summary table
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -50,7 +50,7 @@ let smColorLeave;
 let chatNameColorMode;
 let chatRewardGlowMode;
 let tableFriendsOnly = false;
-let tableSort = { mode: "position", ascending: true }; // position, name, answer, time
+let tableSort = { column: "position", ascending: true };
 let summarySnapshot = [];
 let answerTimes = {}; // { gamePlayerId: ms }
 let latestPlayerAnswers = {}; // { gamePlayerId: answerText }
@@ -62,7 +62,7 @@ let summaryTimeUnit;
 let summaryAnswerAppendTime;
 let summaryColumns;
 let customColors;
-let customColorMap = Object.create(null);
+let customColorGroupIndex = new Map();
 let hotkeyController;
 let colorStyleElement;
 let colorRefreshTimeoutId = null;
@@ -152,7 +152,7 @@ function initializeState() {
         savedBindings: settings.hotKeys,
         onChange: saveSettings
     });
-    rebuildCustomColorMap();
+    customColorGroupIndex = buildCustomColorGroupIndex(customColors);
 }
 
 // Install color hooks before AMQ creates its first messages and leaderboard rows
@@ -214,53 +214,55 @@ function installHooks() {
 function setup() {
     createSummaryWindow();
     createGraphicsSettings();
-    bindWindowEvents();
-    bindSettingsEvents();
+    bindSettingsControls();
+    updateSettingsControls();
+    bindSummaryWindowControls();
     createMenuButton();
     applyStyles();
-    updateSettingsControls();
     renderCustomColorRows();
     updateSummaryColumnVisibility();
     hotkeyController.renderTable(document.querySelector("#hfHotkeyTable tbody"));
     hotkeyController.start();
-    bindGameEvents();
+    bindGameListeners();
     refreshColors();
     registerScriptInfo();
 }
 
+// Bind a game event, optionally waiting for AMQ's synchronous handlers to finish
+function bindGameListener(eventName, handler, { afterClient = false } = {}) {
+    const callback = afterClient
+        ? data => queueMicrotask(() => handler(data))
+        : handler;
+
+    new Listener(eventName, callback).bindListener();
+}
+
 // Keep event registration separate from summary and color rendering
-function bindGameEvents() {
-    new Listener("Join Game", handleGameJoin).bindListener();
-    new Listener("Spectate Game", handleGameJoin).bindListener();
-    new Listener("Game Starting", handleGameStart).bindListener();
-    new Listener("New Player", scheduleColorRefresh).bindListener();
-    new Listener("Spectator Change To Player", scheduleColorRefresh).bindListener();
-    new Listener("New Spectator", scheduleColorRefresh).bindListener();
-    new Listener("Player Changed To Spectator", scheduleColorRefresh).bindListener();
-    new Listener("player late join", scheduleColorRefresh).bindListener();
-    new Listener("Jam Game Restarting", scheduleColorRefresh).bindListener();
-    new Listener("play next song", () => {
+function bindGameListeners() {
+    bindGameListener("Join Game", handleGameJoin);
+    bindGameListener("Spectate Game", handleGameJoin);
+    bindGameListener("Game Starting", handleGameStart);
+    bindGameListener("New Player", scheduleColorRefresh);
+    bindGameListener("Spectator Change To Player", scheduleColorRefresh);
+    bindGameListener("New Spectator", scheduleColorRefresh);
+    bindGameListener("Player Changed To Spectator", scheduleColorRefresh);
+    bindGameListener("player late join", scheduleColorRefresh);
+    bindGameListener("Jam Game Restarting", scheduleColorRefresh);
+    bindGameListener("play next song", () => {
         answerTimes = {};
         latestPlayerAnswers = {};
-    }).bindListener();
-    new Listener("player answered", recordAnswerTimes).bindListener();
-    new Listener("player answers", data => {
+    });
+    bindGameListener("player answered", recordAnswerTimes);
+    bindGameListener("player answers", data => {
         latestPlayerAnswers = {};
         for (const answer of data.answers) {
             latestPlayerAnswers[answer.gamePlayerId] = answer.answer;
         }
-    }).bindListener();
-    new Listener("answer results", scheduleSummarySnapshot).bindListener();
-    listenAfterClient("new friend", handleRelationshipChange);
-    listenAfterClient("friend removed", handleRelationshipChange);
-    listenAfterClient("friend name change", handleFriendNameChange);
-}
-
-// Run after AMQ's synchronous listeners have finished handling this event
-function listenAfterClient(eventName, handler) {
-    new Listener(eventName, data => {
-        queueMicrotask(() => handler(data));
-    }).bindListener();
+    });
+    bindGameListener("answer results", scheduleSummarySnapshot);
+    bindGameListener("new friend", handleRelationshipChange, { afterClient: true });
+    bindGameListener("friend removed", handleRelationshipChange, { afterClient: true });
+    bindGameListener("friend name change", handleFriendNameChange, { afterClient: true });
 }
 
 // Use the same summary setup when joining as a player or spectator
@@ -393,7 +395,7 @@ function createSummaryWindow() {
 }
 
 // Bind stable containers so row rendering never needs to install more click handlers
-function bindWindowEvents() {
+function bindSummaryWindowControls() {
     playerSummaryWindow.window.on("click", "button[data-action]", event => {
         switch (event.currentTarget.dataset.action) {
             case "close":
@@ -406,7 +408,8 @@ function bindWindowEvents() {
         }
     });
     $playerSummaryTable.on("click", "th[data-sort]", event => {
-        changeSummarySort(event.currentTarget.dataset.sort);
+        changeTableSort(tableSort, event.currentTarget.dataset.sort);
+        sortSummaryRows();
     });
     $playerSummaryTable.on("click", "tbody tr", event => {
         const box = $(event.currentTarget).data("summary").box;
@@ -415,7 +418,7 @@ function bindWindowEvents() {
 }
 
 // Use AMQ's checkbox control throughout settings and editor fields
-function createGameCheckbox(id, label, attributes = {}) {
+function createSettingsCheckbox(id, label, attributes = {}) {
     const $box = $("<div>", { class: "customCheckbox" }).append(
         $("<input>", { type: "checkbox", id, ...attributes }),
         $("<label>", { for: id }).append(
@@ -429,171 +432,165 @@ function createGameCheckbox(id, label, attributes = {}) {
 
 // Keep the settings pages inside AMQ's existing Graphics tab
 function createGraphicsSettings() {
-    $("#settingsGraphicContainer").append(/*html*/`
-        <div class="row hfGraphicsSettings">
-            <div id="hfSettings" class="col-xs-12">
-                <h3 id="hfSettingsTitle" class="clickAble">Highlight Friends <i class="fa fa-fw fa-caret-right"></i></h3>
-                <div id="hfSettingsContent">
-                    <div id="hfSettingsTabs" class="tabContainer">
-                        <div id="hfAppearanceTab" class="tab clickAble" data-tab="hfAppearance"><h5>Appearance</h5></div>
-                        <div id="hfCustomColorsTab" class="tab clickAble" data-tab="hfCustomColors"><h5>Custom colors</h5></div>
-                        <div id="hfSummaryTab" class="tab clickAble" data-tab="hfSummary"><h5>Summary</h5></div>
-                        <div id="hfHotkeysTab" class="tab clickAble" data-tab="hfHotkeys"><h5>Hotkeys</h5></div>
-                        <div id="hfInfoTab" class="tab clickAble right" data-tab="hfInfo">
-                            <h5><i class="fa fa-info-circle" aria-hidden="true"></i></h5>
-                        </div>
+    const $content = createGraphicsSettingsSection("hf", "Highlight Friends");
+    $content.append(/*html*/`
+        <div id="hfSettingsTabs" class="tabContainer">
+            <div id="hfAppearanceTab" class="tab clickAble" data-tab="hfAppearance"><h5>Appearance</h5></div>
+            <div id="hfCustomColorsTab" class="tab clickAble" data-tab="hfCustomColors"><h5>Custom colors</h5></div>
+            <div id="hfSummaryTab" class="tab clickAble" data-tab="hfSummary"><h5>Summary</h5></div>
+            <div id="hfHotkeysTab" class="tab clickAble" data-tab="hfHotkeys"><h5>Hotkeys</h5></div>
+            <div id="hfInfoTab" class="tab clickAble right" data-tab="hfInfo">
+                <h5><i class="fa fa-info-circle" aria-hidden="true"></i></h5>
+            </div>
+        </div>
+        <div id="hfAppearanceContainer" class="tabSection" data-tab="hfAppearance">
+            <div class="row">
+                <div class="col-sm-6 form-group">
+                    <label for="hfChatNameColorMode">Chat name colors</label>
+                    <select id="hfChatNameColorMode" class="form-control" data-setting="chatNameColorMode"></select>
+                </div>
+                <div class="col-sm-6 form-group">
+                    <label for="hfChatRewardGlowMode">AMQ reward glow</label>
+                    <select id="hfChatRewardGlowMode" class="form-control" data-setting="chatRewardGlowMode"></select>
+                </div>
+            </div>
+            <div class="hfSectionLabel">Show highlights in</div>
+            <div id="hfColorTargets" class="hfCheckboxRow"></div>
+            <div class="row">
+                <div class="col-sm-7">
+                    <table id="hfPaletteTable" class="hfSettingsTable">
+                        <thead><tr>
+                            <th scope="col">Player</th>
+                            <th scope="col">Color</th>
+                            <th scope="col">Shadow</th>
+                        </tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+                <div class="col-sm-5">
+                    <table id="hfActivityPaletteTable" class="hfSettingsTable">
+                        <thead><tr><th scope="col">Message</th><th scope="col">Color</th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div id="hfCustomColorsContainer" class="tabSection" data-tab="hfCustomColors">
+            <div id="hfCustomColorList">
+                <div class="hfSettingsToolbar">
+                    <button type="button" class="btn btn-default" data-action="add-color">
+                        <i class="fa fa-plus" aria-hidden="true"></i> Add custom color
+                    </button>
+                </div>
+                <div class="table-responsive">
+                    <table id="hfCustomColorTable" class="hfSettingsTable">
+                        <thead><tr>
+                            <th scope="col"></th>
+                            <th scope="col">Group</th>
+                            <th scope="col">Players</th>
+                            <th scope="col">Color</th>
+                            <th scope="col">Shadow</th>
+                            <th scope="col"></th>
+                        </tr></thead>
+                        <tbody id="hfCustomColorRows"></tbody>
+                    </table>
+                </div>
+                <p id="hfNoCustomColors" class="hfSettingsHint">No custom colors yet.</p>
+            </div>
+            <form id="hfCustomColorEditor">
+                <div class="hfCustomColorHeader">
+                    <h4 id="hfCustomColorEditorTitle"></h4>
+                    <div id="hfCustomColorOrder">
+                        <span id="hfCustomColorPosition"></span>
+                        <button type="button" id="hfCustomColorMoveUpButton" class="btn btn-default btn-sm" data-action="move-color-up" title="Move this group up">
+                            <i class="fa fa-caret-up" aria-hidden="true"></i>
+                        </button>
+                        <button type="button" id="hfCustomColorMoveDownButton" class="btn btn-default btn-sm" data-action="move-color-down" title="Move this group down">
+                            <i class="fa fa-caret-down" aria-hidden="true"></i>
+                        </button>
                     </div>
-                    <div id="hfAppearanceContainer" class="tabSection" data-tab="hfAppearance">
-                        <div class="row">
-                            <div class="col-sm-6 form-group">
-                                <label for="hfChatNameColorMode">Chat name colors</label>
-                                <select id="hfChatNameColorMode" class="form-control" data-setting="chatNameColorMode"></select>
-                            </div>
-                            <div class="col-sm-6 form-group">
-                                <label for="hfChatRewardGlowMode">AMQ reward glow</label>
-                                <select id="hfChatRewardGlowMode" class="form-control" data-setting="chatRewardGlowMode"></select>
-                            </div>
-                        </div>
-                        <div class="hfSectionLabel">Show highlights in</div>
-                        <div id="hfColorTargets" class="hfCheckboxRow"></div>
-                        <div class="row">
-                            <div class="col-sm-7">
-                                <table id="hfPaletteTable" class="hfSettingsTable">
-                                    <thead><tr>
-                                        <th scope="col">Player</th>
-                                        <th scope="col">Color</th>
-                                        <th scope="col">Shadow</th>
-                                    </tr></thead>
-                                    <tbody></tbody>
-                                </table>
-                            </div>
-                            <div class="col-sm-5">
-                                <table id="hfActivityPaletteTable" class="hfSettingsTable">
-                                    <thead><tr><th scope="col">Message</th><th scope="col">Color</th></tr></thead>
-                                    <tbody></tbody>
-                                </table>
-                            </div>
-                        </div>
+                </div>
+                <div class="hfCustomColorFields">
+                    <div class="form-group hfCustomNameField">
+                        <label for="hfCustomNameInput">Group name</label>
+                        <input id="hfCustomNameInput" class="form-control" type="text" data-field="name">
                     </div>
-                    <div id="hfCustomColorsContainer" class="tabSection" data-tab="hfCustomColors">
-                        <div id="hfCustomColorList">
-                            <div class="hfSettingsToolbar">
-                                <button type="button" class="btn btn-default" data-action="add-color">
-                                    <i class="fa fa-plus" aria-hidden="true"></i> Add custom color
-                                </button>
-                            </div>
-                            <div class="table-responsive">
-                                <table id="hfCustomColorTable" class="hfSettingsTable">
-                                    <thead><tr>
-                                        <th scope="col"></th>
-                                        <th scope="col">Group</th>
-                                        <th scope="col">Players</th>
-                                        <th scope="col">Color</th>
-                                        <th scope="col">Shadow</th>
-                                        <th scope="col"></th>
-                                    </tr></thead>
-                                    <tbody id="hfCustomColorRows"></tbody>
-                                </table>
-                            </div>
-                            <p id="hfNoCustomColors" class="hfSettingsHint">No custom colors yet.</p>
-                        </div>
-                        <form id="hfCustomColorEditor">
-                            <div class="hfCustomColorHeader">
-                                <h4 id="hfCustomColorEditorTitle"></h4>
-                                <div id="hfCustomColorOrder">
-                                    <span id="hfCustomColorPosition"></span>
-                                    <button type="button" id="hfCustomColorMoveUpButton" class="btn btn-default btn-sm" data-action="move-color-up" title="Move this group up">
-                                        <i class="fa fa-caret-up" aria-hidden="true"></i>
-                                    </button>
-                                    <button type="button" id="hfCustomColorMoveDownButton" class="btn btn-default btn-sm" data-action="move-color-down" title="Move this group down">
-                                        <i class="fa fa-caret-down" aria-hidden="true"></i>
-                                    </button>
-                                </div>
-                            </div>
-                            <div class="hfCustomColorFields">
-                                <div class="form-group hfCustomNameField">
-                                    <label for="hfCustomNameInput">Group name</label>
-                                    <input id="hfCustomNameInput" class="form-control" type="text" data-field="name">
-                                </div>
-                                <div class="form-group">
-                                    <label for="hfCustomColorInput">Color</label>
-                                    <input id="hfCustomColorInput" class="form-control hfColorInput" type="color" data-field="color">
-                                </div>
-                                <div class="form-group">
-                                    <label for="hfCustomShadowInput">Shadow</label>
-                                    <input id="hfCustomShadowInput" class="form-control hfColorInput" type="color" data-field="shadow">
-                                </div>
-                            </div>
-                            <div class="form-group">
-                                <label for="hfCustomPlayersInput">Players</label>
-                                <textarea id="hfCustomPlayersInput" class="form-control" data-field="players" rows="3" placeholder="Player names separated by spaces or commas"></textarea>
-                            </div>
-                            <div class="hfEditorActions">
-                                <button type="button" id="hfDeleteCustomColorButton" class="btn btn-danger" data-action="delete-color">
-                                    <i class="fa fa-trash" aria-hidden="true"></i> Delete group
-                                </button>
-                                <div class="hfSettingsActions">
-                                    <button type="button" class="btn btn-default" data-action="cancel-edit">Cancel</button>
-                                    <button type="submit" class="btn btn-primary">Save changes</button>
-                                </div>
-                            </div>
-                        </form>
+                    <div class="form-group">
+                        <label for="hfCustomColorInput">Color</label>
+                        <input id="hfCustomColorInput" class="form-control hfColorInput" type="color" data-field="color">
                     </div>
-                    <div id="hfSummarySettings" class="tabSection" data-tab="hfSummary">
-                        <div class="row">
-                            <div class="col-sm-4 form-group">
-                                <label for="hfSummaryTimeUnitSelect">Time unit</label>
-                                <select id="hfSummaryTimeUnitSelect" class="form-control">
-                                    <option value="seconds">Seconds</option>
-                                    <option value="milliseconds">Milliseconds</option>
-                                </select>
-                            </div>
-                            <div class="col-sm-8">
-                                <div class="hfSectionLabel">Answers</div>
-                                <div id="hfSummaryAnswerOptions" class="hfCheckboxRow"></div>
-                            </div>
-                        </div>
-                        <div class="hfSectionLabel">Visible columns</div>
-                        <div id="hfSummaryColumns" class="hfCheckboxRow"></div>
+                    <div class="form-group">
+                        <label for="hfCustomShadowInput">Shadow</label>
+                        <input id="hfCustomShadowInput" class="form-control hfColorInput" type="color" data-field="shadow">
                     </div>
-                    <div id="hfHotkeysContainer" class="tabSection" data-tab="hfHotkeys">
-                        <table id="hfHotkeyTable">
-                            <thead><tr><th scope="col">Action</th><th scope="col">Keybind</th></tr></thead>
-                            <tbody></tbody>
-                        </table>
+                </div>
+                <div class="form-group">
+                    <label for="hfCustomPlayersInput">Players</label>
+                    <textarea id="hfCustomPlayersInput" class="form-control" data-field="players" rows="3" placeholder="Player names separated by spaces or commas"></textarea>
+                </div>
+                <div class="hfEditorActions">
+                    <button type="button" id="hfDeleteCustomColorButton" class="btn btn-danger" data-action="delete-color">
+                        <i class="fa fa-trash" aria-hidden="true"></i> Delete group
+                    </button>
+                    <div class="hfSettingsActions">
+                        <button type="button" class="btn btn-default" data-action="cancel-edit">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Save changes</button>
                     </div>
-                    <div id="hfInfoContainer" class="tabSection" data-tab="hfInfo">
-                        <div class="hfInfoColumns">
-                            <div>
-                                <h4>Script Info</h4>
-                                <div>Created by: kempanator</div>
-                                <div>Version: ${GM_info.script.version}</div>
-                                <div>
-                                    <a href="https://github.com/kempanator/amq-scripts/blob/main/amqHighlightFriends.user.js" target="_blank">Github</a>
-                                    <a href="https://github.com/kempanator/amq-scripts/raw/main/amqHighlightFriends.user.js" target="_blank">Install</a>
-                                </div>
-                            </div>
-                            <div class="hfSettingsActions">
-                                <button type="button" class="btn btn-danger" data-action="reset-colors">Reset colors</button>
-                            </div>
-                        </div>
+                </div>
+            </form>
+        </div>
+        <div id="hfSummarySettings" class="tabSection" data-tab="hfSummary">
+            <div class="row">
+                <div class="col-sm-4 form-group">
+                    <label for="hfSummaryTimeUnitSelect">Time unit</label>
+                    <select id="hfSummaryTimeUnitSelect" class="form-control">
+                        <option value="seconds">Seconds</option>
+                        <option value="milliseconds">Milliseconds</option>
+                    </select>
+                </div>
+                <div class="col-sm-8">
+                    <div class="hfSectionLabel">Answers</div>
+                    <div id="hfSummaryAnswerOptions" class="hfCheckboxRow"></div>
+                </div>
+            </div>
+            <div class="hfSectionLabel">Visible columns</div>
+            <div id="hfSummaryColumns" class="hfCheckboxRow"></div>
+        </div>
+        <div id="hfHotkeysContainer" class="tabSection" data-tab="hfHotkeys">
+            <table id="hfHotkeyTable">
+                <thead><tr><th scope="col">Action</th><th scope="col">Keybind</th></tr></thead>
+                <tbody></tbody>
+            </table>
+        </div>
+        <div id="hfInfoContainer" class="tabSection" data-tab="hfInfo">
+            <div class="hfInfoColumns">
+                <div>
+                    <h4>Script Info</h4>
+                    <div>Created by: kempanator</div>
+                    <div>Version: ${GM_info.script.version}</div>
+                    <div>
+                        <a href="https://github.com/kempanator/amq-scripts/blob/main/amqHighlightFriends.user.js" target="_blank">Github</a>
+                        <a href="https://github.com/kempanator/amq-scripts/raw/main/amqHighlightFriends.user.js" target="_blank">Install</a>
                     </div>
+                </div>
+                <div class="hfSettingsActions">
+                    <button type="button" class="btn btn-danger" data-action="reset-colors">Reset colors</button>
                 </div>
             </div>
         </div>
     `);
     for (const [value, label] of Object.entries(chatNameColorModes)) {
-        $("#hfChatNameColorMode").append($("<option>", { value, text: label }));
+        $content.find("#hfChatNameColorMode").append($("<option>", { value, text: label }));
     }
     for (const [value, label] of Object.entries(chatRewardGlowModes)) {
-        $("#hfChatRewardGlowMode").append($("<option>", { value, text: label }));
+        $content.find("#hfChatRewardGlowMode").append($("<option>", { value, text: label }));
     }
-    $("#hfSummaryAnswerOptions").append(
-        createGameCheckbox("hfSummaryAppendTimeCheckbox", "Append time to answers")
+    $content.find("#hfSummaryAnswerOptions").append(
+        createSettingsCheckbox("hfSummaryAppendTimeCheckbox", "Append time to answers")
     );
     for (const column of summaryColumnDefinitions) {
-        $("#hfSummaryColumns").append(
-            createGameCheckbox("hfSummaryColumn" + column.key, column.label, { "data-column": column.key })
+        $content.find("#hfSummaryColumns").append(
+            createSettingsCheckbox("hfSummaryColumn" + column.key, column.label, { "data-column": column.key })
         );
     }
     const targets = [
@@ -605,7 +602,7 @@ function createGraphicsSettings() {
         ["smColorLeaderboard", "Leaderboard", "hfLeaderboardNamesCheckbox"]
     ];
     for (const [key, label, id] of targets) {
-        $("#hfColorTargets").append(createGameCheckbox(id, label, { "data-setting": key }));
+        $content.find("#hfColorTargets").append(createSettingsCheckbox(id, label, { "data-setting": key }));
     }
     for (const [key, label] of [["Self", "Self"], ["Friend", "Friends"], ["Blocked", "Blocked"]]) {
         const $row = $(/*html*/`
@@ -616,9 +613,9 @@ function createGraphicsSettings() {
             </tr>
         `);
         $row.find(".hfPaletteEnabled").append(
-            createGameCheckbox("hf" + key + "Checkbox", label, { "data-setting": "smColor" + key })
+            createSettingsCheckbox("hf" + key + "Checkbox", label, { "data-setting": "smColor" + key })
         );
-        $("#hfPaletteTable tbody").append($row);
+        $content.find("#hfPaletteTable tbody").append($row);
     }
     for (const [key, label] of [["Join", "Join"], ["Spec", "Spec"], ["Leave", "Leave"]]) {
         const $row = $(/*html*/`
@@ -628,13 +625,32 @@ function createGraphicsSettings() {
             </tr>
         `);
         $row.find(".hfActivityEnabled").append(
-            createGameCheckbox("hf" + key + "Checkbox", label, { "data-setting": "smColor" + key })
+            createSettingsCheckbox("hf" + key + "Checkbox", label, { "data-setting": "smColor" + key })
         );
-        $("#hfActivityPaletteTable tbody").append($row);
+        $content.find("#hfActivityPaletteTable tbody").append($row);
     }
-    $("#hfCustomColorEditor").hide();
-    $("#hfSettingsContent").hide();
-    switchTab("hfAppearance");
+    $content.find("#hfCustomColorEditor").hide();
+}
+
+// Mount a collapsed Graphics section and return its content container
+function createGraphicsSettingsSection(prefix, title) {
+    const $section = $(/*html*/`
+        <div class="row amqScriptGraphicsSection ${prefix}GraphicsSettings">
+            <div id="${prefix}Settings" class="col-xs-12">
+                <h3 id="${prefix}SettingsTitle" class="amqScriptGraphicsTitle clickAble">
+                    ${title} <i class="fa fa-fw fa-caret-right" aria-hidden="true"></i>
+                </h3>
+                <div id="${prefix}SettingsContent" class="amqScriptGraphicsContent"></div>
+            </div>
+        </div>
+    `);
+    const $content = $section.find(".amqScriptGraphicsContent").hide();
+    $section.find(".amqScriptGraphicsTitle").on("click", event => {
+        $(event.currentTarget).children("i").toggleClass("fa-caret-down fa-caret-right");
+        $content.stop(true, true).slideToggle(150);
+    });
+    $("#settingsGraphicContainer").append($section);
+    return $content;
 }
 
 // Select only this script's nested settings tab
@@ -646,15 +662,12 @@ function switchTab(tabKey) {
     $tabRoot.find(`.tabSection[data-tab="${tabKey}"]`).show();
 }
 
-// Apply preferences immediately and save custom group details through the editor
-function bindSettingsEvents() {
-    $("#hfSettingsTitle").on("click", event => {
-        $(event.currentTarget).find("i").toggleClass("fa-caret-down fa-caret-right");
-        $("#hfSettingsContent").stop(true, true).slideToggle(150);
-    });
+// Connect settings navigation, color preferences, and summary controls
+function bindSettingsControls() {
     $("#hfSettingsTabs").on("click", ".tab[data-tab]", event => {
         switchTab(event.currentTarget.dataset.tab);
     });
+    switchTab("hfAppearance");
     $("#hfSettings").on("change", "[data-setting]", function () {
         const key = this.dataset.setting;
         const value = this.type === "checkbox" ? this.checked : this.value;
@@ -667,11 +680,11 @@ function bindSettingsEvents() {
             colorExistingChatNames();
         }
     });
+    $("#hfSettings").on("click", "button[data-action=\"reset-colors\"]", () => resetColors());
+
+    // Custom Color Controls
     $("#hfSettings").on("click", "button[data-action]", event => {
         switch (event.currentTarget.dataset.action) {
-            case "reset-colors":
-                resetColors();
-                break;
             case "add-color":
                 openCustomColorEditor();
                 break;
@@ -702,6 +715,8 @@ function bindSettingsEvents() {
         commitColorStyleChanges();
         colorExistingChatNames();
     });
+
+    // Answer Summary Controls
     $("#hfSummaryTimeUnitSelect").on("change", function () {
         summaryTimeUnit = this.value;
         saveSettings();
@@ -808,9 +823,32 @@ function addQuizBarButton({ id, label, icon, onClick }) {
     $icon.addClass("qpMenuItem").attr("aria-hidden", "true");
     const $button = $("<button>", { id, type: "button", class: "clickAble qpOption amqScriptQuizBarButton" })
         .append($icon, $("<span>", { class: "sr-only", text: label }))
-        .on("click", onClick)
-        .popover({ content: label, trigger: "hover", placement: "bottom", container: "#gameContainer" });
+        .on("click", onClick);
+    addHoverHelp($button, { content: label });
     $row.append($button);
+}
+
+// Show hints on hover and dismiss them before a click can act on the UI
+function addHoverHelp($controls, options = {}) {
+    return $controls.popover({
+        placement: "bottom",
+        container: "#gameContainer",
+        animation: false,
+        ...options,
+        trigger: "hover"
+    }).each(function () {
+        const $control = $(this);
+        // Use Bootstrap's hover exit to cancel any delayed show as well
+        const dismiss = () => $control.triggerHandler("mouseleave.popover");
+        $control.on("mouseenter.amqHoverHelp", () => {
+            $control.attr("data-amq-hover-help-active", "");
+            document.addEventListener("click", dismiss, true);
+        });
+        $control.on("hide.bs.popover.amqHoverHelp", () => {
+            $control.removeAttr("data-amq-hover-help-active");
+            document.removeEventListener("click", dismiss, true);
+        });
+    });
 }
 
 // Share one stylesheet and track only the added width owned by script buttons
@@ -959,35 +997,42 @@ function createSummaryRow(gamePlayerId) {
     return { $row, cells, data: null };
 }
 
-// Toggle a selected sort or start a different column in ascending order
-function changeSummarySort(mode) {
-    if (tableSort.mode === mode) {
-        tableSort.ascending = !tableSort.ascending;
+// Select a column, toggle its direction, or reset the sort
+function changeTableSort(sort, column = null) {
+    if (column === null || sort.column !== column) {
+        sort.column = column;
+        sort.ascending = true;
+        return;
     }
-    else {
-        tableSort.mode = mode;
-        tableSort.ascending = true;
-    }
-    sortSummaryRows();
+    sort.ascending = !sort.ascending;
 }
 
-// Compare normalized values rather than reading formatted cell text
-function compareSummaryRows(firstRow, secondRow) {
-    const first = firstRow.data;
-    const second = secondRow.data;
-    switch (tableSort.mode) {
-        case "name": return first.name.localeCompare(second.name);
-        case "answer": return first.answer.localeCompare(second.answer);
-        case "time":
-            return (first.timeMs ?? Number.MAX_SAFE_INTEGER) - (second.timeMs ?? Number.MAX_SAFE_INTEGER);
-        default: return first.order - second.order;
+// Compare populated values in either direction and keep missing values last
+function compareSortValues(first, second, ascending, compare) {
+    const firstMissing = first === null || first === undefined || first === "";
+    const secondMissing = second === null || second === undefined || second === "";
+    if (firstMissing && secondMissing) return 0;
+    if (firstMissing) return 1;
+    if (secondMissing) return -1;
+
+    let comparison;
+    if (compare) {
+        comparison = compare(first, second);
     }
+    else if (typeof first === "string") {
+        comparison = first.localeCompare(second);
+    }
+    else {
+        comparison = first - second;
+    }
+    return ascending ? comparison : -comparison;
 }
 
 // Reorder existing rows while preserving their identity and delegated click actions
 function sortSummaryRows() {
-    playerSummaryRows.sort(compareSummaryRows);
-    if (!tableSort.ascending) playerSummaryRows.reverse();
+    const { column, ascending } = tableSort;
+    const key = { position: "order", time: "timeMs" }[column] ?? column;
+    playerSummaryRows.sort((first, second) => compareSortValues(first.data[key], second.data[key], ascending));
     $playerSummaryTable.find("tbody").append(playerSummaryRows.map(row => row.$row));
 }
 
@@ -1027,19 +1072,20 @@ function createCustomColorGroup() {
     };
 }
 
-// Rebuild membership after edits; later groups retain priority over earlier groups
-function rebuildCustomColorMap() {
-    customColorMap = Object.create(null);
-    customColors.forEach((group, index) => {
+// Index the last matching group for each player, including disabled groups
+function buildCustomColorGroupIndex(groups) {
+    const groupIndex = new Map();
+    for (const [index, group] of groups.entries()) {
         for (const player of group.players) {
-            customColorMap[player.toLowerCase()] = index;
+            groupIndex.set(player.toLowerCase(), index);
         }
-    });
+    }
+    return groupIndex;
 }
 
 // Update membership before refreshing CSS and elements that reference group indices
 function commitCustomColorChanges() {
-    rebuildCustomColorMap();
+    customColorGroupIndex = buildCustomColorGroupIndex(customColors);
     commitColorStyleChanges();
     refreshColors();
 }
@@ -1055,7 +1101,7 @@ function commitColorStyleChanges() {
 function renderCustomColorRows() {
     const $container = $("#hfCustomColorRows").empty();
     customColors.forEach((group, index) => {
-        const $enabledControl = createGameCheckbox("hfCustomEnabledCheckbox" + index, "", { "data-group-enabled": "" });
+        const $enabledControl = createSettingsCheckbox("hfCustomEnabledCheckbox" + index, "", { "data-group-enabled": "" });
         $enabledControl.find("input").prop("checked", group.enabled);
         const $row = $("<tr>", { class: "hfCustomColorRow", "data-color": index }).append(
             $("<td>").append($enabledControl),
@@ -1162,28 +1208,32 @@ function deleteCustomColor() {
     closeCustomColorEditor();
 }
 
-// Keep relationship precedence consistent across names, avatars, chat, and scoreboards
-function getRelationshipClass(name) {
-    if (name === selfName) return "isSelf";
-    if (socialTab.isFriend(name)) return "isFriend";
-    if (socialTab.isBlocked(name)) return "isBlocked";
+// Identify the player's relationship in display priority order
+function getPlayerRelationship(name) {
+    if (name === selfName) return "self";
+    if (socialTab.isFriend(name)) return "friend";
+    if (socialTab.isBlocked(name)) return "blocked";
     return "";
+}
+
+// Use Highlight Friends relationship classes for the main game surfaces
+function getRelationshipClass(name) {
+    const classes = { self: "isSelf", friend: "isFriend", blocked: "isBlocked" };
+    return classes[getPlayerRelationship(name)] ?? "";
 }
 
 // Apply relationship and custom membership independently so custom CSS keeps priority
 function applyPlayerColors($element, name, relationship = getRelationshipClass(name)) {
     $element.removeClass("isSelf isFriend isBlocked")
         .addClass(relationship)
-        .attr("data-hf-color-group", customColorMap[name.toLowerCase()] ?? null);
+        .attr("data-hf-color-group", customColorGroupIndex.get(name.toLowerCase()) ?? null);
 }
 
 // Apply leaderboard-specific relationship names without replacing native rendering
 function applyLeaderboardColors($element, name) {
-    const classNames = { isSelf: "self", isFriend: "friend", isBlocked: "blocked" };
-    const relationship = classNames[getRelationshipClass(name)] ?? "";
     $element.removeClass("self friend blocked isSelf isFriend isBlocked")
-        .addClass(relationship)
-        .attr("data-hf-color-group", customColorMap[name.toLowerCase()] ?? null);
+        .addClass(getPlayerRelationship(name))
+        .attr("data-hf-color-group", customColorGroupIndex.get(name.toLowerCase()) ?? null);
 }
 
 // Color scoreboard entries after the client has created them
@@ -1231,12 +1281,12 @@ function colorSpectators() {
 // Check whether an enabled palette can supply this player's chat color
 function hasChatHighlight(name) {
     if (!smColorChat) return false;
-    const key = name.toLowerCase();
-    if (Object.hasOwn(customColorMap, key) && customColors[customColorMap[key]].enabled) return true;
-    switch (getRelationshipClass(name)) {
-        case "isSelf": return smColorSelf;
-        case "isFriend": return smColorFriend;
-        case "isBlocked": return smColorBlocked;
+    const group = customColors[customColorGroupIndex.get(name.toLowerCase())];
+    if (group?.enabled) return true;
+    switch (getPlayerRelationship(name)) {
+        case "self": return smColorSelf;
+        case "friend": return smColorFriend;
+        case "blocked": return smColorBlocked;
         default: return false;
     }
 }
@@ -1778,10 +1828,10 @@ function applyStyles() {
         #hfSummaryAnswerOptions {
             min-height: 34px;
         }
-        #settingsGraphicContainer .hfGraphicsSettings {
+        #settingsGraphicContainer .amqScriptGraphicsSection {
             padding-top: 10px;
         }
-        #hfSettingsTitle {
+        #settingsGraphicContainer .amqScriptGraphicsTitle {
             margin: 0;
             padding: 0;
             font-size: 16px;
@@ -1789,7 +1839,7 @@ function applyStyles() {
             text-align: center;
             cursor: pointer;
         }
-        #hfSettingsContent {
+        #settingsGraphicContainer .amqScriptGraphicsContent {
             margin: 0;
             padding: 5px 0 0;
         }
