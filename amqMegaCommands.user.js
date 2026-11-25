@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.181
+// @version      0.182
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -87,7 +87,7 @@ IN GAME/LOBBY
 /volume [0-100]           change volume
 /quality [text]           change video quality to mp3, 480, 720
 /countdown [seconds]      start game after # of seconds
-/dropdown                 enable/disable anime dropdown
+/dropdown                 enable/disable anime dropdowns
 /dropdownspec             enable dropdown while spectating
 /video speed [number]     change client-side song playback speed (0.0625 - 16)
 /mutereplay               auto mute during the replay phase
@@ -138,7 +138,6 @@ const MAX_COMMAND_DELAY = 2147483647; // 2^31 - 1, larger values can overflow
 let storedSettingSchema;
 let lastCommandStorageError = null;
 let saveData;
-let animeList = []; //temporary storage for dropdown
 let animeListLower = []; //store lowercase version for faster compare speed
 let autoAcceptInvite;
 let autoCopy;
@@ -210,7 +209,6 @@ let songAutomation = null;
 const songTimers = new Map();
 let commandRoomGeneration = 0;
 const commandMuteReasons = new Map();
-let commandUserMuted = false;
 let commandAudioReady = false;
 let commandAudioGain = null;
 let commandAudioPlayback = null;
@@ -250,7 +248,7 @@ const hotkeyActions = {
     mute: {
         label: "Toggle Mute",
         run: () => {
-            const operation = volumeController.muted ? "unmute" : "mute";
+            const operation = getEffectiveMuteState().muted ? "unmute" : "mute";
             return executeHotkeyCommand("volume", [operation]);
         }
     },
@@ -612,7 +610,7 @@ const commandControls = {
         enabled: () => Boolean(dropdown),
         set(value) {
             dropdown = value;
-            quiz.answerInput.typingInput.autoCompleteController.newList();
+            if (!dropdown) autoCompleteController.hide();
         },
         status: () => `drop down ${dropdown ? "enabled" : "disabled"}`,
     }
@@ -910,7 +908,7 @@ const dailyQuestAliases = {
 const videoOperations = [
     {
         aliases: ["replay", "r"], usage: "replay [seconds]", player: true,
-        run(context, player) {
+        async run(context, player) {
             const { args, argsLower, reply } = context;
             const start = args.length === 1 ? undefined : parseBoundedNumber(argsLower[1], 0);
             if (
@@ -919,12 +917,18 @@ const videoOperations = [
             ) {
                 return reply("Use a nonnegative replay start time.", true);
             }
-            if (player && !player.encrypted) {
-                player.pauseVideo();
-                player.player.currentTime(start === undefined ? player.startPoint : start);
-                player.player.play();
-                player.updateVolume(player.videoVolume);
+            if (!player || player.encrypted) return;
+            if (start === undefined) {
+                player.replayVideo();
+                return;
             }
+
+            await player._awaitPendingPlay();
+            if (quizVideoController.getCurrentPlayer() !== player) return;
+            player.player.pause();
+            player.player.currentTime(start);
+            player.unpauseVideo();
+            player.updateVolume(player.videoVolume);
         },
     },
     {
@@ -935,7 +939,7 @@ const videoOperations = [
     {
         aliases: ["play", "start"],
         usage: "play", player: true,
-        run(context, player) { if (player) player.player.play(); }
+        run(context, player) { if (player) player.unpauseVideo(); }
     },
     {
         aliases: ["loop"],
@@ -2259,19 +2263,16 @@ const commandRegistry = [
                 reply(formatVolumeStatus());
             }
             else if (["m", "mute"].includes(argsLower[0])) {
-                volumeController.setMuted(true);
-                volumeController.adjustVolume();
+                quizVolumeMaster.setMuted(true);
             }
             else if (["u", "unmute"].includes(argsLower[0])) {
-                volumeController.setMuted(false);
-                volumeController.adjustVolume();
+                quizVolumeMaster.setMuted(false);
             }
             else {
                 const option = parseBoundedNumber(argsLower[0], 0, 100) / 100;
                 if (Number.isNaN(option)) return reply("Volume must be a number from 0–100.", true);
-                volumeController.volume = option;
-                volumeController.setMuted(false);
-                volumeController.adjustVolume();
+                quizVolumeMaster.setVolume(option);
+                quizVolumeMaster.setMuted(false);
             }
         },
     },
@@ -2318,7 +2319,7 @@ const commandRegistry = [
     },
     {
         aliases: ["dropdown", "dd"],
-        description: "Show/hide anime dropdown during quiz.",
+        description: "Show or hide AMQ anime-name dropdowns.",
         usage: ["/dropdown"],
         controlName: "dropdown",
         control: commandControls.dropdown,
@@ -3999,7 +4000,7 @@ IN GAME/LOBBY
 /volume [0-100]           change volume
 /quality [text]           change video quality to mp3, 480, 720
 /countdown [seconds]      start game after # of seconds
-/dropdown                 enable/disable anime dropdown
+/dropdown                 enable/disable anime dropdowns
 /dropdownspec             enable dropdown while spectating
 /video speed [number]     change client-side song playback speed (0.0625 - 16)
 /mutereplay               auto mute during the replay phase
@@ -4581,7 +4582,7 @@ function getEffectiveMuteState() {
     const reasons = [...commandMuteReasons.values()];
     const unmuteWindow = commandMuteReasons.get("autoMute")?.muted === false;
     const automationMuted = reasons.some(reason => reason.muted);
-    const manuallyMuted = commandUserMuted && !unmuteWindow;
+    const manuallyMuted = quizVolumeMaster.muted && !unmuteWindow;
     const locked = reasons.some(reason => reason.lock);
     return { muted: automationMuted || manuallyMuted, locked };
 }
@@ -4589,11 +4590,9 @@ function getEffectiveMuteState() {
 // Apply independent mute reasons while preserving the user's own volume and mute choice
 function applyMuteState() {
     if (!commandAudioReady) return;
-    const { muted, locked } = getEffectiveMuteState();
-    volumeController.muted = muted;
+    const { locked } = getEffectiveMuteState();
     $("#qpVolume").toggleClass("disabled", locked);
-    if (commandAudioGain) commandAudioGain.gain.value = muted ? 0 : Number(volumeController.volume);
-    volumeController.adjustVolume();
+    quizVolumeController.adjustVolume();
 }
 
 // Change one automation's mute/lock claim without clearing another feature's claim
@@ -4610,25 +4609,33 @@ function clearMuteReason(name) {
 
 // Observe manual mute/volume changes and route custom audio through the same volume choice
 function setupAudioControls() {
-    commandUserMuted = Boolean(volumeController.muted);
-    commandAudioReady = true;
-    const setMuted = volumeController.setMuted;
-    volumeController.setMuted = function (muted) {
-        commandUserMuted = Boolean(muted);
+    const setMuted = quizVolumeMaster.setMuted;
+    quizVolumeMaster.setMuted = function (muted) {
         if (commandMuteReasons.get("autoMute")?.muted === false) commandMuteReasons.delete("autoMute");
-        const result = setMuted.call(this, muted);
-        applyMuteState();
-        return result;
+        return setMuted.call(this, muted);
     };
-    const adjustVolume = volumeController.adjustVolume;
-    volumeController.adjustVolume = function (...args) {
-        const result = adjustVolume.apply(this, args);
-        if (sourceNode) quizVideoController.setVolume(0);
-        if (commandAudioGain) {
-            commandAudioGain.gain.value = getEffectiveMuteState().muted ? 0 : Number(this.volume);
+
+    const adjustVolume = quizVolumeController.adjustVolume;
+    quizVolumeController.adjustVolume = function () {
+        // Apply temporary mute rules to the quiz without changing other controllers or saved preferences
+        const userMuted = quizVolumeMaster.muted;
+        quizVolumeMaster.muted = getEffectiveMuteState().muted;
+        try {
+            return adjustVolume.call(this);
         }
-        return result;
+        finally {
+            quizVolumeMaster.muted = userMuted;
+        }
     };
+
+    const updateVolume = quizVolumeController.updateVolume;
+    quizVolumeController.updateVolume = function (volume) {
+        if (commandAudioGain) commandAudioGain.gain.value = Number(volume);
+        return updateVolume.call(this, sourceNode ? 0 : volume);
+    };
+
+    commandAudioReady = true;
+    applyMuteState();
 }
 
 // Stop and disconnect the current one-shot source, then restore native audio routing
@@ -5668,7 +5675,7 @@ function transferRoomHost(name) {
 
 // Format the current mute state or volume percentage
 function formatVolumeStatus() {
-    return volumeController.muted ? "🔇" : `🔉 ${Math.round(volumeController.volume * 100)}%`;
+    return getEffectiveMuteState().muted ? "🔇" : `🔉 ${Math.round(quizVolumeMaster.volume * 100)}%`;
 }
 
 // Return this script's version or look up a named installed script
@@ -8013,6 +8020,11 @@ function applyNoAfkKick(enabled = noAfkKick) {
     }
 }
 
+// Match only anime answer inputs registered with AMQ's shared autocomplete
+function isAnimeDropdown(instance) {
+    return autoCompleteController.$inputList.some($input => $input[0] === instance.input);
+}
+
 // Install avatar, AFK, navigation, autocomplete, and replay hooks before client setup
 function installHooks() {
     setupNoAfkKick();
@@ -8033,12 +8045,20 @@ function installHooks() {
         return result;
     };
 
-    // Override newList function for drop down disable
-    const oldNewList = AutoCompleteController.prototype.newList;
-    AutoCompleteController.prototype.newList = function () {
-        if (this.list.length > 0) animeList = this.list;
-        this.list = dropdown ? animeList : [];
-        return oldNewList.apply(this, arguments);
+    // Apply the dropdown preference across AMQ game modes
+    const evaluateAutocomplete = AmqAwesomeplete.prototype.evaluate;
+    AmqAwesomeplete.prototype.evaluate = function () {
+        if (!dropdown && isAnimeDropdown(this)) {
+            this.hide();
+            return;
+        }
+        return evaluateAutocomplete.call(this);
+    };
+    // Already-created inputs have their original evaluator bound to the input event
+    const openAutocomplete = AmqAwesomeplete.prototype.open;
+    AmqAwesomeplete.prototype.open = function () {
+        if (!dropdown && isAnimeDropdown(this)) return;
+        return openAutocomplete.call(this);
     };
 
     // Resume the current sample after extra guess time, or restart it when continuation is disabled
@@ -8541,10 +8561,8 @@ function applyStartupPreferences() {
         }
     }
 
-    const autocomplete = quiz.answerInput.typingInput.autoCompleteController;
-    if (autocomplete.list.length) animeList = autocomplete.list;
-    animeListLower = animeList.map(name => name.toLowerCase());
-    if (!dropdown && autocomplete.list.length) autocomplete.newList();
+    animeListLower = autoCompleteController.list.map(name => name.toLowerCase());
+    if (!dropdown) commandControls.dropdown.set(false);
 }
 
 // Loop finished videos while respecting the current loop setting
@@ -8819,7 +8837,7 @@ function bindQuizListeners() {
         if (dropdownInSpec && quiz.isSpectator) {
             scheduleSongTask("dropdown", () => {
                 if (!animeListLower.length) {
-                    quiz.answerInput.typingInput.autoCompleteController.updateList();
+                    autoCompleteController.updateList();
                 }
                 quiz.answerInput.typingInput.$input.removeAttr("disabled");
             }, 1, "replay");
@@ -8896,7 +8914,7 @@ function handleNextSong(data) {
     if (dropdownInSpec && quiz.isSpectator) {
         scheduleSongTask("dropdown", () => {
             if (!animeListLower.length) {
-                quiz.answerInput.typingInput.autoCompleteController.updateList();
+                autoCompleteController.updateList();
             }
             quiz.answerInput.typingInput.$input.removeAttr("disabled").val("");
         }, 1);
