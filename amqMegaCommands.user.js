@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.180
+// @version      0.181
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -158,6 +158,7 @@ let autoStartCheckTimer = null;
 let autoStartGeneration = 0;
 let rejoinOperation = null;
 let rejoinActionDepth = 0;
+let rankedDivisionId;
 let gameSettingsController = new AbortController();
 let autoStatus;
 let autoSwitch;
@@ -182,6 +183,8 @@ let malClientId;
 let muteReplay;
 let muteSubmit;
 let noAfkKick;
+let noAfkKickUnavailable = false;
+let releaseNoAfkKickHooks;
 let animatedAvatars;
 const avatarApps = new Set();
 let originalSpineUpdate;
@@ -569,6 +572,7 @@ const commandControls = {
     },
     noAfkKick: {
         enabled: () => noAfkKick,
+        unavailableReason: getNoAfkKickUnavailableReason,
         set(value) {
             noAfkKick = value;
         },
@@ -5152,7 +5156,7 @@ function handleRoomNavigation(view) {
     cancelRejoin();
 }
 
-// Cancel room automation before native navigation and host actions
+// Cancel room automation before native room actions and track the selected ranked division
 function installRoomActionHooks() {
     for (const [owner, methods] of [
         [roomBrowser, ["fireJoinLobby", "fireSpectateGame", "host"]],
@@ -5165,6 +5169,7 @@ function installRoomActionHooks() {
             const original = owner[name];
             if (typeof original !== "function") continue;
             owner[name] = function (...args) {
+                rankedDivisionId = owner === ranked ? args[0] : undefined;
                 resetRoomAutomation();
                 invalidateGameSettings();
                 cancelRejoin();
@@ -5854,9 +5859,12 @@ function refreshHighlightColors() {
 }
 
 // Set command status buttons to enabled or disabled
-function renderActiveToggle($element, enabled) {
-    $element.toggleClass("mcActiveButtonEnabled", Boolean(enabled))
-        .text(enabled ? "On" : "Off");
+function renderActiveToggle($element, enabled, unavailableReason) {
+    const unavailable = Boolean(unavailableReason);
+    $element.toggleClass("mcActiveButtonEnabled", Boolean(enabled) && !unavailable)
+        .toggleClass("mcActiveButtonUnavailable", unavailable)
+        .attr("title", unavailableReason ?? "")
+        .text(unavailable ? "—" : enabled ? "On" : "Off");
 }
 
 // Get auto throw status text
@@ -5910,6 +5918,12 @@ function getAutoMuteStatus() {
 // Apply a control value, save it, run follow-up checks, and refresh the UI
 function applyCommandControl(name, value, context, message) {
     const control = commandControls[name];
+    const unavailableReason = control.unavailableReason?.();
+    if (unavailableReason) {
+        sendSystemMessage(unavailableReason);
+        refreshActiveRows(name, false);
+        return;
+    }
     control.set(value);
     applySettingsChanges();
     context.reply(typeof message === "function" ? message() : message ?? control.status(), true);
@@ -5928,6 +5942,7 @@ function readTimeInputMs($input, limit = 2, options) {
 // Build the command window, bind its controls, and apply its styles
 function createCommandWindow() {
     $("#gameContainer").append($(commandWindowTemplate()));
+    $("#mcSettingsModal").on("show.bs.modal", () => refreshActiveRows("noAfkKick", false));
     $("#mcSettingsModal").on("hide.bs.modal", event => hideHoverHelp($(event.currentTarget)));
 
     $("#mcTabContainer").on("click", ".tab[data-tab]", event => {
@@ -6580,7 +6595,7 @@ function addHoverHelp($controls, options = {}) {
         trigger: "hover"
     }).each(function () {
         const $control = $(this);
-        // Use Bootstrap's hover exit to cancel any delayed show as well.
+        // Use Bootstrap's hover exit to cancel any delayed show as well
         const dismiss = () => $control.triggerHandler("mouseleave.popover");
         $control.on("mouseenter.amqHoverHelp", () => {
             $control.attr("data-amq-hover-help-active", "");
@@ -6633,7 +6648,8 @@ function refreshActiveRows(name, renderInputs = true) {
     for (const key of names) {
         const view = activeCommandViews.get(key);
         if (!view) continue;
-        renderActiveToggle(view.$button, commandControls[key].enabled());
+        const control = commandControls[key];
+        renderActiveToggle(view.$button, control.enabled(), control.unavailableReason?.());
         if (renderInputs) view.render?.();
     }
 }
@@ -7073,6 +7089,7 @@ function switchTab(tabKey) {
     $tabRoot.find(".tabSection").hide();
     $tabRoot.find(`.tab[data-tab="${tabKey}"]`).addClass("selected");
     $tabRoot.find(`.tabSection[data-tab="${tabKey}"]`).show();
+    if (tabKey === "mcActive") refreshActiveRows("noAfkKick", false);
     if (tabKey === "mcStorage") createLocalStorageList();
 }
 
@@ -7665,16 +7682,36 @@ async function rejoinRoom(time) {
     }
 }
 
+// Resolve a ranked division from the current room or the last native ranked entry action
+function getRankedRelogDestinationType() {
+    const roomName = lobby.inLobby ? lobby.settings.roomName : quiz.quizDescription?.roomName;
+    const type = roomName?.trim().toLowerCase();
+    if (type === "ranked novice" || type === "ranked expert") return type;
+    if (rankedDivisionId === ranked.RANKED_TYPE_IDS.NOVICE) return "ranked novice";
+    if (rankedDivisionId === ranked.RANKED_TYPE_IDS.EXPERT) return "ranked expert";
+}
+
 // Log out, log in, and rejoin the room you were in
 async function relog() {
     cancelRejoin();
     cancelAutoStart();
     let destination = {};
     if (isSoloMode()) {
-        destination = { type: "solo", rejoin: quiz.inQuiz, settings: hostModal.getSettings(true) };
+        const rejoin = quiz.inQuiz || (battleRoyal.inView && !battleRoyal.isSpectator);
+        destination = { type: "solo", rejoin, settings: hostModal.getSettings(true) };
     }
     else if (isRankedMode()) {
-        destination = { type: hostModal.$roomName.val().toLowerCase(), rejoin: quiz.inQuiz && !quiz.isSpectator };
+        if (quiz.inQuiz && !quiz.isSpectator) {
+            destination = { rejoin: true };
+        }
+        else {
+            const type = getRankedRelogDestinationType();
+            if (!type) {
+                sendSystemMessage("Could not determine the ranked division for relog.");
+                return;
+            }
+            destination = { type };
+        }
     }
     else if (isThemedMode()) {
         destination = { type: "themed", rejoin: quiz.inQuiz && !quiz.isSpectator };
@@ -7691,13 +7728,18 @@ async function relog() {
         };
     }
     else if (quiz.inQuiz || battleRoyal.inView) {
-        const invite = await requestOwnGameInvite();
-        destination = {
-            type: "multiplayer",
-            id: invite.gameId,
-            password: hostModal.$passwordInput.val(),
-            rejoin: !quiz.isSpectator,
-        };
+        const spectator = battleRoyal.inView ? battleRoyal.isSpectator : quiz.isSpectator;
+        if (spectator) {
+            const invite = await requestOwnGameInvite();
+            destination = {
+                type: "multiplayer",
+                id: invite.gameId,
+                password: hostModal.$passwordInput.val(),
+            };
+        }
+        else {
+            destination = { rejoin: true };
+        }
     }
     else if (nexus.inNexusLobby) {
         destination.type = "nexus solo";
@@ -7712,8 +7754,15 @@ async function relog() {
         destination = { type: "nexus coop", rejoin: true };
     }
 
-    autoJoinRoom = { ...destination, temp: true, autoLogIn: true };
+    const savedDestination = decodeSavedAutoJoinRoom({ ...destination, temp: true, autoLogIn: true });
+    if (!savedDestination) {
+        sendSystemMessage("Could not save this room for relog.");
+        return;
+    }
+    const previousDestination = autoJoinRoom;
+    autoJoinRoom = savedDestination;
     if (!saveSettings()) {
+        autoJoinRoom = previousDestination;
         sendSystemMessage("Could not save the relog destination. Check the console for details.");
         return;
     }
@@ -7881,25 +7930,71 @@ function applyAvatarAnimationPreference() {
     }
 }
 
-// Wrap the client AFK timers so protection can be toggled without replacing their behavior
+// Recognize empty no-op overrides of the AFK timer methods
+function isEmptyFunction(method) {
+    const source = Function.prototype.toString.call(method).replace(/\s+/g, "");
+    return /^(?:\(\)=>|function(?:[\w$]+)?\(\))\{\}$/.test(source);
+}
+
+// Check the prototype as well as the instance, where our own wrappers can shadow it
+function hasExternalAfkOverride() {
+    const prototype = AfkKicker.prototype;
+    return isEmptyFunction(prototype.setupAfkTimeout)
+        || isEmptyFunction(prototype.setupHostTimeout)
+        || isEmptyFunction(afkKicker.setupAfkTimeout)
+        || isEmptyFunction(afkKicker.setupHostTimeout);
+}
+
+// Give the other script control of AFK handling for the rest of this page session
+function getNoAfkKickUnavailableReason() {
+    if (!noAfkKickUnavailable && hasExternalAfkOverride()) {
+        noAfkKickUnavailable = true;
+        if (releaseNoAfkKickHooks) {
+            releaseNoAfkKickHooks();
+            releaseNoAfkKickHooks = undefined;
+            if (noAfkKick) applyNoAfkKick(false);
+        }
+    }
+    if (noAfkKickUnavailable) {
+        return "Another script is overriding AMQ's AFK timers. Disable it to use No AFK Kick.";
+    }
+}
+
+// Wrap the client AFK timers when both are available so protection can be toggled
 function setupNoAfkKick() {
+    if (getNoAfkKickUnavailableReason()) return;
+
+    const afkTimeoutDescriptor = Object.getOwnPropertyDescriptor(afkKicker, "setupAfkTimeout");
+    const hostTimeoutDescriptor = Object.getOwnPropertyDescriptor(afkKicker, "setupHostTimeout");
     const originalSetupAfkTimeout = afkKicker.setupAfkTimeout;
-    afkKicker.setupAfkTimeout = function (...args) {
+    function setupAfkTimeout(...args) {
         if (noAfkKick) return;
         return originalSetupAfkTimeout.apply(this, args);
-    };
+    }
 
     const originalSetupHostTimeout = afkKicker.setupHostTimeout;
-    afkKicker.setupHostTimeout = function (...args) {
+    function setupHostTimeout(...args) {
         if (noAfkKick) return;
         return originalSetupHostTimeout.apply(this, args);
+    }
+    afkKicker.setupAfkTimeout = setupAfkTimeout;
+    afkKicker.setupHostTimeout = setupHostTimeout;
+    releaseNoAfkKickHooks = () => {
+        if (afkKicker.setupAfkTimeout === setupAfkTimeout) {
+            if (afkTimeoutDescriptor) Object.defineProperty(afkKicker, "setupAfkTimeout", afkTimeoutDescriptor);
+            else delete afkKicker.setupAfkTimeout;
+        }
+        if (afkKicker.setupHostTimeout === setupHostTimeout) {
+            if (hostTimeoutDescriptor) Object.defineProperty(afkKicker, "setupHostTimeout", hostTimeoutDescriptor);
+            else delete afkKicker.setupHostTimeout;
+        }
     };
     applyNoAfkKick();
 }
 
 // Cancel AFK kick timers and warnings, or restart normal timers when protection is disabled
-function applyNoAfkKick() {
-    if (noAfkKick) {
+function applyNoAfkKick(enabled = noAfkKick) {
+    if (enabled) {
         // AMQ owns this timer; Tampermonkey's clearTimeout only cancels userscript timers
         unsafeWindow.clearTimeout(afkKicker.afkWarningTimeout);
         afkKicker.afkWarningTimeout = null;
@@ -9020,20 +9115,29 @@ function joinStartupRoom() {
     }
 }
 
-// Wait for the matching rejoin prompt before accepting and clearing one-time navigation.
+// Accept the matching rejoin prompt once or silently expire the one-time request
 function confirmStartupRejoin(destination) {
     const nexusGame = destination.type === "nexus solo" || destination.type === "nexus coop";
     const titleKey = nexusGame ? "nexus.rejoin_prompt.title" : "quiz.rejoin_prompt.title";
     const observer = new MutationObserver(confirmRejoin);
-    function confirmRejoin() {
-        if (!Swal.isVisible()) return;
-        const title = localizationHandler.translate(titleKey);
-        if (Swal.getTitle().textContent !== title) return;
+    const expiry = setTimeout(stopWaiting, 10000);
+    function stopWaiting() {
+        clearTimeout(expiry);
         observer.disconnect();
-        if (destination.temp) {
+        if (destination.temp && autoJoinRoom === destination) {
             autoJoinRoom = false;
             saveSettings();
         }
+    }
+    function confirmRejoin() {
+        if (autoJoinRoom !== destination) {
+            stopWaiting();
+            return;
+        }
+        if (!Swal.isVisible()) return;
+        const title = localizationHandler.translate(titleKey);
+        if (Swal.getTitle().textContent !== title) return;
+        stopWaiting();
         Swal.clickConfirm();
     }
     observer.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ["class", "style"] });
@@ -9044,9 +9148,10 @@ function confirmStartupRejoin(destination) {
 function openSavedDestination(destination) {
     switch (destination.type) {
         case "solo":
-            hostModal.changeSettings(destination.settings);
-            hostModal.soloMode = true;
-            setTimeout(() => { roomBrowser.host(); }, 1);
+            hostModal.setModeHostGame(true);
+            hostModal.changeSettings({ ...destination.settings, roomName: destination.settings.roomName || "Solo" });
+            // Queue hosting on the same page timers that apply the native settings update
+            unsafeWindow.setTimeout(() => { roomBrowser.host(); }, 1);
             return;
         case "ranked novice":
             joinRanked("NOVICE");
@@ -9372,10 +9477,13 @@ function applyStyles() {
             cursor: pointer;
         }
         #mcActiveContainer .mcActiveButton:hover {
-            opacity: 0.65;
+            opacity: 0.8;
         }
         #mcActiveContainer .mcActiveButtonEnabled {
             background-color: #5cb85c;
+        }
+        #mcActiveContainer .mcActiveButtonUnavailable {
+            background-color: #6d6d6d;
         }
         .mcActiveInfo {
             flex-shrink: 0;
