@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.115
+// @version      0.116
 // @description  Play a simulated AMQ solo or multiplayer quiz with a custom song list
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -20,11 +20,10 @@ In multiplayer, a host runs the quiz and synchronizes players through room chat.
 How to start a custom song list game:
   1. Create a solo or multiplayer lobby (all players need this script)
   2. Click the CSL button in the top right
-  3. Click the autocomplete button if it is red
-  4. Create or upload a list in the song list tab
-  5. Change settings in the settings tab
-  6. Fix any invalid answers in the answer tab
-  7. Click start to play the quiz
+  3. Create or upload a list in the song list tab
+  4. Change settings in the settings tab
+  5. Fix any invalid answers in the answer tab
+  6. Click start to play the quiz
 
 Supported upload files:
   1. Anisongdb json
@@ -76,6 +75,7 @@ let difficultyRange = [0, 100];
 let fileHostOverride = 0;
 let animeListLower = new Set(); //store lowercase version for faster compare speed
 let autocompleteInput;
+let nextAutocompleteRequestAt = 0;
 let importRunning = false;
 let songListView = [];
 let searchController;
@@ -200,7 +200,11 @@ const CSL_LOBBY_COMMAND = Object.freeze({
     },
     VERSION: {
         command: "§CSL?V",
-        reply: () => `CSL version ${GM_info.script.version}`
+        reply: () => `CSL Version: ${GM_info.script.version}`
+    },
+    MESSAGES: {
+        command: "§CSL?M",
+        reply: () => `CSL Messages: ${showCSLMessages ? "Enabled" : "Disabled"}`
     }
 });
 
@@ -277,6 +281,7 @@ function setup() {
     window.addEventListener("amq:elodie-style-changed", applyStyles);
     cslController.install();
     createCslSettingsModal();
+    if (autoCompleteController.list.length) setCslAutocomplete(autoCompleteController.list);
     bindWindowControls();
     initializeSettingsControls();
     setupHotkeys();
@@ -1148,6 +1153,13 @@ function rebuildCslAutocomplete(names) {
     autocompleteInput = new AmqAwesomeplete(document.querySelector("#cslgNewAnswerInput"), { list: names }, true);
 }
 
+// Apply the shared catalog to CSL's answer editor and readiness controls
+function setCslAutocomplete(names) {
+    animeListLower = new Set(names.map(name => name.toLowerCase()));
+    rebuildCslAutocomplete(names);
+    createAnswerTable();
+}
+
 // Build the editor markup before binding its controls
 function createCslSettingsModal() {
     $("#lobbyPage .topMenuBar").append(`<div id="lnCustomSongListButton" class="clickAble topMenuButton topMenuMediumButton"><h3>CSL</h3></div>`);
@@ -1508,14 +1520,15 @@ function createCslSettingsModal() {
                             </div>
                             <h4 class="cslgSectionHeading cslgBlock">Prompt all players</h4>
                             <div class="cslgActions">
-                                <button id="cslgPromptAllAutocompleteButton" class="btn btn-default" type="button">Autocomplete</button><button id="cslgPromptAllVersionButton" class="btn btn-default" type="button">Version</button>
+                                <button id="cslgPromptAllAutocompleteButton" class="btn btn-default" type="button">Autocomplete</button>
+                                <button id="cslgPromptAllVersionButton" class="btn btn-default" type="button">Version</button>
+                                <button id="cslgPromptAllMessagesButton" class="btn btn-default" type="button">Messages</button>
                             </div>
                             <div class="cslgCheckGroup cslgBlock"><label class="cslgCheckbox"><input id="cslgShowCSLMessagesCheckbox" type="checkbox"> Show CSL messages</label></div>
                             <div class="cslgBlock"><label class="cslgField"><span>MAL client ID</span><input id="cslgMalClientIdInput" class="form-control" type="text" placeholder="MAL Client ID"></label></div>
                         </div>
                     </div>
                     <div class="modal-footer">
-                        <button id="cslgAutocompleteButton" class="btn btn-danger">Autocomplete</button>
                         <button id="cslgExitButton" class="btn btn-default" data-dismiss="modal">Exit</button>
                         <button id="cslgStartButton" class="btn btn-primary">Start</button>
                     </div>
@@ -1536,7 +1549,6 @@ function bindWindowControls() {
     bindSongListToolbarControls();
     bindQuizSettingsControls();
     bindMergedSongListControls();
-    bindAutocompleteButton();
     bindAnimeListImportControls();
     bindSongListTableControls();
     bindAnswerReplacementControls();
@@ -1742,35 +1754,6 @@ function bindMergedSongListControls() {
         });
 }
 
-// Obtain AMQ autocomplete by briefly running a native solo quiz
-function bindAutocompleteButton() {
-    $("#cslgAutocompleteButton").on("click", () => {
-        if (!lobby.soloMode) {
-            messageDisplayer.displayMessage("Autocomplete", "For multiplayer, just start the quiz normally and immediately lobby");
-            return;
-        }
-        closeSettingsModal();
-        socket.sendCommand({ type: "lobby", command: "start game" });
-        const autocompleteListener = new Listener("get all song names", () => {
-            autocompleteListener.unbindListener();
-            viewChanger.changeView("main");
-            setTimeout(() => {
-                hostModal.displayHostSolo();
-            }, 200);
-            setTimeout(() => {
-                const returnListener = new Listener("Host Game", () => {
-                    returnListener.unbindListener();
-                    if (songList.length) createAnswerTable();
-                    setTimeout(() => { openSettingsModal() }, 10);
-                });
-                returnListener.bindListener();
-                roomBrowser.host();
-            }, 400);
-        });
-        autocompleteListener.bindListener();
-    });
-}
-
 // Connect anime-list imports to the editor and JSON downloads
 function bindAnimeListImportControls() {
     $("#cslgListImportUsernameInput").on("keypress", (event) => {
@@ -1905,6 +1888,9 @@ function initializeSettingsControls() {
     $("#cslgPromptAllVersionButton").on("click", () => {
         cslController.promptLobby(CSL_LOBBY_COMMAND.VERSION);
     });
+    $("#cslgPromptAllMessagesButton").on("click", () => {
+        cslController.promptLobby(CSL_LOBBY_COMMAND.MESSAGES);
+    });
     $("#cslgMalClientIdInput").val(malClientId).on("change", function () {
         malClientId = this.value;
         saveSettings();
@@ -1928,7 +1914,6 @@ function registerScriptInfo() {
             </ul><b>How to start a custom song list game:</b>
                 <li>Create a solo or multiplayer lobby (all players need this script)</li>
                 <li>Click the CSL button in the top right</li>
-                <li>Click the autocomplete button if it is red</li>
                 <li>Create or upload a list in the song list tab</li>
                 <li>Change settings in the settings tab</li>
                 <li>Fix any invalid answers in the answer tab</li>
@@ -1954,7 +1939,7 @@ function validateStart() {
         return messageDisplayer.displayMessage("Unable to start", "No songs");
     }
     if (animeListLower.size === 0) {
-        return messageDisplayer.displayMessage("Unable to start", "Autocomplete list empty");
+        return messageDisplayer.displayMessage("Unable to start", "Waiting for AMQ autocomplete");
     }
     const numSongs = Number($("#cslgSettingsSongs").val());
     if (!Number.isInteger(numSongs) || numSongs < 1) {
@@ -2127,16 +2112,19 @@ function broadcastTypeFilter(song, dub, rebroadcast) {
     return true;
 }
 
-// Open custom song list settings modal
+// Open the editor and fetch autocomplete if CSL has no names yet
 function openSettingsModal() {
     if (!lobby.inLobby) return;
-    if (animeListLower.size) {
-        $("#cslgAutocompleteButton").removeClass("btn-danger").addClass("btn-success disabled");
-    }
     if ($("#cslgSongListModeSelect").val() === "Previous Game") {
         loadPreviousGameOptions();
     }
     $("#cslgSettingsModal").modal("show");
+    const now = performance.now();
+    if (animeListLower.size === 0 && now >= nextAutocompleteRequestAt) {
+        // Avoid requesting the full catalog twice when the window is reopened quickly.
+        nextAutocompleteRequestAt = now + 5000;
+        autoCompleteController.updateList();
+    }
 }
 
 // Close custom song list settings modal
@@ -2494,7 +2482,7 @@ function createAnswerTable() {
         return;
     }
     if (animeListLower.size === 0) {
-        $("#cslgAnswerText").text("Fetch autocomplete first");
+        $("#cslgAnswerText").text("Waiting for AMQ autocomplete");
         return;
     }
     const animeList = new Set();
@@ -3045,9 +3033,6 @@ function applyStyles() {
             margin-right: -10px;
             padding-right: 8px;
             float: right;
-        }
-        #cslgAutocompleteButton {
-            float: left;
         }
         #cslgSettingsModal .cslgToolbar, #cslgSettingsModal .cslgFields {
             display: flex;
@@ -4721,16 +4706,13 @@ class CslController {
 
     // Maintain answer-editor suggestions alongside AMQ's autocomplete updates
     bindAutocompleteListeners() {
-        bindGameListener("get all song names", data => {
-            animeListLower = new Set(data.names.map(name => name.toLowerCase()));
-            rebuildCslAutocomplete(data.names);
-        });
+        bindGameListener("get all song names", data => setCslAutocomplete(data.names));
         bindGameListener("update all song names", data => {
-            for (const name of data.deleted) animeListLower.delete(name.toLowerCase());
-            for (const name of data.new) animeListLower.add(name.toLowerCase());
-            if (!autocompleteInput || !(data.deleted.length || data.new.length)) return;
-            const remainingNames = autocompleteInput.options.list.filter(name => !data.deleted.includes(name));
-            rebuildCslAutocomplete(remainingNames.concat(data.new));
+            if (!(data.deleted.length || data.new.length)) return;
+            const deleted = new Set(data.deleted);
+            const names = autocompleteInput?.options.list ?? autoCompleteController.list;
+            const remainingNames = names.filter(name => !deleted.has(name));
+            setCslAutocomplete([...new Set([...remainingNames, ...data.new])]);
         });
     }
 
