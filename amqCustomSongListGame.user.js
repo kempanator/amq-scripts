@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Custom Song List Game
 // @namespace    https://github.com/kempanator
-// @version      0.116
+// @version      0.117
 // @description  Play a simulated AMQ solo or multiplayer quiz with a custom song list
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -4428,9 +4428,24 @@ class CslAmqAdapter {
         });
         const groups = {};
         players.forEach((player, index) => (groups[Math.floor(index / 8) + 1] ||= []).push(player.gamePlayerId));
+        const { settingStorage } = hostModal;
+        const serializer = settingStorage.serilizer;
+        const cslSerializer = Object.create(serializer);
+        // AMQ's settings code can only store 1,295 songs. Keep the full quiz settings and omit an unencodable history code.
+        cslSerializer.encode = (gameSettings, ...args) => {
+            try {
+                return serializer.encode(gameSettings, ...args);
+            }
+            catch (error) {
+                if (gameSettings !== settings) throw error;
+                console.warn("CSL: Could not encode settings for Song History", error);
+                return undefined;
+            }
+        };
         quiz.cslActive = true;
         const originalLobbySettings = lobby.settings;
         lobby.settings = settings;
+        settingStorage.serilizer = cslSerializer;
         this.controller.synthetic = true;
         try {
             fireListener("Game Starting", {
@@ -4444,9 +4459,11 @@ class CslAmqAdapter {
             });
         }
         finally {
+            settingStorage.serilizer = serializer;
             lobby.settings = originalLobbySettings;
             this.controller.synthetic = false;
         }
+        if (viewChanger.getCurrentView() !== "quiz") throw new Error("AMQ could not open the custom quiz");
         quiz.fullSongRange = session.config.fullSongRange;
     }
 
@@ -4920,6 +4937,21 @@ class CslController {
         this.transport.send(session, round, type, value, priority, done, replaceKey);
     }
 
+    // Discard a session when its local AMQ presentation fails to start
+    startSession(session, announce = false) {
+        this.session = session;
+        try {
+            session.start(announce);
+            return true;
+        }
+        catch (error) {
+            this.dispose();
+            if (announce) throw error;
+            sendSystemMessage(`Unable to open the custom quiz: ${error.message}`);
+            return false;
+        }
+    }
+
     // Start a fixed host plan without sharing the editable song array
     start(config, plan) {
         if (this.session) throw new Error("A custom quiz is already running");
@@ -4929,11 +4961,10 @@ class CslController {
         const roster = [...this.adapter.serverPlayers.values()].map(player => ({ id: player.gamePlayerId, name: player.name }));
         if (roster.length > CSL.maxPlayers) throw new Error(`CSL supports at most ${CSL.maxPlayers} players`);
         if (!this.validRoster(roster)) throw new Error("Invalid player roster");
-        this.session = new CslSession({
+        this.startSession(new CslSession({
             id: cslSessionId(), name: selfName, host: selfName, config, roster, plan, solo: this.adapter.originalSolo,
             emit: (...args) => this.emit(...args), hooks: this.hooks()
-        });
-        this.session.start(true);
+        }), true);
     }
 
     // Validate lobby announcements and nonce-bound recovery before creating a session
@@ -4976,11 +5007,10 @@ class CslController {
             this.discovery = null;
             this.syncNonce = "";
             this.transport.cancel(session);
-            this.session = new CslSession({
+            this.startSession(new CslSession({
                 id: session, name: selfName, host: sender, config: value.config, roster: value.roster,
                 emit: (...args) => this.emit(...args), hooks: this.hooks()
-            });
-            this.session.start();
+            }));
             return;
         }
         if (type === CSL_MESSAGE.SNAPSHOT) {
@@ -5033,11 +5063,11 @@ class CslController {
         }
         if (!this.session) {
             this.adapter.capture();
-            this.session = new CslSession({
+            const restoredSession = new CslSession({
                 id: session, name: selfName, host: sender, config: value.config, roster: value.players,
                 emit: (...args) => this.emit(...args), hooks: this.hooks()
             });
-            this.session.start();
+            if (!this.startSession(restoredSession)) return;
         }
         this.syncNonce = "";
         this.discovery = null;
