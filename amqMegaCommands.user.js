@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Mega Commands
 // @namespace    https://github.com/kempanator
-// @version      0.183
+// @version      0.184
 // @description  Commands for AMQ Chat
 // @author       kempanator
 // @match        https://*.animemusicquiz.com/*
@@ -6848,11 +6848,12 @@ function observeReorderEditor(name) {
     editor.observer.observe(document.querySelector(editor.container), { childList: true, subtree: true, characterData: true, attributeFilter: ["data-content", "data-html"] });
 }
 
-// Clear the fixed width after older scripts have had time to add their quiz buttons
+// Clear any inline width that older scripts set on the quiz bar.
 function setupQuizBarSizing() {
-    setTimeout(() => {
-        document.getElementById("qpOptionContainer").style.removeProperty("width");
-    }, 100);
+    const container = document.getElementById("qpOptionContainer");
+    const clearWidth = () => { if (container.style.width) container.style.removeProperty("width"); };
+    clearWidth();
+    new MutationObserver(clearWidth).observe(container, { attributeFilter: ["style"] });
 }
 
 // Keep the quality popup under its button after moves, visibility changes, and quiz-bar resizing
